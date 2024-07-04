@@ -1,9 +1,16 @@
 ---
-# Main Entry Point - Universal OrangeAd Configuration
-# This is now a simple wrapper around the universal playbook for backward compatibility
-# Recommended usage: Use playbooks/universal.yml directly or the new run-* scripts
+# Main Entry Point - Universal OrangeAd Infrastructure Automation
+# This serves as the primary entry point and routes to the universal playbook
+# 
+# Usage Examples:
+#   ansible-playbook main.yml -i inventory/f1-prod.yml
+#   ansible-playbook main.yml -i inventory/f1-prod.yml -t macos-api
+#   ansible-playbook main.yml -i inventory/f1-prod.yml -t tracker,security
+#
+# For advanced usage, you can also call universal.yml directly:
+#   ansible-playbook playbooks/universal.yml -i inventory/f1-prod.yml -t macos-api
 
-- name: OrangeAd Universal Configuration (Legacy Entry Point)
+- name: OrangeAd Universal Infrastructure Automation
   ansible.builtin.import_playbook: playbooks/universal.yml
-  # Note: Variables are passed through from command line via --extra-vars
-  # The universal.yml playbook already has sensible defaults for all variables
+  # All variables, tags, and extra-vars are automatically passed through to universal.yml
+  # The universal.yml playbook handles platform detection, component routing, and validation
