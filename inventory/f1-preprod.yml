@@ -1,20 +1,19 @@
 ---
 all:
   vars:
-    target_env: f1-preprod
-    project_name: f1
-    deployment_environment: preprod
+    # Ansible connection configuration
     ansible_python_interpreter: /usr/bin/python3
     ansible_connection: ssh
     ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
     ansible_ssh_pipelining: true
     ansible_become_method: sudo
 
-    # Runtime versions
-    python:
-      version: "3.11.11"
-    node:
-      version: "22.11.0"
+    # Runtime versions (standardized structure)
+    runtime:
+      python:
+        version: "3.11.11"
+      node:
+        version: "22.11.0"
 
     # Feature toggles
     configure:
@@ -22,10 +21,11 @@ all:
       pyenv: true
       node: true
 
-    # Environment-specific features
+    # Environment configuration (standardized single source of truth)
     oa_environment:
       name: "f1-preprod"
       project: "f1"
+      stage: "preprod"
       allow_experimental: false
       allow_server_optimizations: true
       allow_destructive_operations: false
