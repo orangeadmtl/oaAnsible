@@ -70,12 +70,27 @@ oaAnsible/
 
 ## 🚀 Quick Start
 
+> **🏗️ Monorepo Development**: This project is part of the oaPangaea monorepo. For the **recommended development approach**, see the [DEVELOPMENT.md](../DEVELOPMENT.md) guide which covers the standardized shared virtual environment workflow.
+
 ### Prerequisites
 
-1. **Ansible Installed**: Ensure Ansible Core is installed
-2. **Vault Password**: Set up vault password file for encrypted variables
-3. **SSH Access**: Configure SSH keys for target devices
-4. **Tailscale**: Devices should be connected to Tailscale network
+1. **Python 3.12+**: Managed via `pyenv` (recommended)
+2. **Ansible Core**: Installed in shared virtual environment: `uv pip install ansible-core`
+3. **Vault Password**: Set up vault password file for encrypted variables
+4. **SSH Access**: Configure SSH keys for target devices  
+5. **Tailscale**: Devices should be connected to Tailscale network
+
+### Monorepo Setup (Recommended)
+
+```bash
+# Navigate to monorepo root and setup shared environment
+cd ../
+uv venv && source .venv/bin/activate
+
+# Install Ansible and oaAnsible dependencies
+cd oaAnsible
+uv pip install ansible-core ansible-lint yamllint
+```
 
 ### Essential Commands
 
