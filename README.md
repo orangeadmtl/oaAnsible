@@ -11,19 +11,18 @@ oaAnsible/
 ├── main.yml
 ├── README.md
 ├── requirements.yml
+├── playbooks/
+│   └── macos.yml
 ├── roles/
 │   └── main/
 │       ├── tasks/
 │       │   ├── node.yml
 │       │   ├── pyenv.yml
-│       │   ├── ssh.yml
 │       │   ├── tailscale.yml
 │       │   ├── xcode.yml
 │       │   ├── firewall.yml
-│       │   ├── monitoring.yml
-│       │   └── macos.yml
+│       │   └── monitoring.yml
 │       └── templates/
-│           ├── sshd_config.j2
 │           ├── com.github.prometheus.node_exporter.plist.j2
 │           └── sudoers.j2
 └── tests/
@@ -38,19 +37,19 @@ oaAnsible/
    pip3 install ansible
    ```
 
-2. Make sure you have SSH access to the target macOS machines and the necessary SSH keys are in place.
+2. Make sure you have the necessary permissions to manage the target macOS machines remotely.
 
 ## Features
 
 This playbook configures the following on your macOS devices:
 
-- Install Homebrew packages and cask applications
-- Install Xcode Command Line Tools
+- Install Xcode Command Line Tools using `elliotweiser.osx-command-line-tools` role
+- Manage Homebrew, packages, and cask applications using `geerlingguy.mac.homebrew` role
+- Manage Mac App Store applications using `geerlingguy.mac.mas` role
+- Configure the Dock using `geerlingguy.mac.dock` role
 - Set up Python environment using pyenv
 - Configure Node.js and npm
-- Configure the Dock
 - Install and configure Tailscale for secure networking
-- Configure SSH for secure remote access
 - Set up macOS firewall rules
 - Install and configure monitoring tools
 - Configure macOS-specific settings
@@ -61,7 +60,7 @@ This playbook configures the following on your macOS devices:
 1. Clone this repository:
 
    ```sh
-   git clone https://github.com/your-repo/oaAnsible.git
+   git clone https://github.com/oa-device/oaAnsible.git
    cd oaAnsible
    ```
 
@@ -78,20 +77,31 @@ This playbook configures the following on your macOS devices:
 5. Run the playbook:
 
    ```sh
-   ansible-playbook -i inventory main.yml
+   ansible-playbook -i inventory playbooks/macos.yml
    ```
 
    If you need to enter a sudo password, use the `-K` flag:
 
    ```sh
-   ansible-playbook -i inventory main.yml -K
+   ansible-playbook -i inventory playbooks/macos.yml -K
    ```
 
    You can also use tags to run specific parts of the playbook:
 
    ```sh
-   ansible-playbook -i inventory main.yml -K --tags "homebrew,python,node"
+   ansible-playbook -i inventory playbooks/macos.yml -K --tags "homebrew,python,node"
    ```
+
+## Roles
+
+This playbook uses the following roles:
+
+- `elliotweiser.osx-command-line-tools`: Installs Xcode Command Line Tools.
+- `geerlingguy.mac.homebrew`: Manages Homebrew installation and package management.
+- `geerlingguy.mac.mas`: Manages Mac App Store application installation.
+- `geerlingguy.mac.dock`: Manages the macOS Dock configuration.
+
+These roles are automatically installed when you run `ansible-galaxy install -r requirements.yml`.
 
 ## Customization
 
@@ -103,12 +113,12 @@ You can override any of the defaults configured in `default.config.yml` by creat
 
 To test the playbook:
 
-1. Ensure your SSH key is properly set up for the test machine (b3).
+1. Ensure you have the necessary permissions to manage the test machine (b3) remotely.
 
 2. Run a dry run with the `--check` flag:
 
    ```sh
-   ansible-playbook -i inventory main.yml -K --check
+   ansible-playbook -i inventory playbooks/macos.yml -K --check
    ```
 
    This will simulate the playbook execution without making any changes.
@@ -118,7 +128,7 @@ To test the playbook:
 If you encounter any errors during the playbook run, the output will provide information about where the failure occurred. You can increase verbosity with the `-v` flag (up to `-vvvv`) for more detailed output:
 
 ```sh
-ansible-playbook -i inventory main.yml -K -v
+ansible-playbook -i inventory playbooks/macos.yml -K -v
 ```
 
 ## License
@@ -127,4 +137,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-This project is inspired by [geerlingguy/mac-dev-playbook](https://github.com/geerlingguy/mac-dev-playbook).
+This project is inspired by [geerlingguy/mac-dev-playbook](https://github.com/geerlingguy/mac-dev-playbook) and uses roles from [Jeff Geerling](https://github.com/geerlingguy) and [Elliot Weiser](https://github.com/elliotweiser).

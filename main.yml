@@ -39,10 +39,6 @@
 
     - name: Configure system and security
       block:
-        - import_tasks: roles/main/tasks/ssh.yml
-          when: configure_ssh | default(true)
-          tags: ['ssh']
-
         - import_tasks: roles/main/tasks/firewall.yml
           when: configure_firewall | default(true)
           tags: ['firewall']
