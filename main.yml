@@ -1,5 +1,6 @@
 ---
-- hosts: all
+- name: Configure macOS for OrangeAd
+  hosts: all
   become: yes
 
   vars_files:
@@ -12,13 +13,67 @@
         - "{{ playbook_dir }}/config.yml"
       when: item | length > 0
 
-  tasks:
-    - import_tasks: tasks/homebrew.yml
-    - import_tasks: tasks/pyenv.yml
-    - import_tasks: tasks/node.yml
-    - import_tasks: tasks/tailscale.yml
-    - import_tasks: tasks/xcode.yml
-
   roles:
-    - geerlingguy.mac.homebrew
-    - geerlingguy.mac.mas
+    - role: elliotweiser.osx-command-line-tools
+      tags: ['osx', 'command-line-tools']
+    - role: geerlingguy.mac.homebrew
+      tags: ['homebrew']
+    - role: geerlingguy.mac.dock
+      when: configure_dock
+      tags: ['dock']
+
+  tasks:
+    - name: Configure development environment
+      block:
+        - import_tasks: roles/main/tasks/pyenv.yml
+          when: configure_pyenv | default(true)
+          tags: ['python']
+
+        - import_tasks: roles/main/tasks/node.yml
+          when: configure_node | default(true)
+          tags: ['node']
+
+        - import_tasks: roles/main/tasks/xcode.yml
+          when: configure_xcode | default(true)
+          tags: ['xcode']
+
+    - name: Configure system and security
+      block:
+        - import_tasks: roles/main/tasks/ssh.yml
+          when: configure_ssh | default(true)
+          tags: ['ssh']
+
+        - import_tasks: roles/main/tasks/firewall.yml
+          when: configure_firewall | default(true)
+          tags: ['firewall']
+
+        - import_tasks: roles/main/tasks/tailscale.yml
+          when: configure_tailscale | default(true)
+          tags: ['tailscale']
+
+        - name: Configure sudoers
+          ansible.builtin.template:
+            src: roles/main/templates/sudoers.j2
+            dest: /etc/sudoers.d/custom
+            validate: 'visudo -cf %s'
+          when: configure_sudoers | default(true)
+          tags: ['sudoers']
+
+    - name: Configure monitoring
+      import_tasks: roles/main/tasks/monitoring.yml
+      when: install_monitoring_tools | default(true)
+      tags: ['monitoring']
+
+    - name: Configure macOS specific settings
+      import_tasks: roles/main/tasks/osx.yml
+      when: configure_osx | default(true)
+      tags: ['osx']
+
+    - name: Run post-provision tasks
+      block:
+        - name: Run configured post-provision ansible task files
+          include_tasks: "{{ outer_item }}"
+          loop_control:
+            loop_var: outer_item
+          with_fileglob: "{{ post_provision_tasks | default(omit) }}"
+      tags: ['post']

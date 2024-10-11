@@ -1,0 +1,16 @@
+---
+# Handler to restart SSH service
+- name: Restart SSH service
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+
+# Handler to restart firewall service
+- name: Restart firewall service
+  ansible.builtin.command: "{{ firewall_command }} --reload"
+
+# Handler to restart Node Exporter service
+- name: Restart Node Exporter service
+  ansible.builtin.systemd:
+    name: node_exporter
+    state: restarted

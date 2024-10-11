@@ -1,0 +1,58 @@
+---
+# Install and configure pyenv and Python
+- name: Configure pyenv and Python
+  block:
+    # Check if pyenv is already installed
+    - name: Check if pyenv is installed
+      ansible.builtin.stat:
+        path: "{{ ansible_env.HOME }}/.pyenv"
+      register: pyenv_install
+
+    # Install pyenv if not already installed
+    - name: Install pyenv
+      ansible.builtin.git:
+        repo: https://github.com/pyenv/pyenv.git
+        dest: "{{ ansible_env.HOME }}/.pyenv"
+        version: master
+        update: yes
+      when: not pyenv_install.stat.exists
+
+    # Add pyenv to PATH
+    - name: Add pyenv to PATH
+      ansible.builtin.lineinfile:
+        dest: "{{ ansible_env.HOME }}/.bash_profile"
+        line: 'export PATH="$HOME/.pyenv/bin:$PATH"'
+        create: yes
+      
+    # Initialize pyenv
+    - name: Initialize pyenv
+      ansible.builtin.lineinfile:
+        dest: "{{ ansible_env.HOME }}/.bash_profile"
+        line: 'eval "$(pyenv init -)"'
+        create: yes
+
+    # Install specific Python version
+    - name: Install Python version
+      ansible.builtin.shell: |
+        export PYENV_ROOT="$HOME/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        eval "$(pyenv init -)"
+        pyenv install {{ pyenv_default_version }} -s
+        pyenv global {{ pyenv_default_version }}
+      args:
+        executable: /bin/bash
+      register: pyenv_install_result
+      changed_when: "'already installed' not in pyenv_install_result.stderr"
+
+    # Rehash pyenv
+    - name: Rehash pyenv
+      ansible.builtin.shell: |
+        export PYENV_ROOT="$HOME/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        eval "$(pyenv init -)"
+        pyenv rehash
+      args:
+        executable: /bin/bash
+
+  when: configure_pyenv | bool
+  # This entire block will only run if configure_pyenv is set to true in default.config.yml

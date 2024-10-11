@@ -6,27 +6,75 @@
     - ../config.yml
 
   tasks:
-    - name: Install Homebrew
-      shell: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    - name: Install Xcode Command Line Tools
+      command: xcode-select --install
       args:
-        creates: /usr/local/bin/brew
+        creates: /Library/Developer/CommandLineTools
+      become: false
+
+    - name: Check if full Xcode is installed
+      stat:
+        path: /Applications/Xcode.app
+      register: xcode_app
+
+    - name: Accept Xcode license
+      command: xcodebuild -license accept
+      become: true
+      when: xcode_app.stat.exists
+
+    - name: Check if Homebrew is installed
+      stat:
+        path: "{{ item }}"
+      loop:
+        - /usr/local/bin/brew
+        - /opt/homebrew/bin/brew
+      register: homebrew_check
+
+    - name: Set Homebrew installed fact
+      set_fact:
+        homebrew_installed: "{{ homebrew_check.results | map(attribute='stat.exists') | select('equalto', true) | list | length > 0 }}"
+
+    - name: Install Homebrew
+      shell: |
+        set -x
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      when: not homebrew_installed
+      become: false
+      become_user: admin
+      register: homebrew_install_result
+      async: 600
+      poll: 10
+
+    - name: Debug Homebrew installation
+      debug:
+        var: homebrew_install_result
+      when: not homebrew_installed
 
     - name: Install common packages
       homebrew:
         name: "{{ item }}"
         state: present
       loop: "{{ common_packages }}"
+      become: false
+      become_user: admin
+      when: homebrew_installed
 
     - name: Install MacOS-specific packages
       homebrew:
         name: "{{ item }}"
         state: present
       loop: "{{ macos_packages }}"
+      become: false
+      become_user: admin
+      when: homebrew_installed
 
     - name: Install applications via Homebrew Cask
       homebrew_cask:
         name: "{{ item }}"
         state: present
       loop: "{{ macos_applications }}"
+      become: false
+      become_user: admin
+      when: homebrew_installed
 
     # Add more MacOS-specific tasks here

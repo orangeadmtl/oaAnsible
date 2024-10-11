@@ -1,0 +1,43 @@
+---
+# Include OS-specific variables
+- name: Include OS-specific variables
+  include_vars: "{{ ansible_distribution }}.yml"
+
+# Import other task files
+- import_tasks: node.yml
+- import_tasks: pyenv.yml
+- import_tasks: tailscale.yml
+- import_tasks: xcode.yml
+- import_tasks: ssh.yml
+- import_tasks: firewall.yml
+- import_tasks: monitoring.yml
+
+# Enable automatic updates (MacOS only)
+- name: Enable automatic updates
+  ansible.builtin.command: softwareupdate --schedule on
+  when: 
+    - configure_automatic_updates | bool
+    - ansible_distribution == 'MacOSX'
+
+# Install and configure backup
+- name: Install and configure backup
+  block:
+    - name: Install restic backup tool
+      ansible.builtin.package:
+        name: restic
+        state: present
+  when: configure_backups | bool
+
+# Tune system performance
+- name: Tune system performance
+  block:
+    - name: Update sysctl parameters
+      ansible.builtin.sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+      loop:
+        - { key: "net.core.somaxconn", value: "65535" }
+        - { key: "net.ipv4.tcp_max_syn_backlog", value: "65535" }
+        - { key: "net.ipv4.tcp_syncookies", value: "1" }
+  when: tune_system_performance | bool

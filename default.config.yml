@@ -1,21 +1,73 @@
 ---
+# Homebrew Configuration
 homebrew_installed_packages:
   - git
   - node
   - nvm
   - pyenv
-  - xcode-select
+  - wget
+  - jq
+  - htop
 
+homebrew_cask_appdir: /Applications
 homebrew_cask_apps:
+  - orbstack
   - google-chrome
 
+# Development Environment Configuration
 configure_pyenv: true
-pyenv_default_version: "3.10"
+pyenv_default_version: "3.10.11"
 
 configure_node: true
 node_version: "20.18.0"
 
+configure_xcode: true
+
+# System Configuration
+configure_osx: true
+osx_script: "~/.osx --no-restart"
+
+configure_ssh: true
+ssh_port: 22
+permit_root_login: "yes"
+password_authentication: "yes"
+
+configure_firewall: true
+open_ports:
+  - 22 # SSH
+  - 80 # HTTP
+  - 443 # HTTPS
+  - 5900 # VNC (Screen Sharing)
+
+configure_automatic_updates: true
+
+# Networking Configuration
 configure_tailscale: true
 tailscale_version: "1.76.0"
 
-configure_xcode: true
+# Monitoring Configuration
+install_monitoring_tools: true
+monitoring_tools:
+  - node_exporter
+  - prometheus
+
+# Dock Configuration
+configure_dock: true
+dockitems_remove:
+  - Launchpad
+  - TV
+  - Podcasts
+  - 'App Store'
+dockitems_persist:
+  - name: "Google Chrome"
+    path: "/Applications/Google Chrome.app/"
+    pos: 1
+  - name: "Orbstack"
+    path: "/Applications/Orbstack.app/"
+    pos: 2
+
+# Sudoers Configuration
+configure_sudoers: true
+sudoers_custom_config: |
+  # Allow users in admin group to use sudo without password
+  %admin ALL=(ALL) NOPASSWD: ALL
