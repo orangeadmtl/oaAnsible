@@ -1,0 +1,21 @@
+---
+homebrew_installed_packages:
+  - git
+  - node
+  - nvm
+  - pyenv
+  - xcode-select
+
+homebrew_cask_apps:
+  - google-chrome
+
+configure_pyenv: true
+pyenv_default_version: "3.10"
+
+configure_node: true
+node_version: "20.18.0"
+
+configure_tailscale: true
+tailscale_version: "1.76.0"
+
+configure_xcode: true

@@ -1,0 +1,5 @@
+[macos]
+b3 ansible_host=b3 ansible_user=admin
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3

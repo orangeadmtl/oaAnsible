@@ -1,0 +1,24 @@
+---
+- hosts: all
+  become: yes
+
+  vars_files:
+    - default.config.yml
+
+  pre_tasks:
+    - name: Include custom config
+      include_vars: "{{ item }}"
+      with_fileglob:
+        - "{{ playbook_dir }}/config.yml"
+      when: item | length > 0
+
+  tasks:
+    - import_tasks: tasks/homebrew.yml
+    - import_tasks: tasks/pyenv.yml
+    - import_tasks: tasks/node.yml
+    - import_tasks: tasks/tailscale.yml
+    - import_tasks: tasks/xcode.yml
+
+  roles:
+    - geerlingguy.mac.homebrew
+    - geerlingguy.mac.mas
