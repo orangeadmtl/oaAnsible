@@ -15,7 +15,7 @@
 # Enable automatic updates (MacOS only)
 - name: Enable automatic updates
   ansible.builtin.command: softwareupdate --schedule on
-  when: 
+  when:
     - configure_automatic_updates | bool
     - ansible_distribution == 'MacOSX'
 
@@ -27,17 +27,3 @@
         name: restic
         state: present
   when: configure_backups | bool
-
-# Tune system performance
-- name: Tune system performance
-  block:
-    - name: Update sysctl parameters
-      ansible.builtin.sysctl:
-        name: "{{ item.key }}"
-        value: "{{ item.value }}"
-        state: present
-      loop:
-        - { key: "net.core.somaxconn", value: "65535" }
-        - { key: "net.ipv4.tcp_max_syn_backlog", value: "65535" }
-        - { key: "net.ipv4.tcp_syncookies", value: "1" }
-  when: tune_system_performance | bool
