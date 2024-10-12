@@ -27,6 +27,7 @@ graph LR
         E[geerlingguy.mac.homebrew]:::role
         F[geerlingguy.mac.mas]:::role
         G[geerlingguy.mac.dock]:::role
+        Z[Custom Role: main]:::role
     end
 
     subgraph Main Tasks
@@ -61,6 +62,7 @@ graph LR
     B --> E
     B --> F
     B --> G
+    B --> Z
 
     C --> H
     C --> I
@@ -91,6 +93,7 @@ graph LR
 4. **Roles**:
 
    - External roles for command-line tools, Homebrew, Mac App Store, and Dock configuration.
+   - Custom role 'main' for project-specific tasks.
 
 5. **Main Tasks**:
 
@@ -107,4 +110,21 @@ graph LR
 8. **Templates**:
    - Jinja2 templates used to generate configuration files on the target machine.
 
-This improved diagram provides a clearer visual representation of your Ansible project's structure and workflow, with distinct sections and color-coding for different types of components.
+## Role Management
+
+The project uses a combination of external roles (installed via ansible-galaxy) and a custom role:
+
+1. **External Roles**:
+
+   - Installed using `ansible-galaxy install -r requirements.yml`
+   - Located in the `roles/` directory
+   - Not tracked in Git (ignored via .gitignore)
+
+2. **Custom Role 'main'**:
+   - Located in `roles/main/`
+   - Tracked in Git
+   - Contains project-specific tasks and configurations
+
+The `.gitignore` file is configured to ignore all contents of the `roles/` directory except for the `main/` subdirectory. This setup allows for easy management of both external and custom roles while keeping version control focused on project-specific code.
+
+This improved diagram and explanation provide a clear visual representation of your Ansible project's structure and workflow, with distinct sections and color-coding for different types of components, including the management of custom and external roles.

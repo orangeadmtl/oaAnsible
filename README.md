@@ -103,6 +103,14 @@ This playbook uses the following roles:
 
 These roles are automatically installed when you run `ansible-galaxy install -r requirements.yml`.
 
+### Custom Roles
+
+The project includes a custom role named `main` located in the `roles/main/` directory. This role is tracked in Git and contains tasks specific to the OrangeAd project setup.
+
+### External Roles
+
+External roles installed via `ansible-galaxy` will be placed in the `roles/` directory but are not tracked in Git. The `.gitignore` file is configured to ignore all contents of the `roles/` directory except for the `main/` subdirectory.
+
 ## Customization
 
 ### Configuration Overrides
