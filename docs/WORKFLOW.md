@@ -39,7 +39,6 @@ graph LR
         I[pyenv.yml]:::task
         J[tailscale.yml]:::task
         K[xcode.yml]:::task
-        L[firewall.yml]:::task
         M[monitoring.yml]:::task
     end
 
@@ -68,7 +67,6 @@ graph LR
     C --> I
     C --> J
     C --> K
-    C --> L
     C --> M
 
     R --> C

@@ -15,55 +15,51 @@
 
   roles:
     - role: elliotweiser.osx-command-line-tools
-      tags: ['osx', 'command-line-tools']
+      tags: ["osx", "command-line-tools"]
     - role: geerlingguy.mac.homebrew
-      tags: ['homebrew']
+      tags: ["homebrew"]
     - role: geerlingguy.mac.dock
       when: configure_dock
-      tags: ['dock']
+      tags: ["dock"]
 
   tasks:
     - name: Configure development environment
       block:
         - import_tasks: roles/main/tasks/pyenv.yml
           when: configure_pyenv | default(true)
-          tags: ['python']
+          tags: ["python"]
 
         - import_tasks: roles/main/tasks/node.yml
           when: configure_node | default(true)
-          tags: ['node']
+          tags: ["node"]
 
         - import_tasks: roles/main/tasks/xcode.yml
           when: configure_xcode | default(true)
-          tags: ['xcode']
+          tags: ["xcode"]
 
     - name: Configure system and security
       block:
-        - import_tasks: roles/main/tasks/firewall.yml
-          when: configure_firewall | default(true)
-          tags: ['firewall']
-
-        - import_tasks: roles/main/tasks/tailscale.yml
-          when: configure_tailscale | default(true)
-          tags: ['tailscale']
-
         - name: Configure sudoers
           ansible.builtin.template:
             src: roles/main/templates/sudoers.j2
             dest: /etc/sudoers.d/custom
-            validate: 'visudo -cf %s'
+            validate: "visudo -cf %s"
           when: configure_sudoers | default(true)
-          tags: ['sudoers']
+          tags: ["sudoers"]
+
+        - import_tasks: roles/main/tasks/tailscale.yml
+          when: configure_tailscale | default(true)
+          tags: ["tailscale"]
 
     - name: Configure monitoring
       import_tasks: roles/main/tasks/monitoring.yml
       when: install_monitoring_tools | default(true)
-      tags: ['monitoring']
+      tags: ["monitoring"]
 
     - name: Configure macOS specific settings
       import_tasks: roles/main/tasks/osx.yml
       when: configure_osx | default(true)
-      tags: ['osx']
+      tags: ["osx"]
 
     - name: Run post-provision tasks
       block:
@@ -72,4 +68,4 @@
           loop_control:
             loop_var: outer_item
           with_fileglob: "{{ post_provision_tasks | default(omit) }}"
-      tags: ['post']
+      tags: ["post"]

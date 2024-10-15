@@ -1,8 +1,4 @@
 ---
-# Handler to restart firewall service
-- name: Restart firewall service
-  ansible.builtin.command: "{{ firewall_command }} --reload"
-
 # Handler to restart Node Exporter service
 - name: Restart Node Exporter service
   ansible.builtin.systemd:

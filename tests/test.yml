@@ -15,35 +15,31 @@
 
   roles:
     - role: geerlingguy.mac.homebrew
-      tags: ['homebrew']
+      tags: ["homebrew"]
     - role: main
-      tags: ['main']
+      tags: ["main"]
 
   tasks:
     - import_tasks: ../roles/main/tasks/pyenv.yml
       when: configure_pyenv | default(true)
-      tags: ['python']
+      tags: ["python"]
 
     - import_tasks: ../roles/main/tasks/node.yml
       when: configure_node | default(true)
-      tags: ['node']
+      tags: ["node"]
 
     - import_tasks: ../roles/main/tasks/tailscale.yml
       when: configure_tailscale | default(true)
-      tags: ['tailscale']
+      tags: ["tailscale"]
 
     - import_tasks: ../roles/main/tasks/xcode.yml
       when: configure_xcode | default(true)
-      tags: ['xcode']
-
-    - import_tasks: ../roles/main/tasks/firewall.yml
-      when: configure_firewall | default(true)
-      tags: ['firewall']
+      tags: ["xcode"]
 
     - import_tasks: ../roles/main/tasks/monitoring.yml
       when: install_monitoring_tools | default(true)
-      tags: ['monitoring']
+      tags: ["monitoring"]
 
     - import_tasks: ../roles/main/tasks/osx.yml
       when: configure_osx | default(true)
-      tags: ['osx']
+      tags: ["osx"]

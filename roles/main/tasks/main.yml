@@ -8,7 +8,6 @@
 - import_tasks: pyenv.yml
 - import_tasks: tailscale.yml
 - import_tasks: xcode.yml
-- import_tasks: firewall.yml
 - import_tasks: monitoring.yml
 
 # Enable automatic updates (MacOS only)

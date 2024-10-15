@@ -27,7 +27,6 @@ configure_xcode: true
 configure_osx: true
 osx_script: "~/.osx --no-restart"
 
-configure_firewall: true
 open_ports:
   - 22 # SSH
   - 80 # HTTP

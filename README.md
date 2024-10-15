@@ -20,7 +20,6 @@ oaAnsible/
 │       │   ├── pyenv.yml
 │       │   ├── tailscale.yml
 │       │   ├── xcode.yml
-│       │   ├── firewall.yml
 │       │   └── monitoring.yml
 │       └── templates/
 │           ├── com.github.prometheus.node_exporter.plist.j2
@@ -50,7 +49,6 @@ This playbook configures the following on your macOS devices:
 - Set up Python environment using pyenv
 - Configure Node.js and npm
 - Install and configure Tailscale for secure networking
-- Set up macOS firewall rules
 - Install and configure monitoring tools
 - Configure macOS-specific settings
 - Configure sudoers
