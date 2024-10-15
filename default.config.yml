@@ -27,11 +27,6 @@ configure_xcode: true
 configure_osx: true
 osx_script: "~/.osx --no-restart"
 
-configure_ssh: true
-ssh_port: 22
-permit_root_login: "yes"
-password_authentication: "yes"
-
 configure_firewall: true
 open_ports:
   - 22 # SSH

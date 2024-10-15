@@ -36,10 +36,6 @@
       when: configure_xcode | default(true)
       tags: ['xcode']
 
-    - import_tasks: ../roles/main/tasks/ssh.yml
-      when: configure_ssh | default(true)
-      tags: ['ssh']
-
     - import_tasks: ../roles/main/tasks/firewall.yml
       when: configure_firewall | default(true)
       tags: ['firewall']
