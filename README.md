@@ -11,18 +11,14 @@ oaAnsible/
 ├── main.yml
 ├── README.md
 ├── requirements.yml
-├── playbooks/
-│   └── macos.yml
 ├── roles/
 │   └── main/
 │       ├── tasks/
 │       │   ├── node.yml
 │       │   ├── pyenv.yml
 │       │   ├── tailscale.yml
-│       │   ├── xcode.yml
-│       │   └── monitoring.yml
+│       │   └── xcode.yml
 │       └── templates/
-│           ├── com.github.prometheus.node_exporter.plist.j2
 │           └── sudoers.j2
 └── tests/
     └── test.yml
@@ -43,14 +39,9 @@ oaAnsible/
 This playbook configures the following on your macOS devices:
 
 - Install Xcode Command Line Tools using `elliotweiser.osx-command-line-tools` role
-- Manage Homebrew, packages, and cask applications using `geerlingguy.mac.homebrew` role
-- Manage Mac App Store applications using `geerlingguy.mac.mas` role
-- Configure the Dock using `geerlingguy.mac.dock` role
 - Set up Python environment using pyenv
-- Configure Node.js and npm
+- Configure Node.js and npm using NVM
 - Install and configure Tailscale for secure networking
-- Install and configure monitoring tools
-- Configure macOS-specific settings
 - Configure sudoers
 
 ## Usage
@@ -66,7 +57,7 @@ This playbook configures the following on your macOS devices:
 
 3. Review and modify the `default.config.yml` file to suit your needs. This file contains all the configurable options for the playbook.
 
-4. Install required roles and collections:
+4. Install required roles:
 
    ```sh
    ansible-galaxy install -r requirements.yml
@@ -75,45 +66,32 @@ This playbook configures the following on your macOS devices:
 5. Run the playbook:
 
    ```sh
-   ansible-playbook -i inventory playbooks/macos.yml
+   ansible-playbook main.yml -K
    ```
 
-   If you need to enter a sudo password, use the `-K` flag:
-
-   ```sh
-   ansible-playbook -i inventory playbooks/macos.yml -K
-   ```
+   The `-K` flag prompts for the SUDO password.
 
    You can also use tags to run specific parts of the playbook:
 
    ```sh
-   ansible-playbook -i inventory playbooks/macos.yml -K --tags "homebrew,python,node"
+   ansible-playbook main.yml -K --tags "python,node"
    ```
 
 ## Roles
 
-This playbook uses the following roles:
+This playbook uses the following role:
 
 - `elliotweiser.osx-command-line-tools`: Installs Xcode Command Line Tools.
-- `geerlingguy.mac.homebrew`: Manages Homebrew installation and package management.
-- `geerlingguy.mac.mas`: Manages Mac App Store application installation.
-- `geerlingguy.mac.dock`: Manages the macOS Dock configuration.
 
-These roles are automatically installed when you run `ansible-galaxy install -r requirements.yml`.
+This role is automatically installed when you run `ansible-galaxy install -r requirements.yml`.
 
-### Custom Roles
+### Custom Tasks
 
-The project includes a custom role named `main` located in the `roles/main/` directory. This role is tracked in Git and contains tasks specific to the OrangeAd project setup.
-
-### External Roles
-
-External roles installed via `ansible-galaxy` will be placed in the `roles/` directory but are not tracked in Git. The `.gitignore` file is configured to ignore all contents of the `roles/` directory except for the `main/` subdirectory.
+The project includes custom tasks for setting up pyenv, Node.js (via NVM), Tailscale, and configuring sudoers. These tasks are defined in the `roles/main/tasks/` directory.
 
 ## Customization
 
-### Configuration Overrides
-
-You can override any of the defaults configured in `default.config.yml` by creating a `config.yml` file and setting the overrides in that file.
+You can customize the playbook by modifying the `default.config.yml` file. This file contains variables that control various aspects of the setup, such as Python and Node.js versions.
 
 ## Testing
 
@@ -124,7 +102,7 @@ To test the playbook:
 2. Run a dry run with the `--check` flag:
 
    ```sh
-   ansible-playbook -i inventory playbooks/macos.yml -K --check
+   ansible-playbook main.yml -K --check
    ```
 
    This will simulate the playbook execution without making any changes.
@@ -134,7 +112,7 @@ To test the playbook:
 If you encounter any errors during the playbook run, the output will provide information about where the failure occurred. You can increase verbosity with the `-v` flag (up to `-vvvv`) for more detailed output:
 
 ```sh
-ansible-playbook -i inventory playbooks/macos.yml -K -v
+ansible-playbook main.yml -K -v
 ```
 
 ## License

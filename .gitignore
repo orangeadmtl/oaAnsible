@@ -1,6 +1,7 @@
 *.vagrant
 .DS_Store
 *.retry
+*.log
 
 # Ignore everything in roles directory
 roles/*

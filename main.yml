@@ -6,21 +6,9 @@
   vars_files:
     - default.config.yml
 
-  pre_tasks:
-    - name: Include custom config
-      include_vars: "{{ item }}"
-      with_fileglob:
-        - "{{ playbook_dir }}/config.yml"
-      when: item | length > 0
-
   roles:
     - role: elliotweiser.osx-command-line-tools
       tags: ["osx", "command-line-tools"]
-    - role: geerlingguy.mac.homebrew
-      tags: ["homebrew"]
-    - role: geerlingguy.mac.dock
-      when: configure_dock
-      tags: ["dock"]
 
   tasks:
     - name: Configure development environment
@@ -47,25 +35,26 @@
           when: configure_sudoers | default(true)
           tags: ["sudoers"]
 
-        - import_tasks: roles/main/tasks/tailscale.yml
-          when: configure_tailscale | default(true)
+        - name: Check if Tailscale is already installed
+          stat:
+            path: /Applications/Tailscale.app
+          register: tailscale_installed
+
+        - name: Install Tailscale
+          block:
+            - name: Download Tailscale DMG
+              get_url:
+                url: https://pkgs.tailscale.com/stable/Tailscale.dmg
+                dest: /tmp/Tailscale.dmg
+            - name: Mount Tailscale DMG
+              command: hdiutil attach /tmp/Tailscale.dmg
+            - name: Install Tailscale
+              command: cp -R /Volumes/Tailscale/Tailscale.app /Applications/
+            - name: Unmount Tailscale DMG
+              command: hdiutil detach /Volumes/Tailscale
+            - name: Remove Tailscale DMG
+              file:
+                path: /tmp/Tailscale.dmg
+                state: absent
+          when: not tailscale_installed.stat.exists
           tags: ["tailscale"]
-
-    - name: Configure monitoring
-      import_tasks: roles/main/tasks/monitoring.yml
-      when: install_monitoring_tools | default(true)
-      tags: ["monitoring"]
-
-    - name: Configure macOS specific settings
-      import_tasks: roles/main/tasks/osx.yml
-      when: configure_osx | default(true)
-      tags: ["osx"]
-
-    - name: Run post-provision tasks
-      block:
-        - name: Run configured post-provision ansible task files
-          include_tasks: "{{ outer_item }}"
-          loop_control:
-            loop_var: outer_item
-          with_fileglob: "{{ post_provision_tasks | default(omit) }}"
-      tags: ["post"]
