@@ -28,6 +28,16 @@
         create: yes
 
     # Install Node.js using NVM
+    - name: Check if Node.js version is installed
+      ansible.builtin.shell: |
+        source {{ ansible_env.HOME }}/.nvm/nvm.sh
+        nvm list | grep "v{{ node_version }}"
+      args:
+        executable: /bin/bash
+      register: node_version_check
+      changed_when: false
+      failed_when: false
+
     - name: Install Node.js with NVM
       ansible.builtin.shell: |
         source {{ ansible_env.HOME }}/.nvm/nvm.sh
@@ -36,19 +46,35 @@
       args:
         executable: /bin/bash
       register: node_install
-      changed_when: "'is already installed.' not in node_install.stdout"
+      when: node_version_check.rc != 0 or node_version_check.stdout == ""
 
     # Install global npm packages
+    - name: Check existing global npm packages
+      ansible.builtin.shell: |
+        source {{ ansible_env.HOME }}/.nvm/nvm.sh
+        npm list -g --depth=0 {{ item }}
+      args:
+        executable: /bin/bash
+      register: npm_check
+      changed_when: false
+      failed_when: false
+      with_items:
+        - pm2
+        - yarn
+
     - name: Install global npm packages
       ansible.builtin.npm:
         name: "{{ item }}"
         global: yes
         state: latest
-      loop:
-        - pm2
-        - yarn
+      loop: "{{ npm_packages }}"
+      when: "npm_check.results | selectattr('item', 'equalto', item) | map(attribute='rc') | first != 0"
       environment:
         PATH: "{{ ansible_env.HOME }}/.nvm/versions/node/v{{ node_version }}/bin:{{ ansible_env.PATH }}"
+      vars:
+        npm_packages:
+          - pm2
+          - yarn
 
   when: configure_node | bool
   # This entire block will only run if configure_node is set to true in default.config.yml
