@@ -6,4 +6,4 @@
 # Ignore everything in roles directory
 roles/*
 # But don't ignore the main directory
-!roles/main
+!roles/local

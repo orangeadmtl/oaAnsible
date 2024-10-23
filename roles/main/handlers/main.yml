@@ -1,6 +1,0 @@
----
-# Handler to restart Node Exporter service
-- name: Restart Node Exporter service
-  ansible.builtin.systemd:
-    name: node_exporter
-    state: restarted

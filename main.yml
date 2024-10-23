@@ -1,60 +1,25 @@
 ---
 - name: Configure macOS for OrangeAd
   hosts: all
-  become: yes
+  gather_facts: true
 
-  vars_files:
-    - default.config.yml
+  pre_tasks:
+    - name: Ensure system requirements are met
+      import_tasks: tasks/pre_checks.yml
+      tags: ["always"]
 
   roles:
     - role: elliotweiser.osx-command-line-tools
-      tags: ["osx", "command-line-tools"]
+      become: yes
+      tags: ["cli", "setup"]
 
-  tasks:
-    - name: Configure development environment
-      block:
-        - import_tasks: roles/main/tasks/pyenv.yml
-          when: configure_pyenv | default(true)
-          tags: ["python"]
+    - role: geerlingguy.mac.homebrew
+      tags: ["homebrew", "setup"]
 
-        - import_tasks: roles/main/tasks/node.yml
-          when: configure_node | default(true)
-          tags: ["node"]
+    - role: local
+      tags: ["setup", "configuration"]
 
-        - import_tasks: roles/main/tasks/xcode.yml
-          when: configure_xcode | default(true)
-          tags: ["xcode"]
-
-    - name: Configure system and security
-      block:
-        - name: Configure sudoers
-          ansible.builtin.template:
-            src: roles/main/templates/sudoers.j2
-            dest: /etc/sudoers.d/custom
-            validate: "visudo -cf %s"
-          when: configure_sudoers | default(true)
-          tags: ["sudoers"]
-
-        - name: Check if Tailscale is already installed
-          stat:
-            path: /Applications/Tailscale.app
-          register: tailscale_installed
-
-        - name: Install Tailscale
-          block:
-            - name: Download Tailscale DMG
-              get_url:
-                url: https://pkgs.tailscale.com/stable/Tailscale.dmg
-                dest: /tmp/Tailscale.dmg
-            - name: Mount Tailscale DMG
-              command: hdiutil attach /tmp/Tailscale.dmg
-            - name: Install Tailscale
-              command: cp -R /Volumes/Tailscale/Tailscale.app /Applications/
-            - name: Unmount Tailscale DMG
-              command: hdiutil detach /Volumes/Tailscale
-            - name: Remove Tailscale DMG
-              file:
-                path: /tmp/Tailscale.dmg
-                state: absent
-          when: not tailscale_installed.stat.exists
-          tags: ["tailscale"]
+  post_tasks:
+    - name: Verify installation
+      import_tasks: tasks/verify.yml
+      tags: ["verify"]

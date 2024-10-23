@@ -1,0 +1,21 @@
+---
+- name: Check macOS version
+  fail:
+    msg: "This playbook requires macOS 11 (Big Sur) or later"
+  when: ansible_distribution_version is version('11.0', '<')
+  tags: ["always"]
+
+- name: Ensure required directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "/opt"
+    - "{{ ansible_env.HOME }}/.config"
+  tags: ["always"]
+
+- name: Check internet connectivity
+  wait_for_connection:
+    timeout: 10
+  tags: ["always"]

@@ -1,0 +1,40 @@
+---
+- name: Verify Homebrew packages
+  command: brew list
+  register: brew_packages
+  changed_when: false
+  tags: ["verify", "homebrew"]
+
+- name: Verify Tailscale installation
+  command: tailscale status
+  register: tailscale_status
+  changed_when: false
+  ignore_errors: true
+  tags: ["verify", "tailscale"]
+
+- name: Verify Python installation
+  shell: |
+    source ~/.bash_profile
+    pyenv versions
+  register: python_versions
+  changed_when: false
+  when: configure_pyenv | default(false)
+  tags: ["verify", "python"]
+
+- name: Verify Node.js installation
+  shell: |
+    source ~/.bash_profile
+    node --version
+  register: node_version
+  changed_when: false
+  when: configure_node | default(false)
+  tags: ["verify", "node"]
+
+- name: Display verification results
+  debug:
+    msg: |
+      Homebrew packages: {{ brew_packages.stdout_lines | to_nice_yaml }}
+      Tailscale status: {{ tailscale_status.rc == 0 }}
+      Python versions: {{ python_versions.stdout_lines | default([]) | to_nice_yaml }}
+      Node.js version: {{ node_version.stdout | default('not installed') }}
+  tags: ["verify"]

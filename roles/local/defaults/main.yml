@@ -1,0 +1,16 @@
+---
+# Role defaults (minimal configuration)
+configure_sudoers: false
+configure_tailscale: false
+configure_pyenv: false
+configure_node: false
+
+# Basic homebrew configuration
+homebrew_prefix: "/opt/homebrew"
+homebrew_install_path: "/opt/homebrew"
+homebrew_installed_packages: []
+
+# Basic versions (if enabled)
+pyenv_default_version: "3.10"
+node_version: "lts"
+node_packages: []

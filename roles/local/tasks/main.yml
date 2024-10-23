@@ -1,0 +1,16 @@
+---
+# Import other task files
+- name: Import Tailscale tasks
+  import_tasks: tailscale.yml
+  when: configure_tailscale | default(false)
+  tags: ["tailscale", "network"]
+
+- name: Import Python environment tasks
+  import_tasks: pyenv.yml
+  when: configure_pyenv | default(false)
+  tags: ["python", "development"]
+
+- name: Import Node.js tasks
+  import_tasks: node.yml
+  when: configure_node | default(false)
+  tags: ["node", "development"]

@@ -1,0 +1,75 @@
+---
+- name: Check if Tailscale binaries are already installed
+  stat:
+    path: "{{ ansible_env.HOME }}/go/bin/tailscale"
+  register: tailscale_installed
+
+- name: Ensure Go is installed
+  homebrew:
+    name: go
+    state: present
+  when: not tailscale_installed.stat.exists
+
+- name: Compile Tailscale from source
+  shell: |
+    go install tailscale.com/cmd/tailscale{,d}@main
+  environment:
+    GOPATH: "{{ ansible_env.HOME }}/go"
+    PATH: "{{ ansible_env.PATH }}:/opt/homebrew/bin:/usr/local/bin"
+  when: not tailscale_installed.stat.exists
+
+- name: Ensure /usr/local/bin directory exists
+  file:
+    path: /usr/local/bin
+    state: directory
+    mode: '0755'
+    owner: root
+    group: wheel
+  become: true
+
+- name: Create symlinks for Tailscale binaries
+  file:
+    src: "{{ ansible_env.HOME }}/go/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    state: link
+    force: yes
+  loop:
+    - tailscale
+    - tailscaled
+  become: true
+
+- name: Install and start tailscaled service
+  block:
+    - name: Install tailscaled as a system daemon
+      command: /usr/local/bin/tailscaled install-system-daemon
+      register: install_daemon
+      changed_when: "'already installed' not in install_daemon.stderr"
+      failed_when:
+        - install_daemon.rc != 0
+        - "'already installed' not in install_daemon.stderr"
+
+    - name: Start tailscaled service
+      command: launchctl start com.tailscale.tailscaled
+      ignore_errors: true
+
+    - name: Wait for tailscaled to start
+      wait_for:
+        timeout: 10
+  become: true
+
+- name: Configure Tailscale network
+  block:
+    - name: Check Tailscale status
+      command: /usr/local/bin/tailscale status
+      register: tailscale_status
+      changed_when: false
+      ignore_errors: true
+
+    - name: Set DNS server for MagicDNS
+      command: networksetup -setdnsservers Wi-Fi 100.100.100.100
+      when: "'100.100.100.100' not in tailscale_status.stdout"
+
+    - name: Bring up Tailscale network
+      command: /usr/local/bin/tailscale up
+      when: "'Tailscale is stopped' in tailscale_status.stdout"
+  become: true
