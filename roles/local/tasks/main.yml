@@ -8,9 +8,9 @@
 - name: Import Python environment tasks
   import_tasks: pyenv.yml
   when: configure_pyenv | default(false)
-  tags: ["python", "development"]
+  tags: ["python", "dev"]
 
 - name: Import Node.js tasks
   import_tasks: node.yml
   when: configure_node | default(false)
-  tags: ["node", "development"]
+  tags: ["node", "dev"]
