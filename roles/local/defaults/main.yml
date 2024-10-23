@@ -1,6 +1,5 @@
 ---
 # Role defaults (minimal configuration)
-configure_sudoers: false
 configure_tailscale: false
 configure_pyenv: false
 configure_node: false

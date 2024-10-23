@@ -1,9 +1,5 @@
 ---
 # System Configuration
-configure_sudoers: true
-sudoers_custom_config: |
-  # Allow users in admin group to use sudo without password
-  %admin ALL=(ALL) NOPASSWD: ALL
 
 # Homebrew Configuration
 homebrew_user: "{{ ansible_user }}"
