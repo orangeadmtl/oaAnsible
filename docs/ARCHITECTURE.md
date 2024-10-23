@@ -19,9 +19,10 @@ This playbook follows a modular architecture with clear separation of concerns:
 
 ### Pre-flight System Checks
 
-- macOS version verification
-- Directory structure setup
-- Network connectivity tests
+- Basic SSH connectivity verification
+- OS type verification (must be macOS)
+- Sudo access verification
+- System information gathering
 
 ### Base System Configuration
 

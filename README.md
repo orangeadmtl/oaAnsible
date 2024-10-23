@@ -13,18 +13,23 @@ Ansible playbook for automated setup and configuration of macOS devices for Oran
 
 ## Prerequisites
 
-1. On your control machine:
+1. On your control machine (your local development machine):
 
-```sh
-pip3 install ansible
-ansible-galaxy install -r requirements.yml
-```
+   ```sh
+   # Install Ansible
+   pip3 install ansible
+   
+   # Clone this repository
+   git clone https://github.com/oa-device/oaAnsible.git
+   cd oaAnsible
+   
+   # Install required Ansible roles
+   ansible-galaxy install -r requirements.yml
+   ```
 
 2. On target machines:
-
-```sh
-xcode-select --install
-```
+   - SSH access configured
+   - A user account with sudo privileges
 
 ## Directory Structure
 
