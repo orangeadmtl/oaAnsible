@@ -1,21 +1,34 @@
 ---
-- name: Check macOS version
-  fail:
-    msg: "This playbook requires macOS 11 (Big Sur) or later"
-  when: ansible_distribution_version is version('11.0', '<')
-  tags: ["always"]
-
-- name: Ensure required directories exist
-  file:
-    path: "{{ item }}"
-    state: directory
-    mode: '0755'
-  loop:
-    - "/opt"
-    - "{{ ansible_env.HOME }}/.config"
-  tags: ["always"]
-
-- name: Check internet connectivity
+- name: Check SSH connectivity
   wait_for_connection:
     timeout: 10
+  tags: ["always"]
+
+- name: Gather target OS information
+  setup:
+    filter: 
+      - ansible_distribution
+      - ansible_distribution_version
+  tags: ["always"]
+
+- name: Verify target is macOS
+  fail:
+    msg: "This playbook only supports macOS systems"
+  when: ansible_distribution != "MacOSX"
+  tags: ["always"]
+
+- name: Check sudo access
+  command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  tags: ["always"]
+
+- name: Display pre-check results
+  debug:
+    msg: |
+      Pre-check Results:
+      =================
+      OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      Sudo Access: {{ 'Available' if sudo_check.rc == 0 else 'Requires Password' }}
   tags: ["always"]
