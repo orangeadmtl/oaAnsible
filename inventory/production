@@ -1,2 +1,0 @@
-[macos]
-b3 ansible_host=192.168.2.9 ansible_user=admin
