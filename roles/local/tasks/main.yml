@@ -1,5 +1,40 @@
 ---
-# Import other task files
+# Detect default shell first
+- name: Get default shell
+  command: dscl . -read /Users/{{ ansible_user }} UserShell
+  register: user_shell_info
+  changed_when: false
+
+- name: Set shell facts
+  set_fact:
+    user_shell: "{{ user_shell_info.stdout.split('/')[-1] }}"
+    shell_profile: "{{ ansible_env.HOME }}/.{{ user_shell_info.stdout.split('/')[-1] }}rc"
+
+# Ensure Homebrew is installed first
+- name: Ensure Homebrew is installed
+  block:
+    - name: Check if Homebrew is installed
+      stat:
+        path: "{{ homebrew_prefix }}/bin/brew"
+      register: homebrew_check
+
+    - name: Install Homebrew
+      shell: |
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      when: not homebrew_check.stat.exists
+
+    - name: Configure shell for Homebrew
+      blockinfile:
+        path: "{{ shell_profile }}"
+        create: yes
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - HOMEBREW"
+        block: |
+          # Homebrew setup
+          eval "$({{ homebrew_prefix }}/bin/brew shellenv)"
+      when: not homebrew_check.stat.exists
+  become: false
+
+# Then import other tasks
 - name: Import Tailscale tasks
   import_tasks: tailscale.yml
   when: configure_tailscale | default(false)

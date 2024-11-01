@@ -1,15 +1,37 @@
 ---
-# Role defaults (minimal configuration)
+# Homebrew configuration
+homebrew_prefix: "{{ (ansible_architecture == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
+homebrew_install_path: "{{ homebrew_prefix }}"
+homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
+
+# Role defaults
 configure_tailscale: false
 configure_pyenv: false
 configure_node: false
 
-# Basic homebrew configuration
-homebrew_prefix: "/opt/homebrew"
-homebrew_install_path: "/opt/homebrew"
-homebrew_installed_packages: []
+# Basic homebrew packages
+homebrew_installed_packages:
+  - git
+  - curl
+  - wget
+  - tailscale
 
 # Basic versions (if enabled)
 pyenv_default_version: "3.10"
 node_version: "lts"
 node_packages: []
+
+# DNS Configuration
+dns_config:
+  enable_magic_dns: true
+  preserve_dhcp_dns: true
+  tailscale_dns_servers: ['100.100.100.100']
+
+# Shell configuration
+shell_config:
+  zsh:
+    rc_file: .zshrc
+    profile_file: .zprofile
+  bash:
+    rc_file: .bashrc
+    profile_file: .bash_profile
