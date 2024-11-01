@@ -2,13 +2,17 @@
 - name: Verify Homebrew installation
   block:
     - name: Check Homebrew installation
-      command: /opt/homebrew/bin/brew --version
+      shell: |
+        source {{ shell_profile }}
+        brew --version
       register: brew_version
       changed_when: false
       failed_when: false
 
     - name: Get installed Homebrew packages
-      command: /opt/homebrew/bin/brew list --formula
+      shell: |
+        source {{ shell_profile }}
+        brew list --formula
       register: installed_packages
       changed_when: false
       failed_when: false
