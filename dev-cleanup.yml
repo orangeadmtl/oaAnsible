@@ -1,0 +1,206 @@
+---
+- name: Clean up macOS development environment
+  hosts: all
+  gather_facts: true
+
+  vars:
+    homebrew_prefix: "{{ (ansible_architecture == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
+    brew_path: "{{ homebrew_prefix }}/bin:/usr/local/bin:{{ ansible_env.PATH }}"
+
+  pre_tasks:
+    - name: Display development-only warning
+      debug:
+        msg: |
+          ⚠️  DEVELOPMENT/STAGING USE ONLY ⚠️
+          ===============================
+          This playbook is strictly for development and staging environments.
+          DO NOT RUN THIS IN PRODUCTION!
+
+          Running this playbook will completely remove:
+          - Homebrew and all packages
+          - Tailscale
+          - Python (pyenv)
+          - Node.js (nvm)
+          - All related configurations
+
+          Purpose: This playbook helps validate fresh installations by
+          removing all components that would be installed by the main playbook.
+
+    - name: Verify staging environment
+      fail:
+        msg: "This playbook can only be run against staging environments"
+      when: inventory_file is not regex('staging')
+
+    - name: Confirm cleanup operation
+      pause:
+        prompt: "Are you sure you want to proceed? Type 'yes' to continue"
+      register: confirmation
+      when: not ansible_check_mode
+
+    - name: Fail if not confirmed
+      fail:
+        msg: "Cleanup cancelled by user"
+      when: not ansible_check_mode and confirmation.user_input != "yes"
+
+  tasks:
+    - name: Stop and remove Tailscale
+      block:
+        - name: Check if Tailscale is installed
+          command: "{{ homebrew_prefix }}/bin/brew list tailscale"
+          register: tailscale_check
+          changed_when: false
+          failed_when: false
+          environment:
+            PATH: "{{ brew_path }}"
+
+        - name: Stop Tailscale service
+          command: "{{ homebrew_prefix }}/bin/brew services stop tailscale"
+          when: tailscale_check.rc == 0
+          environment:
+            PATH: "{{ brew_path }}"
+          ignore_errors: true
+
+        - name: Uninstall Tailscale
+          command: "{{ homebrew_prefix }}/bin/brew uninstall tailscale"
+          when: tailscale_check.rc == 0
+          environment:
+            PATH: "{{ brew_path }}"
+          ignore_errors: true
+
+        - name: Reset DNS settings
+          block:
+            - name: Get active network interface
+              shell: |
+                networksetup -listallnetworkservices | grep -v '*' | grep -i wi-fi || networksetup -listallnetworkservices | grep -v '*' | head -1
+              register: active_interface
+              changed_when: false
+              become: true
+
+            - name: Set interface fact
+              set_fact:
+                network_interface: "{{ active_interface.stdout_lines[0] | trim }}"
+
+            - name: Get current DNS servers
+              command: networksetup -getdnsservers "{{ network_interface }}"
+              register: current_dns
+              changed_when: false
+              become: true
+
+            - name: Reset DNS to empty
+              command: networksetup -setdnsservers "{{ network_interface }}" empty
+              become: true
+
+            - name: Get network service info
+              shell: |
+                networksetup -listallhardwareports | grep -A 1 "{{ network_interface }}" | grep Device | awk '{print $2}'
+              register: network_device
+              changed_when: false
+              become: true
+
+            - name: Get DHCP info for interface
+              command: ipconfig getpacket "{{ network_device.stdout }}"
+              register: dhcp_info
+              changed_when: false
+              become: true
+              when: network_device.stdout != ""
+
+            - name: Extract DHCP DNS servers
+              set_fact:
+                dhcp_dns_servers: "{{ dhcp_info.stdout | regex_findall('domain_name_server[^\\n]*\\n\\s+([^\\n]*)') | first | split(' ') }}"
+              when: dhcp_info is defined and dhcp_info.stdout != ""
+
+            - name: Restore DHCP DNS servers
+              command: networksetup -setdnsservers "{{ network_interface }}" {{ dhcp_dns_servers | join(' ') }}
+              when: dhcp_dns_servers is defined
+              become: true
+          when: tailscale_check.rc == 0
+
+    - name: Remove development tools
+      block:
+        - name: Remove pyenv
+          file:
+            path: "{{ ansible_env.HOME }}/.pyenv"
+            state: absent
+          ignore_errors: true
+
+        - name: Remove nvm
+          file:
+            path: "{{ ansible_env.HOME }}/.nvm"
+            state: absent
+          ignore_errors: true
+
+    - name: Remove Homebrew
+      block:
+        - name: Check if Homebrew exists
+          stat:
+            path: "{{ homebrew_prefix }}/bin/brew"
+          register: brew_check
+
+        - name: Remove Homebrew (if exists)
+          block:
+            - name: Download Homebrew uninstall script
+              get_url:
+                url: https://raw.githubusercontent.com/Homebrew/install/master/uninstall.sh
+                dest: /tmp/brew-uninstall.sh
+                mode: "0755"
+              register: download_result
+
+            - name: Execute Homebrew uninstall script
+              command: /bin/bash /tmp/brew-uninstall.sh --force
+              environment:
+                NONINTERACTIVE: 1
+              become: true
+              register: uninstall_result
+              ignore_errors: true
+          when: brew_check.stat.exists
+
+        # Always try to remove directories, even if uninstall script fails
+        - name: Remove Homebrew directories (final cleanup)
+          file:
+            path: "{{ item }}"
+            state: absent
+          with_items:
+            - "{{ homebrew_prefix }}"
+            - "/usr/local/Homebrew"
+            - "/usr/local/Caskroom"
+            - "/usr/local/bin/brew"
+          become: true
+
+        - name: Clean up uninstall script
+          file:
+            path: /tmp/brew-uninstall.sh
+            state: absent
+          ignore_errors: true
+
+        - name: Display Homebrew cleanup status
+          debug:
+            msg: "Homebrew {{ brew_check.stat.exists | ternary('was removed', 'was not present') }}"
+
+    - name: Clean up shell configurations
+      blockinfile:
+        path: "{{ item }}"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK"
+        state: absent
+      with_items:
+        - "{{ ansible_env.HOME }}/.zshrc"
+        - "{{ ansible_env.HOME }}/.bashrc"
+        - "{{ ansible_env.HOME }}/.zprofile"
+        - "{{ ansible_env.HOME }}/.bash_profile"
+      ignore_errors: true
+
+    - name: Clean up temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - "/tmp/brew-uninstall.sh"
+        - "./ansible.log"
+      ignore_errors: true
+
+  post_tasks:
+    - name: Display completion message
+      debug:
+        msg: |
+          Cleanup completed successfully!
+          The system has been restored to a pre-installation state.
+          You can now run the main playbook to test a fresh installation.
