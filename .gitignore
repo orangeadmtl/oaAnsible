@@ -1,9 +1,12 @@
 *.vagrant
 .DS_Store
 *.retry
-*.log
 
 # Ignore everything in roles directory
 roles/*
 # But don't ignore the main directory
 !roles/local
+
+# Environment logs
+logs/
+*.log
