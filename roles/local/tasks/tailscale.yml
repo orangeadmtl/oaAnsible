@@ -1,66 +1,43 @@
 ---
-- name: Check if Tailscale binaries are already installed
-  stat:
-    path: "{{ ansible_env.HOME }}/go/bin/tailscale"
-  register: tailscale_installed
-
-- name: Ensure Go is installed
-  homebrew:
-    name: go
-    state: present
-  when: not tailscale_installed.stat.exists
-
-- name: Compile Tailscale from source
-  shell: |
-    go install tailscale.com/cmd/tailscale{,d}@main
-  environment:
-    GOPATH: "{{ ansible_env.HOME }}/go"
-    PATH: "{{ ansible_env.PATH }}:/opt/homebrew/bin:/usr/local/bin"
-  when: not tailscale_installed.stat.exists
-
-- name: Ensure /usr/local/bin directory exists
-  file:
-    path: /usr/local/bin
-    state: directory
-    mode: "0755"
-    owner: root
-    group: wheel
-  become: true
-
-- name: Install and start tailscaled service
+- name: Configure Tailscale
   block:
-    - name: Install tailscaled as a system daemon
-      command: "{{ ansible_env.HOME }}/go/bin/tailscaled install-system-daemon"
-      register: install_daemon
-      changed_when: "'already installed' not in install_daemon.stderr"
-      failed_when:
-        - install_daemon.rc != 0
-        - "'already installed' not in install_daemon.stderr"
-  become: true
+    - name: Ensure Homebrew path is in PATH
+      set_fact:
+        brew_path: "{{ '/opt/homebrew/bin:/usr/local/bin:' + ansible_env.PATH }}"
 
-- name: Configure Tailscale network
-  block:
+    - name: Check if Tailscale is installed
+      command: "{{ homebrew_prefix }}/bin/brew list tailscale"
+      register: tailscale_check
+      changed_when: false
+      failed_when: false
+      environment:
+        PATH: "{{ brew_path }}"
+
+    - name: Install Tailscale via Homebrew
+      command: "{{ homebrew_prefix }}/bin/brew install tailscale"
+      when: tailscale_check.rc != 0
+      environment:
+        PATH: "{{ brew_path }}"
+
+    - name: Start Tailscale service
+      command: "{{ homebrew_prefix }}/bin/brew services start tailscale"
+      register: tailscale_service
+      changed_when: tailscale_service.rc == 0
+      environment:
+        PATH: "{{ brew_path }}"
+
+    - name: Wait for Tailscale daemon to be ready
+      wait_for:
+        timeout: 10
+
     - name: Check Tailscale daemon status
       command: launchctl list com.tailscale.tailscaled
       register: tailscale_daemon_status
       changed_when: false
       failed_when: false
 
-    - name: Check current DNS configuration
-      command: networksetup -getdnsservers Wi-Fi
-      register: current_dns
-      changed_when: false
-      failed_when: false
-
-    - name: Check Tailscale login status
-      command: /usr/local/bin/tailscale status
-      register: tailscale_login_status
-      changed_when: false
-      failed_when: false
-
-    - name: Set DNS server for MagicDNS
-      command: networksetup -setdnsservers Wi-Fi 100.100.100.100
-      when:
-        - tailscale_daemon_status.rc == 0
-        - "'100.100.100.100' not in current_dns.stdout"
-  become: true
+    # Only configure DNS after Tailscale is properly running
+    - name: Configure DNS settings
+      include_tasks: dns.yml
+      when: tailscale_daemon_status.rc == 0
+  become: false
