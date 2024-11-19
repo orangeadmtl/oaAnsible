@@ -1,106 +1,68 @@
 ---
-- name: Verify Homebrew installation
+- name: Verify installations
   block:
-    - name: Check Homebrew installation
-      shell: |
-        source {{ shell_profile }}
-        brew --version
-      register: brew_version
-      changed_when: false
-      failed_when: false
+    - name: Verify Python environment
+      block:
+        - name: Check pyenv installation
+          stat:
+            path: "{{ ansible_env.HOME }}/.pyenv/bin/pyenv"
+          register: pyenv_binary
 
-    - name: Get installed Homebrew packages
-      shell: |
-        source {{ shell_profile }}
-        brew list --formula
-      register: installed_packages
-      changed_when: false
-      failed_when: false
-      when: brew_version.rc == 0
-  tags: ["verify", "homebrew"]
+        - name: Get Python version
+          shell: |
+            source {{ shell_profile }}
+            pyenv version
+          register: python_version
+          changed_when: false
+          failed_when: false
+          when: pyenv_binary.stat.exists
+      when: configure.pyenv | bool
+      tags: ["verify", "python"]
 
-- name: Verify Tailscale installation
-  block:
-    - name: Check Tailscale binary
-      stat:
-        path: /usr/local/bin/tailscale
-      register: tailscale_binary
+    - name: Verify Node.js environment
+      block:
+        - name: Check NVM installation
+          stat:
+            path: "{{ ansible_env.HOME }}/.nvm/nvm.sh"
+          register: nvm_script
 
-    - name: Check Tailscale daemon status
-      command: launchctl list com.tailscale.tailscaled
-      register: tailscale_daemon
-      changed_when: false
-      failed_when: false
+        - name: Get Node.js version
+          shell: |
+            source {{ shell_profile }}
+            node --version
+          register: node_version
+          changed_when: false
+          failed_when: false
+          when: nvm_script.stat.exists
+      when: configure.node | bool
+      tags: ["verify", "node"]
 
-    - name: Check Tailscale DNS configuration
-      command: scutil --dns
-      register: dns_config
-      changed_when: false
-      failed_when: false
-  tags: ["verify", "tailscale"]
+    - name: Verify Tailscale
+      block:
+        - name: Check Tailscale status
+          command: tailscale status
+          register: tailscale_status
+          changed_when: false
+          failed_when: false
+      when: configure.tailscale | bool
+      tags: ["verify", "tailscale"]
 
-- name: Verify Python environment
-  block:
-    - name: Check pyenv installation
-      stat:
-        path: "{{ ansible_env.HOME }}/.pyenv/bin/pyenv"
-      register: pyenv_binary
+    - name: Display verification results
+      debug:
+        msg: |
+          Verification Results:
+          {% if configure.pyenv %}
+          Python: {{ python_version.stdout if python_version.rc == 0 else 'Not installed' }}
+          {% endif %}
+          {% if configure.node %}
+          Node.js: {{ node_version.stdout if node_version.rc == 0 else 'Not installed' }}
+          {% endif %}
+          {% if configure.tailscale %}
+          Tailscale: {{ 'Connected' if tailscale_status.rc == 0 else 'Not connected' }}
+          {% endif %}
+      tags: ["verify"]
 
-    - name: Get Python version
-      shell: |
-        source ~/.bash_profile
-        $HOME/.pyenv/bin/pyenv version
-      register: python_version
-      changed_when: false
-      failed_when: false
-      when: pyenv_binary.stat.exists
-  tags: ["verify", "python"]
-
-- name: Verify Node.js environment
-  block:
-    - name: Check NVM installation
-      stat:
-        path: "{{ ansible_env.HOME }}/.nvm/nvm.sh"
-      register: nvm_script
-
-    - name: Get Node.js version
-      shell: |
-        source ~/.bash_profile
-        source $HOME/.nvm/nvm.sh
-        node --version
-      register: node_version
-      changed_when: false
-      failed_when: false
-      when: nvm_script.stat.exists
-  tags: ["verify", "node"]
-
-- name: Display verification results
-  debug:
-    msg: |
-      System Status Report:
-      ===================
-      
-      Homebrew:
-        Installed: {{ 'Yes' if brew_version.rc == 0 else 'No' }}
-        {% if brew_version.rc == 0 %}
-        Version: {{ brew_version.stdout_lines[0] }}
-        Packages: {{ installed_packages.stdout_lines | default([]) | join(', ') }}
-        {% endif %}
-
-      Tailscale:
-        Binary: {{ 'Present' if tailscale_binary.stat.exists else 'Missing' }}
-        Daemon: {{ 'Running' if tailscale_daemon.rc == 0 else 'Not running' }}
-        MagicDNS: {{ 'Configured' if '100.100.100.100' in dns_config.stdout else 'Not configured' }}
-
-      Python Environment:
-        pyenv: {{ 'Installed' if pyenv_binary.stat.exists else 'Not installed' }}
-        {% if pyenv_binary.stat.exists and python_version.rc == 0 %}
-        Version: {{ python_version.stdout }}
-        {% endif %}
-
-      Node.js Environment:
-        NVM: {{ 'Installed' if nvm_script.stat.exists else 'Not installed' }}
-        {% if nvm_script.stat.exists and node_version.rc == 0 %}
-        Version: {{ node_version.stdout }}
-        {% endif %}
-  tags: ["verify"]
+  rescue:
+    - name: Handle verification failures
+      debug:
+        msg: "Verification failed. Please check the installation logs for details."

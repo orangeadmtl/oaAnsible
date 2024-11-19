@@ -1,18 +1,18 @@
 ---
 - name: Gather system facts
-  block:
-    - name: Get system information
-      setup:
-        gather_subset:
-          - hardware
-          - network
-          - virtual
-    
-    - name: Set system facts
-      set_fact:
-        is_apple_silicon: "{{ ansible_architecture == 'arm64' }}"
-        has_xcode: "{{ lookup('pipe', 'xcode-select -p 2>/dev/null || echo false') != 'false' }}"
-        memory_gb: "{{ ansible_memtotal_mb / 1024 }}"
+  setup:
+    gather_subset:
+      - hardware
+      - network
+      - virtual
+  tags: ["always"]
+
+- name: Set system facts
+  set_fact:
+    is_apple_silicon: "{{ ansible_architecture == 'arm64' }}"
+    has_xcode: "{{ lookup('pipe', 'xcode-select -p 2>/dev/null || echo false') != 'false' }}"
+    memory_gb: "{{ ansible_memtotal_mb / 1024 }}"
+    homebrew_prefix: "{{ (ansible_architecture == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
   tags: ["always"]
 
 - name: Verify system requirements
@@ -21,50 +21,21 @@
       - ansible_distribution == "MacOSX"
       - ansible_distribution_version is version('11.0', '>=')
       - memory_gb >= 8
-    fail_msg: "System does not meet minimum requirements"
+    fail_msg: |
+      System does not meet minimum requirements:
+      - Must be macOS 11.0 or higher
+      - Must have at least 8GB RAM
+      - Current system: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      - Current RAM: {{ memory_gb }}GB
   tags: ["always"]
 
-- name: Debug connection info
+- name: Debug system information
   debug:
     msg: |
-      Connection Details:
-      - Host: {{ ansible_host }}
-      - User: {{ ansible_user }}
-      - Python: {{ ansible_python_interpreter }}
-  tags: ["always"]
-
-- name: Verify target is macOS
-  fail:
-    msg: "This playbook only supports macOS systems"
-  when: ansible_distribution != "MacOSX"
-  tags: ["always"]
-
-- name: Check Command Line Tools installation
-  command: xcode-select -p
-  register: clt_check
-  failed_when: clt_check.rc != 0
-  changed_when: false
-  tags: ["always"]
-
-- name: Fail if Command Line Tools not installed
-  fail:
-    msg: "Command Line Tools must be installed before running this playbook. Please install them using 'xcode-select --install'"
-  when: clt_check.rc != 0
-  tags: ["always"]
-
-- name: Check sudo access
-  command: sudo -n true
-  register: sudo_check
-  failed_when: false
-  changed_when: false
-  tags: ["always"]
-
-- name: Display pre-check results
-  debug:
-    msg: |
-      Pre-check Results:
-      =================
-      OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
-      Command Line Tools: {{ 'Installed' if clt_check.rc == 0 else 'Not Installed' }}
-      Sudo Access: {{ 'Available' if sudo_check.rc == 0 else 'Requires Password' }}
-  tags: ["always"]
+      System Information:
+      - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      - Architecture: {{ ansible_architecture }}
+      - Memory: {{ memory_gb }}GB
+      - Homebrew Prefix: {{ homebrew_prefix }}
+      - Has Xcode CLI: {{ has_xcode }}
+  tags: ["always", "debug"]
