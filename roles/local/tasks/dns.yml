@@ -1,39 +1,53 @@
 ---
-- name: Configure DNS Settings
+- name: Manage DNS Configuration
   block:
-    - name: Get current DNS servers
-      command: networksetup -getdnsservers Wi-Fi
+    - name: Get network interface information
+      command: route -n get default | grep interface | awk '{print $2}'
+      register: network_interface_info
+      changed_when: false
+
+    - name: Set network interface fact
+      set_fact:
+        primary_interface: "{{ network_interface_info.stdout }}"
+
+    - name: Get current DNS configuration
+      command: networksetup -getdnsservers "{{ primary_interface }}"
       register: current_dns
       changed_when: false
 
-    - name: Set fact for current DNS servers
-      set_fact:
-        current_dns_servers: "{{ current_dns.stdout.split('\n') | select('ne', 'There aren't any DNS Servers set on Wi-Fi.') | list }}"
-      when: current_dns.rc == 0
-
-    - name: Get DHCP-provided DNS servers
-      command: ipconfig getpacket en0
+    - name: Get DHCP DNS information
+      command: ipconfig getpacket "{{ primary_interface }}"
       register: dhcp_info
       changed_when: false
 
-    - name: Extract DHCP DNS servers
+    - name: Process DNS information
       set_fact:
-        dhcp_dns_servers: "{{ dhcp_info.stdout | regex_findall('domain_name_server[^\\n]*\\n\\s+([^\\n]*)') | first | split(' ') }}"
-      when: dhcp_info.rc == 0
+        current_dns_servers: >-
+          {{ current_dns.stdout.split('\n') | 
+             select('ne', 'There aren't any DNS Servers set on ' + primary_interface + '.') | 
+             list }}
+        dhcp_dns_servers: >-
+          {{ dhcp_info.stdout | 
+             regex_findall('domain_name_server[^\n]*\n\s+([^\n]*)') | 
+             first | 
+             split(' ') if (dhcp_info.stdout | regex_findall('domain_name_server[^\n]*\n\s+([^\n]*)')) else [] }}
 
     - name: Configure DNS servers
-      command: >
-        networksetup -setdnsservers Wi-Fi 
-        {{ ((current_dns_servers | default([])) + (dhcp_dns_servers | default([])) + ['100.100.100.100']) | unique | join(' ') }}
-      when: 
-        - configure_tailscale | bool
-        - dhcp_info.rc == 0
+      command: >-
+        networksetup -setdnsservers "{{ primary_interface }}"
+        {{ (current_dns_servers + dhcp_dns_servers + dns.tailscale_servers) | 
+           unique | 
+           join(' ') }}
+      when: configure.tailscale | bool
       register: dns_result
       changed_when: dns_result.rc == 0
 
-    - name: Verify DNS configuration
-      command: scutil --dns
-      register: dns_verify
-      changed_when: false
-      failed_when: false
+    - name: Store original DNS configuration
+      copy:
+        content: "{{ dhcp_dns_servers | join('\n') }}"
+        dest: "{{ ansible_env.HOME }}/.dns_backup"
+        mode: '0600'
+      when: configure.tailscale | bool
+
   become: true
+  tags: ["dns", "network", "tailscale"]
