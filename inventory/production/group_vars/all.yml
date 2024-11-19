@@ -1,25 +1,21 @@
 ---
-# Configuration for production environment
-# Used for live, customer-facing deployments
+# Runtime versions
+python:
+  version: "3.10.11"
+node:
+  version: "20.18.0"
 
-# Runtime versions for Python and Node.js
-pyenv_default_version: "3.10.11"
-node_version: "20.18.0"
+# Feature toggles
+configure:
+  tailscale: true
+  pyenv: true
+  node: true
 
-# Security settings - strict for production safety
-ansible_host_key_checking: true
-debug_mode: false
-verify_ssl: true
-
-# Infrastructure components to be configured
-configure_tailscale: true
-configure_pyenv: true
-configure_node: true
-
-# System packages installed via Homebrew
-# Core utilities only
-homebrew_installed_packages:
-  - go
-  - git
-  - wget
-  - curl
+# System packages
+system:
+  homebrew:
+    packages:
+      - go
+      - git
+      - wget
+      - curl

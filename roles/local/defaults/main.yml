@@ -1,33 +1,43 @@
 ---
-# Homebrew configuration
-homebrew_prefix: "{{ (ansible_architecture == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
-homebrew_install_path: "{{ homebrew_prefix }}"
-homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
+# System Configuration
+# -------------------
+system:
+  homebrew:
+    prefix: "{{ (ansible_architecture == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
+    install_path: "{{ (ansible_architecture == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
+    packages:
+      - git
+      - curl
+      - wget
 
-# Role defaults
-configure_tailscale: false
-configure_pyenv: false
-configure_node: false
+# Feature Toggles
+# --------------
+configure:
+  tailscale: false
+  pyenv: false
+  node: false
 
-# Basic homebrew packages
-homebrew_installed_packages:
-  - git
-  - curl
-  - wget
-  - tailscale
+# Development Environment
+# ---------------------
+python:
+  version: "3.10"
+  packages:
+    - pip
+    - virtualenv
 
-# Basic versions (if enabled)
-pyenv_default_version: "3.10"
-node_version: "lts"
-node_packages: []
+node:
+  version: "lts"
+  packages: []
 
-# DNS Configuration
-dns_config:
+# Network Configuration
+# -------------------
+dns:
   enable_magic_dns: true
   preserve_dhcp_dns: true
-  tailscale_dns_servers: ['100.100.100.100']
+  tailscale_servers: ["100.100.100.100"]
 
-# Shell configuration
+# Shell Configuration
+# -----------------
 shell_config:
   zsh:
     rc_file: .zshrc
