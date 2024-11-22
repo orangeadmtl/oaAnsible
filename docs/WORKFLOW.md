@@ -7,19 +7,28 @@ graph TB
     classDef role fill:#27AE60,color:#fff,stroke:#333,stroke-width:2px;
     classDef task fill:#C0392B,color:#fff,stroke:#333,stroke-width:2px;
     classDef verify fill:#E67E22,color:#fff,stroke:#333,stroke-width:2px;
+    classDef script fill:#F1C40F,color:#333,stroke:#333,stroke-width:2px;
 
     subgraph Configuration
         O[group_vars/all.yml]:::configFile
         P[roles/local/defaults/main.yml]:::configFile
         Q[inventory/staging]:::configFile
+        R[inventory/production]:::configFile
     end
 
-    subgraph Main Playbook
+    subgraph Scripts
+        S[run-staging.sh]:::script
+        T[run-production.sh]:::script
+    end
+
+    subgraph Main Playbooks
         A[main.yml]:::playbook
+        B[dev-cleanup.yml]:::playbook
     end
 
     subgraph Pre-Tasks
         PreC[pre_checks.yml]:::task
+        DNS[dns.yml]:::task
     end
 
     subgraph External Roles
@@ -32,7 +41,7 @@ graph TB
             H[node.yml]:::task
             I[pyenv.yml]:::task
         end
-        
+
         subgraph Network
             J[tailscale.yml]:::task
         end
@@ -42,58 +51,62 @@ graph TB
         V[verify.yml]:::verify
     end
 
-    O --> A
-    P --> A
-    Q --> A
+    S --> A
+    T --> A
+    O & P --> A
+    Q --> S
+    R --> T
 
     A --> PreC
     PreC --> D
     D --> E
-    E --> H
-    E --> I
-    E --> J
+    E --> H & I & J
+    J --> DNS
 
-    H --> V
-    I --> V
-    J --> V
+    H & I & J --> V
+    DNS --> V
+
+    B -.-> V
 ```
 
 ## Workflow Explanation
 
-1. **Configuration Files**:
+1. **Entry Points**:
+
+   - Production deployment via `run-production.sh`
+   - Staging deployment via `run-staging.sh`
+   - Development cleanup via `dev-cleanup.yml`
+
+2. **Configuration Files**:
+
    - `group_vars/all.yml`: Environment-specific configurations
    - `roles/local/defaults/main.yml`: Default role configurations
-   - `inventory/staging`: Host definitions
+   - `inventory/staging` & `inventory/production`: Host definitions
 
-2. **Pre-flight Checks**:
+3. **Pre-flight Checks**:
+
    - System requirements verification
    - Directory structure setup
    - Network connectivity tests
 
-3. **External Roles**:
+4. **External Roles**:
+
    - Command Line Tools installation
    - Homebrew package management
 
-4. **Local Role Tasks**:
+5. **Local Role Tasks**:
+
    - **Development**:
      - Node.js setup with NVM
      - Python environment with pyenv
    - **Network**:
-     - Tailscale (Go-compiled version)
+     - Tailscale configuration
+     - DNS management
 
-5. **Verification**:
+6. **Verification**:
    - Installation checks
    - Service status verification
    - Configuration validation
-
-## Task Flow
-
-1. Load configurations from various sources
-2. Run pre-flight system checks
-3. Install system requirements
-4. Configure development environment
-5. Set up network services
-6. Verify all installations and configurations
 
 ## Color Legend
 
@@ -102,3 +115,4 @@ graph TB
 - 🟢 Roles (Green)
 - 🔴 Tasks (Red)
 - 🟠 Verification (Orange)
+- 🟡 Scripts (Yellow)

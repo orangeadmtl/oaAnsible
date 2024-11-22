@@ -7,74 +7,73 @@ Ansible playbook for automated setup and configuration of macOS devices for Oran
 - Automated Homebrew installation and package management
 - Python environment setup with pyenv
 - Node.js setup with NVM
-- Tailscale configuration (compiled from Go source)
-- System security configuration
-- Automated verification system
+- Tailscale network configuration with DNS management
+- Environment-specific configurations (staging/production)
+- Comprehensive verification system
+- Development cleanup tools
 
 ## Prerequisites
 
-1. On your control machine (your local development machine):
+1. On your control machine:
 
    ```sh
    # Install Ansible
    pip3 install ansible
 
    # Clone this repository
-   git clone https://github.com/oa-device/oaAnsible.git
-   cd oaAnsible
+   git clone https://github.com/oa-device/macos-setup.git
+   cd macos-setup
 
-   # Install required Ansible roles
+   # Install required Ansible roles and collections
    ansible-galaxy install -r requirements.yml
    ```
 
 2. On target machines:
-   - macOS with Command Line Tools installed (`xcode-select --install`)
+   - macOS (Intel or Apple Silicon)
    - SSH access configured
-   - A user account with sudo privileges
+   - Sudo privileges
+   - Minimum 8GB RAM
 
 ## Directory Structure
 
 ```tree
-oaAnsible/
+macos-setup/
 ├── inventory/            # Environment-specific inventories
-│   ├── production/
-│   │   ├── hosts.yml
-│   │   └── group_vars/
-│   └── staging/
-│       ├── hosts.yml
-│       └── group_vars/
-├── roles/                # Ansible roles
-│   └── local/            # Custom local role for OrangeAd
-├── scripts/              # Convenience scripts
+│   ├── production/      # Production environment
+│   │   ├── hosts.yml    # Production hosts
+│   │   └── group_vars/  # Production variables
+│   └── staging/        # Staging environment
+│       ├── hosts.yml    # Staging hosts
+│       └── group_vars/  # Staging variables
+├── roles/
+│   └── local/          # Custom local role
+│       ├── tasks/      # Role-specific tasks
+│       └── defaults/   # Default variables
+├── tasks/              # Global tasks
+│   ├── pre_checks.yml  # System verification
+│   └── verify.yml      # Post-install checks
+├── scripts/            # Convenience scripts
 │   ├── run-staging.sh
 │   └── run-production.sh
-├── tasks/                # Global tasks
-└── main.yml              # Main playbook
+├── main.yml            # Main playbook
+└── dev-cleanup.yml     # Development reset playbook
 ```
 
 ## Usage
 
-### Environment-Specific Usage
+### Quick Start
 
-#### Staging Environment
+1. For staging environment:
 
-```bash
-# Using the convenience script
-./scripts/run-staging.sh
+   ```bash
+   ./scripts/run-staging.sh
+   ```
 
-# Or manually
-ansible-playbook main.yml -i inventory/staging/hosts.yml
-```
+2. For production environment:
 
-#### Production Environment
-
-```bash
-# Using the convenience script
-./scripts/run-production.sh
-
-# Or manually
-ansible-playbook main.yml -i inventory/production/hosts.yml
-```
+   ```bash
+   ./scripts/run-production.sh
+   ```
 
 ### Environment Differences
 
@@ -82,118 +81,97 @@ ansible-playbook main.yml -i inventory/production/hosts.yml
 | ----------------- | -------- | ---------- |
 | Host Key Checking | Disabled | Enabled    |
 | Debug Mode        | Enabled  | Disabled   |
-| Extra Dev Tools   | Yes      | No         |
-| SSL Verification  | Optional | Required   |
+| Dev Packages      | Full Set | Minimal    |
+| DNS Management    | Optional | Required   |
+| Security Checks   | Basic    | Strict     |
 
 ### Available Tags
 
-- `setup`: Initial setup tasks
+- `setup`: Base system configuration
 - `cli`: Command Line Tools installation
-- `homebrew`: Homebrew configuration
-- `python`: Python environment setup
-- `node`: Node.js installation
-- `tailscale`: Tailscale configuration
-- `verify`: Run verification checks
-- `development`: All development tools
-- `network`: Network-related configurations
+- `homebrew`: Package management
+- `python`: Python/pyenv setup
+- `node`: Node.js/nvm setup
+- `tailscale`: Network configuration
+- `verify`: Verification tasks
+- `dev`: Development tools
+- `network`: Network settings
 
 ## Configuration
 
-Environment-specific configurations are managed through inventory group variables:
+### Environment Variables
 
-```tree
-inventory/
-├── production/
-│   ├── hosts.yml           # Production hosts
-│   └── group_vars/
-│       └── all.yml         # Production-specific variables
-└── staging/
-    ├── hosts.yml           # Staging hosts
-    └── group_vars/
-        └── all.yml         # Staging-specific variables
+Each environment (staging/production) has its own configuration in `inventory/[env]/group_vars/all.yml`:
+
+- Runtime versions (Python, Node.js)
+- Feature toggles
+- System packages
+- Network settings
+
+### Feature Toggles
+
+```yaml
+configure:
+  tailscale: true/false
+  pyenv: true/false
+  node: true/false
 ```
 
-Edit environment-specific group vars to customize:
+## Verification System
 
-- Homebrew packages
-- Python/Node.js versions
-- Feature toggles
-- System configurations
-- Environment-specific settings
-
-## Verification
-
-The playbook includes automatic verification:
+Run verification independently:
 
 ```sh
-# For staging
-ansible-playbook main.yml --tags "verify" -i inventory/staging/hosts.yml
+# Full verification
+ansible-playbook main.yml --tags "verify" -i inventory/[env]/hosts.yml
 
-# For production
-ansible-playbook main.yml --tags "verify" -i inventory/production/hosts.yml
+# Component-specific verification
+ansible-playbook main.yml --tags "verify,python" -i inventory/[env]/hosts.yml
 ```
 
-This checks:
+Verifies:
 
-- Homebrew package installation
-- Tailscale connectivity
-- Python/Node.js setup
-- System configurations
+- System requirements
+- Package installations
+- Runtime environments
+- Network connectivity
+- Service status
 
 ## Development Tools
 
 ### Development Cleanup Playbook
 
-⚠️ **DEVELOPMENT USE ONLY** ⚠️
+⚠️ **STAGING ENVIRONMENT ONLY** ⚠️
 
-The development cleanup playbook (`dev-cleanup.yml`) is a specialized tool designed exclusively for development and staging environments.
-
-**Purpose:**
-
-- Validate fresh installations
-- Test the main playbook's completeness
-- Reset staging environments to a clean state
-
-**Usage:**
+Reset your staging environment to a clean state:
 
 ```bash
-# Only run this in staging environment
-ansible-playbook dev-cleanup.yml -K -v -i inventory/staging
+ansible-playbook dev-cleanup.yml -K -i inventory/staging/hosts.yml
 ```
 
-**Safety Measures:**
+**Safety Features:**
 
-1. Only runs with staging inventory
-2. Requires explicit confirmation
-3. Displays comprehensive warnings
-4. Cannot be triggered by the main playbook
-
-**Components Removed:**
-
-- Command Line Tools
-- Homebrew and all installed packages
-- Tailscale
-- Python (pyenv)
-- Node.js (nvm)
-- All related configurations
-
-⛔️ **NEVER RUN THIS IN PRODUCTION** ⛔️
+1. Staging inventory only
+2. Interactive confirmation
+3. Comprehensive warnings
+4. Cannot affect production
 
 ## Troubleshooting
 
-1. Debug mode:
+1. Enable debug output:
 
-```sh
-ansible-playbook main.yml -vvv -i inventory/[environment]/hosts.yml
-```
+   ```sh
+   ansible-playbook main.yml -vvv -i inventory/[env]/hosts.yml
+   ```
 
-2. Check mode:
+2. Run in check mode:
 
-```sh
-ansible-playbook main.yml --check -i inventory/[environment]/hosts.yml
-```
+   ```sh
+   ansible-playbook main.yml --check -i inventory/[env]/hosts.yml
+   ```
 
-3. Common issues:
-   - Ensure Xcode CLI tools are installed
-   - Check network connectivity
-   - Verify sudo permissions
+3. Common Issues:
+   - Insufficient system resources
+   - Network connectivity problems
+   - Permission issues
+   - Shell configuration conflicts
