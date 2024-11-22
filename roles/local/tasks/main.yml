@@ -1,51 +1,74 @@
 ---
-# Detect shell and set configuration paths
-- name: Get default shell
-  command: dscl . -read /Users/{{ ansible_user }} UserShell
-  register: user_shell_info
-  changed_when: false
-
-- name: Set shell facts
-  set_fact:
-    user_shell: "{{ user_shell_info.stdout.split('/')[-1] }}"
-    shell_profile: "{{ ansible_env.HOME }}/{{ shell_config[user_shell_info.stdout.split('/')[-1]].profile_file }}"
-    shell_rc: "{{ ansible_env.HOME }}/{{ shell_config[user_shell_info.stdout.split('/')[-1]].rc_file }}"
-
+# Set up shell configuration first
 - name: Configure shell environment
-  blockinfile:
-    path: "{{ item.path }}"
-    create: yes
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - {{ item.name }}"
-    block: "{{ item.config }}"
-  loop:
-    - path: "{{ shell_profile }}"
-      name: "PATH_AND_BREW"
-      config: |
-        # Homebrew configuration
-        export PATH="{{ homebrew_prefix }}/bin:$PATH"
-        eval "$({{ homebrew_prefix }}/bin/brew shellenv)"
-    - path: "{{ shell_rc }}"
-      name: "TOOL_CONFIGURATIONS"
-      config: |
-        {% if configure_pyenv %}
-        # Pyenv configuration
-        export PYENV_ROOT="$HOME/.pyenv"
-        export PATH="$PYENV_ROOT/bin:$PATH"
-        eval "$(pyenv init -)"
-        {% endif %}
+  block:
+    - name: Get default shell
+      command: dscl . -read /Users/{{ ansible_user }} UserShell
+      register: user_shell_info
+      changed_when: false
 
-        {% if configure_node %}
-        # Node.js configuration
-        export NVM_DIR="$HOME/.nvm"
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-        {% endif %}
+    - name: Set shell configuration facts
+      set_fact:
+        shell_config:
+          zsh:
+            profile_file: .zprofile
+            rc_file: .zshrc
+          bash:
+            profile_file: .bashrc
+            rc_file: .bash_profile
 
-- name: Import Tailscale tasks
-  import_tasks: tailscale.yml
-  when: configure.tailscale | default(false)
-  tags: ["tailscale", "network"]
+    - name: Set shell-specific facts
+      set_fact:
+        user_shell: "{{ user_shell_info.stdout.split('/')[-1] }}"
+        shell_profile: "{{ ansible_env.HOME }}/{{ shell_config[user_shell_info.stdout.split('/')[-1]].profile_file }}"
+        shell_rc: "{{ ansible_env.HOME }}/{{ shell_config[user_shell_info.stdout.split('/')[-1]].rc_file }}"
 
+    - name: Ensure shell configuration files exist
+      file:
+        path: "{{ item }}"
+        state: touch
+        mode: "0644"
+      loop:
+        - "{{ shell_profile }}"
+        - "{{ shell_rc }}"
+
+    - name: Configure shell environment
+      blockinfile:
+        path: "{{ item.path }}"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - {{ item.name }}"
+        block: "{{ item.content }}"
+      loop:
+        - path: "{{ shell_profile }}"
+          name: "PATH_CONFIG"
+          content: |
+            # System PATH configuration
+            export PATH="{{ homebrew_prefix }}/bin:$PATH"
+
+            # Homebrew configuration
+            eval "$({{ homebrew_prefix }}/bin/brew shellenv)"
+
+            {% if configure.pyenv %}
+            # Pyenv configuration
+            export PYENV_ROOT="$HOME/.pyenv"
+            export PATH="$PYENV_ROOT/bin:$PATH"
+            eval "$(pyenv init -)"
+            {% endif %}
+
+            {% if configure.node %}
+            # Node.js configuration
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+            {% endif %}
+
+        - path: "{{ shell_rc }}"
+          name: "SHELL_CONFIG"
+          content: |
+            # Shell-specific configurations
+            export LANG=en_US.UTF-8
+            export EDITOR=vim
+
+# Then continue with other tasks
 - name: Import Python environment tasks
   import_tasks: pyenv.yml
   when: configure.pyenv | default(false)
@@ -55,3 +78,8 @@
   import_tasks: node.yml
   when: configure.node | default(false)
   tags: ["node", "dev"]
+
+- name: Import Tailscale tasks
+  import_tasks: tailscale.yml
+  when: configure.tailscale | default(false)
+  tags: ["tailscale", "network"]
