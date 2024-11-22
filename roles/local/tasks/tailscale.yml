@@ -62,5 +62,42 @@
       include_tasks: dns.yml
       when: dns_config.enable_magic_dns | default(true)
 
+    - name: Ensure Tailscale is running
+      block:
+        # First stop any existing services
+        - name: Stop existing services
+          command: "{{ homebrew_prefix }}/bin/brew services stop tailscale"
+          failed_when: false
+
+        # Remove any existing launch daemon
+        - name: Remove existing launch daemon
+          file:
+            path: /Library/LaunchDaemons/homebrew.mxcl.tailscale.plist
+            state: absent
+          become: true
+          failed_when: false
+
+        # Start as root service (recommended for Tailscale)
+        - name: Start Tailscale as root service
+          block:
+            - name: Create system service directory
+              file:
+                path: /Library/LaunchDaemons
+                state: directory
+                mode: "0755"
+              become: true
+
+            - name: Copy service file to system location
+              command: "cp {{ homebrew_prefix }}/opt/tailscale/homebrew.mxcl.tailscale.plist /Library/LaunchDaemons/"
+              become: true
+
+            - name: Load service with launchctl
+              command: launchctl load -w /Library/LaunchDaemons/homebrew.mxcl.tailscale.plist
+              become: true
+
+        - name: Wait for Tailscale daemon to be ready
+          wait_for:
+            timeout: 15
+
   environment:
     PATH: "{{ homebrew_prefix }}/bin:/usr/local/bin:{{ ansible_env.PATH }}"
