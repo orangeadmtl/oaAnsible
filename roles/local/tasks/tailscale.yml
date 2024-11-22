@@ -11,10 +11,48 @@
       command: "{{ homebrew_prefix }}/bin/brew install tailscale"
       when: tailscale_check.rc != 0
 
+    # Start Tailscale service with proper privileges
     - name: Start Tailscale service
-      command: "{{ homebrew_prefix }}/bin/brew services start tailscale"
-      register: tailscale_service
-      changed_when: tailscale_service.rc == 0
+      block:
+        # First try to start as user
+        - name: Start Tailscale service as user
+          command: "{{ homebrew_prefix }}/bin/brew services start tailscale"
+          register: tailscale_service
+          changed_when: tailscale_service.rc == 0
+          failed_when: false
+
+        # If user-level start fails, try as root with proper setup
+        - name: Start Tailscale service as root
+          block:
+            - name: Stop existing service if running
+              command: "{{ homebrew_prefix }}/bin/brew services stop tailscale"
+              become: false
+              failed_when: false
+
+            - name: Create system service directory
+              become: true
+              file:
+                path: /Library/LaunchDaemons
+                state: directory
+                mode: "0755"
+
+            - name: Get Tailscale version
+              command: "{{ homebrew_prefix }}/bin/brew list tailscale --versions"
+              register: tailscale_version
+              changed_when: false
+
+            - name: Extract Tailscale version
+              set_fact:
+                tailscale_current_version: "{{ tailscale_version.stdout.split(' ')[1] }}"
+
+            - name: Copy service file to system location
+              become: true
+              command: "cp {{ homebrew_prefix }}/Cellar/tailscale/{{ tailscale_current_version }}/homebrew.mxcl.tailscale.plist /Library/LaunchDaemons/"
+
+            - name: Load service with launchctl
+              become: true
+              command: launchctl load -w /Library/LaunchDaemons/homebrew.mxcl.tailscale.plist
+          when: tailscale_service.rc != 0
 
     - name: Wait for Tailscale daemon to be ready
       wait_for:
