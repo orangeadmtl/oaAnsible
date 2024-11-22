@@ -2,7 +2,7 @@
 - name: Manage DNS Configuration
   block:
     - name: Get network interface information
-      command: route -n get default | grep interface | awk '{print $2}'
+      shell: "route -n get default | grep interface | awk '{print $2}'"
       register: network_interface_info
       changed_when: false
 
@@ -10,8 +10,22 @@
       set_fact:
         primary_interface: "{{ network_interface_info.stdout }}"
 
+    - name: Get network service list
+      shell: "networksetup -listallnetworkservices | grep -v '*'"
+      register: network_services
+      changed_when: false
+
+    - name: Get hardware port for each service
+      shell: "networksetup -listnetworkserviceorder | grep -B 1 'Device: {{ primary_interface }}' | head -n 1 | awk -F') ' '{print $2}'"
+      register: network_service_name
+      changed_when: false
+
+    - name: Set network service fact
+      set_fact:
+        primary_service: "{{ network_service_name.stdout }}"
+
     - name: Get current DNS configuration
-      command: networksetup -getdnsservers "{{ primary_interface }}"
+      command: networksetup -getdnsservers "{{ primary_service }}"
       register: current_dns
       changed_when: false
 
@@ -22,20 +36,19 @@
 
     - name: Process DNS information
       set_fact:
-        current_dns_servers: >-
-          {{ current_dns.stdout.split('\n') | 
-             select('ne', 'There aren't any DNS Servers set on ' + primary_interface + '.') | 
-             list }}
+        current_dns_servers: []
         dhcp_dns_servers: >-
-          {{ dhcp_info.stdout | 
-             regex_findall('domain_name_server[^\n]*\n\s+([^\n]*)') | 
-             first | 
-             split(' ') if (dhcp_info.stdout | regex_findall('domain_name_server[^\n]*\n\s+([^\n]*)')) else [] }}
+          {% set dns_servers = dhcp_info.stdout | regex_findall('domain_name_server \(ip_mult\): \{([^\}]*)\}') %}
+          {% if dns_servers %}
+            {{ dns_servers[0].split(',') | map('trim') | map('regex_replace', '[{}]', '') | list }}
+          {% else %}
+            []
+          {% endif %}
 
     - name: Configure DNS servers
       command: >-
-        networksetup -setdnsservers "{{ primary_interface }}"
-        {{ (current_dns_servers + dhcp_dns_servers + dns.tailscale_servers) | 
+        networksetup -setdnsservers "{{ primary_service }}"
+        {{ ((dhcp_dns_servers | from_yaml) + (dns.tailscale_servers | default([]))) | 
            unique | 
            join(' ') }}
       when: configure.tailscale | bool
@@ -46,7 +59,7 @@
       copy:
         content: "{{ dhcp_dns_servers | join('\n') }}"
         dest: "{{ ansible_env.HOME }}/.dns_backup"
-        mode: '0600'
+        mode: "0600"
       when: configure.tailscale | bool
 
   become: true
