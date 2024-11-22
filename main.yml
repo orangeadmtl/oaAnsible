@@ -24,10 +24,6 @@
       import_tasks: tasks/pre_checks.yml
       tags: ["always"]
 
-    - name: Configure shell environment
-      import_tasks: tasks/shell_config.yml
-      tags: ["shell", "config"]
-
   roles:
     - role: elliotweiser.osx-command-line-tools
       become: yes
