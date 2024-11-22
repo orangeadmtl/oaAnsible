@@ -9,24 +9,22 @@
 
 - name: Set system facts
   set_fact:
-    is_apple_silicon: "{{ ansible_architecture == 'arm64' }}"
-    has_xcode: "{{ lookup('pipe', 'xcode-select -p 2>/dev/null || echo false') != 'false' }}"
-    memory_gb: "{{ ansible_memtotal_mb / 1024 }}"
+    memory_gb: "{{ ansible_memtotal_mb | int // 1024 }}"
     homebrew_prefix: "{{ (ansible_architecture == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
+    is_apple_silicon: "{{ ansible_architecture == 'arm64' }}"
+    has_xcode: "{{ xcode_check.stat.exists | default(false) }}"
   tags: ["always"]
 
 - name: Verify system requirements
   assert:
     that:
+      - memory_gb | int >= 8
       - ansible_distribution == "MacOSX"
-      - ansible_distribution_version is version('11.0', '>=')
-      - memory_gb >= 8
     fail_msg: |
-      System does not meet minimum requirements:
-      - Must be macOS 11.0 or higher
-      - Must have at least 8GB RAM
-      - Current system: {{ ansible_distribution }} {{ ansible_distribution_version }}
-      - Current RAM: {{ memory_gb }}GB
+      System requirements not met:
+      - Minimum 8GB RAM required (found: {{ memory_gb }}GB)
+      - Must be running macOS (found: {{ ansible_distribution }})
+    success_msg: "System requirements verified successfully"
   tags: ["always"]
 
 - name: Debug system information
