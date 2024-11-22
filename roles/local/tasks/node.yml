@@ -31,7 +31,7 @@
     - name: Check if Node.js version is installed
       ansible.builtin.shell: |
         source {{ ansible_env.HOME }}/.nvm/nvm.sh
-        nvm list | grep "v{{ node_version }}"
+        nvm list | grep "v{{ node.version }}"
       args:
         executable: /bin/bash
       register: node_version_check
@@ -41,14 +41,14 @@
     - name: Install Node.js with NVM
       ansible.builtin.shell: |
         source {{ ansible_env.HOME }}/.nvm/nvm.sh
-        nvm install {{ node_version }}
-        nvm alias default {{ node_version }}
+        nvm install {{ node.version }}
+        nvm alias default {{ node.version }}
       args:
         executable: /bin/bash
       register: node_install
       when: node_version_check.rc != 0 or node_version_check.stdout == ""
 
-    # Install global npm packages
+    # Check existing global npm packages
     - name: Check existing global npm packages
       ansible.builtin.shell: |
         source {{ ansible_env.HOME }}/.nvm/nvm.sh
@@ -58,23 +58,18 @@
       register: npm_check
       changed_when: false
       failed_when: false
-      with_items:
-        - pm2
-        - yarn
+      loop: "{{ node.packages | default([]) }}"
 
+    # Install global npm packages
     - name: Install global npm packages
       ansible.builtin.npm:
         name: "{{ item }}"
         global: yes
         state: latest
-      loop: "{{ npm_packages }}"
+      loop: "{{ node.packages | default([]) }}"
       when: "npm_check.results | selectattr('item', 'equalto', item) | map(attribute='rc') | first != 0"
       environment:
-        PATH: "{{ ansible_env.HOME }}/.nvm/versions/node/v{{ node_version }}/bin:{{ ansible_env.PATH }}"
-      vars:
-        npm_packages:
-          - pm2
-          - yarn
+        PATH: "{{ ansible_env.HOME }}/.nvm/versions/node/v{{ node.version }}/bin:{{ ansible_env.PATH }}"
 
-  when: configure_node | bool
-  # This entire block will only run if configure_node is set to true in default.config.yml
+  when: configure.node | bool
+  # This entire block will only run if configure.node is set to true
