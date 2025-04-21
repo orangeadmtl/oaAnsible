@@ -32,8 +32,29 @@
     - role: geerlingguy.mac.homebrew
       tags: ["homebrew", "setup"]
 
-    - role: local
+    - role: macos_base
       tags: ["setup", "configuration"]
+
+    - role: macos_network
+      tags: ["network", "dns"]
+
+    - role: tailscale
+      tags: ["tailscale", "network"]
+
+    - role: macos_python
+      tags: ["python", "dev"]
+
+    - role: macos_node
+      tags: ["node", "dev"]
+      
+    - role: macos_security
+      tags: ["security", "configuration"]
+      
+    - role: macos_settings
+      tags: ["settings", "configuration"]
+      
+    - role: macos_api
+      tags: ["api", "services"]
 
   post_tasks:
     - name: Verify installation

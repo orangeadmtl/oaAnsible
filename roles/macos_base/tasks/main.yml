@@ -67,19 +67,3 @@
             # Shell-specific configurations
             export LANG=en_US.UTF-8
             export EDITOR=vim
-
-# Then continue with other tasks
-- name: Import Python environment tasks
-  import_tasks: pyenv.yml
-  when: configure.pyenv | default(false)
-  tags: ["python", "dev"]
-
-- name: Import Node.js tasks
-  import_tasks: node.yml
-  when: configure.node | default(false)
-  tags: ["node", "dev"]
-
-- name: Import Tailscale tasks
-  import_tasks: tailscale.yml
-  when: configure.tailscale | default(false)
-  tags: ["tailscale", "network"]
