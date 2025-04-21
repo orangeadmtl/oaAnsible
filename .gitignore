@@ -1,12 +1,25 @@
+# System files
 *.vagrant
 .DS_Store
 *.retry
 
-# Ignore everything in roles directory
-roles/*
-# But don't ignore the main directory
-!roles/local
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+.venv/
+venv/
+ENV/
+
+# Ansible
+*.retry
+ansible.log
 
 # Environment logs
 logs/
 *.log
+
+# Sensitive data
+vault_password_file
