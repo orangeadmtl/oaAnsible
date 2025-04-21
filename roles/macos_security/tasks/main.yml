@@ -1,0 +1,86 @@
+---
+# Tasks for macOS security configuration
+
+- name: Configure macOS Firewall
+  block:
+    - name: Enable macOS Firewall
+      command: /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
+      become: true
+      register: firewall_result
+      changed_when: "'already enabled' not in firewall_result.stderr"
+      failed_when: false
+
+    - name: Allow SSH connections
+      command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/sbin/sshd
+      become: true
+      register: ssh_result
+      changed_when: "'already has a rule' not in ssh_result.stderr"
+      failed_when: false
+
+    - name: Allow Tailscale
+      command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /Applications/Tailscale.app/Contents/MacOS/Tailscale
+      become: true
+      register: tailscale_result
+      changed_when: "'already has a rule' not in tailscale_result.stderr"
+      failed_when: false
+      ignore_errors: true  # In case Tailscale is installed elsewhere
+
+    - name: Allow macOS API (Python)
+      command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/local/orangead/macos-api/.venv/bin/python3
+      become: true
+      register: api_result
+      changed_when: "'already has a rule' not in api_result.stderr"
+      failed_when: false
+      ignore_errors: true  # In case API is not yet installed
+
+- name: Configure screen lock after inactivity
+  block:
+    - name: Require password after screen saver
+      command: defaults write com.apple.screensaver askForPassword -int 1
+      become: true
+
+    - name: Set password delay to 5 seconds
+      command: defaults write com.apple.screensaver askForPasswordDelay -int 5
+      become: true
+
+- name: Check FileVault status
+  command: fdesetup status
+  register: filevault_status
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Display FileVault status
+  debug:
+    msg: "FileVault status: {{ filevault_status.stdout }}"
+
+- name: Configure Gatekeeper settings
+  block:
+    - name: Enable Gatekeeper
+      command: spctl --master-enable
+      become: true
+      register: gatekeeper_result
+      changed_when: false
+      failed_when: false
+
+    - name: Allow apps from identified developers
+      command: spctl --global-level appstore
+      become: true
+      register: gatekeeper_level_result
+      changed_when: false
+      failed_when: false
+
+- name: Configure basic password policies
+  block:
+    - name: Set minimum password length
+      command: pwpolicy -n /Local/Default -setglobalpolicy "minChars=8"
+      become: true
+      register: pwpolicy_result
+      changed_when: false
+      failed_when: false
+      ignore_errors: true  # This might require additional authentication
+
+    - name: Display password policy result
+      debug:
+        msg: "Password policy result: {{ pwpolicy_result.stdout | default('Command may require interactive authentication') }}"
+      when: pwpolicy_result is defined

@@ -1,0 +1,98 @@
+---
+# Tasks for macOS system settings configuration
+
+- name: Configure system preferences
+  block:
+    - name: Disable guest user
+      command: |
+        defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool NO
+      become: true
+      register: guest_result
+      changed_when: false
+
+    - name: Set time zone to America/New_York
+      command: |
+        systemsetup -settimezone America/New_York
+      become: true
+      register: timezone_result
+      changed_when: "'America/New_York' not in timezone_result.stdout"
+      failed_when: false
+
+    - name: Enable remote login (SSH)
+      command: |
+        systemsetup -setremotelogin on
+      become: true
+      register: ssh_result
+      changed_when: "'already on' not in ssh_result.stdout"
+      failed_when: false
+
+    - name: Disable sleep mode
+      command: |
+        systemsetup -setsleep Never
+      become: true
+      register: sleep_result
+      changed_when: false
+      failed_when: false
+
+    - name: Disable display sleep
+      command: |
+        systemsetup -setdisplaysleep Never
+      become: true
+      register: display_sleep_result
+      changed_when: false
+      failed_when: false
+
+    - name: Disable hard disk sleep
+      command: |
+        systemsetup -setharddisksleep Never
+      become: true
+      register: disk_sleep_result
+      changed_when: false
+      failed_when: false
+
+    - name: Set restart on power failure
+      command: |
+        systemsetup -setrestartpowerfailure on
+      become: true
+      register: power_failure_result
+      changed_when: false
+      failed_when: false
+
+    - name: Set restart on freeze
+      command: |
+        systemsetup -setrestartfreeze on
+      become: true
+      register: freeze_result
+      changed_when: false
+      failed_when: false
+
+- name: Set hostname if not matching inventory
+  block:
+    - name: Get current hostname
+      command: hostname
+      register: current_hostname
+      changed_when: false
+
+    - name: Set hostname to match inventory
+      command: |
+        scutil --set HostName {{ inventory_hostname }}
+      become: true
+      when: current_hostname.stdout != inventory_hostname
+      register: hostname_result
+      changed_when: hostname_result.rc == 0
+
+    - name: Set ComputerName to match inventory
+      command: |
+        scutil --set ComputerName {{ inventory_hostname }}
+      become: true
+      when: current_hostname.stdout != inventory_hostname
+      register: computername_result
+      changed_when: computername_result.rc == 0
+
+    - name: Set LocalHostName to match inventory
+      command: |
+        scutil --set LocalHostName {{ inventory_hostname }}
+      become: true
+      when: current_hostname.stdout != inventory_hostname
+      register: localhostname_result
+      changed_when: localhostname_result.rc == 0
