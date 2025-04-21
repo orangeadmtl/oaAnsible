@@ -4,7 +4,7 @@ This plan outlines the steps to evolve `oaAnsible` into a comprehensive macOS co
 
 ## Phase 1: Foundation and Restructuring
 
-- [ ] **Branching:** Create a new feature branch from `dev` (e.g., `feat/macos-management-api`).
+- [x] **Branching:** Create a new feature branch from `dev` (e.g., `feat/macos-management-api`).
 
   ```bash
   # In oaAnsible directory
@@ -13,88 +13,89 @@ This plan outlines the steps to evolve `oaAnsible` into a comprehensive macOS co
   git checkout -b feat/macos-management-api
   ```
 
-- [ ] **Project Restructuring (Ansible Roles):**
-  - [ ] Move `roles/local/tasks/dns.yml` to a dedicated role, e.g., `roles/macos_network`.
-  - [ ] Move `roles/local/tasks/tailscale.yml` into the new `roles/macos_network` role or its own `roles/tailscale` role.
-  - [ ] Move `roles/local/tasks/pyenv.yml` to `roles/macos_python`.
-  - [ ] Move `roles/local/tasks/node.yml` to `roles/macos_node`.
-  - [ ] Rename `roles/local` to `roles/macos_base` or similar, keeping only shell configuration (`main.yml`).
-  - [ ] Update `main.yml` to import tasks/roles from their new locations.
-- [ ] **Ansible Configuration (`ansible.cfg`):**
-  - [ ] Review and potentially configure `inventory` path/script setting.
-  - [ ] Consider setting `retry_files_enabled = False` to avoid `.retry` files.
-  - [ ] Ensure `roles_path` includes the restructured `roles/` directory.
-- [ ] **Secrets Management:**
-  - [ ] Introduce **Ansible Vault** for sensitive data (e.g., SSH keys if not using agent forwarding, potential future API keys).
-  - [ ] Create `group_vars/all/vault.yml` (or similar) encrypted file.
-  - [ ] Document vault usage (`ansible-playbook --ask-vault-pass` or vault password file).
+- [x] **Project Restructuring (Ansible Roles):**
+  - [x] Move `roles/local/tasks/dns.yml` to a dedicated role, e.g., `roles/macos_network`.
+  - [x] Move `roles/local/tasks/tailscale.yml` into the new `roles/macos_network` role or its own `roles/tailscale` role.
+  - [x] Move `roles/local/tasks/pyenv.yml` to `roles/macos_python`.
+  - [x] Move `roles/local/tasks/node.yml` to `roles/macos_node`.
+  - [x] Rename `roles/local` to `roles/macos_base` or similar, keeping only shell configuration (`main.yml`).
+  - [x] Update `main.yml` to import tasks/roles from their new locations.
+- [x] **Ansible Configuration (`ansible.cfg`):**
+  - [x] Review and potentially configure `inventory` path/script setting.
+  - [x] Consider setting `retry_files_enabled = False` to avoid `.retry` files.
+  - [x] Ensure `roles_path` includes the restructured `roles/` directory.
+- [x] **Secrets Management:**
+  - [x] Introduce **Ansible Vault** for sensitive data (e.g., SSH keys if not using agent forwarding, potential future API keys).
+  - [x] Create `group_vars/all/vault.yml` (or similar) encrypted file.
+  - [x] Document vault usage (`ansible-playbook --ask-vault-pass` or vault password file).
 
 ## Phase 2: macOS Status API Development (Mirroring `opi-setup/api`)
 
-- [ ] **Decision:** Reuse `opi-setup/api` codebase or create a new, similar project?
+- [x] **Decision:** Reuse `opi-setup/api` codebase or create a new, similar project?
   - _Recommendation:_ Create a new directory `macos-api` within `oaAnsible` (or potentially as a separate submodule later). Copy relevant parts of `opi-setup/api` as a starting point.
-- [ ] **Create Project Structure (`macos-api`):**
-  - [ ] Basic FastAPI structure: `main.py`, `routers/`, `services/`, `models/`, `core/`, `requirements.txt`.
-- [ ] **Adapt Services (`macos-api/services/`):**
-  - [ ] **`system.py`:**
+- [x] **Create Project Structure (`macos-api`):**
+  - [x] Basic FastAPI structure: `main.py`, `routers/`, `services/`, `models/`, `core/`, `requirements.txt`.
+- [x] **Adapt Services (`macos-api/services/`):**
+  - [x] **`system.py`:**
     - Keep `get_system_metrics` (leverages cross-platform `psutil`).
     - Adapt `get_device_info` for macOS (use `sysctl` or other macOS commands to determine model/series if needed, maybe default to "Mac").
     - Adapt `get_version_info` (use `platform`, `sw_vers`, check Tailscale version path `/Applications/Tailscale.app/Contents/MacOS/Tailscale`).
     - Adapt `get_service_info` to use `launchctl` instead of `systemctl`.
-  - [ ] **`display.py` (Conditional):**
+  - [x] **`display.py` (Conditional):**
     - Adapt `get_display_info` using macOS commands (e.g., `system_profiler SPDisplaysDataType`). _Crucially_, make this function gracefully handle headless systems (return default/empty data or a specific 'headless' status).
     - Adapt `take_screenshot` using `screencapture` command. Make this conditional based on display presence.
     - Adapt `get_screenshot_history`.
-  - [ ] **`player.py` (Adapt for `oaTracker`):**
+  - [x] **`player.py` (Adapt for `oaTracker`):**
     - Rename/refactor to `tracker.py` or similar.
     - Adapt `check_player_status` to check the status of the _`oaTracker`_ process/service (using `launchctl list | grep ...` and `ps aux | grep ...`). This assumes `oaTracker` will eventually run as a service managed by `launchd`.
     - Adapt `get_deployment_info` to report `oaTracker` version and status. Make display info conditional.
-  - [ ] **`health.py`:** Keep as is initially; `calculate_health_score` uses data from other services. Weights might need tuning for Macs.
-  - [ ] **`utils.py`:** Keep as is (cross-platform).
-- [ ] **Adapt Routers (`macos-api/routers/`):**
-  - [ ] Update routers (`health.py`, `screenshots.py`) to call the adapted service functions.
-  - [ ] Ensure screenshot routes handle headless scenarios (e.g., return 404 or specific error).
-- [ ] **Adapt Core (`macos-api/core/`):**
-  - [ ] Update `config.py` with relevant paths/commands for macOS. Remove OrangePi-specific paths.
-- [ ] **Update Models (`macos-api/models/`):**
-  - [ ] Adjust `schemas.py` if the structure of information returned by macOS commands differs significantly (e.g., display info). Add flags/fields indicating headless status if needed.
-- [ ] **Update `requirements.txt`:** Include `fastapi`, `uvicorn`, `psutil`, `pydantic`, etc. `uv` should be used for installation.
-- [ ] **Add `.gitignore` for `macos-api`:** Ignore `.venv`, `__pycache__`, etc.
+  - [x] **`health.py`:** Keep as is initially; `calculate_health_score` uses data from other services. Weights might need tuning for Macs.
+  - [x] **`utils.py`:** Keep as is (cross-platform).
+- [x] **Adapt Routers (`macos-api/routers/`):**
+  - [x] Update routers (`health.py`, `screenshots.py`) to call the adapted service functions.
+  - [x] Ensure screenshot routes handle headless scenarios (e.g., return 404 or specific error).
+- [x] **Adapt Core (`macos-api/core/`):**
+  - [x] Update `config.py` with relevant paths/commands for macOS. Remove OrangePi-specific paths.
+- [x] **Update Models (`macos-api/models/`):**
+  - [x] Adjust `schemas.py` if the structure of information returned by macOS commands differs significantly (e.g., display info). Add flags/fields indicating headless status if needed.
+- [x] **Update `requirements.txt`:** Include `fastapi`, `uvicorn`, `psutil`, `pydantic`, etc. `uv` should be used for installation.
+- [x] **Add `.gitignore` for `macos-api`:** Ignore `.venv`, `__pycache__`, etc.
 
 ## Phase 3: Ansible Enhancements for macOS Configuration & API Deployment
 
-- [ ] **Dynamic Inventory:**
-  - [ ] Create an inventory script (e.g., `inventory/dynamic_inventory.py`) that:
+- [x] **Dynamic Inventory:**
+  - [x] Create an inventory script (e.g., `inventory/dynamic_inventory.py`) that:
     - Reads Tailscale API Key (from Vault or env var).
     - Queries Tailscale API (`/api/v2/tailnet/-/devices`) for devices tagged appropriately (e.g., `tag:macos-managed`) or identified as macOS.
     - Outputs JSON inventory format including `ansible_host` (Tailscale IP) and other relevant vars (`hostname`, `os`).
-  - [ ] Update `ansible.cfg` to point `inventory` to this script.
-  - [ ] Update `inventory/` directory structure (remove static `hosts.yml` or keep for local testing).
-- [ ] **New Ansible Role: `macos_api`:**
-  - [ ] **Task:** Copy the `macos-api` project files to a target directory on the Mac (e.g., `/usr/local/orangead/macos-api`).
-  - [ ] **Task:** Create Python virtual environment using `uv` (e.g., `/usr/local/orangead/macos-api/.venv`).
-  - [ ] **Task:** Install API dependencies using `uv pip install -r requirements.txt`.
-  - [ ] **Task:** Create a `launchd` plist file (e.g., in `/Library/LaunchDaemons/com.orangead.macosapi.plist`) to run the API using `uvicorn`.
+  - [x] Update `ansible.cfg` to point `inventory` to this script.
+  - [x] Update `inventory/` directory structure (remove static `hosts.yml` or keep for local testing).
+- [x] **New Ansible Role: `macos_api`:**
+  - [x] **Task:** Copy the `macos-api` project files to a target directory on the Mac (e.g., `/usr/local/orangead/macos-api`).
+  - [x] **Task:** Create Python virtual environment using `uv` (e.g., `/usr/local/orangead/macos-api/.venv`).
+  - [x] **Task:** Install API dependencies using `uv pip install -r requirements.txt`.
+  - [x] **Task:** Create a `launchd` plist file (e.g., in `/Library/LaunchDaemons/com.orangead.macosapi.plist`) to run the API using `uvicorn`.
     - Ensure it runs as a specific user (e.g., `_orangead` - create this user if needed).
     - Set `WorkingDirectory`.
     - Set necessary `EnvironmentVariables` (like `PYTHONPATH`).
     - Configure `StandardOutPath` and `StandardErrorPath` for logging.
     - Set `RunAtLoad` and `KeepAlive`.
-  - [ ] **Handler:** Load/reload the `launchd` service when the plist file or API code changes.
-  - [ ] **Task:** Ensure the API port (e.g., 9090) is allowed through the macOS firewall (`pf` or `socketfilterfw`).
-- [ ] **New Ansible Role: `macos_security`:**
-  - [ ] **Task:** Configure macOS Firewall (`pfctl` via `command` or `community.general.pf` if suitable, or using `socketfilterfw`). Allow necessary ports (SSH, API port, Tailscale ports).
-  - [ ] **Task:** Enforce screen lock after inactivity (`defaults write com.apple.screensaver askForPassword -int 1`, `defaults write com.apple.screensaver askForPasswordDelay -int 5`).
-  - [ ] **Task:** Configure FileVault settings (check status, potentially enforce - complex, might require user interaction or MDM).
-  - [ ] **Task:** Configure Gatekeeper settings.
-  - [ ] **Task:** Configure basic password policies if needed.
-- [ ] **New Ansible Role: `macos_settings`:**
-  - [ ] **Task:** Configure system preferences using `defaults write` (e.g., disable guest user, time zone, remote login settings).
-  - [ ] **Task:** Set hostname if not already matching inventory/desired state.
+  - [x] **Handler:** Load/reload the `launchd` service when the plist file or API code changes.
+  - [x] **Task:** Ensure the API port (e.g., 9090) is allowed through the macOS firewall (`pf` or `socketfilterfw`).
+- [x] **New Ansible Role: `macos_security`:**
+  - [x] **Task:** Configure macOS Firewall (`pfctl` via `command` or `community.general.pf` if suitable, or using `socketfilterfw`). Allow necessary ports (SSH, API port, Tailscale ports).
+  - [x] **Task:** Enforce screen lock after inactivity (`defaults write com.apple.screensaver askForPassword -int 1`, `defaults write com.apple.screensaver askForPasswordDelay -int 5`).
+  - [x] **Task:** Configure FileVault settings (check status, potentially enforce - complex, might require user interaction or MDM).
+  - [x] **Task:** Configure Gatekeeper settings.
+  - [x] **Task:** Configure basic password policies if needed.
+- [x] **New Ansible Role: `macos_settings`:**
+  - [x] **Task:** Configure system preferences using `defaults write` (e.g., disable guest user, time zone, remote login settings).
+  - [x] **Task:** Set hostname if not already matching inventory/desired state.
 - [ ] **New Ansible Role: `oa_tracker` (Placeholder):**
   - [ ] Define tasks to deploy and manage the future `oaTracker` application (install, configure, manage service via `launchd`).
-- [ ] **Update `main.yml`:** Include the new roles (`macos_api`, `macos_security`, `macos_settings`, `oa_tracker`). Use tags appropriately.
-- [ ] **Update `dev-cleanup.yml`:** Add tasks to uninstall the `macos-api`, remove its `launchd` plist, and revert security/system settings applied by the new roles.
+  - **Note:** Skipping this role for now as requested.
+- [x] **Update `main.yml`:** Include the new roles (`macos_api`, `macos_security`, `macos_settings`). Use tags appropriately.
+- [x] **Update `dev-cleanup.yml`:** Add tasks to uninstall the `macos-api`, remove its `launchd` plist, and revert security/system settings applied by the new roles.
 
 ## Phase 4: Integration with `oaDashboard`
 
