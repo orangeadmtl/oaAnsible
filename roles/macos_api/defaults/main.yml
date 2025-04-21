@@ -1,0 +1,15 @@
+---
+# Default variables for macos_api role
+
+# API configuration
+api_port: 9090
+api_host: "0.0.0.0"
+
+# Installation paths
+api_install_dir: /usr/local/orangead/macos-api
+api_logs_dir: /usr/local/orangead/macos-api/logs
+api_venv_dir: /usr/local/orangead/macos-api/.venv
+
+# Service user
+api_user: _orangead
+api_group: staff
