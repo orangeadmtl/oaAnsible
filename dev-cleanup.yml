@@ -11,7 +11,7 @@
     - name: Display development-only warning
       debug:
         msg: |
-          ⚠️  DEVELOPMENT/STAGING USE ONLY ⚠️
+          DEVELOPMENT/STAGING USE ONLY 
           ===============================
           This playbook is strictly for development and staging environments.
           DO NOT RUN THIS IN PRODUCTION!
@@ -187,6 +187,68 @@
         - "{{ ansible_env.HOME }}/.zprofile"
         - "{{ ansible_env.HOME }}/.bash_profile"
       ignore_errors: true
+
+    - name: Clean up macOS API
+      block:
+        - name: Stop and unload macOS API service
+          command: launchctl unload -w /Library/LaunchDaemons/com.orangead.macosapi.plist
+          become: true
+          ignore_errors: true
+
+        - name: Remove macOS API launchd plist
+          file:
+            path: /Library/LaunchDaemons/com.orangead.macosapi.plist
+            state: absent
+          become: true
+          ignore_errors: true
+
+        - name: Remove macOS API directory
+          file:
+            path: /usr/local/orangead/macos-api
+            state: absent
+          become: true
+          ignore_errors: true
+
+        - name: Remove screenshots directory
+          file:
+            path: /tmp/screenshots
+            state: absent
+          become: true
+          ignore_errors: true
+
+    - name: Revert macOS security settings
+      block:
+        - name: Disable password requirement after screen saver
+          command: defaults write com.apple.screensaver askForPassword -int 0
+          become: true
+          ignore_errors: true
+
+        - name: Reset Gatekeeper to default
+          command: spctl --master-enable
+          become: true
+          ignore_errors: true
+
+    - name: Revert macOS system settings
+      block:
+        - name: Enable guest user
+          command: defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool YES
+          become: true
+          ignore_errors: true
+
+        - name: Reset sleep settings to default
+          command: systemsetup -setsleep 60
+          become: true
+          ignore_errors: true
+
+        - name: Reset display sleep to default
+          command: systemsetup -setdisplaysleep 15
+          become: true
+          ignore_errors: true
+
+        - name: Reset hard disk sleep to default
+          command: systemsetup -setharddisksleep 10
+          become: true
+          ignore_errors: true
 
     - name: Clean up temporary files
       file:
