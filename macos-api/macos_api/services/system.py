@@ -161,32 +161,62 @@ def get_device_info() -> Dict[str, str]:
 def get_version_info() -> Dict:
     """Get system and tracker version information."""
     try:
-        # Get system info
+        # Get system info using platform module
         system_info = {
             "os": platform.system(),
-            "release": platform.release(),
-            "version": platform.version(),
+            "platform": "macOS",  # Explicitly set platform for clarity
             "machine": platform.machine(),
             "processor": platform.processor(),
             "hostname": platform.node(),
         }
 
-        # Get macOS version using sw_vers
-        try:
-            product_version = run_command(["sw_vers", "-productVersion"])
-            build_version = run_command(["sw_vers", "-buildVersion"])
-            if product_version:
-                system_info["macos_version"] = product_version
-            if build_version:
-                system_info["build_version"] = build_version
-        except Exception:
-            pass
+        # Get macOS version using platform.mac_ver() - more reliable than parsing sw_vers
+        mac_ver = platform.mac_ver()
+        if mac_ver and mac_ver[0]:
+            system_info["macos_version"] = mac_ver[0]  # Release version (e.g., "13.4.1")
+            if mac_ver[2]:
+                system_info["machine_type"] = mac_ver[2]  # Machine type (e.g., "x86_64" or "arm64")
 
-        # Extract series from hostname (e.g., mac0001 -> mac)
+        # Get additional version details using sw_vers for completeness
+        try:
+            product_name = run_command(["sw_vers", "-productName"]).strip()
+            product_version = run_command(["sw_vers", "-productVersion"]).strip()
+            build_version = run_command(["sw_vers", "-buildVersion"]).strip()
+            
+            if product_name:
+                system_info["product_name"] = product_name  # Usually "macOS"
+            if product_version:
+                system_info["macos_version"] = product_version  # Ensure we have this even if mac_ver failed
+            if build_version:
+                system_info["build_version"] = build_version  # Build number (e.g., "22F82")
+        except Exception as e:
+            system_info["sw_vers_error"] = str(e)
+
+        # Calculate uptime from boot_time
+        try:
+            boot_timestamp = psutil.boot_time()
+            current_timestamp = datetime.now(timezone.utc).timestamp()
+            uptime_seconds = int(current_timestamp - boot_timestamp)
+            
+            # Format uptime in a human-readable format
+            days, remainder = divmod(uptime_seconds, 86400)
+            hours, remainder = divmod(remainder, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            
+            system_info["uptime"] = {
+                "seconds": uptime_seconds,
+                "formatted": f"{days}d {hours}h {minutes}m {seconds}s",
+                "boot_time": datetime.fromtimestamp(boot_timestamp, timezone.utc).isoformat()
+            }
+        except Exception as e:
+            system_info["uptime_error"] = str(e)
+
+        # Extract series from hostname (e.g., mac0001 -> MAC)
         hostname = system_info["hostname"].lower()
         series_match = re.match(r"^([a-zA-Z]+)", hostname)
         if series_match:
-            system_info["series"] = series_match.group(1)
+            system_info["series"] = series_match.group(1).upper()  # Standardize to uppercase
+            system_info["device_id"] = hostname  # Include full device ID
 
         # Get tracker version if available
         tracker_version_file = TRACKER_ROOT / "version.txt"
@@ -204,7 +234,7 @@ def get_version_info() -> Dict:
             
             for path in tailscale_paths:
                 if os.path.exists(path):
-                    tailscale_version_output = run_command([path, "version"])
+                    tailscale_version_output = run_command([path, "version"]).strip()
                     if tailscale_version_output:
                         # Extract just the version number from the first line
                         version_number = tailscale_version_output.split("\n")[0].strip()
@@ -213,9 +243,9 @@ def get_version_info() -> Dict:
             
             if "tailscale_version" not in system_info:
                 system_info["tailscale_version"] = None
-        except Exception:
-            system_info["tailscale_version"] = None
+        except Exception as e:
+            system_info["tailscale_error"] = str(e)
 
         return system_info
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": str(e), "error_type": type(e).__name__}
