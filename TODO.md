@@ -5,117 +5,108 @@ This plan outlines the steps to evolve `oaAnsible` into a comprehensive macOS co
 ## Phase 1: Foundation and Restructuring
 
 - [x] **Branching:** Create a new feature branch from `dev` (e.g., `feat/macos-management-api`).
-
-  ```bash
-  # In oaAnsible directory
-  git checkout dev
-  git pull origin dev
-  git checkout -b feat/macos-management-api
-  ```
-
-- [x] **Project Restructuring (Ansible Roles):**
-  - [x] Move `roles/local/tasks/dns.yml` to a dedicated role, e.g., `roles/macos_network`.
-  - [x] Move `roles/local/tasks/tailscale.yml` into the new `roles/macos_network` role or its own `roles/tailscale` role.
-  - [x] Move `roles/local/tasks/pyenv.yml` to `roles/macos_python`.
-  - [x] Move `roles/local/tasks/node.yml` to `roles/macos_node`.
-  - [x] Rename `roles/local` to `roles/macos_base` or similar, keeping only shell configuration (`main.yml`).
-  - [x] Update `main.yml` to import tasks/roles from their new locations.
-- [x] **Ansible Configuration (`ansible.cfg`):**
-  - [x] Review and potentially configure `inventory` path/script setting.
-  - [x] Consider setting `retry_files_enabled = False` to avoid `.retry` files.
-  - [x] Ensure `roles_path` includes the restructured `roles/` directory.
-- [x] **Secrets Management:**
-  - [x] Introduce **Ansible Vault** for sensitive data (e.g., SSH keys if not using agent forwarding, potential future API keys).
-  - [x] Create `group_vars/all/vault.yml` (or similar) encrypted file.
-  - [x] Document vault usage (`ansible-playbook --ask-vault-pass` or vault password file).
+- [x] **Project Restructuring (Ansible Roles):** Move tasks into dedicated roles (`macos_network`, `macos_python`, `macos_node`, `macos_base`).
+- [x] **Ansible Configuration (`ansible.cfg`):** Update inventory path, disable retry files.
+- [x] **Secrets Management:** Introduce Ansible Vault (`group_vars/all/vault.yml`).
 
 ## Phase 2: macOS Status API Development (Mirroring `opi-setup/api`)
 
-- [x] **Decision:** Reuse `opi-setup/api` codebase or create a new, similar project?
-  - _Recommendation:_ Create a new directory `macos-api` within `oaAnsible` (or potentially as a separate submodule later). Copy relevant parts of `opi-setup/api` as a starting point.
-- [x] **Create Project Structure (`macos-api`):**
-  - [x] Basic FastAPI structure: `main.py`, `routers/`, `services/`, `models/`, `core/`, `requirements.txt`.
-- [x] **Adapt Services (`macos-api/services/`):**
-  - [x] **`system.py`:**
-    - Keep `get_system_metrics` (leverages cross-platform `psutil`).
-    - Adapt `get_device_info` for macOS (use `sysctl` or other macOS commands to determine model/series if needed, maybe default to "Mac").
-    - Adapt `get_version_info` (use `platform`, `sw_vers`, check Tailscale version path `/Applications/Tailscale.app/Contents/MacOS/Tailscale`).
-    - Adapt `get_service_info` to use `launchctl` instead of `systemctl`.
-  - [x] **`display.py` (Conditional):**
-    - Adapt `get_display_info` using macOS commands (e.g., `system_profiler SPDisplaysDataType`). _Crucially_, make this function gracefully handle headless systems (return default/empty data or a specific 'headless' status).
-    - Adapt `take_screenshot` using `screencapture` command. Make this conditional based on display presence.
-    - Adapt `get_screenshot_history`.
-  - [x] **`player.py` (Adapt for `oaTracker`):**
-    - Rename/refactor to `tracker.py` or similar.
-    - Adapt `check_player_status` to check the status of the _`oaTracker`_ process/service (using `launchctl list | grep ...` and `ps aux | grep ...`). This assumes `oaTracker` will eventually run as a service managed by `launchd`.
-    - Adapt `get_deployment_info` to report `oaTracker` version and status. Make display info conditional.
-  - [x] **`health.py`:** Keep as is initially; `calculate_health_score` uses data from other services. Weights might need tuning for Macs.
-  - [x] **`utils.py`:** Keep as is (cross-platform).
-- [x] **Adapt Routers (`macos-api/routers/`):**
-  - [x] Update routers (`health.py`, `screenshots.py`) to call the adapted service functions.
-  - [x] Ensure screenshot routes handle headless scenarios (e.g., return 404 or specific error).
-- [x] **Adapt Core (`macos-api/core/`):**
-  - [x] Update `config.py` with relevant paths/commands for macOS. Remove OrangePi-specific paths.
-- [x] **Update Models (`macos-api/models/`):**
-  - [x] Adjust `schemas.py` if the structure of information returned by macOS commands differs significantly (e.g., display info). Add flags/fields indicating headless status if needed.
-- [x] **Update `requirements.txt`:** Include `fastapi`, `uvicorn`, `psutil`, `pydantic`, etc. `uv` should be used for installation.
-- [x] **Add `.gitignore` for `macos-api`:** Ignore `.venv`, `__pycache__`, etc.
+- [x] **Create Project Structure (`macos-api`):** Basic FastAPI structure.
+- [x] **Adapt Services (`macos-api/services/`):** Port logic from `opi-setup` for macOS (`system.py`, `display.py`, `tracker.py`, `health.py`). Handle headless systems.
+- [x] **Adapt Routers (`macos-api/routers/`):** Update routers to use adapted services.
+- [x] **Adapt Core (`macos-api/core/`):** Update config for macOS paths/commands.
+- [x] **Update Models (`macos-api/models/`):** Adjust schemas for macOS data.
+- [x] **Update `requirements.txt`:** Add FastAPI, psutil, etc. Use `uv`.
+- [x] **Add `.gitignore` for `macos-api`:** Ignore virtual env, caches.
 
 ## Phase 3: Ansible Enhancements for macOS Configuration & API Deployment
 
-- [x] **Dynamic Inventory:**
-  - [x] Create an inventory script (e.g., `inventory/dynamic_inventory.py`) that:
-    - Reads Tailscale API Key (from Vault or env var).
-    - Queries Tailscale API (`/api/v2/tailnet/-/devices`) for devices tagged appropriately (e.g., `tag:macos-managed`) or identified as macOS.
-    - Outputs JSON inventory format including `ansible_host` (Tailscale IP) and other relevant vars (`hostname`, `os`).
-  - [x] Update `ansible.cfg` to point `inventory` to this script.
-  - [x] Update `inventory/` directory structure (remove static `hosts.yml` or keep for local testing).
-- [x] **New Ansible Role: `macos_api`:**
-  - [x] **Task:** Copy the `macos-api` project files to a target directory on the Mac (e.g., `/usr/local/orangead/macos-api`).
-  - [x] **Task:** Create Python virtual environment using `uv` (e.g., `/usr/local/orangead/macos-api/.venv`).
-  - [x] **Task:** Install API dependencies using `uv pip install -r requirements.txt`.
-  - [x] **Task:** Create a `launchd` plist file (e.g., in `/Library/LaunchDaemons/com.orangead.macosapi.plist`) to run the API using `uvicorn`.
-    - Ensure it runs as a specific user (e.g., `_orangead` - create this user if needed).
-    - Set `WorkingDirectory`.
-    - Set necessary `EnvironmentVariables` (like `PYTHONPATH`).
-    - Configure `StandardOutPath` and `StandardErrorPath` for logging.
-    - Set `RunAtLoad` and `KeepAlive`.
-  - [x] **Handler:** Load/reload the `launchd` service when the plist file or API code changes.
-  - [x] **Task:** Ensure the API port (e.g., 9090) is allowed through the macOS firewall (`pf` or `socketfilterfw`).
-- [x] **New Ansible Role: `macos_security`:**
-  - [x] **Task:** Configure macOS Firewall (`pfctl` via `command` or `community.general.pf` if suitable, or using `socketfilterfw`). Allow necessary ports (SSH, API port, Tailscale ports).
-  - [x] **Task:** Enforce screen lock after inactivity (`defaults write com.apple.screensaver askForPassword -int 1`, `defaults write com.apple.screensaver askForPasswordDelay -int 5`).
-  - [x] **Task:** Configure FileVault settings (check status, potentially enforce - complex, might require user interaction or MDM).
-  - [x] **Task:** Configure Gatekeeper settings.
-  - [x] **Task:** Configure basic password policies if needed.
-- [x] **New Ansible Role: `macos_settings`:**
-  - [x] **Task:** Configure system preferences using `defaults write` (e.g., disable guest user, time zone, remote login settings).
-  - [x] **Task:** Set hostname if not already matching inventory/desired state.
-- [ ] **New Ansible Role: `oa_tracker` (Placeholder):**
-  - [ ] Define tasks to deploy and manage the future `oaTracker` application (install, configure, manage service via `launchd`).
-  - **Note:** Skipping this role for now as requested.
-- [x] **Update `main.yml`:** Include the new roles (`macos_api`, `macos_security`, `macos_settings`). Use tags appropriately.
-- [x] **Update `dev-cleanup.yml`:** Add tasks to uninstall the `macos-api`, remove its `launchd` plist, and revert security/system settings applied by the new roles.
+- [x] **Dynamic Inventory:** Create `inventory/dynamic_inventory.py` using Tailscale API.
+- [x] **New Ansible Role: `macos_api`:** Deploy `macos-api` files, create venv, install deps, set up `launchd` service, configure firewall.
+- [x] **New Ansible Role: `macos_security`:** Configure macOS Firewall, screen lock, FileVault (check), Gatekeeper.
+- [x] **New Ansible Role: `macos_settings`:** Configure system preferences, hostname.
+- [ ] **New Ansible Role: `oa_tracker` (Placeholder):** Define tasks for future `oaTracker` (skipped for now).
+- [x] **Update `main.yml`:** Include new roles with tags.
+- [x] **Update `dev-cleanup.yml`:** Add tasks to uninstall `macos-api` and revert settings.
 
 ## Phase 4: Integration with `oaDashboard`
 
 - [ ] **`oaDashboard` Backend:**
-  - [ ] Modify `DeviceMonitorService` (or create a new service) to detect macOS devices (e.g., based on Tailscale OS field or tags).
-  - [ ] For macOS devices, query the new `macos-api` endpoint (`http://<tailscale_ip>:9090/health`) instead of the `opi-setup` one.
-  - [ ] Adapt the data processing logic to handle potential differences in the macOS API response (especially regarding headless status, display info, tracker status vs. player status).
-  - [ ] Update `DeviceEntity` model and `DeviceDTO` schema if necessary to store/represent Mac-specific states or lack thereof (e.g., no display info).
-  - [ ] (Optional) Implement endpoint to trigger Ansible runs via `ansible-runner`.
-  - [ ] (Optional) Modify inventory generation endpoint if `oaAnsible` uses it.
+  - [ ] Modify `DeviceMonitorService` to detect macOS devices.
+  - [ ] Query `macos-api` endpoint for macOS devices.
+  - [ ] Adapt data processing for macOS API responses.
+  - [ ] Update `DeviceEntity` model and `DeviceDTO` schema if needed.
 - [ ] **`oaDashboard` Frontend:**
-  - [ ] Update `DeviceTable` and `DeviceDetails` components to correctly display information for macOS devices.
-  - [ ] Conditionally render components based on device type or available data (e.g., don't show Screenshot panel for headless Macs, show Tracker status instead of Player status).
-  - [ ] Adapt health/metric visualizations if necessary.
-  - [ ] (Optional) Add UI elements to trigger/monitor Ansible runs if implemented in the backend.
+  - [ ] Update components (`DeviceTable`, `DeviceDetails`) to display macOS info correctly.
+  - [ ] Conditionally render UI elements (e.g., Screenshot panel).
+  - [ ] Adapt health/metric visualizations.
 
 ## Phase 5: Documentation and Refinement
 
-- [ ] **Update `oaAnsible/README.md`:** Detail the new structure, macOS API, `launchd` service setup, dynamic inventory usage, Vault setup, and new roles.
-- [ ] **Update `oaDashboard/README.md`:** Mention support for macOS devices and integration with `oaAnsible`.
-- [ ] **Update `oaPangaea/.windsurfrules`:** Ensure it reflects the final structure and guidelines for all three components.
-- [ ] **Testing:** Thoroughly test Ansible playbooks on target Macs (different models/OS versions if possible). Test the `macos-api` independently. Test the full `oaDashboard` integration.
-- [ ] **Refine:** Based on testing, refine Ansible tasks, API responses, and dashboard display logic. Tune health score weights if needed.
+- [ ] **Update `oaAnsible/README.md`:** Detail new structure, macOS API, dynamic inventory, Vault, roles.
+- [ ] **Update `oaDashboard/README.md`:** Mention macOS support.
+- [ ] **Testing:** Thoroughly test playbooks on target Macs and dashboard integration.
+- [ ] **Refine:** Improve tasks, API responses, and UI based on testing.
+
+---
+
+## Testing on a Local Development Machine
+
+This section details how to use the `staging` environment configuration to test the `oaAnsible` playbooks on a local development machine with the IP address `192.168.2.9`.
+
+**Prerequisites:**
+
+1. **Target Machine:** Ensure your local development machine has the IP address `192.168.2.9`.
+2. **SSH Access:**
+    - Enable Remote Login on the target Mac (System Settings > General > Sharing > Remote Login).
+    - Ensure you can SSH from your control machine (where you run Ansible) to the target machine as the `admin` user.
+    - **Recommended:** Configure SSH key-based authentication. Add your control machine's public SSH key (`~/.ssh/id_rsa.pub` or similar) to the `~/.ssh/authorized_keys` file on the target machine (`admin` user's home directory).
+3. **Ansible Control Machine:** Have Ansible and the necessary collections (`ansible-galaxy install -r requirements.yml`) installed.
+
+**Steps:**
+
+1. **Verify Inventory:**
+
+    - Check the `inventory/staging/hosts.yml` file. It should already list a host (e.g., `b3`) pointing to `ansible_host: 192.168.2.9` with `ansible_user: admin`. Adjust the hostname (`b3`) if necessary, but keep the IP and user.
+
+    ```yaml
+    # inventory/staging/hosts.yml
+    all:
+      # ...
+      children:
+        macos:
+          hosts:
+            your_dev_hostname: # Or keep b3
+              ansible_host: 192.168.2.9
+              ansible_user: admin
+    ```
+
+2. **Review Variables:**
+
+    - Examine `inventory/staging/group_vars/all.yml`. This file defines the Python/Node versions, Homebrew packages, and feature toggles (`configure:`) that will be applied. Modify these settings if needed for your local test.
+
+3. **(Optional) Clean Target Machine:**
+
+    - If you want to ensure a clean slate before applying the configuration (removing Homebrew, pyenv, nvm, Tailscale, API service), run the cleanup playbook. You will be prompted for the `admin` user's sudo password.
+
+    ```bash
+    ansible-playbook dev-cleanup.yml -i inventory/staging/hosts.yml --ask-become-pass
+    # You might also need --ask-vault-pass if vault.yml is used and encrypted
+    ```
+
+    - **Warning:** This playbook removes development tools and settings. Only run this on your designated local test machine.
+
+4. **Run the Main Playbook:**
+
+    - Execute the main playbook using the staging script. You will likely be prompted for the `admin` user's sudo password.
+
+    ```bash
+    ./scripts/run-staging.sh --ask-become-pass
+    # Add --ask-vault-pass if vault.yml is used and encrypted
+    ```
+
+5. **Verify:**
+    - After the playbook finishes, SSH into the target machine (`ssh admin@192.168.2.9`) and verify that the expected tools (Homebrew, Python, Node, etc.) are installed and configured correctly.
+    - Check if the `macos-api` service is running: `curl http://localhost:9090/health`.
+
+This setup allows you to iteratively test and develop the Ansible roles and playbooks on a local machine before applying them to actual staging or production environments managed via dynamic inventory.
