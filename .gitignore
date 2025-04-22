@@ -17,9 +17,16 @@ ENV/
 *.retry
 ansible.log
 
+# External roles
+roles/elliotweiser.*
+roles/geerlingguy.*
+
 # Environment logs
 logs/
 *.log
 
 # Sensitive data
 vault_password_file
+
+# Temporary files
+git_diff.txt
