@@ -1,0 +1,78 @@
+---
+- name: Deploy macOS API
+  hosts: macos
+  gather_facts: true
+  
+  tasks:
+    - name: Ensure orangead directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /usr/local/orangead
+        - /usr/local/orangead/macos-api
+        - /usr/local/orangead/macos-api/logs
+      become: true
+    
+    - name: Copy macOS API files
+      copy:
+        src: "{{ playbook_dir }}/macos-api/"
+        dest: /usr/local/orangead/macos-api/
+        owner: root
+        group: wheel
+        mode: '0755'
+      become: true
+    
+    - name: Create Python virtual environment
+      shell: |
+        cd /usr/local/orangead/macos-api
+        python3 -m venv .venv
+        source .venv/bin/activate
+        pip install -r requirements.txt
+      args:
+        creates: /usr/local/orangead/macos-api/.venv/bin/activate
+      become: true
+    
+    - name: Create _orangead user for running the API service
+      user:
+        name: _orangead
+        system: yes
+        shell: /usr/bin/false
+        home: /usr/local/orangead
+        createhome: no
+      become: true
+    
+    - name: Set ownership of orangead directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: _orangead
+        group: staff
+        recurse: yes
+      loop:
+        - /usr/local/orangead/macos-api
+      become: true
+    
+    - name: Create launchd plist for macOS API
+      template:
+        src: roles/macos/api/templates/com.orangead.macosapi.plist.j2
+        dest: /Library/LaunchDaemons/com.orangead.macosapi.plist
+        owner: root
+        group: wheel
+        mode: '0644'
+      become: true
+    
+    - name: Ensure screenshot directory exists
+      file:
+        path: /tmp/screenshots
+        state: directory
+        mode: '0755'
+        owner: _orangead
+        group: staff
+      become: true
+    
+    - name: Load macOS API service
+      command: launchctl load -w /Library/LaunchDaemons/com.orangead.macosapi.plist
+      become: true
+      ignore_errors: true  # In case it's already loaded
