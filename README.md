@@ -1,6 +1,6 @@
 # OrangeAd Mac Setup Playbook
 
-Ansible playbook for automated setup and configuration of macOS devices for OrangeAd.
+Ansible playbook for automated setup and configuration of macOS devices for OrangeAd. This repository is part of the `oaPangaea` monorepo and provides comprehensive macOS device management capabilities.
 
 ## Features
 
@@ -8,6 +8,9 @@ Ansible playbook for automated setup and configuration of macOS devices for Oran
 - Python environment setup with pyenv
 - Node.js setup with NVM
 - Tailscale network configuration with DNS management
+- macOS API service for device monitoring and management
+- Dynamic inventory using Tailscale API
+- Enhanced security and system settings configuration
 - Environment-specific configurations (staging/production)
 - Comprehensive verification system
 - Development cleanup tools
@@ -37,26 +40,47 @@ Ansible playbook for automated setup and configuration of macOS devices for Oran
 ## Directory Structure
 
 ```tree
-macos-setup/
-├── inventory/            # Environment-specific inventories
-│   ├── production/      # Production environment
-│   │   ├── hosts.yml    # Production hosts
-│   │   └── group_vars/  # Production variables
-│   └── staging/        # Staging environment
-│       ├── hosts.yml    # Staging hosts
-│       └── group_vars/  # Staging variables
+oaAnsible/
+├── inventory/                # Environment-specific inventories
+│   ├── production/           # Production environment
+│   │   ├── hosts.yml         # Production hosts
+│   │   └── group_vars/       # Production variables
+│   ├── staging/              # Staging environment
+│   │   ├── hosts.yml         # Staging hosts
+│   │   └── group_vars/       # Staging variables
+│   └── dynamic_inventory.py  # Dynamic inventory script using Tailscale API
 ├── roles/
-│   └── local/          # Custom local role
-│       ├── tasks/      # Role-specific tasks
-│       └── defaults/   # Default variables
-├── tasks/              # Global tasks
-│   ├── pre_checks.yml  # System verification
-│   └── verify.yml      # Post-install checks
-├── scripts/            # Convenience scripts
-│   ├── run-staging.sh
-│   └── run-production.sh
-├── main.yml            # Main playbook
-└── dev-cleanup.yml     # Development reset playbook
+│   ├── macos/                # macOS-specific roles
+│   │   ├── api/              # macOS API service deployment
+│   │   ├── base/             # Base system configuration
+│   │   ├── network/          # Network configuration
+│   │   │   └── tailscale/    # Tailscale VPN setup
+│   │   ├── node/             # Node.js setup
+│   │   ├── python/           # Python setup
+│   │   ├── security/         # Security settings
+│   │   └── settings/         # System preferences
+│   ├── elliotweiser.osx-command-line-tools/  # External role (from Galaxy)
+│   └── geerlingguy.dotfiles/                 # External role (from Galaxy)
+├── macos-api/                # FastAPI service for macOS monitoring
+│   ├── core/                 # Core functionality
+│   ├── models/               # Data models
+│   ├── routers/              # API endpoints
+│   ├── services/             # Business logic
+│   └── main.py               # Entry point
+├── tasks/                    # Global tasks
+│   ├── pre_checks.yml        # System verification
+│   └── verify.yml            # Post-install checks
+├── scripts/                  # Convenience scripts
+│   ├── run-staging.sh        # Run playbook on staging
+│   ├── run-production.sh     # Run playbook on production
+│   ├── deploy-macos-api.sh   # Deploy macOS API only
+│   └── verify-macos-api.sh   # Verify macOS API deployment
+├── group_vars/               # Global variables
+│   └── all/                  # Variables for all hosts
+│       └── vault.yml         # Encrypted sensitive variables
+├── main.yml                  # Main playbook
+├── deploy-macos-api.yml      # macOS API deployment playbook
+└── dev-cleanup.yml           # Development reset playbook
 ```
 
 ## Usage
@@ -93,9 +117,13 @@ macos-setup/
 - `python`: Python/pyenv setup
 - `node`: Node.js/nvm setup
 - `tailscale`: Network configuration
+- `security`: Security settings
+- `settings`: System preferences
+- `api`: macOS API service
 - `verify`: Verification tasks
 - `dev`: Development tools
 - `network`: Network settings
+- `configuration`: General configuration tasks
 
 ## Configuration
 
@@ -115,6 +143,9 @@ configure:
   tailscale: true/false
   pyenv: true/false
   node: true/false
+  security: true/false
+  settings: true/false
+  api: true/false
 ```
 
 ## Verification System
@@ -127,6 +158,9 @@ ansible-playbook main.yml --tags "verify" -i inventory/[env]/hosts.yml
 
 # Component-specific verification
 ansible-playbook main.yml --tags "verify,python" -i inventory/[env]/hosts.yml
+
+# Verify macOS API specifically
+./scripts/verify-macos-api.sh
 ```
 
 Verifies:
@@ -135,7 +169,9 @@ Verifies:
 - Package installations
 - Runtime environments
 - Network connectivity
-- Service status
+- macOS API service status
+- Security settings
+- System preferences
 
 ## Development Tools
 
@@ -155,6 +191,34 @@ ansible-playbook dev-cleanup.yml -K -i inventory/staging/hosts.yml
 2. Interactive confirmation
 3. Comprehensive warnings
 4. Cannot affect production
+
+### macOS API Deployment
+
+Deploy only the macOS API service to staging:
+
+```bash
+./scripts/deploy-macos-api.sh
+```
+
+This script:
+
+1. Runs the dedicated `deploy-macos-api.yml` playbook
+2. Configures the macOS API service on the target machine
+3. Sets up the launchd service to run as the `_orangead` system user
+
+### Dynamic Inventory
+
+The dynamic inventory script (`inventory/dynamic_inventory.py`) uses the Tailscale API to:
+
+1. Discover all devices in your Tailscale network
+2. Filter for macOS devices
+3. Generate an inventory with appropriate groups and variables
+
+To use dynamic inventory:
+
+```bash
+ansible-playbook main.yml -i inventory/dynamic_inventory.py
+```
 
 ## Troubleshooting
 
