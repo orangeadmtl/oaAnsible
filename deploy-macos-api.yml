@@ -72,7 +72,11 @@
         group: staff
       become: true
     
+    - name: Unload macOS API service if already loaded
+      command: launchctl unload /Library/LaunchDaemons/com.orangead.macosapi.plist
+      become: true
+      ignore_errors: true  # In case it's not loaded
+      
     - name: Load macOS API service
       command: launchctl load -w /Library/LaunchDaemons/com.orangead.macosapi.plist
       become: true
-      ignore_errors: true  # In case it's already loaded

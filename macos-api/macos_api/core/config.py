@@ -13,7 +13,25 @@ LAUNCHCTL_CMD = "/bin/launchctl"
 PS_CMD = "/bin/ps"
 READLINK_CMD = "/usr/bin/readlink"
 PYTHON_CMD = "/usr/bin/python3"
-SCREENCAPTURE_CMD = "/usr/bin/screencapture"
+
+# Try to find screencapture in common locations
+def find_command(command_name):
+    possible_paths = [
+        f"/usr/bin/{command_name}",
+        f"/usr/local/bin/{command_name}",
+        f"/opt/homebrew/bin/{command_name}",
+        f"/bin/{command_name}",
+        f"/sbin/{command_name}"
+    ]
+    
+    for path in possible_paths:
+        if os.path.exists(path) and os.access(path, os.X_OK):
+            return path
+    
+    # If not found, return the default path and let the error handling in the code deal with it
+    return f"/usr/bin/{command_name}"
+
+SCREENCAPTURE_CMD = find_command("screencapture")
 
 # Cache settings
 CACHE_TTL = 5  # Cache TTL in seconds
