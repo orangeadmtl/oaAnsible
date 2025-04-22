@@ -32,28 +32,28 @@
     - role: geerlingguy.mac.homebrew
       tags: ["homebrew", "setup"]
 
-    - role: macos_base
+    - role: macos/base
       tags: ["setup", "configuration"]
 
-    - role: macos_network
+    - role: macos/network
       tags: ["network", "dns"]
 
-    - role: tailscale
+    - role: macos/network/tailscale
       tags: ["tailscale", "network"]
 
-    - role: macos_python
+    - role: macos/python
       tags: ["python", "dev"]
 
-    - role: macos_node
+    - role: macos/node
       tags: ["node", "dev"]
       
-    - role: macos_security
+    - role: macos/security
       tags: ["security", "configuration"]
       
-    - role: macos_settings
+    - role: macos/settings
       tags: ["settings", "configuration"]
       
-    - role: macos_api
+    - role: macos/api
       tags: ["api", "services"]
 
   post_tasks:
