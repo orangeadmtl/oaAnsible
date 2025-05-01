@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 from pydantic import BaseModel, Field
 
 
@@ -33,6 +33,67 @@ class DeviceInfo(BaseModel):
     is_headless: bool = False
 
 
+class MacOSDisplayInfo(BaseModel):
+    resolution: Optional[str] = None
+    refresh_rate: Optional[float] = None
+    connected: bool = False
+    vendor: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = None
+
+
+class DisplayInfo(BaseModel):
+    connected_displays: int = 0
+    main_display: Optional[MacOSDisplayInfo] = None
+    all_displays: Optional[List[MacOSDisplayInfo]] = None
+    is_headless: bool = False
+    headless_reason: Optional[str] = None
+
+
+class MacOSSystemInfo(BaseModel):
+    os_version: str
+    kernel_version: str
+    uptime: str
+    uptime_human: Optional[str] = None
+    boot_time: Optional[float] = None
+    hostname: str
+    cpu_model: str
+    cpu_cores: int
+    memory_total: int
+    architecture: str
+    model: Optional[str] = None
+    serial_number: Optional[str] = None
+
+
+class SecurityFeature(BaseModel):
+    enabled: bool
+    status: str
+    details: Optional[Dict[str, Any]] = None
+    raw_output: Optional[str] = None
+    error: Optional[str] = None
+
+
+class SecurityUpdates(BaseModel):
+    has_updates: bool
+    security_updates_available: bool
+    security_updates: Optional[List[str]] = None
+    recommended_updates: Optional[List[str]] = None
+    last_security_update: Optional[Dict[str, Any]] = None
+    update_policy: Optional[Dict[str, bool]] = None
+    status: str
+    raw_output: Optional[str] = None
+    error: Optional[str] = None
+
+
+class SecurityOverview(BaseModel):
+    status: str
+    score: int
+    max_score: int
+    percentage: float
+    features: Dict[str, Union[SecurityFeature, SecurityUpdates]]
+    recommendations: List[str]
+
+
 class HealthScore(BaseModel):
     cpu: float
     memory: float
@@ -63,7 +124,27 @@ class HealthResponse(BaseModel):
     tracker: TrackerStatus  # Changed from "player" to "tracker"
     health_scores: HealthScore
     device_info: DeviceInfo
+    system: Optional[MacOSSystemInfo] = None
+    security: Optional[SecurityOverview] = None
+    display: Optional[DisplayInfo] = None
     _cache_info: Optional[Dict] = None
+
+
+class CameraInfo(BaseModel):
+    id: str
+    name: str
+    model: Optional[str] = None
+    manufacturer: Optional[str] = None
+    is_built_in: bool = False
+    is_connected: bool = True
+    resolution: Optional[str] = None
+    location: Optional[str] = None  # e.g., "Built-in", "USB", etc.
+
+
+class CameraListResponse(BaseModel):
+    cameras: List[CameraInfo]
+    count: int
+    has_camera: bool
 
 
 class ErrorResponse(BaseModel):
