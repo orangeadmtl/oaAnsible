@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from macos_api.core.config import APP_VERSION, SCREENSHOT_DIR
-from macos_api.routers import health, screenshots
+from macos_api.routers import health, screenshots, camera
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -25,6 +25,7 @@ SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 # Include routers
 app.include_router(health.router, tags=["health"])
 app.include_router(screenshots.router, tags=["screenshots"])
+app.include_router(camera.router, tags=["camera"])
 
 @app.get("/")
 async def root():
@@ -40,6 +41,11 @@ async def root():
                 "capture": "/screenshots/capture",
                 "latest": "/screenshots/latest",
                 "history": "/screenshots/history"
+            },
+            "camera": {
+                "list": "/cameras",
+                "status": "/cameras/status",
+                "stream": "/cameras/{camera_id}/stream"
             }
         }
     }
