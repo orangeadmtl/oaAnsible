@@ -1,8 +1,14 @@
 import os
+import sys
 from pathlib import Path
 
 # API Version
 APP_VERSION = "1.0.0"
+
+# Security Configuration
+# Tailscale uses the 100.64.0.0/10 CGNAT range by default
+# https://tailscale.com/kb/1015/100.x-addresses/
+TAILSCALE_SUBNET = os.getenv("TAILSCALE_SUBNET", "100.64.0.0/10")
 
 # Paths
 TRACKER_ROOT = Path(os.getenv("TRACKER_ROOT_DIR", "/usr/local/orangead/tracker"))
