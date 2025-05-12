@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from macos_api.core.config import APP_VERSION, SCREENSHOT_DIR
-from macos_api.routers import health, screenshots, camera
+from macos_api.core.config import APP_VERSION, SCREENSHOT_DIR, TAILSCALE_SUBNET
+from macos_api.middleware import TailscaleSubnetMiddleware
+from macos_api.routers import health, screenshots, camera, actions
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -19,6 +20,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add Tailscale subnet restriction middleware
+app.add_middleware(TailscaleSubnetMiddleware, tailscale_subnet=TAILSCALE_SUBNET)
+
 # Create required directories
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -26,6 +30,7 @@ SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 app.include_router(health.router, tags=["health"])
 app.include_router(screenshots.router, tags=["screenshots"])
 app.include_router(camera.router, tags=["camera"])
+app.include_router(actions.router, tags=["actions"])
 
 @app.get("/")
 async def root():
@@ -46,6 +51,10 @@ async def root():
                 "list": "/cameras",
                 "status": "/cameras/status",
                 "stream": "/cameras/{camera_id}/stream"
+            },
+            "actions": {
+                "reboot": "/actions/reboot",
+                "restart_tracker": "/actions/restart-tracker"
             }
         }
     }
