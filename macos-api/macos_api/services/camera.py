@@ -3,16 +3,23 @@ macOS Camera Services Module
 
 This module provides functions to detect and stream from macOS cameras.
 It uses system_profiler to detect cameras and opencv for streaming.
+
+Implements MJPEG streaming functionality for camera feeds.
 """
 
 import subprocess
 import re
 import json
 import uuid
-from typing import Dict, List, Optional
+import time
+import threading
+from typing import Dict, List, Optional, Iterator, Generator
 import logging
 from datetime import datetime
 import shlex
+import cv2
+import numpy as np
+from fastapi import HTTPException
 
 from ..models.schemas import CameraInfo
 
@@ -115,3 +122,154 @@ def check_camera_availability() -> Dict:
         "cameras": cameras,
         "timestamp": datetime.now().isoformat()
     }
+
+
+# Dictionary to keep track of active camera captures
+# This prevents opening multiple captures for the same camera
+_active_captures = {}
+_captures_lock = threading.Lock()
+
+
+def _get_camera_index(camera_id: str) -> int:
+    """
+    Get the camera index for OpenCV based on the camera ID.
+    
+    This is a simple implementation that maps our camera IDs to OpenCV indices.
+    In a real implementation, you might need a more sophisticated mapping.
+    
+    Args:
+        camera_id: The ID of the camera
+        
+    Returns:
+        int: The OpenCV camera index (usually 0 for built-in camera)
+    """
+    # Get all cameras
+    cameras = get_camera_list()
+    
+    # Find the camera with the matching ID
+    matching_cameras = [i for i, cam in enumerate(cameras) if cam.id == camera_id]
+    
+    if not matching_cameras:
+        raise HTTPException(status_code=404, detail=f"Camera with ID {camera_id} not found")
+    
+    # Return the first matching camera's index
+    # This is a simplification - in reality, the mapping between our camera IDs
+    # and OpenCV indices might be more complex
+    return matching_cameras[0]
+
+
+def get_camera_capture(camera_id: str) -> cv2.VideoCapture:
+    """
+    Get a VideoCapture object for the specified camera.
+    
+    This function manages a pool of camera captures to avoid opening
+    multiple captures for the same camera.
+    
+    Args:
+        camera_id: The ID of the camera
+        
+    Returns:
+        cv2.VideoCapture: The camera capture object
+        
+    Raises:
+        HTTPException: If the camera cannot be opened
+    """
+    global _active_captures
+    
+    with _captures_lock:
+        # Check if we already have an active capture for this camera
+        if camera_id in _active_captures:
+            capture = _active_captures[camera_id]
+            
+            # Check if the capture is still open
+            if capture.isOpened():
+                return capture
+            else:
+                # Remove the closed capture
+                del _active_captures[camera_id]
+        
+        # Get the camera index
+        camera_index = _get_camera_index(camera_id)
+        
+        # Create a new capture
+        capture = cv2.VideoCapture(camera_index)
+        
+        if not capture.isOpened():
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to open camera with ID {camera_id}"
+            )
+        
+        # Set capture properties for better streaming
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        capture.set(cv2.CAP_PROP_FPS, 15)
+        
+        # Store the capture
+        _active_captures[camera_id] = capture
+        
+        return capture
+
+
+def release_camera_capture(camera_id: str) -> None:
+    """
+    Release a camera capture.
+    
+    Args:
+        camera_id: The ID of the camera to release
+    """
+    global _active_captures
+    
+    with _captures_lock:
+        if camera_id in _active_captures:
+            _active_captures[camera_id].release()
+            del _active_captures[camera_id]
+
+
+def generate_mjpeg_frames(camera_id: str) -> Generator[bytes, None, None]:
+    """
+    Generate MJPEG frames from the camera.
+    
+    This function yields JPEG-encoded frames in the format required for
+    MJPEG streaming over HTTP.
+    
+    Args:
+        camera_id: The ID of the camera to stream from
+        
+    Yields:
+        bytes: JPEG-encoded frame with MJPEG multipart headers
+    """
+    try:
+        # Get the camera capture
+        capture = get_camera_capture(camera_id)
+        
+        while True:
+            # Read a frame
+            success, frame = capture.read()
+            
+            if not success:
+                logger.error(f"Failed to read frame from camera {camera_id}")
+                break
+            
+            # Encode the frame as JPEG
+            _, jpeg_frame = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            
+            # Convert to bytes
+            frame_bytes = jpeg_frame.tobytes()
+            
+            # Yield the frame with MJPEG multipart headers
+            yield b'--frame\r\n'
+            yield b'Content-Type: image/jpeg\r\n\r\n'
+            yield frame_bytes
+            yield b'\r\n'
+            
+            # Control the frame rate
+            time.sleep(1/15)  # Aim for 15 FPS
+    
+    except Exception as e:
+        logger.exception(f"Error streaming from camera {camera_id}: {str(e)}")
+    
+    finally:
+        # Don't release the capture here, as it might be used by other streams
+        # We'll rely on the capture pool management to handle this
+        pass
