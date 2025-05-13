@@ -2,14 +2,22 @@
 Camera Router Module
 
 This module provides API endpoints for camera detection and streaming.
+Implements MJPEG streaming for camera feeds.
 """
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Response, status, BackgroundTasks
 from fastapi.responses import JSONResponse, StreamingResponse
 from datetime import datetime, timezone
 from typing import List, Optional
+import logging
 
-from ..services.camera import get_camera_list, get_camera_by_id, check_camera_availability
+from ..services.camera import (
+    get_camera_list, 
+    get_camera_by_id, 
+    check_camera_availability,
+    generate_mjpeg_frames,
+    release_camera_capture
+)
 from ..models.schemas import CameraInfo, CameraListResponse, ErrorResponse
 
 router = APIRouter()
@@ -58,7 +66,7 @@ async def get_camera(camera_id: str):
 
 
 @router.get("/cameras/{camera_id}/stream")
-async def stream_camera(camera_id: str):
+async def stream_camera(camera_id: str, background_tasks: BackgroundTasks):
     """
     Stream video from a specific camera.
     
@@ -66,6 +74,7 @@ async def stream_camera(camera_id: str):
     
     Args:
         camera_id: The ID of the camera to stream from
+        background_tasks: FastAPI background tasks for cleanup
         
     Returns:
         MJPEG stream response
@@ -82,16 +91,34 @@ async def stream_camera(camera_id: str):
             }
         )
     
-    # For now, return a placeholder response
-    # This will be replaced with actual streaming implementation
-    return JSONResponse(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        content={
-            "status": "error",
-            "message": "Camera streaming not yet implemented",
-            "camera": camera.dict()
-        }
-    )
+    try:
+        # Create a generator for MJPEG frames
+        mjpeg_generator = generate_mjpeg_frames(camera_id)
+        
+        # Add a background task to release the camera when the stream ends
+        # This ensures resources are cleaned up properly
+        background_tasks.add_task(release_camera_capture, camera_id)
+        
+        # Return a streaming response with the MJPEG content type
+        return StreamingResponse(
+            mjpeg_generator,
+            media_type="multipart/x-mixed-replace; boundary=frame",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
+        )
+    except Exception as e:
+        logging.exception(f"Error streaming from camera {camera_id}: {str(e)}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "status": "error",
+                "message": f"Failed to stream from camera: {str(e)}",
+                "camera": camera.dict()
+            }
+        )
 
 
 @router.get("/cameras/status")
