@@ -1,0 +1,14 @@
+---
+- name: reload macosapi service
+  command: launchctl unload -w /Library/LaunchDaemons/com.orangead.macosapi.plist
+  args:
+    removes: /Library/LaunchDaemons/com.orangead.macosapi.plist
+  register: unload_result
+  failed_when: false
+  changed_when: false
+  notify:
+    - start macosapi service
+
+- name: start macosapi service
+  command: launchctl load -w /Library/LaunchDaemons/com.orangead.macosapi.plist
+  when: unload_result is defined and unload_result.rc == 0

@@ -1,0 +1,240 @@
+---
+# Base system configuration
+- name: Configure base system
+  block:
+    - name: Get default shell
+      command: dscl . -read /Users/{{ ansible_user }} UserShell
+      register: user_shell_info
+      changed_when: false
+
+    - name: Set shell configuration facts
+      set_fact:
+        shell_config:
+          zsh:
+            profile_file: .zprofile
+            rc_file: .zshrc
+          bash:
+            profile_file: .bashrc
+            rc_file: .bash_profile
+
+    - name: Set shell-specific facts
+      set_fact:
+        user_shell: "{{ user_shell_info.stdout.split('/')[-1] }}"
+        shell_profile: "{{ ansible_env.HOME }}/{{ shell_config[user_shell_info.stdout.split('/')[-1]].profile_file }}"
+        shell_rc: "{{ ansible_env.HOME }}/{{ shell_config[user_shell_info.stdout.split('/')[-1]].rc_file }}"
+
+    - name: Ensure shell configuration files exist
+      file:
+        path: "{{ item }}"
+        state: touch
+        mode: "0644"
+      loop:
+        - "{{ shell_profile }}"
+        - "{{ shell_rc }}"
+
+    - name: Configure shell environment
+      blockinfile:
+        path: "{{ item.path }}"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - {{ item.name }}"
+        block: "{{ item.content }}"
+      loop:
+        - path: "{{ shell_profile }}"
+          name: "PATH_CONFIG"
+          content: |
+            # System PATH configuration
+            export PATH="{{ homebrew_prefix }}/bin:$PATH"
+
+            # Homebrew configuration
+            eval "$({{ homebrew_prefix }}/bin/brew shellenv)"
+
+            {% if configure.pyenv %}
+            # Pyenv configuration
+            export PYENV_ROOT="$HOME/.pyenv"
+            command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
+            eval "$(pyenv init -)"
+            {% endif %}
+      tags: ["shell", "environment"]
+
+# Network configuration
+- name: Configure network settings
+  block:
+    - name: Get network interface information
+      shell: "route -n get default | grep interface | awk '{print $2}'"
+      register: network_interface_info
+      changed_when: false
+
+    - name: Set network interface fact
+      set_fact:
+        primary_interface: "{{ network_interface_info.stdout }}"
+
+    - name: Get network service list
+      shell: "networksetup -listallnetworkservices | grep -v '*'"
+      register: network_services
+      changed_when: false
+
+    - name: Get hardware port for each service
+      shell: "networksetup -listnetworkserviceorder | grep -B 1 'Device: {{ primary_interface }}' | head -n 1 | awk -F') ' '{print $2}'"
+      register: network_service_name
+      changed_when: false
+
+    - name: Set network service fact
+      set_fact:
+        primary_service: "{{ network_service_name.stdout }}"
+
+    - name: Get current DNS configuration
+      command: networksetup -getdnsservers "{{ primary_service }}"
+      register: current_dns
+      changed_when: false
+
+    - name: Get DHCP DNS information
+      command: ipconfig getpacket "{{ primary_interface }}"
+      register: dhcp_info
+      changed_when: false
+
+    - name: Process DNS information
+      set_fact:
+        current_dns_servers: []
+        dhcp_dns_servers: >-
+          {% set dns_servers = dhcp_info.stdout | regex_findall('domain_name_server \\(ip_mult\\): \\{([^\\}]*)\\}') %}
+          {% if dns_servers %}
+            {{ dns_servers[0].split(',') | map('trim') | map('regex_replace', '[{}]', '') | list }}
+          {% else %}
+            []
+          {% endif %}
+
+    - name: Configure DNS servers
+      command: >-
+        networksetup -setdnsservers "{{ primary_service }}"
+        {{ ((dhcp_dns_servers | from_yaml) + (dns.tailscale_servers | default([]))) | 
+           unique | 
+           join(' ') }}
+      when: configure.tailscale | bool
+      register: dns_result
+      changed_when: dns_result.rc == 0
+
+    - name: Store original DNS configuration
+      copy:
+        content: "{{ dhcp_dns_servers | join('\n') }}"
+        dest: "{{ ansible_env.HOME }}/.dns_backup"
+        mode: "0600"
+      when: configure.tailscale | bool
+  tags: ["network", "dns", "tailscale"]
+  become: true
+
+# Security configuration
+- name: Configure security settings
+  block:
+    - name: Enable macOS Firewall
+      command: /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
+      register: firewall_result
+      changed_when: "'already enabled' not in firewall_result.stderr"
+      failed_when: false
+
+    - name: Allow SSH connections
+      command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/sbin/sshd
+      register: ssh_result
+      changed_when: "'already has a rule' not in ssh_result.stderr"
+      failed_when: false
+
+    - name: Configure screen lock after inactivity
+      block:
+        - name: Require password after screen saver
+          command: defaults write com.apple.screensaver askForPassword -int 1
+          become: true
+
+        - name: Set password delay to 5 seconds
+          command: defaults write com.apple.screensaver askForPasswordDelay -int 5
+          become: true
+
+    - name: Check FileVault status
+      command: fdesetup status
+      register: filevault_status
+      changed_when: false
+      failed_when: false
+
+    - name: Display FileVault status
+      debug:
+        msg: "FileVault status: {{ filevault_status.stdout }}"
+  tags: ["security"]
+  become: true
+
+# macOS API setup
+- name: Deploy macOS API
+  block:
+    - name: Ensure orangead directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /usr/local/orangead
+        - /usr/local/orangead/macos-api
+        - /usr/local/orangead/macos-api/logs
+
+    - name: Copy macOS API files
+      synchronize:
+        src: "{{ playbook_dir }}/macos-api/"
+        dest: /usr/local/orangead/macos-api/
+        delete: no
+        rsync_opts:
+          - "--exclude=.venv"
+          - "--exclude=__pycache__"
+          - "--exclude=.git"
+          - "--exclude=.gitignore"
+
+    - name: Create Python virtual environment using uv
+      shell: |
+        cd /usr/local/orangead/macos-api
+        python3 -m venv .venv
+        source .venv/bin/activate
+        pip install uv
+        uv pip install -r requirements.txt
+      args:
+        creates: /usr/local/orangead/macos-api/.venv/bin/activate
+
+    - name: Create _orangead user for running the API service
+      user:
+        name: _orangead
+        system: yes
+        shell: /usr/bin/false
+        home: /usr/local/orangead
+        createhome: no
+
+    - name: Set ownership of orangead directories
+      file:
+        path: "/usr/local/orangead/macos-api"
+        state: directory
+        owner: _orangead
+        group: staff
+        recurse: yes
+
+    - name: Create launchd plist for macOS API
+      template:
+        src: "com.orangead.macosapi.plist.j2"
+        dest: "/Library/LaunchDaemons/com.orangead.macosapi.plist"
+        owner: root
+        group: wheel
+        mode: '0644'
+      notify: reload macosapi service
+
+    - name: Ensure screenshot directory exists
+      file:
+        path: /tmp/screenshots
+        state: directory
+        mode: '0755'
+        owner: _orangead
+        group: staff
+
+    - name: Allow macOS API in firewall
+      command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/local/orangead/macos-api/.venv/bin/python3
+      register: api_firewall_result
+      changed_when: "'already has a rule' not in api_firewall_result.stderr"
+      failed_when: false
+
+    - name: Load macOS API service
+      command: launchctl load -w /Library/LaunchDaemons/com.orangead.macosapi.plist
+      register: load_result
+      changed_when: "'already loaded' not in load_result.stderr"
+      failed_when: false
+  tags: ["api", "deploy"]
+  become: true
