@@ -4,33 +4,44 @@
     name: go
     state: present
 
+- name: Define homebrew_prefix for this role
+  set_fact:
+    _homebrew_prefix: "{{ (ansible_architecture == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
+
 - name: Set Go environment variables
   block:
     - name: Get Go environment
-      command: go env GOPATH
+      command: "{{ _homebrew_prefix }}/bin/go env GOPATH"
       register: go_path
       changed_when: false
+      environment:
+        PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
 
     - name: Set Go binary path fact
       set_fact:
-        go_bin_path: "{{ go_path.stdout | default(ansible_env.HOME + '/go/bin') }}"
+        go_bin_path_for_tailscale: "{{ ansible_env.HOME }}/go/bin"
+        go_executable_path: "{{ _homebrew_prefix }}/bin/go"
 
-    - name: Ensure Go binary path exists
+    - name: Ensure Go binary path for Tailscale exists
       file:
-        path: "{{ go_bin_path }}"
+        path: "{{ go_bin_path_for_tailscale }}"
         state: directory
-        mode: '0755'
+        mode: "0755"
 
 - name: Install Tailscale using go install
-  command: "{{ ansible_env.HOME }}/go/bin/go install tailscale.com/cmd/tailscale{,d}@stable"
+  command: "{{ go_executable_path }} install tailscale.com/cmd/tailscale{,d}@stable"
   args:
-    creates: "{{ ansible_env.HOME }}/go/bin/tailscale"
+    creates: "{{ go_bin_path_for_tailscale }}/tailscale"
+  environment:
+    GOPATH: "{{ ansible_env.HOME }}/go"
+    GOBIN: "{{ go_bin_path_for_tailscale }}"
+    PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
   register: tailscale_install
   changed_when: tailscale_install.rc == 0
 
 - name: Create symlinks in /usr/local/bin for easier access
   file:
-    src: "{{ ansible_env.HOME }}/go/bin/{{ item }}"
+    src: "{{ go_bin_path_for_tailscale }}/{{ item }}"
     dest: "/usr/local/bin/{{ item }}"
     state: link
     force: yes
@@ -42,33 +53,48 @@
 - name: Install Tailscale system daemon
   command: /usr/local/bin/tailscaled install-system-daemon
   become: true
-  register: tailscaled_install
-  changed_when: tailscaled_install.rc == 0
+  register: tailscaled_install_result # Renamed for clarity
+  changed_when: tailscaled_install_result.rc == 0 and "already installed" not in (tailscaled_install_result.stdout | lower)
+  # We consider it changed if the command ran successfully AND it didn't say "already installed"
+  # Check stdout_lower for case-insensitivity
   args:
+    # The 'creates' here is fine, but the changed_when is more precise for idempotency
     creates: /Library/LaunchDaemons/com.tailscale.tailscaled.plist
 
-- name: Ensure Tailscale service is running
-  service:
-    name: com.tailscale.tailscaled
-    state: started
-    enabled: yes
-  become: true
+- name: Ensure Tailscale daemon plist exists
+  stat:
+    path: /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+  register: tailscale_plist_stat
+
+- name: Load and enable Tailscale daemon using launchctl if plist exists
+  block:
+    - name: Unload Tailscale daemon (to ensure reload if already running with old config)
+      command: launchctl unload /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+      become: true
+      changed_when: false # Unloading isn't a config change, loading is
+      failed_when: false # Ignore errors if it wasn't loaded
+
+    - name: Load Tailscale daemon
+      command: launchctl load -w /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+      become: true
+      register: tailscale_load_result
+      changed_when: tailscale_load_result.rc == 0
+  when: tailscale_plist_stat.stat.exists
 
 - name: Wait for Tailscale daemon to be ready
   wait_for:
     path: /var/run/tailscale/tailscaled.sock
-    state: file
-    timeout: 30
+    state: present
+    timeout: 10
+  ignore_errors: true
 
 - name: Authenticate Tailscale
   command: >
-    /usr/local/bin/tailscale up 
-    --authkey={{ vault_tailscale_auth_key }} 
+    /usr/local/bin/tailscale up
+    --authkey={{ vault_tailscale_auth_key }}
     --hostname={{ inventory_hostname }}
     --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }}
     --accept-dns=false
   register: tailscale_up
-  changed_when: tailscale_up.rc == 0 or 'already authenticated' in tailscale_up.stderr
-  failed_when: tailscale_up.rc != 0 and 'already authenticated' not in tailscale_up.stderr
-
-# DNS configuration is handled separately through network role
+  changed_when: tailscale_up.rc == 0 and 'Success' in tailscale_up.stdout
+  failed_when: tailscale_up.rc != 0 and 'already logged in' not in tailscale_up.stderr and 'already authenticated' not in tailscale_up.stderr
