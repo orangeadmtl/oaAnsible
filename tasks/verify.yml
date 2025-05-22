@@ -39,11 +39,24 @@
 
     - name: Verify Tailscale
       block:
+        - name: Check if Tailscale binary exists
+          stat:
+            path: /usr/local/bin/tailscale
+          register: tailscale_binary_exists
+
         - name: Check Tailscale status
-          command: tailscale status
+          command: /usr/local/bin/tailscale status
           register: tailscale_status
           changed_when: false
           failed_when: false
+          when: tailscale_binary_exists.stat.exists
+
+        - name: Get Tailscale version
+          command: /usr/local/bin/tailscale version
+          register: tailscale_version
+          changed_when: false
+          failed_when: false
+          when: tailscale_binary_exists.stat.exists
       when: configure.tailscale | bool
       tags: ["verify", "tailscale"]
 
@@ -58,7 +71,7 @@
           Node.js: {{ node_version.stdout if node_version.rc == 0 else 'Not installed' }}
           {% endif %}
           {% if configure.tailscale %}
-          Tailscale: {{ 'Connected' if tailscale_status.rc == 0 else 'Not connected' }}
+          Tailscale: {% if not tailscale_binary_exists.stat.exists %}Not installed{% elif tailscale_status.rc == 0 %}Connected ({{ tailscale_version.stdout | default('unknown version') }}){% else %}Installed but not connected{% endif %}
           {% endif %}
       tags: ["verify"]
 
