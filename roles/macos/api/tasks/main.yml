@@ -35,14 +35,26 @@
     creates: /usr/local/orangead/macos-api/.venv/bin/activate
   become: true
 
-- name: Ensure camera dependencies are properly installed
+- name: Install OpenCV dependencies
   shell: |
-    cd /usr/local/orangead/macos-api
-    source .venv/bin/activate
-    # Explicitly reinstall opencv to ensure it's properly installed with all dependencies
+    cd /usr/local/orangead/macos-api && \
+    source .venv/bin/activate && \
     uv pip install --force-reinstall opencv-python-headless==4.8.1.78
-    # Verify opencv installation
-    python3 -c "import cv2; print('OpenCV installation verified: ' + cv2.__version__)"
+  become: true
+  changed_when: false
+
+- name: Copy OpenCV verification script
+  copy:
+    src: verify_opencv.py
+    dest: /usr/local/orangead/macos-api/verify_opencv.py
+    mode: '0755'
+  become: true
+
+- name: Verify OpenCV installation
+  shell: |
+    cd /usr/local/orangead/macos-api && \
+    source .venv/bin/activate && \
+    python3 ./verify_opencv.py
   register: opencv_check
   changed_when: false
   become: true
