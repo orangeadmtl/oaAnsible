@@ -1,15 +1,25 @@
 #!/bin/bash
 # Script to deploy the macOS API to staging environment
 
-# Change to the oaAnsible directory
-cd "$(dirname "$0")/.." || exit 1
+# Determine the directory of this script to reliably find helpers.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HELPER_SCRIPT_PATH="$SCRIPT_DIR/helpers.sh"
 
-# Check if ansible is installed
-if ! command -v ansible-playbook &>/dev/null; then
-    echo "Error: ansible-playbook command not found. Please install Ansible first."
-    echo "You can install it with: pip install ansible"
+if [ -f "$HELPER_SCRIPT_PATH" ]; then
+    # shellcheck source=./helpers.sh
+    source "$HELPER_SCRIPT_PATH"
+else
+    # Fallback basic logging if helpers.sh is missing, and exit.
+    echo "[ERROR] Critical: helpers.sh not found at '$HELPER_SCRIPT_PATH'. This script cannot continue."
     exit 1
 fi
+
+# Now that helpers.sh is sourced, we can use its functions and variables.
+# Ensure we are running from the Ansible root directory.
+ensure_ansible_root_dir
+
+# Check for required dependencies using helper functions
+check_ansible_installed
 
 # Parse command line arguments
 FORCE_RESTART=false
@@ -26,35 +36,35 @@ while [[ $# -gt 0 ]]; do
         shift 2
         ;;
     *)
-        echo "Unknown option: $1"
-        echo "Usage: $0 [--force-restart] [--host hostname]"
+        log_error "Unknown option: $1"
+        log_error "Usage: $0 [--force-restart] [--host hostname]"
         exit 1
         ;;
     esac
 done
 
 # Run the deployment playbook
-echo "Deploying macOS API to staging environment..."
+log_info "Deploying macOS API to staging environment..."
 ansible-playbook playbooks/deploy-macos-api.yml -i inventory/staging/hosts.yml --ask-pass --ask-become-pass
 
 # Check the exit status
 DEPLOY_STATUS=$?
 if [ $DEPLOY_STATUS -eq 0 ]; then
-    echo "Deployment completed successfully!"
-    echo "The macOS API should now be running on the target machine."
-    echo "You can access it at: http://${TARGET_HOST}:9090"
+    log_info "Deployment completed successfully!"
+    log_info "The macOS API should now be running on the target machine."
+    log_info "You can access it at: http://${TARGET_HOST}:9090"
 
     # Force restart if requested
     if [ "$FORCE_RESTART" = true ]; then
-        echo "\nForcing service restart..."
-        echo "You will be prompted for SSH password and sudo password."
+        log_info "Forcing service restart..."
+        log_info "You will be prompted for SSH password and sudo password."
         ssh admin@${TARGET_HOST} "sudo launchctl unload /Library/LaunchDaemons/com.orangead.macosapi.plist && sudo launchctl load /Library/LaunchDaemons/com.orangead.macosapi.plist"
         if [ $? -eq 0 ]; then
-            echo "Service restarted successfully!"
+            log_info "Service restarted successfully!"
         else
-            echo "Service restart failed. Please check the error messages above."
+            log_error "Service restart failed. Please check the error messages above."
         fi
     fi
 else
-    echo "Deployment failed. Please check the error messages above."
+    log_error "Deployment failed. Please check the error messages above."
 fi

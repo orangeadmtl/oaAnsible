@@ -85,6 +85,25 @@ log_debug() {
 }
 # --- End Logging ---
 
+# Function to check if a command is installed
+check_command_installed() {
+  local command_name=$1
+  local install_instructions=$2
+  local exit_on_error=${3:-true}
+
+  if ! command -v "$command_name" &>/dev/null; then
+    log_error "$command_name command not found."
+    if [ -n "$install_instructions" ]; then
+      log_error "$install_instructions"
+    fi
+    if [ "$exit_on_error" = true ]; then
+      exit 1
+    fi
+    return 1
+  fi
+  return 0
+}
+
 # Function to ensure scripts are run from oaAnsible root
 ensure_ansible_root_dir() {
   if [ "$PWD" != "$OA_ANSIBLE_ROOT_DIR" ]; then
@@ -98,11 +117,16 @@ ensure_ansible_root_dir() {
 
 # Function to check if Ansible is installed
 check_ansible_installed() {
-  if ! command -v ansible-playbook &>/dev/null; then
-    log_error "ansible-playbook command not found. Please install Ansible first."
-    log_error "You can install it with: pip install ansible"
-    exit 1
-  fi
+  check_command_installed "ansible-playbook" "Please install Ansible first.\nYou can install it with: pip install ansible"
+}
+
+# Function to check if ansible-vault is installed
+check_ansible_vault_installed() {
+  check_command_installed "ansible-vault" "Please ensure Ansible is installed correctly.\nYou can install it with: pip install ansible"
+}
+# Function to check if yq is installed
+check_yq_installed() {
+  check_command_installed "yq" "Please install yq (https://github.com/mikefarah/yq/).\nYou can install it with: brew install yq (macOS) or follow instructions at https://github.com/mikefarah/yq/#install"
 }
 
 # Function to check if vault password file exists
