@@ -27,6 +27,7 @@ logs/
 
 # Sensitive data
 vault_password_file
+group_vars/all/vault.yml
 
 # Temporary files
 git_diff.txt
