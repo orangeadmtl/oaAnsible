@@ -35,13 +35,32 @@
     creates: /usr/local/orangead/macos-api/.venv/bin/activate
   become: true
 
-- name: Install OpenCV dependencies
+- name: Check if uv is installed
+  shell: |
+    cd /usr/local/orangead/macos-api && \
+    source .venv/bin/activate && \
+    which uv || echo "not_found"
+  register: uv_check
+  changed_when: false
+  become: true
+
+- name: Install OpenCV dependencies with uv
   shell: |
     cd /usr/local/orangead/macos-api && \
     source .venv/bin/activate && \
     uv pip install --force-reinstall opencv-python-headless==4.8.1.78
   become: true
   changed_when: false
+  when: uv_check.stdout != "not_found"
+
+- name: Install OpenCV dependencies with pip
+  shell: |
+    cd /usr/local/orangead/macos-api && \
+    source .venv/bin/activate && \
+    pip install --force-reinstall opencv-python-headless==4.8.1.78
+  become: true
+  changed_when: false
+  when: uv_check.stdout == "not_found"
 
 - name: Copy OpenCV verification script
   copy:
