@@ -24,43 +24,52 @@
       - "--exclude=.gitignore"
   become: true
 
-- name: Create Python virtual environment using uv
+- name: Check if virtual environment needs rebuilding
+  stat:
+    path: /usr/local/orangead/macos-api/.venv/rebuild_needed
+  register: rebuild_flag
+  become: true
+
+- name: Remove existing virtual environment if rebuild needed
+  file:
+    path: /usr/local/orangead/macos-api/.venv
+    state: absent
+  become: true
+  when: rebuild_flag.stat.exists | default(false)
+
+- name: Create Python virtual environment
   shell: |
     cd /usr/local/orangead/macos-api
     python3 -m venv .venv
     source .venv/bin/activate
-    pip install uv
-    uv pip install -r requirements.txt
+    pip install --upgrade pip
   args:
     creates: /usr/local/orangead/macos-api/.venv/bin/activate
   become: true
 
-- name: Check if uv is installed
+- name: Install uv package manager
   shell: |
     cd /usr/local/orangead/macos-api && \
     source .venv/bin/activate && \
-    which uv || echo "not_found"
-  register: uv_check
-  changed_when: false
+    pip install uv
   become: true
+  changed_when: false
 
-- name: Install OpenCV dependencies with uv
+- name: Install NumPy first to ensure compatibility
   shell: |
     cd /usr/local/orangead/macos-api && \
     source .venv/bin/activate && \
-    uv pip install --force-reinstall opencv-python-headless==4.8.1.78
+    python -m uv pip install 'numpy<2.0.0'
   become: true
   changed_when: false
-  when: uv_check.stdout != "not_found"
 
-- name: Install OpenCV dependencies with pip
+- name: Install remaining dependencies with uv
   shell: |
     cd /usr/local/orangead/macos-api && \
     source .venv/bin/activate && \
-    pip install --force-reinstall opencv-python-headless==4.8.1.78
+    python -m uv pip install -r requirements.txt
   become: true
   changed_when: false
-  when: uv_check.stdout == "not_found"
 
 - name: Copy OpenCV verification script
   copy:
@@ -78,6 +87,21 @@
   changed_when: false
   become: true
   ignore_errors: true  # Don't fail the playbook if verification fails
+
+- name: Create rebuild flag if OpenCV verification fails
+  file:
+    path: /usr/local/orangead/macos-api/.venv/rebuild_needed
+    state: touch
+    mode: '0644'
+  become: true
+  when: opencv_check.rc != 0
+
+- name: Remove rebuild flag if OpenCV verification succeeds
+  file:
+    path: /usr/local/orangead/macos-api/.venv/rebuild_needed
+    state: absent
+  become: true
+  when: opencv_check.rc == 0
 
 - name: Display OpenCV installation status
   debug:
