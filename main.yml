@@ -39,10 +39,10 @@
     - role: macos/ssh
       tags: ["ssh", "security", "setup"]
 
-    - role: macos/network
+    - role: macos/network # General network settings, DNS
       tags: ["network", "dns"]
 
-    - role: macos/network/tailscale
+    - role: macos/network/tailscale # Installs tailscale binaries and deploys plist
       tags: ["tailscale", "network"]
 
     - role: macos/python
@@ -50,13 +50,13 @@
 
     - role: macos/node
       tags: ["node", "dev"]
-      
-    - role: macos/security
+
+    - role: macos/security # Firewall rules, including for tailscaled
       tags: ["security", "configuration"]
-      
+
     - role: macos/settings
       tags: ["settings", "configuration"]
-      
+
     - role: macos/api
       tags: ["api", "services"]
 
