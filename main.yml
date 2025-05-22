@@ -2,6 +2,7 @@
 - name: Configure macOS for OrangeAd
   hosts: all
   gather_facts: false
+  tags: ["macos"]
 
   pre_tasks:
     - name: Gather facts
@@ -34,6 +35,9 @@
 
     - role: macos/base
       tags: ["setup", "configuration"]
+
+    - role: macos/ssh
+      tags: ["ssh", "security", "setup"]
 
     - role: macos/network
       tags: ["network", "dns"]
