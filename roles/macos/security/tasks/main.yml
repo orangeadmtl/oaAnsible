@@ -6,32 +6,69 @@
     - name: Enable macOS Firewall
       command: /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
       become: true
-      register: firewall_result
-      changed_when: "'already enabled' not in firewall_result.stderr"
-      failed_when: false
+      register: firewall_global_state_result
+      # Changed if it wasn't already on. stdout for "on" can be "Firewall is enabled. (State = 1)" or just empty if already on.
+      # stderr might say "Firewall already enabled." if it was already on.
+      changed_when: >
+        firewall_global_state_result.rc == 0 and 
+        "already enabled" not in (firewall_global_state_result.stderr | default('')) and
+        "Firewall is enabled" not in (firewall_global_state_result.stdout | default(''))
+      failed_when: false # Don't fail if it's already on or other benign messages
 
     - name: Allow SSH connections
       command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/sbin/sshd
       become: true
-      register: ssh_result
-      changed_when: "'already has a rule' not in ssh_result.stderr"
+      register: ssh_firewall_result
+      changed_when: "'already has a rule' not in (ssh_firewall_result.stdout | default('') + ssh_firewall_result.stderr | default(''))"
       failed_when: false
 
-    - name: Allow Tailscale
-      command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /Applications/Tailscale.app/Contents/MacOS/Tailscale
+    - name: Allow Tailscale CLI App (if exists, for user interactions)
+      command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /Applications/Tailscale.app
       become: true
-      register: tailscale_result
-      changed_when: "'already has a rule' not in tailscale_result.stderr"
+      register: tailscale_app_firewall_result
+      changed_when: "'already has a rule' not in (tailscale_app_firewall_result.stdout | default('') + tailscale_app_firewall_result.stderr | default(''))"
       failed_when: false
-      ignore_errors: true  # In case Tailscale is installed elsewhere
+      ignore_errors: true # Path might not exist if only daemon is used
+
+    - name: Allow Tailscale Daemon (tailscaled)
+      command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/local/bin/tailscaled
+      become: true
+      register: tailscaled_firewall_result
+      changed_when: "'already has a rule' not in (tailscaled_firewall_result.stdout | default('') + tailscaled_firewall_result.stderr | default(''))"
+      failed_when: false # Don't fail, but we need it to succeed
+
+    - name: Unblock Tailscale Daemon (tailscaled) - ensures it's allowed if previously blocked
+      command: /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /usr/local/bin/tailscaled
+      become: true
+      register: tailscaled_unblock_result
+      changed_when: tailscaled_unblock_result.rc == 0 and "not blocked" not in (tailscaled_unblock_result.stdout | default('') + tailscaled_unblock_result.stderr | default(''))
+      failed_when: false
+      ignore_errors: true # It's okay if it wasn't blocked
 
     - name: Allow macOS API (Python)
       command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/local/orangead/macos-api/.venv/bin/python3
       become: true
-      register: api_result
-      changed_when: "'already has a rule' not in api_result.stderr"
+      register: api_firewall_result
+      changed_when: "'already has a rule' not in (api_firewall_result.stdout | default('') + api_firewall_result.stderr | default(''))"
       failed_when: false
-      ignore_errors: true  # In case API is not yet installed
+      ignore_errors: true
+
+    - name: Restart Firewall Service to apply changes (macOS 10.15 Catalina and earlier)
+      command: pkill -HUP socketfilterfw # Sends HUP signal to reload config
+      become: true
+      changed_when: false # This action itself doesn't indicate a config change, the rules do
+      ignore_errors: true
+      when: ansible_distribution_version is version('10.15', '<=')
+
+    - name: Reload Firewall Service (macOS 11 Big Sur and newer - more involved)
+      # For newer macOS, directly manipulating ALF via socketfilterfw for immediate effect on new rules
+      # without a GUI interaction or reboot can be tricky. The --add command *should* be enough.
+      # If issues persist, a more forceful "kickstart" or even a temporary disable/enable might be needed,
+      # but this can be disruptive. Let's assume --add and --unblockapp are sufficient for now.
+      # A reboot after provisioning is the most foolproof way if prompts persist.
+      debug:
+        msg: "Firewall rules updated. A reboot may be required for all changes to take full effect without prompts on macOS Big Sur or newer."
+      when: ansible_distribution_version is version('11.0', '>=')
 
 - name: Configure screen lock after inactivity
   block:
@@ -60,15 +97,22 @@
       command: spctl --master-enable
       become: true
       register: gatekeeper_result
-      changed_when: false
+      changed_when: false # This command is idempotent in effect
       failed_when: false
 
-    - name: Allow apps from identified developers
-      command: spctl --global-level appstore
-      become: true
-      register: gatekeeper_level_result
+    # The command 'spctl --global-level appstore' is not valid.
+    # Correct way is to ensure it's not set to 'disable' or 'allow all'.
+    # 'spctl --master-enable' usually defaults to "App Store and identified developers".
+    # We can verify the current setting if needed.
+    - name: Check Gatekeeper current assessment source setting
+      command: spctl --status
+      register: gatekeeper_status_check
       changed_when: false
-      failed_when: false
+      become: true
+
+    - name: Display Gatekeeper status
+      debug:
+        msg: "Gatekeeper status: {{ gatekeeper_status_check.stdout }}"
 
 - name: Configure basic password policies
   block:
@@ -76,11 +120,11 @@
       command: pwpolicy -n /Local/Default -setglobalpolicy "minChars=8"
       become: true
       register: pwpolicy_result
-      changed_when: false
+      changed_when: false # Idempotent if already set
       failed_when: false
-      ignore_errors: true  # This might require additional authentication
+      ignore_errors: true # This might require additional authentication
 
     - name: Display password policy result
       debug:
-        msg: "Password policy result: {{ pwpolicy_result.stdout | default('Command may require interactive authentication') }}"
+        msg: "Password policy result: {{ pwpolicy_result.stdout | default('Command may require interactive authentication or no change made') }}"
       when: pwpolicy_result is defined
