@@ -1,0 +1,17 @@
+---
+# Default variables for the SSH role
+
+ssh:
+  # Whether to deploy the SSH key from vault to authorized_keys
+  deploy_key: true
+  
+  # SSH configuration settings
+  config:
+    enable: true
+    settings:
+      - name: "Host *"
+        options:
+          - "ServerAliveInterval 60"
+          - "ServerAliveCountMax 30"
+          - "StrictHostKeyChecking no"
+          - "UserKnownHostsFile /dev/null"
