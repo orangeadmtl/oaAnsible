@@ -63,16 +63,12 @@
 - name: Authenticate Tailscale
   command: >
     /usr/local/bin/tailscale up 
-    --authkey={{ vault_ts_authkey }} 
+    --authkey={{ vault_tailscale_auth_key }} 
     --hostname={{ inventory_hostname }}
-    --advertise-tags={{ vault_ts_tags_macos | default('tag:macos-managed') }}
+    --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }}
     --accept-dns=false
   register: tailscale_up
   changed_when: tailscale_up.rc == 0 or 'already authenticated' in tailscale_up.stderr
   failed_when: tailscale_up.rc != 0 and 'already authenticated' not in tailscale_up.stderr
 
-- name: Configure DNS settings
-  include_tasks: dns.yml
-  when: dns_config.enable_magic_dns | default(true)
-  environment:
-    PATH: "{{ homebrew_prefix | default('/opt/homebrew') }}/bin:/usr/local/bin:{{ ansible_env.PATH }}"
+# DNS configuration is handled separately through network role
