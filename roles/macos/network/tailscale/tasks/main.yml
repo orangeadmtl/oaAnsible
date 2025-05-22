@@ -2,7 +2,7 @@
 - name: Install Go using Homebrew
   community.general.homebrew:
     name: go
-    state: present
+    state: latest
 
 - name: Define homebrew_prefix for this role
   set_fact:
@@ -28,65 +28,191 @@
         state: directory
         mode: "0755"
 
-- name: Install Tailscale using go install
-  command: "{{ go_executable_path }} install tailscale.com/cmd/tailscale{,d}@stable"
-  args:
-    creates: "{{ go_bin_path_for_tailscale }}/tailscale"
+- name: Stop and disable any user-level Tailscale service (homebrew.mxcl.tailscale)
+  command: "launchctl bootout gui/{{ ansible_user_uid }}/homebrew.mxcl.tailscale"
+  become: true # Needs to operate on the user's launchd domain, but as root to do so
+  ignore_errors: true
+  changed_when: false
+  vars:
+    ansible_user_uid: "{{ lookup('pipe', 'id -u ' + ansible_user) }}" # Get UID of ansible_user
+
+- name: Remove user-level Tailscale plist if it exists
+  file:
+    path: "/Users/{{ ansible_user }}/Library/LaunchAgents/homebrew.mxcl.tailscale.plist"
+    state: absent
+  become: true # Ensure root can delete it even if perms are weird
+
+- name: Pre-cleanup - Stop and remove any existing system-level Tailscale daemon service definition
+  command: launchctl bootout system /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+  become: true
+  ignore_errors: true
+  changed_when: false
+
+- name: Pre-cleanup - Remove existing system-level Tailscale daemon plist file
+  file:
+    path: /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+    state: absent
+  become: true
+
+- name: Pre-cleanup - Kill any lingering tailscaled processes
+  command: pkill tailscaled
+  become: true
+  ignore_errors: true
+  changed_when: false
+
+- name: Pre-cleanup - Remove Tailscale.app if it exists (from old Cask install)
+  file:
+    path: /Applications/Tailscale.app
+    state: absent
+  become: true
+
+# Install/Update tailscale binary
+- name: Get checksum of existing tailscale binary (if any)
+  command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscale"
+  register: tailscale_checksum_before
+  ignore_errors: true
+  changed_when: false
+
+- name: Install/Update tailscale binary using Go
+  command: "{{ go_executable_path }} install tailscale.com/cmd/tailscale@latest"
   environment:
     GOPATH: "{{ ansible_env.HOME }}/go"
     GOBIN: "{{ go_bin_path_for_tailscale }}"
-    PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
-  register: tailscale_install
-  changed_when: tailscale_install.rc == 0
+    PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
+    GOTOOLCHAIN: "auto"
+  register: tailscale_go_install_result
+  changed_when: false
+  failed_when: tailscale_go_install_result.rc != 0
 
-- name: Create symlinks in /usr/local/bin for easier access
-  file:
-    src: "{{ go_bin_path_for_tailscale }}/{{ item }}"
-    dest: "/usr/local/bin/{{ item }}"
-    state: link
-    force: yes
+- name: Get checksum of tailscale binary after install/update
+  command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscale"
+  register: tailscale_checksum_after
+  ignore_errors: true
+  changed_when: false
+
+- name: Set fact for tailscale binary change
+  set_fact:
+    tailscale_binary_changed: >-
+      {{ ((tailscale_checksum_before.stdout | default('')).split(' ')[0] !=
+          (tailscale_checksum_after.stdout | default('')).split(' ')[0]) or
+          (tailscale_checksum_before.rc | default(1) != 0) }}
+  when: tailscale_go_install_result.rc == 0
+
+# Install/Update tailscaled binary
+- name: Get checksum of existing tailscaled binary (if any)
+  command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscaled"
+  register: tailscaled_checksum_before
+  ignore_errors: true
+  changed_when: false
+
+- name: Install/Update tailscaled binary using Go
+  command: "{{ go_executable_path }} install tailscale.com/cmd/tailscaled@latest"
+  environment:
+    GOPATH: "{{ ansible_env.HOME }}/go"
+    GOBIN: "{{ go_bin_path_for_tailscale }}"
+    PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
+    GOTOOLCHAIN: "auto"
+  register: tailscaled_go_install_result
+  changed_when: false
+  failed_when: tailscaled_go_install_result.rc != 0
+
+- name: Get checksum of tailscaled binary after install/update
+  command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscaled"
+  register: tailscaled_checksum_after
+  ignore_errors: true
+  changed_when: false
+
+- name: Set fact for tailscaled binary change
+  set_fact:
+    tailscaled_binary_changed: >-
+      {{ ((tailscaled_checksum_before.stdout | default('')).split(' ')[0] !=
+          (tailscaled_checksum_after.stdout | default('')).split(' ')[0]) or
+          (tailscaled_checksum_before.rc | default(1) != 0) }}
+  when: tailscaled_go_install_result.rc == 0
+
+- name: Check if source files for symlinks exist
+  stat:
+    path: "{{ go_bin_path_for_tailscale }}/{{ item }}"
   loop:
     - tailscale
     - tailscaled
+  register: tailscale_binaries_stat_check
+
+- name: Create symlinks in /usr/local/bin for easier access
+  file:
+    src: "{{ go_bin_path_for_tailscale }}/{{ item.item }}"
+    dest: "/usr/local/bin/{{ item.item }}"
+    state: link
+    force: yes
+  loop: "{{ tailscale_binaries_stat_check.results }}"
+  when: item.stat.exists
   become: true
 
-- name: Install Tailscale system daemon
-  command: /usr/local/bin/tailscaled install-system-daemon
+- name: Ensure Tailscale operational directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: wheel
+    mode: "0755"
+  loop:
+    - /var/lib/tailscale
+    - /var/run
+    - /Library/Tailscale
   become: true
-  register: tailscaled_install_result # Renamed for clarity
-  changed_when: tailscaled_install_result.rc == 0 and "already installed" not in (tailscaled_install_result.stdout | lower)
-  # We consider it changed if the command ran successfully AND it didn't say "already installed"
-  # Check stdout_lower for case-insensitivity
-  args:
-    # The 'creates' here is fine, but the changed_when is more precise for idempotency
-    creates: /Library/LaunchDaemons/com.tailscale.tailscaled.plist
 
-- name: Ensure Tailscale daemon plist exists
-  stat:
-    path: /Library/LaunchDaemons/com.tailscale.tailscaled.plist
-  register: tailscale_plist_stat
+- name: Deploy Tailscale daemon plist from template
+  ansible.builtin.template:
+    src: com.tailscale.tailscaled.plist.j2
+    dest: /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+    owner: root
+    group: wheel
+    mode: "0644"
+  become: true
+  register: tailscale_plist_deployed
+  notify: Restart tailscaled if changed # Notify handler
 
-- name: Load and enable Tailscale daemon using launchctl if plist exists
-  block:
-    - name: Unload Tailscale daemon (to ensure reload if already running with old config)
-      command: launchctl unload /Library/LaunchDaemons/com.tailscale.tailscaled.plist
-      become: true
-      changed_when: false # Unloading isn't a config change, loading is
-      failed_when: false # Ignore errors if it wasn't loaded
+- name: Load Tailscale daemon (will be started by handler if needed, or if already loaded correctly by RunAtLoad)
+  command: launchctl load -w /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+  become: true
+  changed_when: false # Loading an already loaded service is not a change; handler manages restart
+  ignore_errors: true # It might already be loaded by RunAtLoad
 
-    - name: Load Tailscale daemon
-      command: launchctl load -w /Library/LaunchDaemons/com.tailscale.tailscaled.plist
-      become: true
-      register: tailscale_load_result
-      changed_when: tailscale_load_result.rc == 0
-  when: tailscale_plist_stat.stat.exists
+# Ensure the service is enabled to start on boot, even if already loaded
+- name: Enable Tailscale daemon service
+  command: launchctl enable system/com.tailscale.tailscaled
+  become: true
+  changed_when: false # This just ensures it's enabled, doesn't mean it changed state now
 
-- name: Wait for Tailscale daemon to be ready
+- name: Wait for Tailscale daemon to be ready (CRITICAL)
   wait_for:
-    path: /var/run/tailscale/tailscaled.sock
+    path: /var/run/tailscaled.socket
     state: present
-    timeout: 10
+    timeout: 30
+    delay: 5
+  register: tailscale_socket_wait
+
+- name: Check Tailscale status before login attempt
+  command: /usr/local/bin/tailscale status
+  register: tailscale_status_before_login
+  changed_when: false
+  failed_when: false
   ignore_errors: true
+  when: tailscale_socket_wait is succeeded # Only run if daemon socket seems to be there
+
+- name: Explicitly logout Tailscale to clear any stale state
+  command: /usr/local/bin/tailscale logout
+  become: true # Run as root to interact with system daemon
+  ignore_errors: true # OK if it's already logged out or no nodekey
+  changed_when: false
+  register: tailscale_logout_result
+  when: tailscale_socket_wait is succeeded
+
+- name: DEBUG - Show tailscale logout result
+  debug:
+    var: tailscale_logout_result
+    verbosity: 1
+  when: tailscale_socket_wait is succeeded
 
 - name: Authenticate Tailscale
   command: >
@@ -95,6 +221,36 @@
     --hostname={{ inventory_hostname }}
     --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }}
     --accept-dns=false
+    --force-reauth
+  become: true # Run as root to ensure it interacts with system daemon and has perms
   register: tailscale_up
-  changed_when: tailscale_up.rc == 0 and 'Success' in tailscale_up.stdout
-  failed_when: tailscale_up.rc != 0 and 'already logged in' not in tailscale_up.stderr and 'already authenticated' not in tailscale_up.stderr
+  when: >
+    tailscale_socket_wait is succeeded and (
+      tailscale_binary_changed or
+      tailscaled_binary_changed or
+      (tailscale_plist_deployed is defined and tailscale_plist_deployed.changed) or
+      (tailscale_status_before_login.rc | default(1) != 0 or
+       'Logged out.' in (tailscale_status_before_login.stdout | default('')) or
+       'Needs login' in (tailscale_status_before_login.stdout | default('')))
+    )
+  changed_when: tailscale_up.rc == 0 and ('Success.' in tailscale_up.stdout or tailscale_up.stdout == "")
+  failed_when: >
+    tailscale_up.rc != 0 and
+    'already logged in' not in (tailscale_up.stderr | default('')) and
+    'already using auth key' not in (tailscale_up.stderr | default('')) and
+    'already authenticated' not in (tailscale_up.stderr | default('')) and
+    not ('Success.' in tailscale_up.stdout or tailscale_up.stdout == "")
+
+- name: Verify Tailscale installation and get final status
+  command: /usr/local/bin/tailscale status
+  become: true # Run as root
+  register: tailscale_final_status
+  changed_when: false
+  failed_when: tailscale_final_status.rc != 0
+  when: tailscale_socket_wait is succeeded
+
+- name: Debug final Tailscale status
+  debug:
+    var: tailscale_final_status.stdout_lines
+    verbosity: 1
+  when: tailscale_socket_wait is succeeded

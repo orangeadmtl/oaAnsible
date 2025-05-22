@@ -6,30 +6,36 @@
     <string>com.tailscale.tailscaled</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/sbin/tailscaled</string>
+        <string>/usr/local/bin/tailscaled</string>
         <string>--state=/var/lib/tailscale/tailscaled.state</string>
-        <string>--socket=/var/run/tailscale/tailscaled.sock</string>
+        <string>--socket=/var/run/tailscaled.socket</string>
         <string>--port=41641</string>
-        <string>--tun=utun</string>
+        <!-- <string>--verbose=1</string> --> <!-- Uncomment for more verbose tailscaled logging if needed -->
     </array>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <dict>
-        <key>NetworkState</key>
-        <true/>
+        <!-- Keep the service running. If it exits for any reason other than a clean exit (status 0),
+             launchd will restart it. Tailscaled is designed to handle its own retry logic
+             for network connectivity to the control plane. -->
+        <key>SuccessfulExit</key>
+        <false/>
+        <!-- Additionally, if the socket file disappears (indicating a crash or unexpected stop),
+             launchd will also restart it. -->
         <key>PathState</key>
         <dict>
-            <key>/var/run/tailscale/tailscaled.sock</key>
+            <key>/var/run/tailscaled.socket</key>
             <false/>
         </dict>
     </dict>
-    <key>ProcessType</key>
-    <string>Interactive</string>
-    <key>StandardErrorPath</key>
-    <string>/var/log/tailscaled.log</string>
+    <!-- Helps ensure all related processes are cleaned up if the main daemon is stopped/restarted -->
+    <key>AbandonProcessGroup</key>
+    <true/>
     <key>StandardOutPath</key>
-    <string>/var/log/tailscaled.log</string>
+    <string>/var/log/tailscaled.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/tailscaled.err.log</string>
     <key>WorkingDirectory</key>
     <string>/var/lib/tailscale</string>
     <key>EnvironmentVariables</key>
@@ -37,5 +43,7 @@
         <key>PATH</key>
         <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
+    <key>UserName</key>
+    <string>root</string>
 </dict>
 </plist>
