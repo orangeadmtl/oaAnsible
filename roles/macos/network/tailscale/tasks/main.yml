@@ -1,103 +1,78 @@
 ---
-- name: Configure Tailscale
+- name: Install Go using Homebrew
+  community.general.homebrew:
+    name: go
+    state: present
+
+- name: Set Go environment variables
   block:
-    - name: Check if Tailscale is installed
-      command: "{{ homebrew_prefix }}/bin/brew list tailscale"
-      register: tailscale_check
+    - name: Get Go environment
+      command: go env GOPATH
+      register: go_path
       changed_when: false
-      failed_when: false
 
-    - name: Install Tailscale via Homebrew
-      command: "{{ homebrew_prefix }}/bin/brew install tailscale"
-      when: tailscale_check.rc != 0
+    - name: Set Go binary path fact
+      set_fact:
+        go_bin_path: "{{ go_path.stdout | default(ansible_env.HOME + '/go/bin') }}"
 
-    # Start Tailscale service with proper privileges
-    - name: Start Tailscale service
-      block:
-        # First try to start as user
-        - name: Start Tailscale service as user
-          command: "{{ homebrew_prefix }}/bin/brew services start tailscale"
-          register: tailscale_service
-          changed_when: tailscale_service.rc == 0
-          failed_when: false
+    - name: Ensure Go binary path exists
+      file:
+        path: "{{ go_bin_path }}"
+        state: directory
+        mode: '0755'
 
-        # If user-level start fails, try as root with proper setup
-        - name: Start Tailscale service as root
-          block:
-            - name: Stop existing service if running
-              command: "{{ homebrew_prefix }}/bin/brew services stop tailscale"
-              become: false
-              failed_when: false
+- name: Install Tailscale using go install
+  command: "{{ ansible_env.HOME }}/go/bin/go install tailscale.com/cmd/tailscale{,d}@stable"
+  args:
+    creates: "{{ ansible_env.HOME }}/go/bin/tailscale"
+  register: tailscale_install
+  changed_when: tailscale_install.rc == 0
 
-            - name: Create system service directory
-              become: true
-              file:
-                path: /Library/LaunchDaemons
-                state: directory
-                mode: "0755"
+- name: Create symlinks in /usr/local/bin for easier access
+  file:
+    src: "{{ ansible_env.HOME }}/go/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    state: link
+    force: yes
+  loop:
+    - tailscale
+    - tailscaled
+  become: true
 
-            - name: Get Tailscale version
-              command: "{{ homebrew_prefix }}/bin/brew list tailscale --versions"
-              register: tailscale_version
-              changed_when: false
+- name: Install Tailscale system daemon
+  command: /usr/local/bin/tailscaled install-system-daemon
+  become: true
+  register: tailscaled_install
+  changed_when: tailscaled_install.rc == 0
+  args:
+    creates: /Library/LaunchDaemons/com.tailscale.tailscaled.plist
 
-            - name: Extract Tailscale version
-              set_fact:
-                tailscale_current_version: "{{ tailscale_version.stdout.split(' ')[1] }}"
+- name: Ensure Tailscale service is running
+  service:
+    name: com.tailscale.tailscaled
+    state: started
+    enabled: yes
+  become: true
 
-            - name: Copy service file to system location
-              become: true
-              command: "cp {{ homebrew_prefix }}/Cellar/tailscale/{{ tailscale_current_version }}/homebrew.mxcl.tailscale.plist /Library/LaunchDaemons/"
+- name: Wait for Tailscale daemon to be ready
+  wait_for:
+    path: /var/run/tailscale/tailscaled.sock
+    state: file
+    timeout: 30
 
-            - name: Load service with launchctl
-              become: true
-              command: launchctl load -w /Library/LaunchDaemons/homebrew.mxcl.tailscale.plist
-          when: tailscale_service.rc != 0
+- name: Authenticate Tailscale
+  command: >
+    /usr/local/bin/tailscale up 
+    --authkey={{ vault_ts_authkey }} 
+    --hostname={{ inventory_hostname }}
+    --advertise-tags={{ vault_ts_tags_macos | default('tag:macos-managed') }}
+    --accept-dns=false
+  register: tailscale_up
+  changed_when: tailscale_up.rc == 0 or 'already authenticated' in tailscale_up.stderr
+  failed_when: tailscale_up.rc != 0 and 'already authenticated' not in tailscale_up.stderr
 
-    - name: Wait for Tailscale daemon to be ready
-      wait_for:
-        timeout: 10
-
-    - name: Configure DNS settings
-      include_tasks: dns.yml
-      when: dns_config.enable_magic_dns | default(true)
-
-    - name: Ensure Tailscale is running
-      block:
-        # First stop any existing services
-        - name: Stop existing services
-          command: "{{ homebrew_prefix }}/bin/brew services stop tailscale"
-          failed_when: false
-
-        # Remove any existing launch daemon
-        - name: Remove existing launch daemon
-          file:
-            path: /Library/LaunchDaemons/homebrew.mxcl.tailscale.plist
-            state: absent
-          become: true
-          failed_when: false
-
-        # Start as root service (recommended for Tailscale)
-        - name: Start Tailscale as root service
-          block:
-            - name: Create system service directory
-              file:
-                path: /Library/LaunchDaemons
-                state: directory
-                mode: "0755"
-              become: true
-
-            - name: Copy service file to system location
-              command: "cp {{ homebrew_prefix }}/opt/tailscale/homebrew.mxcl.tailscale.plist /Library/LaunchDaemons/"
-              become: true
-
-            - name: Load service with launchctl
-              command: launchctl load -w /Library/LaunchDaemons/homebrew.mxcl.tailscale.plist
-              become: true
-
-        - name: Wait for Tailscale daemon to be ready
-          wait_for:
-            timeout: 15
-
+- name: Configure DNS settings
+  include_tasks: dns.yml
+  when: dns_config.enable_magic_dns | default(true)
   environment:
-    PATH: "{{ homebrew_prefix }}/bin:/usr/local/bin:{{ ansible_env.PATH }}"
+    PATH: "{{ homebrew_prefix | default('/opt/homebrew') }}/bin:/usr/local/bin:{{ ansible_env.PATH }}"
