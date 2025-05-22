@@ -67,3 +67,14 @@
             # Shell-specific configurations
             export LANG=en_US.UTF-8
             export EDITOR=vim
+
+# Configure passwordless sudo for the ansible_user (admin)
+- name: Ensure ansible_user can sudo without a password
+  become: true # This task itself needs sudo to modify /etc/sudoers
+  lineinfile:
+    path: /etc/sudoers
+    state: present
+    regexp: "^{{ ansible_user }} ALL="
+    line: "{{ ansible_user }} ALL=(ALL) NOPASSWD: ALL"
+    validate: "visudo -cf %s"
+  tags: ["sudo", "setup"] # Add tags for selective running
