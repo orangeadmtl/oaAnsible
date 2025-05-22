@@ -28,39 +28,40 @@
       command: networksetup -getdnsservers "{{ primary_service }}"
       register: current_dns
       changed_when: false
+      ignore_errors: true
 
     - name: Get DHCP DNS information
       command: ipconfig getpacket "{{ primary_interface }}"
       register: dhcp_info
       changed_when: false
 
-    - name: Process DNS information
+    - name: Set DHCP DNS servers fact
       set_fact:
-        current_dns_servers: []
-        dhcp_dns_servers: >-
-          {% set dns_servers = dhcp_info.stdout | regex_findall('domain_name_server \(ip_mult\): \{([^\}]*)\}') %}
-          {% if dns_servers %}
-            {{ dns_servers[0].split(',') | map('trim') | map('regex_replace', '[{}]', '') | list }}
-          {% else %}
-            []
-          {% endif %}
+        # Correctly assign a list by letting Jinja2 directly return the list structure
+        dhcp_dns_servers_list: "{% set dns_raw = dhcp_info.stdout | regex_findall('domain_name_server \\(ip_mult\\): \\{([^\\}]*)\\}') %}{% if dns_raw and dns_raw[0] %}{{ dns_raw[0].split(',') | map('trim') | map('regex_replace', '[{}]', '') | list }}{% else %}[]{% endif %}"
+
+    - name: Define fallback public DNS servers
+      set_fact:
+        public_dns_servers:
+          - "1.1.1.1"
+          - "8.8.8.8"
 
     - name: Configure DNS servers
+      vars:
+        final_dns_list: >-
+          {{ (dhcp_dns_servers_list + public_dns_servers + (dns.tailscale_servers | default([]))) | unique | list }}
       command: >-
-        networksetup -setdnsservers "{{ primary_service }}"
-        {{ ((dhcp_dns_servers | from_yaml) + (dns.tailscale_servers | default([]))) | 
-           unique | 
-           join(' ') }}
-      when: configure.tailscale | bool
+        networksetup -setdnsservers "{{ primary_service }}" {{ final_dns_list | join(' ') }}
+      when: configure.tailscale | bool and final_dns_list | length > 0
       register: dns_result
-      changed_when: dns_result.rc == 0
+      changed_when: dns_result.rc == 0 and (current_dns.stdout_lines | default([]) | join(' ') != final_dns_list | join(' '))
 
-    - name: Store original DNS configuration
+    - name: Store original DNS configuration (from DHCP if available)
       copy:
-        content: "{{ dhcp_dns_servers | join('\n') }}"
-        dest: "{{ ansible_env.HOME }}/.dns_backup"
+        content: "{{ dhcp_dns_servers_list | join('\\n') }}"
+        dest: "{{ ansible_env.HOME }}/.dns_backup_dhcp"
         mode: "0600"
-      when: configure.tailscale | bool
+      when: configure.tailscale | bool and dhcp_dns_servers_list | length > 0
 
   become: true
   tags: ["dns", "network", "tailscale"]
