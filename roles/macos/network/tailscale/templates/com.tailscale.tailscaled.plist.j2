@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.tailscale.tailscaled</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/sbin/tailscaled</string>
+        <string>--state=/var/lib/tailscale/tailscaled.state</string>
+        <string>--socket=/var/run/tailscale/tailscaled.sock</string>
+        <string>--port=41641</string>
+        <string>--tun=utun</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>NetworkState</key>
+        <true/>
+        <key>PathState</key>
+        <dict>
+            <key>/var/run/tailscale/tailscaled.sock</key>
+            <false/>
+        </dict>
+    </dict>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/tailscaled.log</string>
+    <key>StandardOutPath</key>
+    <string>/var/log/tailscaled.log</string>
+    <key>WorkingDirectory</key>
+    <string>/var/lib/tailscale</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
