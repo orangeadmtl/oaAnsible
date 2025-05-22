@@ -1,0 +1,167 @@
+#!/bin/bash
+
+# Source helper functions and variables
+HELPER_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
+if [ -f "$HELPER_SCRIPT_PATH" ]; then
+  # shellcheck source=/Users/kaitran/OrangeAd/oaPangaea/oaAnsible/scripts/helpers.sh
+  source "$HELPER_SCRIPT_PATH"
+else
+  echo "ERROR: helpers.sh not found at $HELPER_SCRIPT_PATH"
+  exit 1
+fi
+
+# Set script-specific log level
+SCRIPT_LOG_LEVEL=$_LOG_LEVEL_DEBUG
+export SCRIPT_LOG_LEVEL
+
+log_debug "oassh script started."
+ensure_ansible_root_dir
+check_vault_password_file # Checks for vault password file
+
+# Check for ansible-vault
+if ! command -v ansible-vault &>/dev/null; then
+  log_error "ansible-vault command not found. Please ensure Ansible is installed correctly. Halting."
+  exit 1
+fi
+
+# Check for yq
+if ! command -v yq &>/dev/null; then
+  log_error "yq command not found. Please install yq (https://github.com/mikefarah/yq/). Halting."
+  exit 1
+fi
+
+# Check for ssh
+if ! command -v ssh &>/dev/null; then
+  log_error "ssh command not found. Please ensure OpenSSH client is installed. Halting."
+  exit 1
+fi
+
+# Function to allow user to select inventory and host
+select_target_host_details() {
+  log_debug "Starting host selection process for oassh."
+  local inventories=("staging" "production")
+  local selected_inventory_name
+  local selected_inventory_path
+  local host_aliases=() # Initialize as an empty array
+  local selected_host_alias
+
+  # Select inventory
+  log_info "Please select an inventory environment:"
+  select inv_choice in "${inventories[@]}"; do
+    if [[ -n "$inv_choice" ]]; then
+      selected_inventory_name="$inv_choice"
+      selected_inventory_path="$OA_ANSIBLE_INVENTORY_DIR/$selected_inventory_name/hosts.yml"
+      if [ ! -f "$selected_inventory_path" ]; then
+        log_error "Inventory file not found: $selected_inventory_path"
+        return 1
+      fi
+      log_info "Selected inventory: $selected_inventory_name"
+      break
+    else
+      log_warn "Invalid selection. Please try again."
+    fi
+  done
+
+  # List hosts from selected inventory
+  log_debug "Fetching hosts from $selected_inventory_path"
+  # Portable way to read lines into an array
+  while IFS= read -r line; do
+    host_aliases+=("$line")
+  done < <(yq e '.all.children.macos.hosts | keys | .[]' "$selected_inventory_path" 2>/dev/null)
+
+  if [ ${#host_aliases[@]} -eq 0 ]; then
+    log_error "No hosts found in the '.all.children.macos.hosts' group of $selected_inventory_path, or error parsing inventory."
+    return 1
+  fi
+
+  log_info "Please select a target host from '$selected_inventory_name':"
+  select host_choice in "${host_aliases[@]}"; do
+    if [[ -n "$host_choice" ]]; then
+      selected_host_alias="$host_choice"
+      log_info "Selected host alias: $selected_host_alias"
+      break
+    else
+      log_warn "Invalid selection. Please try again."
+    fi
+  done
+
+  # Get ansible_host and ansible_user for the selected host alias
+  TARGET_CONNECT_HOST=$(yq e ".all.children.macos.hosts.\"$selected_host_alias\".ansible_host" "$selected_inventory_path")
+  TARGET_CONNECT_USER=$(yq e ".all.children.macos.hosts.\"$selected_host_alias\".ansible_user" "$selected_inventory_path")
+  # Query for ansible_port, default to 22 if not found
+  TARGET_CONNECT_PORT=$(yq e ".all.children.macos.hosts.\"$selected_host_alias\".ansible_port // 22" "$selected_inventory_path")
+
+  if [ -z "$TARGET_CONNECT_HOST" ] || [ "$TARGET_CONNECT_HOST" == "null" ]; then
+    log_error "Could not determine 'ansible_host' for '$selected_host_alias' in $selected_inventory_path."
+    return 1
+  fi
+  if [ -z "$TARGET_CONNECT_USER" ] || [ "$TARGET_CONNECT_USER" == "null" ]; then
+    log_error "Could not determine 'ansible_user' for '$selected_host_alias' in $selected_inventory_path."
+    return 1
+  fi
+
+  log_debug "Target connection host: $TARGET_CONNECT_HOST"
+  log_debug "Target connection user: $TARGET_CONNECT_USER"
+  log_debug "Target connection port: $TARGET_CONNECT_PORT"
+  return 0
+}
+
+# --- Main Script ---
+if ! select_target_host_details; then
+  log_error "Host selection failed. Exiting oassh."
+  exit 1
+fi
+
+VAULT_FILE_PATH="$OA_ANSIBLE_GROUP_VARS_DIR/all/vault.yml"
+log_debug "Attempting to view vault file: $VAULT_FILE_PATH"
+
+DECRYPTED_VAULT_CONTENT=$(ansible-vault view "$VAULT_FILE_PATH" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE")
+if [ $? -ne 0 ]; then
+  log_error "Failed to decrypt vault file: $VAULT_FILE_PATH"
+  exit 1
+fi
+log_debug "Vault file decrypted successfully."
+
+PRIVATE_KEY_CONTENT=$(echo "$DECRYPTED_VAULT_CONTENT" | yq -r '.vault_ssh_private_key')
+if [ -z "$PRIVATE_KEY_CONTENT" ] || [ "$PRIVATE_KEY_CONTENT" == "null" ]; then
+  log_error "Failed to extract 'vault_ssh_private_key' from vault content."
+  log_debug "Vault content was: $DECRYPTED_VAULT_CONTENT"
+  exit 1
+fi
+log_debug "Private key extracted from vault."
+
+# Create a temporary file for the private key
+TMP_KEY_PATH=$(mktemp "/tmp/oassh_privkey.XXXXXX")
+if [ -z "$TMP_KEY_PATH" ]; then
+  log_error "Failed to create temporary file for private key."
+  exit 1
+fi
+log_debug "Temporary private key file created at $TMP_KEY_PATH"
+
+# Set strict permissions and write key
+chmod 600 "$TMP_KEY_PATH"
+echo -E "$PRIVATE_KEY_CONTENT" >"$TMP_KEY_PATH" # Use -E to prevent backslash interpretation if key has them.
+if [ $? -ne 0 ]; then
+  log_error "Failed to write private key to temporary file: $TMP_KEY_PATH"
+  rm -f "$TMP_KEY_PATH" # Clean up
+  exit 1
+fi
+
+# Set up a trap to ensure the temporary key file is deleted on exit
+trap 'log_debug "Cleaning up temporary private key file: $TMP_KEY_PATH"; rm -f "$TMP_KEY_PATH"' EXIT INT TERM
+
+log_info "Attempting SSH to $TARGET_CONNECT_USER@$TARGET_CONNECT_HOST on port $TARGET_CONNECT_PORT using the vaulted private key..."
+log_debug "SSH command: ssh -i \"$TMP_KEY_PATH\" -p \"$TARGET_CONNECT_PORT\" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \"$TARGET_CONNECT_USER@$TARGET_CONNECT_HOST\" ${*}"
+
+# Pass any additional arguments from oassh script to ssh
+# For example, if you run `./oassh ls -la`, `ls -la` will be passed to the remote host
+ssh -i "$TMP_KEY_PATH" -p "$TARGET_CONNECT_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$TARGET_CONNECT_USER@$TARGET_CONNECT_HOST" "${@}"
+SSH_EXIT_CODE=$?
+
+# Explicitly remove the temp file and clear the trap if SSH exits
+log_debug "SSH command finished with exit code: $SSH_EXIT_CODE"
+rm -f "$TMP_KEY_PATH"
+trap - EXIT INT TERM # Clear the trap
+
+log_debug "oassh script finished."
+exit $SSH_EXIT_CODE

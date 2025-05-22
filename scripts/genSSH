@@ -1,0 +1,130 @@
+#!/bin/bash
+
+# Source helper functions and variables
+# Assuming helpers.sh is in the same directory or in a known path
+HELPER_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
+if [ -f "$HELPER_SCRIPT_PATH" ]; then
+  # shellcheck source=/Users/kaitran/OrangeAd/oaPangaea/oaAnsible/scripts/helpers.sh
+  source "$HELPER_SCRIPT_PATH"
+else
+  echo "ERROR: helpers.sh not found at $HELPER_SCRIPT_PATH"
+  exit 1
+fi
+
+# Set script-specific log level
+SCRIPT_LOG_LEVEL=$_LOG_LEVEL_DEBUG
+export SCRIPT_LOG_LEVEL
+
+log_debug "genSSH script started."
+ensure_ansible_root_dir
+check_ansible_installed # Checks for ansible-playbook
+check_vault_password_file
+
+# Check for yq
+if ! command -v yq &>/dev/null; then
+  log_error "yq command not found. Please install yq (https://github.com/mikefarah/yq/). Halting."
+  exit 1
+fi
+
+# Function to allow user to select inventory and host
+select_target_host() {
+  log_debug "Starting host selection process."
+  local inventories=("staging" "production")
+  local selected_inventory_name
+  local selected_inventory_path
+  local host_aliases=() # Initialize as an empty array
+  local selected_host_alias
+
+  # Select inventory
+  log_info "Please select an inventory environment:"
+  select inv_choice in "${inventories[@]}"; do
+    if [[ -n "$inv_choice" ]]; then
+      selected_inventory_name="$inv_choice"
+      selected_inventory_path="$OA_ANSIBLE_INVENTORY_DIR/$selected_inventory_name/hosts.yml"
+      if [ ! -f "$selected_inventory_path" ]; then
+        log_error "Inventory file not found: $selected_inventory_path"
+        return 1
+      fi
+      log_info "Selected inventory: $selected_inventory_name"
+      break
+    else
+      log_warn "Invalid selection. Please try again."
+    fi
+  done
+
+  # List hosts from selected inventory
+  log_debug "Fetching hosts from $selected_inventory_path"
+  # Portable way to read lines into an array
+  while IFS= read -r line; do
+    host_aliases+=("$line")
+  done < <(yq e '.all.children.macos.hosts | keys | .[]' "$selected_inventory_path" 2>/dev/null)
+
+  if [ ${#host_aliases[@]} -eq 0 ]; then
+    log_error "No hosts found in the '.all.children.macos.hosts' group of $selected_inventory_path, or error parsing inventory."
+    return 1
+  fi
+
+  log_info "Please select a target host from '$selected_inventory_name':"
+  select host_choice in "${host_aliases[@]}"; do
+    if [[ -n "$host_choice" ]]; then
+      selected_host_alias="$host_choice"
+      log_info "Selected host: $selected_host_alias"
+      break
+    else
+      log_warn "Invalid selection. Please try again."
+    fi
+  done
+
+  # Export variables for use by the caller
+  TARGET_INVENTORY_PATH="$selected_inventory_path"
+  TARGET_HOST_ALIAS="$selected_host_alias"
+
+  log_debug "Selected inventory path: $TARGET_INVENTORY_PATH"
+  log_debug "Selected host alias: $TARGET_HOST_ALIAS"
+  return 0
+}
+
+# --- Main Script ---
+if ! select_target_host; then
+  log_error "Host selection failed. Exiting genSSH."
+  exit 1
+fi
+
+log_info "Preparing to deploy SSH public key to '$TARGET_HOST_ALIAS' in '$TARGET_INVENTORY_PATH'..."
+log_info "This will use the 'vault_ssh_public_key' from your Ansible vault."
+log_info "You might be prompted for the SSH password for '$TARGET_HOST_ALIAS' if this is the first connection."
+
+ANSIBLE_COMMAND=(
+  "ansible-playbook"
+  "main.yml"
+  "-i" "$TARGET_INVENTORY_PATH"
+  "--tags" "ssh"
+  "--limit" "$TARGET_HOST_ALIAS"
+  "--vault-password-file" "$OA_ANSIBLE_VAULT_PASSWORD_FILE"
+  "--ask-pass" # Add this to prompt for SSH password
+)
+
+# Ask for become pass if not using a passwordless sudo setup
+# Check ansible.cfg for become_ask_pass more reliably
+if grep -q -E "^\s*become_ask_pass\s*=\s*(True|true|TRUE|1)\s*$" "$OA_ANSIBLE_ROOT_DIR/ansible.cfg" ||
+  ! grep -q -E "^\s*become_ask_pass\s*=" "$OA_ANSIBLE_ROOT_DIR/ansible.cfg"; then # if not set, defaults to true
+  log_debug "become_ask_pass is likely True or not set to False in ansible.cfg, adding --ask-become-pass"
+  ANSIBLE_COMMAND+=("--ask-become-pass")
+else
+  log_debug "become_ask_pass is False in ansible.cfg, not adding --ask-become-pass"
+fi
+
+log_info "Running command: ${ANSIBLE_COMMAND[*]}"
+
+# Execute Ansible playbook
+"${ANSIBLE_COMMAND[@]}"
+
+if [ $? -eq 0 ]; then
+  log_info "SSH public key deployment to '$TARGET_HOST_ALIAS' completed successfully."
+else
+  log_error "SSH public key deployment to '$TARGET_HOST_ALIAS' failed."
+  log_error "Check the Ansible output above for details."
+  exit 1
+fi
+
+log_debug "genSSH script finished."
