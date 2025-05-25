@@ -161,28 +161,31 @@
     - /Library/Tailscale
   become: true
 
-- name: Deploy Tailscale daemon plist from template
-  ansible.builtin.template:
-    src: com.tailscale.tailscaled.plist.j2
-    dest: /Library/LaunchDaemons/com.tailscale.tailscaled.plist
-    owner: root
-    group: wheel
-    mode: "0644"
+- name: Check if Tailscale daemon plist exists
+  stat:
+    path: /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+  register: tailscale_plist_exists
   become: true
-  register: tailscale_plist_deployed
-  notify: Restart tailscaled if changed # Notify handler
 
-- name: Load Tailscale daemon (will be started by handler if needed, or if already loaded correctly by RunAtLoad)
-  command: launchctl load -w /Library/LaunchDaemons/com.tailscale.tailscaled.plist
-  become: true
-  changed_when: false # Loading an already loaded service is not a change; handler manages restart
-  ignore_errors: true # It might already be loaded by RunAtLoad
+- name: Install Tailscale system daemon
+  command: /usr/local/bin/tailscaled install-system-daemon
+  become: true # sudo is required
+  register: tailscale_daemon_installed
+  changed_when: tailscale_daemon_installed.rc == 0
+  when: not tailscale_plist_exists.stat.exists
+  notify: Suggest reboot for new Tailscale install/config
 
-# Ensure the service is enabled to start on boot, even if already loaded
-- name: Enable Tailscale daemon service
+# Ensure the service is enabled and loaded
+- name: Ensure tailscaled service is enabled
   command: launchctl enable system/com.tailscale.tailscaled
   become: true
   changed_when: false # This just ensures it's enabled, doesn't mean it changed state now
+
+- name: Ensure tailscaled service is loaded
+  command: launchctl load -w /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+  become: true
+  changed_when: false # Loading an already loaded service is not a change
+  ignore_errors: true # It might already be loaded by RunAtLoad
 
 - name: Wait for Tailscale daemon to be ready (CRITICAL)
   wait_for:
@@ -192,29 +195,99 @@
     delay: 5
   register: tailscale_socket_wait
 
-- name: Check Tailscale status before login attempt
-  command: /usr/local/bin/tailscale status
-  register: tailscale_status_before_login
+# Check current Tailscale status using JSON output for better parsing
+- name: Check current Tailscale status
+  command: /usr/local/bin/tailscale status --json
+  register: ts_status_result
   changed_when: false
-  failed_when: false
-  ignore_errors: true
+  failed_when: false # Don't fail if Tailscale isn't configured yet
+  become: true # tailscale status might need to interact with daemon as root
   when: tailscale_socket_wait is succeeded # Only run if daemon socket seems to be there
 
-- name: Explicitly logout Tailscale to clear any stale state
-  command: /usr/local/bin/tailscale logout
-  become: true # Run as root to interact with system daemon
-  ignore_errors: true # OK if it's already logged out or no nodekey
-  changed_when: false
-  register: tailscale_logout_result
-  when: tailscale_socket_wait is succeeded
+# Parse the JSON output to determine current state
+- name: Parse Tailscale status JSON
+  set_fact:
+    ts_status_data: "{{ ts_status_result.stdout | from_json }}"
+    ts_status_error: "{{ ts_status_result.rc != 0 or not ts_status_result.stdout }}"
+  when: ts_status_result.stdout is defined and ts_status_result.stdout != ""
 
-- name: DEBUG - Show tailscale logout result
+# Determine if Tailscale is logged in and get current configuration
+- name: Determine current Tailscale state
+  set_fact:
+    is_tailscale_logged_in: "{{ ts_status_data.Self is defined and ts_status_data.Self.Online | default(false) }}"
+    current_ts_hostname: "{{ ts_status_data.Self.HostName | default('') }}"
+    current_ts_tags: "{{ ts_status_data.Self.Tags | default([]) }}"
+  when: not ts_status_error | default(true)
+
+# Define expected Tailscale tags for comparison
+- name: Define expected Tailscale tags
+  set_fact:
+    expected_ts_tags_list: "{{ (vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker')).split(',') | map('trim') | sort }}"
+
+# Compare current tags with expected tags
+- name: Compare current tags with expected tags
+  set_fact:
+    tags_are_correct: "{{ current_ts_tags | default([]) | map('trim') | sort == expected_ts_tags_list }}"
+  when: is_tailscale_logged_in | default(false)
+
+# Decide if full 'tailscale up' is needed or just configuration changes
+- name: Decide if full 'tailscale up' is needed
+  set_fact:
+    needs_full_tailscale_up: >-
+      {{ not is_tailscale_logged_in | default(true) or
+         current_ts_hostname | default('') != inventory_hostname or
+         not tags_are_correct | default(false)
+      }}
+
+# Debug output to help understand the decision logic
+- name: Debug Tailscale decision logic
   debug:
-    var: tailscale_logout_result
+    msg: |
+      is_tailscale_logged_in: {{ is_tailscale_logged_in | default('N/A') }}
+      current_ts_hostname: {{ current_ts_hostname | default('N/A') }} vs inventory_hostname: {{ inventory_hostname }}
+      current_ts_tags: {{ current_ts_tags | default([]) }} vs expected_ts_tags_list: {{ expected_ts_tags_list }}
+      tags_are_correct: {{ tags_are_correct | default('N/A') }}
+      needs_full_tailscale_up: {{ needs_full_tailscale_up }}
     verbosity: 1
-  when: tailscale_socket_wait is succeeded
 
-- name: Authenticate Tailscale
+# Scenario 1: Tailscale is logged in, but hostname is wrong
+- name: Correct Tailscale hostname if mismatched and already logged in
+  command: /usr/local/bin/tailscale set --hostname={{ inventory_hostname }}
+  become: true
+  when:
+    - is_tailscale_logged_in | default(false)
+    - current_ts_hostname | default('') != inventory_hostname
+    - not needs_full_tailscale_up | default(true) # Only run if we are not doing a full 'up'
+  changed_when: true # Assume change
+  register: tailscale_hostname_correction
+
+# Scenario 1: Tailscale is logged in, but tags are wrong
+- name: Correct Tailscale tags if mismatched and already logged in
+  command: /usr/local/bin/tailscale set --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }}
+  become: true
+  when:
+    - is_tailscale_logged_in | default(false)
+    - not tags_are_correct | default(false)
+    - not needs_full_tailscale_up | default(true) # Only run if we are not doing a full 'up'
+  changed_when: true # Assume change
+  register: tailscale_tags_correction
+
+# Scenario 2: Try gentle authentication first without --force-reauth
+- name: Authenticate Tailscale if needed (gentle approach first)
+  command: >
+    /usr/local/bin/tailscale up
+    --authkey={{ vault_tailscale_auth_key }}
+    --hostname={{ inventory_hostname }}
+    --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }}
+    --accept-dns=false
+  become: true # Run as root to ensure it interacts with system daemon and has perms
+  register: tailscale_up_gentle
+  when: needs_full_tailscale_up | default(false)
+  changed_when: tailscale_up_gentle.rc == 0 and ('Success.' in tailscale_up_gentle.stdout or tailscale_up_gentle.stdout == "")
+  failed_when: false # Allow to fail to try with --force-reauth
+
+# Scenario 3: If gentle approach fails, try with --force-reauth
+- name: Authenticate Tailscale with force-reauth if gentle approach failed
   command: >
     /usr/local/bin/tailscale up
     --authkey={{ vault_tailscale_auth_key }}
@@ -223,34 +296,50 @@
     --accept-dns=false
     --force-reauth
   become: true # Run as root to ensure it interacts with system daemon and has perms
-  register: tailscale_up
-  when: >
-    tailscale_socket_wait is succeeded and (
-      tailscale_binary_changed or
-      tailscaled_binary_changed or
-      (tailscale_plist_deployed is defined and tailscale_plist_deployed.changed) or
-      (tailscale_status_before_login.rc | default(1) != 0 or
-       'Logged out.' in (tailscale_status_before_login.stdout | default('')) or
-       'Needs login' in (tailscale_status_before_login.stdout | default('')))
-    )
-  changed_when: tailscale_up.rc == 0 and ('Success.' in tailscale_up.stdout or tailscale_up.stdout == "")
+  register: tailscale_up_force
+  when: 
+    - needs_full_tailscale_up | default(false)
+    - tailscale_up_gentle.rc != 0
+  changed_when: tailscale_up_force.rc == 0 and ('Success.' in tailscale_up_force.stdout or tailscale_up_force.stdout == "")
   failed_when: >
-    tailscale_up.rc != 0 and
-    'already logged in' not in (tailscale_up.stderr | default('')) and
-    'already using auth key' not in (tailscale_up.stderr | default('')) and
-    'already authenticated' not in (tailscale_up.stderr | default('')) and
-    not ('Success.' in tailscale_up.stdout or tailscale_up.stdout == "")
+    tailscale_up_force.rc != 0 and
+    'already logged in' not in (tailscale_up_force.stderr | default('')) and
+    'already using auth key' not in (tailscale_up_force.stderr | default('')) and
+    'already authenticated' not in (tailscale_up_force.stderr | default('')) and
+    not ('Success.' in tailscale_up_force.stdout or tailscale_up_force.stdout == "")
 
 - name: Verify Tailscale installation and get final status
-  command: /usr/local/bin/tailscale status
+  command: /usr/local/bin/tailscale status --json
   become: true # Run as root
-  register: tailscale_final_status
+  register: tailscale_final_status_json
   changed_when: false
-  failed_when: tailscale_final_status.rc != 0
+  failed_when: tailscale_final_status_json.rc != 0
   when: tailscale_socket_wait is succeeded
 
-- name: Debug final Tailscale status
+- name: Parse final Tailscale status JSON
+  set_fact:
+    final_ts_status_data: "{{ tailscale_final_status_json.stdout | from_json }}"
+  when: tailscale_final_status_json.stdout is defined and tailscale_final_status_json.stdout != ""
+
+- name: Display final Tailscale connection status
   debug:
-    var: tailscale_final_status.stdout_lines
-    verbosity: 1
-  when: tailscale_socket_wait is succeeded
+    msg: |
+      Tailscale Status: {{ final_ts_status_data.Self.Online | default(false) | ternary('Connected', 'Not Connected') }}
+      Hostname: {{ final_ts_status_data.Self.HostName | default('Unknown') }}
+      Tags: {{ final_ts_status_data.Self.Tags | default([]) | join(', ') }}
+      Node ID: {{ final_ts_status_data.Self.ID | default('Unknown') }}
+  when: final_ts_status_data is defined
+
+- name: Check for hostname duplication
+  debug:
+    msg: |
+      WARNING: The Tailscale hostname ({{ final_ts_status_data.Self.HostName | default('Unknown') }}) 
+      does not match the expected hostname ({{ inventory_hostname }}). 
+      This may indicate a hostname duplication issue in the Tailscale admin console.
+      Consider cleaning up old nodes in the Tailscale admin console.
+  when: 
+    - final_ts_status_data is defined
+    - final_ts_status_data.Self.HostName is defined
+    - final_ts_status_data.Self.HostName != inventory_hostname
+    - "'-' in final_ts_status_data.Self.HostName"
+  notify: Suggest reboot for new Tailscale install/config
