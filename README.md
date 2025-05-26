@@ -200,6 +200,29 @@ Deploy only the macOS API service to staging:
 ./scripts/deploy-macos-api.sh
 ```
 
+### Mac Mini Onboarding
+
+For a streamlined onboarding process of new Mac Mini devices, use the onboard-mac.sh script:
+
+```bash
+# Navigate to the oaAnsible directory
+cd /path/to/oaPangaea/oaAnsible
+
+# Run the onboarding script
+./scripts/onboard-mac.sh
+```
+
+The script will:
+
+1. Prompt for target Mac information (IP address, SSH username, hostname)
+2. Create a temporary inventory file
+3. Deploy core macOS configuration and Tailscale
+4. Deploy macOS API service
+5. Deploy oaTracker application
+6. Provide verification steps and next actions
+
+This is the recommended method for onboarding new Mac Mini devices as it ensures all components are properly installed and configured.
+
 This script:
 
 1. Runs the dedicated `deploy-macos-api.yml` playbook
