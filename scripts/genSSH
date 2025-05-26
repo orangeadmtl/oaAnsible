@@ -21,71 +21,14 @@ check_ansible_installed # Checks for ansible-playbook
 check_vault_password_file
 
 # Check for yq
-if ! command -v yq &>/dev/null; then
-  log_error "yq command not found. Please install yq (https://github.com/mikefarah/yq/). Halting."
-  exit 1
-fi
+check_yq_installed
 
-# Function to allow user to select inventory and host
-select_target_host() {
-  log_debug "Starting host selection process."
-  local inventories=("staging" "production")
-  local selected_inventory_name
-  local selected_inventory_path
-  local host_aliases=() # Initialize as an empty array
-  local selected_host_alias
-
-  # Select inventory
-  log_info "Please select an inventory environment:"
-  select inv_choice in "${inventories[@]}"; do
-    if [[ -n "$inv_choice" ]]; then
-      selected_inventory_name="$inv_choice"
-      selected_inventory_path="$OA_ANSIBLE_INVENTORY_DIR/$selected_inventory_name/hosts.yml"
-      if [ ! -f "$selected_inventory_path" ]; then
-        log_error "Inventory file not found: $selected_inventory_path"
-        return 1
-      fi
-      log_info "Selected inventory: $selected_inventory_name"
-      break
-    else
-      log_warn "Invalid selection. Please try again."
-    fi
-  done
-
-  # List hosts from selected inventory
-  log_debug "Fetching hosts from $selected_inventory_path"
-  # Portable way to read lines into an array
-  while IFS= read -r line; do
-    host_aliases+=("$line")
-  done < <(yq e '.all.children.macos.hosts | keys | .[]' "$selected_inventory_path" 2>/dev/null)
-
-  if [ ${#host_aliases[@]} -eq 0 ]; then
-    log_error "No hosts found in the '.all.children.macos.hosts' group of $selected_inventory_path, or error parsing inventory."
-    return 1
-  fi
-
-  log_info "Please select a target host from '$selected_inventory_name':"
-  select host_choice in "${host_aliases[@]}"; do
-    if [[ -n "$host_choice" ]]; then
-      selected_host_alias="$host_choice"
-      log_info "Selected host: $selected_host_alias"
-      break
-    else
-      log_warn "Invalid selection. Please try again."
-    fi
-  done
-
-  # Export variables for use by the caller
-  TARGET_INVENTORY_PATH="$selected_inventory_path"
-  TARGET_HOST_ALIAS="$selected_host_alias"
-
-  log_debug "Selected inventory path: $TARGET_INVENTORY_PATH"
-  log_debug "Selected host alias: $TARGET_HOST_ALIAS"
-  return 0
-}
+# Use the common function to select a target host
+# The function is now defined in helpers.sh
 
 # --- Main Script ---
-if ! select_target_host; then
+# Use the common select_target_host function from helpers.sh
+if ! select_target_host false; then
   log_error "Host selection failed. Exiting genSSH."
   exit 1
 fi
