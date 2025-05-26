@@ -21,7 +21,7 @@ app.add_middleware(
 )
 
 # Add Tailscale subnet restriction middleware
-app.add_middleware(TailscaleSubnetMiddleware, tailscale_subnet=TAILSCALE_SUBNET)
+app.add_middleware(TailscaleSubnetMiddleware, tailscale_subnet_str=TAILSCALE_SUBNET)
 
 # Create required directories
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
