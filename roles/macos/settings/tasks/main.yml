@@ -96,3 +96,36 @@
       when: current_hostname.stdout != inventory_hostname
       register: localhostname_result
       changed_when: localhostname_result.rc == 0
+
+- name: Configure daily reboot
+  block:
+    - name: Ensure log directory exists
+      file:
+        path: /var/log/orangead
+        state: directory
+        owner: root
+        group: wheel
+        mode: '0755'
+      become: true
+
+    - name: Create daily reboot launchd plist
+      template:
+        src: com.orangead.dailyreboot.plist.j2
+        dest: /Library/LaunchDaemons/com.orangead.dailyreboot.plist
+        owner: root
+        group: wheel
+        mode: '0644'
+      become: true
+      register: daily_reboot_plist
+
+    - name: Unload existing daily reboot service if it exists and changed
+      command: launchctl unload /Library/LaunchDaemons/com.orangead.dailyreboot.plist
+      become: true
+      failed_when: false
+      changed_when: false
+      when: daily_reboot_plist.changed
+
+    - name: Load daily reboot service
+      command: launchctl load /Library/LaunchDaemons/com.orangead.dailyreboot.plist
+      become: true
+      when: daily_reboot_plist.changed
