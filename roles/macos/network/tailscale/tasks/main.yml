@@ -280,6 +280,8 @@
     --hostname={{ inventory_hostname }}
     --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }}
     --accept-dns=false
+    --ssh
+    --reset
   become: true # Run as root to ensure it interacts with system daemon and has perms
   register: tailscale_up_gentle
   when: needs_full_tailscale_up | default(false)
@@ -295,6 +297,8 @@
     --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }}
     --accept-dns=false
     --force-reauth
+    --ssh
+    --reset
   become: true # Run as root to ensure it interacts with system daemon and has perms
   register: tailscale_up_force
   when: 
@@ -329,6 +333,28 @@
       Tags: {{ final_ts_status_data.Self.Tags | default([]) | join(', ') }}
       Node ID: {{ final_ts_status_data.Self.ID | default('Unknown') }}
   when: final_ts_status_data is defined
+
+# Enable Tailscale SSH after confirming Tailscale is working properly
+- name: Check if Tailscale SSH is enabled
+  command: /usr/local/bin/tailscale status --ssh
+  become: true
+  register: tailscale_ssh_status
+  changed_when: false
+  failed_when: false
+  when: 
+    - final_ts_status_data is defined
+    - final_ts_status_data.Self.Online | default(false)
+
+- name: Enable Tailscale SSH
+  command: /usr/local/bin/tailscale set --ssh
+  become: true
+  register: tailscale_ssh_enabled
+  changed_when: tailscale_ssh_enabled.rc == 0
+  when:
+    - final_ts_status_data is defined
+    - final_ts_status_data.Self.Online | default(false)
+    - tailscale_ssh_status.stdout is defined
+    - "'disabled' in tailscale_ssh_status.stdout"
 
 - name: Check for hostname duplication
   debug:
