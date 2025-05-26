@@ -16,6 +16,28 @@
           changed_when: false
           failed_when: false
           when: pyenv_binary.stat.exists
+          
+        - name: Check common uv installation paths
+          stat:
+            path: "{{ item }}"
+          register: uv_paths
+          with_items:
+            - "{{ ansible_env.HOME }}/.local/bin/uv"
+            - "{{ ansible_env.HOME }}/.cargo/bin/uv"
+            - /usr/local/bin/uv
+            - /opt/homebrew/bin/uv
+          
+        - name: Set uv path fact
+          set_fact:
+            uv_path: "{{ (uv_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('') }}"
+          
+        - name: Get uv version
+          shell: |
+            {{ uv_path }} --version || echo "Not installed"
+          register: uv_version
+          changed_when: false
+          failed_when: false
+          when: uv_path != ''
       when: configure.pyenv | bool
       tags: ["verify", "python"]
 
@@ -34,6 +56,27 @@
           changed_when: false
           failed_when: false
           when: nvm_script.stat.exists
+          
+        - name: Check common bun installation paths
+          stat:
+            path: "{{ item }}"
+          register: bun_paths
+          with_items:
+            - "{{ ansible_env.HOME }}/.bun/bin/bun"
+            - /usr/local/bin/bun
+            - /opt/homebrew/bin/bun
+          
+        - name: Set bun path fact
+          set_fact:
+            bun_path: "{{ (bun_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('') }}"
+          
+        - name: Get bun version
+          shell: |
+            {{ bun_path }} --version || echo "Not installed"
+          register: bun_version
+          changed_when: false
+          failed_when: false
+          when: bun_path != ''
       when: configure.node | bool
       tags: ["verify", "node"]
 
@@ -59,20 +102,112 @@
           when: tailscale_binary_exists.stat.exists
       when: configure.tailscale | bool
       tags: ["verify", "tailscale"]
+          
+    - name: Verify Homebrew packages
+      block:
+        - name: Check common Homebrew installation paths
+          stat:
+            path: "{{ item }}"
+          register: homebrew_paths
+          with_items:
+            - /opt/homebrew/bin/brew
+            - /usr/local/bin/brew
+            - /home/linuxbrew/.linuxbrew/bin/brew
+          
+        - name: Set Homebrew path fact
+          set_fact:
+            homebrew_path: "{{ (homebrew_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('') }}"
+          
+        - name: Get Homebrew version
+          shell: |
+            {{ homebrew_path }} --version | head -n 1
+          register: homebrew_version
+          changed_when: false
+          failed_when: false
+          when: homebrew_path != ''
+          
+        - name: Get installed Homebrew packages
+          shell: |
+            {{ homebrew_path }} list --versions | grep -E 'go|opencv|python|node'
+          register: homebrew_packages
+          changed_when: false
+          failed_when: false
+          when: homebrew_path != ''
+      when: ansible_distribution == "MacOSX"
+      tags: ["verify", "homebrew"]
+      
+    - name: Verify services
+      block:
+        - name: Check macOS API service status
+          shell: |
+            launchctl list | grep com.orangead.api || echo "Not running"
+          register: macos_api_status
+          changed_when: false
+          failed_when: false
+          
+        - name: Check tracker service status
+          shell: |
+            launchctl list | grep com.orangead.tracker || echo "Not running"
+          register: tracker_status
+          changed_when: false
+          failed_when: false
+      when: ansible_distribution == "MacOSX"
+      tags: ["verify", "services"]
+
+    - name: Set verification status fact
+      set_fact:
+        verification_status: >
+          {% if (macos_api_status is defined and macos_api_status.stdout is defined and macos_api_status.stdout != 'Not running') or
+                (tracker_status is defined and tracker_status.stdout is defined and tracker_status.stdout != 'Not running') %}true{% else %}false{% endif %}
 
     - name: Display verification results
       debug:
         msg: |
-          Verification Results:
-          {% if configure.pyenv %}
-          Python: {{ python_version.stdout if python_version.rc == 0 else 'Not installed' }}
+          ============================================================
+                          VERIFICATION RESULTS
+          ============================================================
+
+          === CORE ENVIRONMENTS ===
+          {% if configure.pyenv is defined and configure.pyenv %}
+          Python:              {{ python_version.stdout if python_version is defined and python_version.rc is defined and python_version.rc == 0 else 'Not installed' }}
+          UV Package Manager:  {% if uv_path != '' and uv_version is defined and uv_version.rc is defined and uv_version.rc == 0 %}{{ uv_version.stdout }} ({{ uv_path }}){% else %}Not installed or not found{% endif %}
           {% endif %}
-          {% if configure.node %}
-          Node.js: {{ node_version.stdout if node_version.rc == 0 else 'Not installed' }}
+
+          {% if configure.node is defined and configure.node %}
+          Node.js:             {{ node_version.stdout if node_version is defined and node_version.rc is defined and node_version.rc == 0 else 'Not installed' }}
+          Bun:                 {% if bun_path != '' and bun_version is defined and bun_version.rc is defined and bun_version.rc == 0 %}{{ bun_version.stdout }} ({{ bun_path }}){% else %}Not installed or not found{% endif %}
           {% endif %}
-          {% if configure.tailscale %}
-          Tailscale: {% if not tailscale_binary_exists.stat.exists %}Not installed{% elif tailscale_status.rc == 0 %}Connected ({{ tailscale_version.stdout | default('unknown version') }}){% else %}Installed but not connected{% endif %}
+
+          === SYSTEM COMPONENTS ===
+          {% if configure.tailscale is defined and configure.tailscale %}
+          Tailscale:           {% if tailscale_binary_exists is not defined or not tailscale_binary_exists.stat.exists %}Not installed{% elif tailscale_status is defined and tailscale_status.rc is defined and tailscale_status.rc == 0 %}Connected ({{ tailscale_version.stdout | default('unknown version') | regex_replace('\n.*', '') }}){% else %}Installed but not connected{% endif %}
+
           {% endif %}
+          Homebrew:            {% if homebrew_path != '' and homebrew_version is defined and homebrew_version.rc is defined and homebrew_version.rc == 0 %}{{ homebrew_version.stdout }} ({{ homebrew_path }}){% else %}Not installed or not found{% endif %}
+
+          === HOMEBREW PACKAGES ===
+          {% if homebrew_path != '' and homebrew_packages is defined and homebrew_packages.rc is defined and homebrew_packages.rc == 0 %}
+          {{ homebrew_packages.stdout }}
+          {% else %}
+          {% if homebrew_path != '' %}
+          No relevant packages found
+          {% else %}
+          Homebrew not available
+          {% endif %}
+          {% endif %}
+
+          === SERVICES ===
+          macOS API Service:   {% if macos_api_status is defined and macos_api_status.stdout is defined and macos_api_status.stdout != 'Not running' %}Running{% else %}Not running (ATTENTION REQUIRED){% endif %}
+
+          Tracker Service:     {% if tracker_status is defined and tracker_status.stdout is defined and tracker_status.stdout != 'Not running' %}Running{% else %}Not running (ATTENTION REQUIRED){% endif %}
+
+          ============================================================
+          {% if verification_status == 'true' %}
+          STATUS: All services are running correctly.
+          {% else %}
+          STATUS: Some services are not running. See details above.
+          {% endif %}
+          ============================================================
       tags: ["verify"]
 
   rescue:
