@@ -1,0 +1,33 @@
+---
+- name: Deploy oaTracker on macOS
+  hosts: macos
+  gather_facts: true
+  
+  tasks:
+    - name: Include macos/tracker role
+      include_role:
+        name: macos/tracker
+      tags: ["tracker", "services"]
+    
+    - name: Verify oaTracker service is running
+      shell: launchctl list | grep com.orangead.tracker
+      register: tracker_service_check
+      ignore_errors: true
+      changed_when: false
+      
+    - name: Display tracker service status
+      debug:
+        msg: "oaTracker service is {{ 'running' if tracker_service_check.rc == 0 else 'not running' }}"
+      
+    - name: Check if tracker API is accessible
+      uri:
+        url: http://localhost:8080/api/stats
+        method: GET
+        status_code: 200
+      register: tracker_api_check
+      ignore_errors: true
+      changed_when: false
+      
+    - name: Display tracker API status
+      debug:
+        msg: "oaTracker API is {{ 'accessible' if tracker_api_check.status == 200 else 'not accessible' }}"

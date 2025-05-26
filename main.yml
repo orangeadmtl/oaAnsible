@@ -60,6 +60,9 @@
     - role: macos/api
       tags: ["api", "services"]
 
+    - role: macos/tracker
+      tags: ["tracker", "services"]
+
   post_tasks:
     - name: Verify installation
       import_tasks: tasks/verify.yml

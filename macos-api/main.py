@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from macos_api.core.config import APP_VERSION, SCREENSHOT_DIR, TAILSCALE_SUBNET
 from macos_api.middleware import TailscaleSubnetMiddleware
-from macos_api.routers import health, screenshots, camera, actions
+from macos_api.routers import health, screenshots, camera, actions, tracker
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -31,6 +31,7 @@ app.include_router(health.router, tags=["health"])
 app.include_router(screenshots.router, tags=["screenshots"])
 app.include_router(camera.router, tags=["camera"])
 app.include_router(actions.router, tags=["actions"])
+app.include_router(tracker.router, tags=["tracker"])
 
 @app.get("/")
 async def root():
@@ -55,6 +56,12 @@ async def root():
             "actions": {
                 "reboot": "/actions/reboot",
                 "restart_tracker": "/actions/restart-tracker"
+            },
+            "tracker": {
+                "stats": "/tracker/stats",
+                "status": "/tracker/status",
+                "stream": "/tracker/stream",
+                "mjpeg": "/tracker/mjpeg"
             }
         }
     }

@@ -14,6 +14,9 @@ TAILSCALE_SUBNET = os.getenv("TAILSCALE_SUBNET", "100.64.0.0/10")
 TRACKER_ROOT = Path(os.getenv("TRACKER_ROOT_DIR", "/usr/local/orangead/tracker"))
 SCREENSHOT_DIR = Path("/tmp/screenshots")
 
+# API URLs
+TRACKER_API_URL = os.getenv("TRACKER_API_URL", "http://localhost:8080")
+
 # Command paths
 LAUNCHCTL_CMD = "/bin/launchctl"
 PS_CMD = "/bin/ps"

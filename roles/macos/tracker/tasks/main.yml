@@ -1,0 +1,153 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for roles/macos/tracker
+
+# Ensure the _orangead user exists (reusing from macos/api role)
+- name: Check if _orangead user exists
+  ansible.builtin.command: dscl . -read /Users/_orangead
+  register: user_exists
+  changed_when: false
+  failed_when: false
+
+- name: Create _orangead user if it doesn't exist
+  ansible.builtin.command: "{{ item }}"
+  with_items:
+    - dscl . -create /Users/_orangead
+    - dscl . -create /Users/_orangead UserShell /bin/bash
+    - dscl . -create /Users/_orangead RealName "OrangeAd Tracker Service"
+    - dscl . -create /Users/_orangead UniqueID 499
+    - dscl . -create /Users/_orangead PrimaryGroupID 20
+    - dscl . -create /Users/_orangead NFSHomeDirectory /var/empty
+    - dscl . -create /Users/_orangead Password '*'
+  when: user_exists.rc != 0
+  become: true
+
+# OpenCV is installed via pip as part of the Python dependencies
+# in the pyproject.toml file, so we don't need to install it separately via Homebrew
+
+# Create directory structure
+- name: Ensure tracker directory exists
+  ansible.builtin.file:
+    path: "/usr/local/orangead/tracker"
+    state: directory
+    owner: _orangead
+    group: wheel
+    mode: '0755'
+  become: true
+
+- name: Ensure tracker data directory exists
+  ansible.builtin.file:
+    path: "/usr/local/orangead/tracker/data"
+    state: directory
+    owner: _orangead
+    group: wheel
+    mode: '0755'
+  become: true
+
+- name: Ensure tracker logs directory exists
+  ansible.builtin.file:
+    path: "/usr/local/orangead/tracker/logs"
+    state: directory
+    owner: _orangead
+    group: wheel
+    mode: '0755'
+  become: true
+
+# Copy project files
+- name: Synchronize oaTracker files
+  ansible.posix.synchronize:
+    src: "{{ playbook_dir }}/../oaTracker/"
+    dest: "/usr/local/orangead/tracker/"
+    delete: false
+    rsync_opts:
+      - "--exclude=.git"
+      - "--exclude=.venv"
+      - "--exclude=logs"
+      - "--exclude=data"
+      - "--exclude=__pycache__"
+      - "--exclude=*.pyc"
+  become: true
+
+# Set proper ownership
+- name: Set proper ownership for tracker files
+  ansible.builtin.file:
+    path: "/usr/local/orangead/tracker"
+    owner: _orangead
+    group: wheel
+    recurse: true
+  become: true
+
+# Setup Python environment
+- name: Check if Python venv exists
+  ansible.builtin.stat:
+    path: "/usr/local/orangead/tracker/.venv/bin/python"
+  register: venv_exists
+
+- name: Create Python virtual environment
+  ansible.builtin.command: python3 -m venv /usr/local/orangead/tracker/.venv
+  args:
+    creates: "/usr/local/orangead/tracker/.venv/bin/python"
+  become: true
+  become_user: _orangead
+  when: not venv_exists.stat.exists
+
+- name: Upgrade pip in virtual environment
+  ansible.builtin.command: /usr/local/orangead/tracker/.venv/bin/pip install --upgrade pip
+  become: true
+  become_user: _orangead
+  when: not venv_exists.stat.exists
+
+# Install core dependencies directly
+- name: Install core Python dependencies
+  ansible.builtin.pip:
+    name:
+      - opencv-python
+      - ultralytics
+      - torch
+      - fastapi
+      - numpy
+      - duckdb
+      - pyarrow
+      - uvicorn
+    virtualenv: /usr/local/orangead/tracker/.venv
+    state: present
+  become: true
+  become_user: _orangead
+
+# Configure oaTracker
+- name: Template config.yaml
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: "/usr/local/orangead/tracker/config.yaml"
+    owner: _orangead
+    group: wheel
+    mode: '0644'
+  become: true
+
+# Setup launchd service
+- name: Template launchd service file
+  ansible.builtin.template:
+    src: com.orangead.tracker.plist.j2
+    dest: "/Library/LaunchDaemons/com.orangead.tracker.plist"
+    owner: root
+    group: wheel
+    mode: '0644'
+  become: true
+  register: launchd_service
+
+- name: Unload existing launchd service if it exists
+  ansible.builtin.command: launchctl unload /Library/LaunchDaemons/com.orangead.tracker.plist
+  become: true
+  failed_when: false
+  changed_when: false
+  when: launchd_service.changed
+
+- name: Load launchd service
+  ansible.builtin.command: launchctl load /Library/LaunchDaemons/com.orangead.tracker.plist
+  become: true
+  when: launchd_service.changed
+
+- name: Start launchd service
+  ansible.builtin.command: launchctl start com.orangead.tracker
+  become: true
+  when: launchd_service.changed

@@ -1,0 +1,30 @@
+default_yolo_source: {{ tracker_default_yolo_source | default(0) }}
+cam_id: {{ tracker_cam_id | default('macos-' + inventory_hostname) }}
+cors:
+  allowed_headers:
+  - Content-Type
+  allowed_methods:
+  - GET
+  - OPTIONS
+  allowed_origins:
+  - http://localhost:5173
+  - {{ dashboard_url | default('http://localhost:3000') }}
+counters:
+  zone_counter:
+    zones:
+    - color:
+      - 0
+      - 0
+      - 200
+      name: main
+      points:
+      - - 0
+        - 0
+      - - 100
+        - 0
+      - - 100
+        - 100
+      - - 0
+        - 100
+default_model: {{ tracker_default_model | default('yolo12s.pt') }}
+default_server_port: {{ tracker_server_port | default(8080) }}
