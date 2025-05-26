@@ -70,6 +70,30 @@
       when: "npm_check.results | selectattr('item', 'equalto', item) | map(attribute='rc') | first != 0"
       environment:
         PATH: "{{ ansible_env.HOME }}/.nvm/versions/node/v{{ node.version }}/bin:{{ ansible_env.PATH }}"
+        
+    # Install bun - modern JavaScript runtime and package manager
+    - name: Check if bun is installed
+      ansible.builtin.command: which bun
+      register: bun_check
+      changed_when: false
+      failed_when: false
+      
+    - name: Install bun via curl
+      ansible.builtin.shell: |
+        curl -fsSL https://bun.sh/install | bash
+      args:
+        executable: /bin/bash
+      when: bun_check.rc != 0
+      
+    - name: Add bun to PATH
+      ansible.builtin.blockinfile:
+        dest: "{{ ansible_env.HOME }}/.bash_profile"
+        block: |
+          export BUN_INSTALL="$HOME/.bun"
+          export PATH="$BUN_INSTALL/bin:$PATH"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - BUN"
+        create: yes
+      when: bun_check.rc != 0
 
   when: configure.node | bool
   # This entire block will only run if configure.node is set to true

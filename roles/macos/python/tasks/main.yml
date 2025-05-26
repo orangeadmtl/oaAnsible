@@ -70,6 +70,27 @@
       args:
         executable: /bin/bash
       when: pyenv_set_global.changed | default(false)
+    
+    # Install uv - modern Python package manager
+    - name: Check if uv is installed
+      ansible.builtin.command: which uv
+      register: uv_check
+      changed_when: false
+      failed_when: false
+      
+    - name: Install uv via curl
+      ansible.builtin.shell: |
+        curl -fsSL https://astral.sh/uv/install.sh | sh
+      args:
+        executable: /bin/bash
+      when: uv_check.rc != 0
+      
+    - name: Add uv to PATH
+      ansible.builtin.lineinfile:
+        dest: "{{ ansible_env.HOME }}/.bash_profile"
+        line: 'export PATH="$HOME/.cargo/bin:$PATH"'
+        create: yes
+      when: uv_check.rc != 0
 
   when: configure.pyenv | bool
   # This entire block will only run if configure.pyenv is set to true in default.config.yml
