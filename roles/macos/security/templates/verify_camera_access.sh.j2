@@ -1,0 +1,55 @@
+#!/bin/bash
+# Template for verifying camera access
+# This script verifies camera access for various applications and checks the status of shared memory files
+
+# Check if Tracker is running
+tracker_running=0
+if pgrep -f "tracker/.venv/bin/python -m app" > /dev/null; then
+  tracker_running=1
+  echo "Tracker is running"
+  
+  # Check if Tracker's camera feed is accessible
+  if curl -s -I http://localhost:8080/cam.jpg -m 1 | grep -q "200 OK"; then
+    echo "Tracker's camera feed is accessible at http://localhost:8080/cam.jpg"
+  else
+    echo "WARNING: Tracker is running but camera feed is not accessible at http://localhost:8080/cam.jpg"
+  fi
+else
+  echo "Tracker is not running"
+fi
+
+# Check for shared memory files
+if [ -f "/tmp/cam.shm" ]; then
+  echo "Shared memory file exists at /tmp/cam.shm"
+  
+  # Check which processes are using the shared memory file
+  echo "Processes using the shared memory file:"
+  lsof /tmp/cam.shm 2>/dev/null || echo "No processes are using the shared memory file"
+else
+  echo "Shared memory file does not exist at /tmp/cam.shm"
+fi
+
+# Only attempt direct camera access if Tracker is not running
+if [ $tracker_running -eq 0 ]; then
+  echo "Attempting direct camera access test (since Tracker is not running)..."
+  
+  # Test camera access with a simple Python script
+  python3 -c '
+import cv2
+try:
+    cap = cv2.VideoCapture(0)
+    ret, frame = cap.read()
+    if ret:
+        print("Camera access successful")
+    else:
+        print("Camera access failed: Could not read frame")
+    cap.release()
+except Exception as e:
+    print(f"Camera access failed: {e}")
+'
+else
+  echo "Skipping direct camera access test since Tracker is running and has exclusive access"
+  echo "The macos-api is configured to proxy the Tracker's camera feed instead of accessing it directly"
+fi
+
+echo "Camera access verification complete"

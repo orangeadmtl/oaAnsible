@@ -46,12 +46,12 @@
       ignore_errors: true # It's okay if it wasn't blocked
 
     - name: Allow macOS API (Python)
-      command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/local/orangead/macos-api/.venv/bin/python3
+      command: /usr/libexec/ApplicationFirewall/socketfilterfw --add {{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3
       become: true
       register: api_firewall_result
       changed_when: "'already has a rule' not in (api_firewall_result.stdout | default('') + api_firewall_result.stderr | default(''))"
       failed_when: false
-      ignore_errors: true
+      ignore_errors: true # Path might not exist until deployment
 
     - name: Restart Firewall Service to apply changes (macOS 10.15 Catalina and earlier)
       command: pkill -HUP socketfilterfw # Sends HUP signal to reload config
@@ -128,3 +128,7 @@
       debug:
         msg: "Password policy result: {{ pwpolicy_result.stdout | default('Command may require interactive authentication or no change made') }}"
       when: pwpolicy_result is defined
+
+# Include camera permissions tasks
+- name: Include camera permissions tasks
+  ansible.builtin.include_tasks: camera_permissions.yml

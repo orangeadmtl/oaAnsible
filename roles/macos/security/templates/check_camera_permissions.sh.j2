@@ -1,0 +1,43 @@
+#!/bin/bash
+# Template for checking camera permissions
+# This script checks camera permissions for various applications in the TCC database
+
+TCC_DB="/Library/Application Support/com.apple.TCC/TCC.db"
+
+# Check camera permissions for API Python
+api_access=$(sudo sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND (client='{{ api_python }}' OR client='{{ python_execs.real_api }}') AND auth_value=2;" 2>/dev/null || echo "0")
+
+# Check camera permissions for Tracker Python
+tracker_access=$(sudo sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND (client='{{ tracker_python }}' OR client='{{ python_execs.real_tracker }}') AND auth_value=2;" 2>/dev/null || echo "0")
+
+# Check camera permissions for Tailscale
+tailscale_access=$(sudo sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND client='/usr/local/bin/tailscaled' AND auth_value=2;" 2>/dev/null || echo "0")
+
+# Check camera permissions for Terminal
+terminal_access=$(sudo sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND client='com.apple.Terminal' AND auth_value=2;" 2>/dev/null || echo "0")
+
+# Check camera permissions for SSH
+ssh_access=$(sudo sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND client='/usr/libexec/sshd-keygen-wrapper' AND auth_value=2;" 2>/dev/null || echo "0")
+
+# Check for shared memory files
+shared_memory_exists=0
+tracker_running=0
+tracker_accessible=0
+
+# Check if shared memory file exists
+if [ -f "/tmp/cam.shm" ]; then
+  shared_memory_exists=1
+  
+  # Check if Tracker process is running
+  if pgrep -f "tracker/.venv/bin/python -m app" > /dev/null; then
+    tracker_running=1
+    
+    # Check if Tracker's camera feed is accessible
+    if curl -s -I http://localhost:8080/cam.jpg -m 1 | grep -q "200 OK"; then
+      tracker_accessible=1
+    fi
+  fi
+fi
+
+# Output as JSON
+echo "{\"api_access\": $api_access, \"tracker_access\": $tracker_access, \"tailscale_access\": $tailscale_access, \"terminal_access\": $terminal_access, \"ssh_access\": $ssh_access, \"shared_memory_exists\": $shared_memory_exists, \"tracker_running\": $tracker_running, \"tracker_accessible\": $tracker_accessible}"

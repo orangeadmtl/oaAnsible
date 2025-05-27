@@ -1,0 +1,30 @@
+#!/bin/bash
+# Template for verifying camera permissions in TCC database
+# This script checks camera permissions and shared memory status
+
+TCC_DB="/Library/Application Support/com.apple.TCC/TCC.db"
+
+# List all camera permissions
+echo "Camera permissions in TCC database:"
+sudo sqlite3 "$TCC_DB" "SELECT service, client, client_type, auth_value, auth_reason FROM access WHERE service='kTCCServiceCamera';"
+
+# Check for shared memory files
+echo -e "\nChecking shared memory files:"
+if [ -f "/tmp/cam.shm" ]; then
+  echo "Found /tmp/cam.shm - Tracker is using the camera"
+  
+  # Check which processes are using the shared memory file
+  echo -e "\nProcesses using shared memory:"
+  sudo lsof | grep -i "/tmp/cam.shm" | awk '{print $1, $2}' | sort | uniq
+  
+  # Since Tracker is using the camera, we should check if it's accessible via HTTP
+  echo -e "\nChecking Tracker camera feed:"
+  curl -s -I http://localhost:8080/cam.jpg | head -n 1 || echo "Tracker camera feed not accessible"
+  
+  echo -e "\nNote: Direct camera access test skipped because Tracker is using the camera"
+  echo "Camera permissions are correctly granted, but the camera is in use by the Tracker"
+else
+  # If Tracker is not using the camera, we can test direct access
+  echo -e "\nTesting direct camera access with API Python:"
+  cd {{ ansible_user_dir }}/orangead/macos-api && ./.venv/bin/python -c 'import cv2; cap = cv2.VideoCapture(0); print("Camera opened successfully:", cap.isOpened()); cap.release()' || echo "Failed to test camera"
+fi

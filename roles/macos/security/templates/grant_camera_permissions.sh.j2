@@ -1,0 +1,39 @@
+#!/bin/bash
+# Template for granting camera permissions
+# This script grants camera permissions to various applications in the TCC database
+
+# TCC database path
+TCC_DB="/Library/Application Support/com.apple.TCC/TCC.db"
+
+# Define the applications and their client types
+declare -a apps
+declare -a client_types
+
+{% for app in camera_apps %}
+apps+=("{{ app.name }}")
+client_types+=({{ app.type }})
+{% endfor %}
+
+# Loop over the applications
+for i in "${!apps[@]}"; do
+    app=${apps[$i]}
+    client_type=${client_types[$i]}
+    
+    echo "Processing $app with client_type $client_type"
+    
+    # Check if the application has a record
+    record=$(sqlite3 "$TCC_DB" "select * from access where service = 'kTCCServiceCamera' and client = '$app';")
+    
+    if [[ -z "$record" ]]; then
+        echo "No record found for $app, inserting a new record"
+        # Insert a new record
+        sqlite3 "$TCC_DB" "insert into access (service, client, client_type, auth_value, auth_reason, auth_version, indirect_object_identifier) values ('kTCCServiceCamera', '$app', $client_type, 2, 3, 1, 'UNUSED');"
+    else
+        echo "Record found for $app: $record"
+        # Update the record
+        sqlite3 "$TCC_DB" "update access set client_type = $client_type, auth_value = 2, auth_reason = 3 where service = 'kTCCServiceCamera' and client = '$app';"
+        echo "Record updated for $app"
+    fi
+done
+
+echo "Camera permissions granted to all applications"
