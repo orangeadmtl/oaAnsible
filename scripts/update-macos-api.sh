@@ -49,11 +49,11 @@ scp "${TEMP_DIR}/config.py" "${HOSTNAME}:/tmp/macos-api-update/"
 
 # Deploy the files on the remote Mac
 echo -e "${YELLOW}Deploying files on ${HOSTNAME}...${NC}"
-ssh ${HOSTNAME} "sudo cp /tmp/macos-api-update/tracker.py /usr/local/orangead/macos-api/macos_api/routers/ && \
-                 sudo cp /tmp/macos-api-update/main.py /usr/local/orangead/macos-api/ && \
-                 sudo cp /tmp/macos-api-update/config.py /usr/local/orangead/macos-api/macos_api/core/ && \
-                 sudo chown -R orangead:orangead /usr/local/orangead/macos-api && \
-                 sudo chmod -R 755 /usr/local/orangead/macos-api"
+ssh ${HOSTNAME} "sudo cp /tmp/macos-api-update/tracker.py /Users/admin/orangead/macos-api/macos_api/routers/ && \
+                 sudo cp /tmp/macos-api-update/main.py /Users/admin/orangead/macos-api/ && \
+                 sudo cp /tmp/macos-api-update/config.py /Users/admin/orangead/macos-api/macos_api/core/ && \
+                 sudo chown -R admin:staff /Users/admin/orangead/macos-api && \
+                 sudo chmod -R 755 /Users/admin/orangead/macos-api"
 
 # Restart the macos-api service
 echo -e "${YELLOW}Restarting macos-api service...${NC}"

@@ -28,13 +28,20 @@
         state: directory
         mode: "0755"
 
-- name: Stop and disable any user-level Tailscale service (homebrew.mxcl.tailscale)
-  command: "launchctl bootout gui/{{ ansible_user_uid }}/homebrew.mxcl.tailscale"
-  become: true # Needs to operate on the user's launchd domain, but as root to do so
-  ignore_errors: true
+- name: Get user ID for Tailscale service management
+  ansible.builtin.shell: "id -u {{ ansible_user }}"
+  register: user_id_result
   changed_when: false
-  vars:
-    ansible_user_uid: "{{ lookup('pipe', 'id -u ' + ansible_user) }}" # Get UID of ansible_user
+  failed_when: false
+  become: true
+
+- name: Stop and disable any user-level Tailscale service (homebrew.mxcl.tailscale)
+  ansible.builtin.command: "launchctl bootout gui/{{ user_id_result.stdout }}/homebrew.mxcl.tailscale"
+  become: true # Needs to operate on the user's launchd domain, but as root to do so
+  register: bootout_result
+  failed_when: false
+  changed_when: bootout_result.rc == 0
+  when: user_id_result.rc == 0 and user_id_result.stdout != ""
 
 - name: Remove user-level Tailscale plist if it exists
   file:
@@ -54,11 +61,19 @@
     state: absent
   become: true
 
-- name: Pre-cleanup - Kill any lingering tailscaled processes
-  command: pkill tailscaled
+- name: Pre-cleanup - Check for running tailscaled processes
+  ansible.builtin.shell: pgrep tailscaled || echo "not_running"
   become: true
-  ignore_errors: true
+  register: tailscaled_process_check
   changed_when: false
+
+- name: Pre-cleanup - Kill any lingering tailscaled processes
+  ansible.builtin.shell: pkill tailscaled
+  become: true
+  register: tailscaled_kill_result
+  failed_when: false
+  changed_when: tailscaled_kill_result.rc == 0
+  when: tailscaled_process_check.stdout != "not_running"
 
 - name: Pre-cleanup - Remove Tailscale.app if it exists (from old Cask install)
   file:

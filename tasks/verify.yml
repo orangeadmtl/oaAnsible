@@ -16,7 +16,7 @@
           changed_when: false
           failed_when: false
           when: pyenv_binary.stat.exists
-          
+
         - name: Check common uv installation paths
           stat:
             path: "{{ item }}"
@@ -26,11 +26,11 @@
             - "{{ ansible_env.HOME }}/.cargo/bin/uv"
             - /usr/local/bin/uv
             - /opt/homebrew/bin/uv
-          
+
         - name: Set uv path fact
           set_fact:
             uv_path: "{{ (uv_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('') }}"
-          
+
         - name: Get uv version
           shell: |
             {{ uv_path }} --version || echo "Not installed"
@@ -56,7 +56,7 @@
           changed_when: false
           failed_when: false
           when: nvm_script.stat.exists
-          
+
         - name: Check common bun installation paths
           stat:
             path: "{{ item }}"
@@ -65,11 +65,11 @@
             - "{{ ansible_env.HOME }}/.bun/bin/bun"
             - /usr/local/bin/bun
             - /opt/homebrew/bin/bun
-          
+
         - name: Set bun path fact
           set_fact:
             bun_path: "{{ (bun_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('') }}"
-          
+
         - name: Get bun version
           shell: |
             {{ bun_path }} --version || echo "Not installed"
@@ -102,7 +102,7 @@
           when: tailscale_binary_exists.stat.exists
       when: configure.tailscale | bool
       tags: ["verify", "tailscale"]
-          
+
     - name: Verify Homebrew packages
       block:
         - name: Check common Homebrew installation paths
@@ -113,11 +113,11 @@
             - /opt/homebrew/bin/brew
             - /usr/local/bin/brew
             - /home/linuxbrew/.linuxbrew/bin/brew
-          
+
         - name: Set Homebrew path fact
           set_fact:
             homebrew_path: "{{ (homebrew_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('') }}"
-          
+
         - name: Get Homebrew version
           shell: |
             {{ homebrew_path }} --version | head -n 1
@@ -125,7 +125,7 @@
           changed_when: false
           failed_when: false
           when: homebrew_path != ''
-          
+
         - name: Get installed Homebrew packages
           shell: |
             {{ homebrew_path }} list --versions | grep -E 'go|opencv|python|node'
@@ -135,22 +135,42 @@
           when: homebrew_path != ''
       when: ansible_distribution == "MacOSX"
       tags: ["verify", "homebrew"]
-      
+
     - name: Verify services
       block:
         - name: Check macOS API service status
           shell: |
-            launchctl list | grep com.orangead.api || echo "Not running"
+            sudo launchctl list | grep com.orangead.macosapi || echo "Not running"
           register: macos_api_status
           changed_when: false
           failed_when: false
-          
+          become: true
+
         - name: Check tracker service status
           shell: |
-            launchctl list | grep com.orangead.tracker || echo "Not running"
+            sudo launchctl list | grep com.orangead.tracker || echo "Not running"
           register: tracker_status
           changed_when: false
           failed_when: false
+          become: true
+
+        - name: Check macOS API service via HTTP
+          uri:
+            url: http://localhost:9090/health
+            method: GET
+            status_code: 200
+            timeout: 5
+          register: api_http_check
+          ignore_errors: true
+
+        - name: Check tracker service via HTTP
+          uri:
+            url: http://localhost:8080/api/stats
+            method: GET
+            status_code: 200
+            timeout: 5
+          register: tracker_http_check
+          ignore_errors: true
       when: ansible_distribution == "MacOSX"
       tags: ["verify", "services"]
 
@@ -197,9 +217,9 @@
           {% endif %}
 
           === SERVICES ===
-          macOS API Service:   {% if macos_api_status is defined and macos_api_status.stdout is defined and macos_api_status.stdout != 'Not running' %}Running{% else %}Not running (ATTENTION REQUIRED){% endif %}
+          macOS API Service:   {% if macos_api_status is defined and macos_api_status.stdout is defined and macos_api_status.stdout != 'Not running' %}Running{% else %}Not running (ATTENTION REQUIRED){% endif %} {% if api_http_check is defined and api_http_check.status == 200 %}- HTTP Accessible{% else %}- HTTP Not Accessible{% endif %}
 
-          Tracker Service:     {% if tracker_status is defined and tracker_status.stdout is defined and tracker_status.stdout != 'Not running' %}Running{% else %}Not running (ATTENTION REQUIRED){% endif %}
+          Tracker Service:     {% if tracker_status is defined and tracker_status.stdout is defined and tracker_status.stdout != 'Not running' %}Running{% else %}Not running (ATTENTION REQUIRED){% endif %} {% if tracker_http_check is defined and tracker_http_check.status == 200 %}- HTTP Accessible{% else %}- HTTP Not Accessible{% endif %}
 
           ============================================================
           {% if verification_status == 'true' %}

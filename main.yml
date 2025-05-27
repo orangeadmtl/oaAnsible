@@ -68,6 +68,10 @@
       import_tasks: tasks/verify.yml
       tags: ["verify"]
 
+    - name: Restart and verify services
+      import_tasks: tasks/restart_services.yml
+      tags: ["services", "restart", "verify"]
+
     - name: Display completion message
       debug:
         msg: |

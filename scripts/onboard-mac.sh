@@ -28,9 +28,9 @@ echo -e "${BLUE}----------------------------------------${NC}"
 
 # Check if running from the correct directory
 if [[ ! -f "main.yml" ]]; then
-    echo -e "${RED}Error: This script must be run from the oaAnsible directory.${NC}"
-    echo -e "Please run: ${YELLOW}cd /path/to/oaPangaea/oaAnsible && ./scripts/onboard-mac.sh${NC}"
-    exit 1
+  echo -e "${RED}Error: This script must be run from the oaAnsible directory.${NC}"
+  echo -e "Please run: ${YELLOW}cd /path/to/oaPangaea/oaAnsible && ./scripts/onboard-mac.sh${NC}"
+  exit 1
 fi
 
 # Collect information from the user
@@ -41,15 +41,15 @@ read -p "Device hostname (e.g., b3): " TARGET_HOSTNAME
 
 # Validate inputs
 if [[ -z "$TARGET_IP" || -z "$TARGET_USER" || -z "$TARGET_HOSTNAME" ]]; then
-    echo -e "${RED}Error: All fields are required.${NC}"
-    exit 1
+  echo -e "${RED}Error: All fields are required.${NC}"
+  exit 1
 fi
 
 # Create temporary inventory file
 TEMP_INVENTORY_FILE="/tmp/ansible_onboard_inventory_$(date +%s).yml"
 echo "Creating temporary inventory file at $TEMP_INVENTORY_FILE"
 
-cat > "$TEMP_INVENTORY_FILE" << EOF
+cat >"$TEMP_INVENTORY_FILE" <<EOF
 all:
   children:
     macos:
@@ -73,22 +73,15 @@ echo -e "${BLUE}----------------------------------------${NC}"
 # Confirm before proceeding
 read -p "Proceed with onboarding? (y/n): " CONFIRM
 if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
-    echo -e "${YELLOW}Onboarding cancelled.${NC}"
-    rm "$TEMP_INVENTORY_FILE"
-    exit 0
+  echo -e "${YELLOW}Onboarding cancelled.${NC}"
+  rm "$TEMP_INVENTORY_FILE"
+  exit 0
 fi
 
-# Step 1: Deploy core macOS configuration and Tailscale
-echo -e "${GREEN}Step 1: Deploying core macOS configuration and Tailscale...${NC}"
+# Step 1: Deploy core macOS configuration, Tailscale, macOS API, and oaTracker
+echo -e "${GREEN}Step 1: Deploying all macOS components...${NC}"
+echo -e "${YELLOW}You will be prompted for passwords (SSH, sudo, vault) as needed.${NC}"
 ansible-playbook -i "$TEMP_INVENTORY_FILE" main.yml --tags macos --ask-become-pass --ask-vault-pass
-
-# Step 2: Deploy macOS API
-echo -e "${GREEN}Step 2: Deploying macOS API service...${NC}"
-ansible-playbook -i "$TEMP_INVENTORY_FILE" playbooks/deploy-macos-api.yml --ask-become-pass
-
-# Step 3: Deploy oaTracker
-echo -e "${GREEN}Step 3: Deploying oaTracker application...${NC}"
-ansible-playbook -i "$TEMP_INVENTORY_FILE" playbooks/deploy-macos-tracker.yml --ask-become-pass
 
 # Clean up
 rm "$TEMP_INVENTORY_FILE"
@@ -96,7 +89,8 @@ rm "$TEMP_INVENTORY_FILE"
 echo -e "${BLUE}----------------------------------------${NC}"
 echo -e "${GREEN}Onboarding complete for $TARGET_HOSTNAME ($TARGET_IP)!${NC}"
 echo -e "${YELLOW}Next steps:${NC}"
-echo -e "1. Verify the device appears in the oaDashboard"
-echo -e "2. Check that camera feeds and tracker status are visible"
-echo -e "3. Test device actions (reboot, restart tracker)"
+echo -e "1. ${RED}MANUALLY GRANT CAMERA PERMISSIONS:${NC} On $TARGET_HOSTNAME, go to 'System Settings > Privacy & Security > Camera' and enable access for Python/oaTracker (path: /Users/admin/orangead/tracker/.venv/bin/python)."
+echo -e "2. Verify the device appears in the oaDashboard."
+echo -e "3. Check that camera feeds (if applicable) and tracker status are visible in oaDashboard."
+echo -e "4. Test device actions (reboot, restart tracker) from oaDashboard."
 echo -e "${BLUE}----------------------------------------${NC}"

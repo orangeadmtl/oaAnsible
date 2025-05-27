@@ -1,0 +1,50 @@
+---
+- name: Restart macOS API service
+  ansible.builtin.shell: |
+    launchctl unload /Library/LaunchDaemons/com.orangead.macosapi.plist || true
+    launchctl load -w /Library/LaunchDaemons/com.orangead.macosapi.plist
+  become: true
+  register: api_restart
+  changed_when: true
+  when: ansible_distribution == "MacOSX"
+  tags: ["services", "restart"]
+
+- name: Restart tracker service
+  ansible.builtin.shell: |
+    launchctl unload /Library/LaunchDaemons/com.orangead.tracker.plist || true
+    launchctl load -w /Library/LaunchDaemons/com.orangead.tracker.plist
+  become: true
+  register: tracker_restart
+  changed_when: true
+  when: ansible_distribution == "MacOSX"
+  tags: ["services", "restart"]
+
+- name: Check macOS API service via HTTP
+  ansible.builtin.uri:
+    url: http://localhost:9090/health
+    method: GET
+    status_code: 200
+    timeout: 5
+  register: api_health_check
+  ignore_errors: true
+  when: ansible_distribution == "MacOSX"
+  tags: ["services", "verify"]
+
+- name: Check tracker service via HTTP
+  ansible.builtin.uri:
+    url: http://localhost:8080/api/stats
+    method: GET
+    status_code: 200
+    timeout: 5
+  register: tracker_health_check
+  ignore_errors: true
+  when: ansible_distribution == "MacOSX"
+  tags: ["services", "verify"]
+
+- name: Show service status
+  debug:
+    msg: |
+      API Service: {{ 'Running' if api_health_check.status == 200 else 'Not running' }}
+      Tracker Service: {{ 'Running' if tracker_health_check is defined and tracker_health_check.status == 200 else 'Not running' }}
+  when: ansible_distribution == "MacOSX"
+  tags: ["services", "verify"]
