@@ -65,35 +65,6 @@ class MacOSSystemInfo(BaseModel):
     serial_number: Optional[str] = None
 
 
-class SecurityFeature(BaseModel):
-    enabled: bool
-    status: str
-    details: Optional[Dict[str, Any]] = None
-    raw_output: Optional[str] = None
-    error: Optional[str] = None
-
-
-class SecurityUpdates(BaseModel):
-    has_updates: bool
-    security_updates_available: bool
-    security_updates: Optional[List[str]] = None
-    recommended_updates: Optional[List[str]] = None
-    last_security_update: Optional[Dict[str, Any]] = None
-    update_policy: Optional[Dict[str, bool]] = None
-    status: str
-    raw_output: Optional[str] = None
-    error: Optional[str] = None
-
-
-class SecurityOverview(BaseModel):
-    status: str
-    score: int
-    max_score: int
-    percentage: float
-    features: Dict[str, Union[SecurityFeature, SecurityUpdates]]
-    recommendations: List[str]
-
-
 class HealthScore(BaseModel):
     cpu: float
     memory: float
@@ -105,14 +76,6 @@ class HealthScore(BaseModel):
     status: Dict[str, bool]
 
 
-class ScreenshotInfo(BaseModel):
-    timestamp: str
-    filename: str
-    path: str
-    resolution: Optional[Tuple[int, int]] = None
-    size: Optional[int] = None
-
-
 class HealthResponse(BaseModel):
     status: str
     hostname: str
@@ -121,13 +84,16 @@ class HealthResponse(BaseModel):
     version: VersionInfo
     metrics: SystemMetrics
     deployment: Dict
-    tracker: TrackerStatus  # Changed from "player" to "tracker"
+    tracker: TrackerStatus  # Using tracker instead of player for Mac devices
     health_scores: HealthScore
     device_info: DeviceInfo
     system: Optional[MacOSSystemInfo] = None
-    security: Optional[SecurityOverview] = None
     display: Optional[DisplayInfo] = None
     _cache_info: Optional[Dict] = None
+
+    class Config:
+        # Allow extra fields to be compatible with oaDashboard
+        extra = "allow"
 
 
 class CameraInfo(BaseModel):
@@ -137,14 +103,21 @@ class CameraInfo(BaseModel):
     manufacturer: Optional[str] = None
     is_built_in: bool = False
     is_connected: bool = True
-    resolution: Optional[str] = None
+    is_available: bool = True  # Added to match oaDashboard schema
+    resolution: Optional[Dict[str, int]] = None  # Changed to match oaDashboard schema
     location: Optional[str] = None  # e.g., "Built-in", "USB", etc.
+
+    class Config:
+        extra = "allow"
 
 
 class CameraListResponse(BaseModel):
     cameras: List[CameraInfo]
     count: int
-    has_camera: bool
+    device_has_camera_support: bool = True  # Changed to match oaDashboard schema
+
+    class Config:
+        extra = "allow"
 
 
 class ErrorResponse(BaseModel):

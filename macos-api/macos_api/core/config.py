@@ -1,5 +1,4 @@
 import os
-import sys
 from pathlib import Path
 
 # API Version
@@ -11,8 +10,9 @@ APP_VERSION = "1.0.0"
 TAILSCALE_SUBNET = os.getenv("TAILSCALE_SUBNET", "100.64.0.0/10")
 
 # Paths
-TRACKER_ROOT = Path(os.getenv("TRACKER_ROOT_DIR", "/usr/local/orangead/tracker"))
-SCREENSHOT_DIR = Path("/tmp/screenshots")
+# Default to user's home directory if TRACKER_ROOT_DIR is not set
+default_tracker_path = os.path.expanduser("~/orangead/tracker")
+TRACKER_ROOT = Path(os.getenv("TRACKER_ROOT_DIR", default_tracker_path))
 
 # API URLs
 TRACKER_API_URL = os.getenv("TRACKER_API_URL", "http://localhost:8080")
@@ -23,7 +23,7 @@ PS_CMD = "/bin/ps"
 READLINK_CMD = "/usr/bin/readlink"
 PYTHON_CMD = "/usr/bin/python3"
 
-# Try to find screencapture in common locations
+# Command finder utility
 def find_command(command_name):
     possible_paths = [
         f"/usr/bin/{command_name}",
@@ -39,8 +39,6 @@ def find_command(command_name):
     
     # If not found, return the default path and let the error handling in the code deal with it
     return f"/usr/bin/{command_name}"
-
-SCREENCAPTURE_CMD = find_command("screencapture")
 
 # Cache settings
 CACHE_TTL = 5  # Cache TTL in seconds

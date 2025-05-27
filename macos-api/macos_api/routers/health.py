@@ -8,7 +8,6 @@ from ..services.system import get_system_metrics, get_device_info, get_version_i
 from ..services.tracker import check_tracker_status, get_deployment_info
 from ..services.display import get_display_info
 from ..services.health import calculate_health_score, get_health_summary
-from ..services.security import get_security_overview
 from ..services.utils import cache_with_ttl
 from ..core.config import CACHE_TTL, APP_VERSION
 from ..models.schemas import HealthResponse, ErrorResponse
@@ -32,11 +31,6 @@ def get_cached_deployment_info() -> Dict:
     return get_deployment_info()
 
 
-@cache_with_ttl(CACHE_TTL * 2)  # Cache security checks longer as they're more expensive
-def get_cached_security_overview() -> Dict:
-    return get_security_overview()
-
-
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
     """Get comprehensive system health status and metrics."""
@@ -47,9 +41,6 @@ async def health_check():
         display_info = get_cached_display_info()
         tracker = check_tracker_status()  # Don't cache this as it needs to be real-time
         device = get_device_info()
-        
-        # Get macOS security information
-        security = get_cached_security_overview()
 
         # Get current time in UTC
         now = datetime.now(timezone.utc)
@@ -64,7 +55,7 @@ async def health_check():
 
         # Get macOS version info for system details
         version_info = get_version_info()
-        
+
         # Prepare system information
         system_info = {
             "os_version": version_info.get("macos_version", platform.release()),
@@ -79,7 +70,8 @@ async def health_check():
             "architecture": version_info.get("machine_type", platform.machine()),
             "model": version_info.get("product_name", "Mac"),
         }
-        
+
+        # Format response to match oaDashboard expectations
         return {
             "status": status,
             "hostname": device["hostname"],
@@ -99,23 +91,21 @@ async def health_check():
             },
             "metrics": metrics,
             "deployment": deployment,
-            "tracker": tracker,  # Changed from "player" to "tracker"
+            "tracker": tracker,  # Using tracker instead of player for Mac devices
             "health_scores": health_scores,
-            "device_info": device,  # Added device_info with headless status
-            "system": system_info,  # Add detailed system information
-            "security": security,  # Add macOS security information
+            "device_info": device,  # Device info with headless status
+            "system": system_info,  # Detailed system information
             "display": {
                 "connected_displays": len(display_info.get("displays", [])),
                 "main_display": display_info.get("main_display", {}),
                 "all_displays": display_info.get("displays", []),
                 "is_headless": device.get("is_headless", False),
-                "headless_reason": display_info.get("headless_reason", None) if device.get("is_headless", False) else None
+                "headless_reason": display_info.get("headless_reason", None) if device.get("is_headless", False) else None,
             },
             "_cache_info": {
                 "metrics": get_cached_metrics.cache_info(),
                 "display": get_cached_display_info.cache_info(),
                 "deployment": get_cached_deployment_info.cache_info(),
-                "security": get_cached_security_overview.cache_info(),
             },
         }
     except Exception as e:

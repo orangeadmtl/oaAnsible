@@ -13,6 +13,7 @@ import json
 import uuid
 import time
 import threading
+import hashlib
 from typing import Dict, List, Optional, Iterator, Generator
 import logging
 from datetime import datetime
@@ -54,8 +55,10 @@ def get_camera_list() -> List[CameraInfo]:
                 # Extract common properties
                 camera_name = camera_entry.get("_name", "Unknown Camera")
                 
-                # Generate a unique ID for the camera
-                camera_id = str(uuid.uuid4())[:8]
+                # Generate a deterministic ID for the camera based on its properties
+                # This ensures the same camera gets the same ID across API restarts
+                id_string = f"{camera_name}_{camera_entry.get('model_id', '')}_{camera_entry.get('manufacturer', '')}"
+                camera_id = hashlib.md5(id_string.encode()).hexdigest()[:8]
                 
                 # Check if it's a built-in camera
                 is_built_in = "FaceTime" in camera_name or "Built-in" in camera_name
@@ -109,17 +112,29 @@ def get_camera_by_id(camera_id: str) -> Optional[CameraInfo]:
 
 def check_camera_availability() -> Dict:
     """
-    Check if any cameras are available on the system.
+    Check if the Tracker's camera feed is available.
     
     Returns:
         Dict: Status information about camera availability
     """
+    # First get the regular camera list
     cameras = get_camera_list()
     
+    # Then check if the Tracker's camera feed is accessible
+    tracker_available = False
+    try:
+        import requests
+        # Just check if the endpoint is responding, don't download the full image
+        response = requests.head("http://localhost:8080/cam.jpg", timeout=1)
+        tracker_available = response.status_code == 200
+    except Exception as e:
+        logger.warning(f"Failed to check Tracker camera feed: {str(e)}")
+    
     return {
-        "has_camera": len(cameras) > 0,
+        "status": "ok" if (cameras and tracker_available) else "no_cameras",
         "camera_count": len(cameras),
-        "cameras": cameras,
+        "cameras": [cam.dict() for cam in cameras],
+        "tracker_available": tracker_available,
         "timestamp": datetime.now().isoformat()
     }
 
@@ -162,8 +177,9 @@ def get_camera_capture(camera_id: str) -> cv2.VideoCapture:
     """
     Get a VideoCapture object for the specified camera.
     
-    This function manages a pool of camera captures to avoid opening
-    multiple captures for the same camera.
+    Instead of trying to access the camera directly, this function now proxies
+    the Tracker's camera feed to avoid conflicts with the Tracker's exclusive
+    camera access.
     
     Args:
         camera_id: The ID of the camera
@@ -172,7 +188,7 @@ def get_camera_capture(camera_id: str) -> cv2.VideoCapture:
         cv2.VideoCapture: The camera capture object
         
     Raises:
-        HTTPException: If the camera cannot be opened
+        HTTPException: If the camera feed cannot be accessed
     """
     global _active_captures
     
@@ -188,22 +204,19 @@ def get_camera_capture(camera_id: str) -> cv2.VideoCapture:
                 # Remove the closed capture
                 del _active_captures[camera_id]
         
-        # Get the camera index
-        camera_index = _get_camera_index(camera_id)
+        # Instead of accessing the camera directly, use the Tracker's camera feed
+        # The Tracker serves its camera feed at http://localhost:8080/cam.jpg
+        tracker_feed_url = "http://localhost:8080/cam.jpg"
         
-        # Create a new capture
-        capture = cv2.VideoCapture(camera_index)
+        # Create a new capture using the Tracker's feed URL
+        capture = cv2.VideoCapture(tracker_feed_url)
         
         if not capture.isOpened():
+            logger.error(f"Failed to access Tracker camera feed at {tracker_feed_url}")
             raise HTTPException(
                 status_code=500,
-                detail=f"Failed to open camera with ID {camera_id}"
+                detail=f"Failed to access camera feed for camera ID {camera_id}. The Tracker may not be running."
             )
-        
-        # Set capture properties for better streaming
-        capture.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        capture.set(cv2.CAP_PROP_FPS, 15)
         
         # Store the capture
         _active_captures[camera_id] = capture
@@ -231,7 +244,8 @@ def generate_mjpeg_frames(camera_id: str) -> Generator[bytes, None, None]:
     Generate MJPEG frames from the camera.
     
     This function yields JPEG-encoded frames in the format required for
-    MJPEG streaming over HTTP.
+    MJPEG streaming over HTTP. It now uses the Tracker's camera feed
+    to avoid conflicts with the Tracker's exclusive camera access.
     
     Args:
         camera_id: The ID of the camera to stream from
@@ -240,11 +254,11 @@ def generate_mjpeg_frames(camera_id: str) -> Generator[bytes, None, None]:
         bytes: JPEG-encoded frame with MJPEG multipart headers
     """
     try:
-        # Get the camera capture
+        # Get the camera capture (now proxying from Tracker)
         capture = get_camera_capture(camera_id)
         
         while True:
-            # Read a frame
+            # Read a frame from the Tracker's feed
             success, frame = capture.read()
             
             if not success:
