@@ -99,6 +99,54 @@ oaAnsible/
    ./scripts/run-production.sh
    ```
 
+### Mac Mini M1 Onboarding
+
+To onboard a new Mac Mini M1 device with Tailscale, macos-api, and oaTracker:
+
+```bash
+# Navigate to the oaAnsible directory
+cd /path/to/oaPangaea/oaAnsible
+
+# Run the onboarding script
+./scripts/onboard-mac.sh
+```
+
+The script will:
+
+1. Prompt for target Mac information (IP address, SSH username, hostname)
+2. Create a temporary inventory file
+3. Deploy core macOS configuration and Tailscale using the `macos` tag
+4. Deploy the macOS API service
+5. Deploy the oaTracker application
+
+#### Deployment Architecture
+
+- **User Account**: Both services run as the `ansible_user` (typically the `admin` user)
+- **Service Management**: Services are managed by `launchd` with automatic startup
+- **Directory Structure**:
+  - macOS API: `/usr/local/orangead/macos-api/`
+  - oaTracker: `/usr/local/orangead/tracker/`
+- **Logs**:
+  - macOS API: `/usr/local/orangead/macos-api/logs/`
+  - oaTracker: `/usr/local/orangead/tracker/logs/`
+
+#### Tailscale Setup
+
+The playbook installs Tailscale using the Go install method rather than Homebrew:
+
+1. Downloads the latest stable Tailscale binary directly from the official source
+2. Installs it to `/usr/local/bin/`
+3. Configures the system daemon using `tailscaled install-system-daemon`
+4. Sets up DNS configuration for the OrangeAd network
+
+**Note on Node Identity**: When a Mac is reimaged or reinstalled, it may appear as a new device in the Tailscale admin console. You may need to remove the old device entry to avoid confusion.
+
+#### Security Considerations
+
+- **macOS API Security**: The macOS API service is secured through Tailscale's network-level security. Only devices on the Tailscale network with the appropriate ACLs can access the API endpoints.
+- **No API Keys**: The current implementation relies on Tailscale IP-based access control rather than API keys.
+- **User Account**: Both services run as the `ansible_user` (typically the `admin` user) for easier management and camera access permissions.
+
 ### Environment Differences
 
 | Feature           | Staging  | Production |
@@ -227,7 +275,7 @@ This script:
 
 1. Runs the dedicated `deploy-macos-api.yml` playbook
 2. Configures the macOS API service on the target machine
-3. Sets up the launchd service to run as the `_orangead` system user
+3. Sets up the launchd service to run as the `ansible_user` (typically the `admin` user)
 
 ### Dynamic Inventory
 
