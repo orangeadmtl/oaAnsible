@@ -1,0 +1,29 @@
+---
+# Detect Python installation from pyenv
+- name: Get pyenv root directory
+  ansible.builtin.shell: |
+    echo $HOME/.pyenv
+  register: pyenv_root
+  changed_when: false
+
+- name: Get Python version from inventory
+  ansible.builtin.set_fact:
+    python_version: "{{ python.version | default('3.10.11') }}"
+
+- name: Get Python executable path from pyenv
+  ansible.builtin.shell: |
+    export PYENV_ROOT="{{ pyenv_root.stdout }}"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$($PYENV_ROOT/bin/pyenv init -)"
+    $PYENV_ROOT/bin/pyenv which python3
+  register: pyenv_python_path
+  changed_when: false
+  failed_when: false
+
+- name: Set Python executable path
+  ansible.builtin.set_fact:
+    python_executable: "{{ pyenv_python_path.stdout if pyenv_python_path.rc == 0 else '/usr/bin/python3' }}"
+
+- name: Debug Python path
+  ansible.builtin.debug:
+    msg: "Using Python executable: {{ python_executable }}"

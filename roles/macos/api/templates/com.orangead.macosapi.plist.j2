@@ -6,7 +6,7 @@
     <string>com.orangead.macosapi</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/orangead/macos-api/.venv/bin/uvicorn</string>
+        <string>{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/uvicorn</string>
         <string>main:app</string>
         <string>--host</string>
         <string>0.0.0.0</string>
@@ -14,24 +14,24 @@
         <string>9090</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/usr/local/orangead/macos-api</string>
+    <string>{{ ansible_user_dir }}/orangead/macos-api</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PYTHONPATH</key>
-        <string>/usr/local/orangead/macos-api</string>
+        <string>{{ ansible_user_dir }}/orangead/macos-api</string>
         <key>TRACKER_ROOT_DIR</key>
-        <string>/usr/local/orangead/tracker</string>
+        <string>{{ ansible_user_dir }}/orangead/tracker</string>
     </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/usr/local/orangead/macos-api/logs/api.log</string>
+    <string>{{ ansible_user_dir }}/orangead/macos-api/logs/api.log</string>
     <key>StandardErrorPath</key>
-    <string>/usr/local/orangead/macos-api/logs/api-error.log</string>
+    <string>{{ ansible_user_dir }}/orangead/macos-api/logs/api-error.log</string>
     <key>UserName</key>
-    <string>_orangead</string>
+    <string>{{ ansible_user }}</string>
     <key>GroupName</key>
     <string>staff</string>
 </dict>

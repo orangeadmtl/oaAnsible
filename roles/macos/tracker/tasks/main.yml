@@ -2,54 +2,47 @@
 ---
 # tasks file for roles/macos/tracker
 
-# Ensure the _orangead user exists (reusing from macos/api role)
-- name: Check if _orangead user exists
-  ansible.builtin.command: dscl . -read /Users/_orangead
-  register: user_exists
-  changed_when: false
-  failed_when: false
-
-- name: Create _orangead user if it doesn't exist
-  ansible.builtin.command: "{{ item }}"
-  with_items:
-    - dscl . -create /Users/_orangead
-    - dscl . -create /Users/_orangead UserShell /bin/bash
-    - dscl . -create /Users/_orangead RealName "OrangeAd Tracker Service"
-    - dscl . -create /Users/_orangead UniqueID 499
-    - dscl . -create /Users/_orangead PrimaryGroupID 20
-    - dscl . -create /Users/_orangead NFSHomeDirectory /var/empty
-    - dscl . -create /Users/_orangead Password '*'
-  when: user_exists.rc != 0
-  become: true
+# No longer creating a separate user - using ansible_user instead
 
 # OpenCV is installed via pip as part of the Python dependencies
 # in the pyproject.toml file, so we don't need to install it separately via Homebrew
 
-# Create directory structure
+# Create directory structure in ansible_user's home directory
 - name: Ensure tracker directory exists
   ansible.builtin.file:
-    path: "/usr/local/orangead/tracker"
+    path: "{{ ansible_user_dir }}/orangead/tracker"
     state: directory
-    owner: _orangead
-    group: wheel
+    owner: "{{ ansible_user }}"
+    group: staff
     mode: '0755'
   become: true
 
 - name: Ensure tracker data directory exists
   ansible.builtin.file:
-    path: "/usr/local/orangead/tracker/data"
+    path: "{{ ansible_user_dir }}/orangead/tracker/data"
     state: directory
-    owner: _orangead
-    group: wheel
+    owner: "{{ ansible_user }}"
+    group: staff
     mode: '0755'
+  become: true
+
+# Create a symbolic link to accommodate the hardcoded database path in flight_server.py
+- name: Create symbolic link from events.db to data/events.db
+  ansible.builtin.file:
+    src: "{{ ansible_user_dir }}/orangead/tracker/data/events.db"
+    dest: "{{ ansible_user_dir }}/orangead/tracker/events.db"
+    state: link
+    owner: "{{ ansible_user }}"
+    group: staff
+    force: true
   become: true
 
 - name: Ensure tracker logs directory exists
   ansible.builtin.file:
-    path: "/usr/local/orangead/tracker/logs"
+    path: "{{ ansible_user_dir }}/orangead/tracker/logs"
     state: directory
-    owner: _orangead
-    group: wheel
+    owner: "{{ ansible_user }}"
+    group: staff
     mode: '0755'
   become: true
 
@@ -57,7 +50,7 @@
 - name: Synchronize oaTracker files
   ansible.posix.synchronize:
     src: "{{ playbook_dir }}/../oaTracker/"
-    dest: "/usr/local/orangead/tracker/"
+    dest: "{{ ansible_user_dir }}/orangead/tracker/"
     delete: false
     rsync_opts:
       - "--exclude=.git"
@@ -67,34 +60,87 @@
       - "--exclude=__pycache__"
       - "--exclude=*.pyc"
   become: true
+  become_user: "{{ ansible_user }}"
 
 # Set proper ownership
 - name: Set proper ownership for tracker files
   ansible.builtin.file:
-    path: "/usr/local/orangead/tracker"
-    owner: _orangead
-    group: wheel
+    path: "{{ ansible_user_dir }}/orangead/tracker"
+    owner: "{{ ansible_user }}"
+    group: staff
     recurse: true
   become: true
 
+- name: Ensure specific directories have proper permissions
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: '0755'
+  loop:
+    - "{{ ansible_user_dir }}/orangead/tracker/logs"
+    - "{{ ansible_user_dir }}/orangead/tracker/data"
+  become: true
+
+- name: Ensure specific executable files have proper permissions
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: file
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: staff
+  loop:
+    - "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python"
+    - "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python3"
+  become: true
+  ignore_errors: true  # In case the file doesn't exist yet
+
+# Detect Python installation
+- name: Include Python detection tasks
+  ansible.builtin.include_tasks: ../../tasks/python_detect.yml
+
 # Setup Python environment
+- name: Check Python version in virtual environment
+  ansible.builtin.shell: |
+    if [ -f {{ ansible_user_dir }}/orangead/tracker/.venv/bin/python ]; then
+      VENV_VERSION=$({{ ansible_user_dir }}/orangead/tracker/.venv/bin/python --version | awk '{print $2}')
+      REQUIRED_VERSION="{{ python.version }}"
+      if [[ "$VENV_VERSION" == "$REQUIRED_VERSION"* ]]; then
+        echo "0"
+      else
+        echo "1"
+      fi
+    else
+      echo "1"
+    fi
+  register: python_version_check
+  changed_when: false
+
+- name: Remove existing virtual environment if Python version doesn't match required version
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/orangead/tracker/.venv"
+    state: absent
+  become: true
+  when: python_version_check.stdout != "0"
+
 - name: Check if Python venv exists
   ansible.builtin.stat:
-    path: "/usr/local/orangead/tracker/.venv/bin/python"
+    path: "{{ ansible_user_dir }}/orangead/tracker/.venv"
   register: venv_exists
 
 - name: Create Python virtual environment
-  ansible.builtin.command: python3 -m venv /usr/local/orangead/tracker/.venv
+  ansible.builtin.command: "{{ python_executable }} -m venv {{ ansible_user_dir }}/orangead/tracker/.venv"
   args:
-    creates: "/usr/local/orangead/tracker/.venv/bin/python"
+    creates: "{{ ansible_user_dir }}/orangead/tracker/.venv"
   become: true
-  become_user: _orangead
+  become_user: "{{ ansible_user }}"
   when: not venv_exists.stat.exists
 
 - name: Upgrade pip in virtual environment
-  ansible.builtin.command: /usr/local/orangead/tracker/.venv/bin/pip install --upgrade pip
+  ansible.builtin.command: "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/pip install --upgrade pip"
   become: true
-  become_user: _orangead
+  become_user: "{{ ansible_user }}"
   when: not venv_exists.stat.exists
 
 # Install core dependencies directly
@@ -109,18 +155,25 @@
       - duckdb
       - pyarrow
       - uvicorn
-    virtualenv: /usr/local/orangead/tracker/.venv
+      - pyobjc  # Required for Foundation module on macOS
+      - pyobjc-framework-Cocoa  # Specifically includes Foundation
+      - sse_starlette  # Required for Server-Sent Events in the API
+      - pygments  # Required for logger formatting
+      - anyio  # Required for async I/O operations
+      - lap  # Required for ultralytics tracker
+      - shapely  # Required for zone counter
+    virtualenv: "{{ ansible_user_dir }}/orangead/tracker/.venv"
     state: present
   become: true
-  become_user: _orangead
+  become_user: "{{ ansible_user }}"
 
 # Configure oaTracker
 - name: Template config.yaml
   ansible.builtin.template:
     src: config.yaml.j2
-    dest: "/usr/local/orangead/tracker/config.yaml"
-    owner: _orangead
-    group: wheel
+    dest: "{{ ansible_user_dir }}/orangead/tracker/config.yaml"
+    owner: "{{ ansible_user }}"
+    group: staff
     mode: '0644'
   become: true
 

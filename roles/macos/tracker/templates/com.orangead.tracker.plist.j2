@@ -6,28 +6,28 @@
     <string>com.orangead.tracker</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/orangead/tracker/.venv/bin/python</string>
+        <string>{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python</string>
         <string>-m</string>
         <string>app</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/usr/local/orangead/tracker</string>
+    <string>{{ ansible_user_dir }}/orangead/tracker</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/usr/local/orangead/tracker/logs/tracker.out.log</string>
+    <string>{{ ansible_user_dir }}/orangead/tracker/logs/tracker.out.log</string>
     <key>StandardErrorPath</key>
-    <string>/usr/local/orangead/tracker/logs/tracker.err.log</string>
+    <string>{{ ansible_user_dir }}/orangead/tracker/logs/tracker.err.log</string>
     <key>UserName</key>
-    <string>_orangead</string>
+    <string>{{ ansible_user }}</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
         <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>PYTHONPATH</key>
-        <string>/usr/local/orangead/tracker</string>
+        <string>{{ ansible_user_dir }}/orangead/tracker</string>
         <key>PYTHONUNBUFFERED</key>
         <string>1</string>
     </dict>

@@ -3,6 +3,10 @@
   hosts: macos
   gather_facts: true
   
+  roles:
+    - role: macos/security
+      tags: [security, camera_permissions]
+  
   tasks:
     - name: Include macos/tracker role
       include_role:
