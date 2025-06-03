@@ -92,10 +92,10 @@ echo -e "${GREEN}Shared memory files cleaned up${NC}"
 
 # Restart the services
 echo -e "${YELLOW}Restarting macOS API and Tracker services...${NC}"
-sudo launchctl unload /Library/LaunchDaemons/com.orangead.macosapi.plist 2>/dev/null || true
-sudo launchctl load -w /Library/LaunchDaemons/com.orangead.macosapi.plist
-sudo launchctl unload /Library/LaunchDaemons/com.orangead.tracker.plist 2>/dev/null || true
-sudo launchctl load -w /Library/LaunchDaemons/com.orangead.tracker.plist
+launchctl unload ~/Library/LaunchAgents/com.orangead.macosapi.plist 2>/dev/null || true
+launchctl load -w ~/Library/LaunchAgents/com.orangead.macosapi.plist
+launchctl unload ~/Library/LaunchAgents/com.orangead.tracker.plist 2>/dev/null || true
+launchctl load -w ~/Library/LaunchAgents/com.orangead.tracker.plist
 
 echo -e "${GREEN}Services restarted${NC}"
 echo "----------------------------------------------------------------------"

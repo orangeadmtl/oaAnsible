@@ -2,22 +2,27 @@
 # Template for checking camera permissions
 # This script checks camera permissions for various applications in the TCC database
 
-TCC_DB="/Library/Application Support/com.apple.TCC/TCC.db"
+TCC_DB="{{ ansible_user_dir }}/Library/Application Support/com.apple.TCC/TCC.db"
 
-# Check camera permissions for API Python
-api_access=$(sudo sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND (client='{{ api_python }}' OR client='{{ python_execs.real_api }}') AND auth_value=2;" 2>/dev/null || echo "0")
+# Define the real Python paths
+REAL_PYTHON="/Users/{{ ansible_user }}/.pyenv/versions/3.10.11/bin/python3.10"
+API_VENV_PYTHON="{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3"
+TRACKER_VENV_PYTHON="{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python3"
 
-# Check camera permissions for Tracker Python
-tracker_access=$(sudo sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND (client='{{ tracker_python }}' OR client='{{ python_execs.real_tracker }}') AND auth_value=2;" 2>/dev/null || echo "0")
+# Check camera permissions for API Python (both real and venv)
+api_access=$(sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND (client='$REAL_PYTHON' OR client='$API_VENV_PYTHON') AND auth_value=2;" 2>/dev/null || echo "0")
+
+# Check camera permissions for Tracker Python (both real and venv)
+tracker_access=$(sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND (client='$REAL_PYTHON' OR client='$TRACKER_VENV_PYTHON') AND auth_value=2;" 2>/dev/null || echo "0")
 
 # Check camera permissions for Tailscale
-tailscale_access=$(sudo sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND client='/usr/local/bin/tailscaled' AND auth_value=2;" 2>/dev/null || echo "0")
+tailscale_access=$(sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND (client='/usr/local/bin/tailscaled' OR client='/Users/{{ ansible_user }}/go/bin/tailscaled') AND auth_value=2;" 2>/dev/null || echo "0")
 
 # Check camera permissions for Terminal
-terminal_access=$(sudo sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND client='com.apple.Terminal' AND auth_value=2;" 2>/dev/null || echo "0")
+terminal_access=$(sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND client='com.apple.Terminal' AND auth_value=2;" 2>/dev/null || echo "0")
 
 # Check camera permissions for SSH
-ssh_access=$(sudo sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND client='/usr/libexec/sshd-keygen-wrapper' AND auth_value=2;" 2>/dev/null || echo "0")
+ssh_access=$(sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND client='/usr/libexec/sshd-keygen-wrapper' AND auth_value=2;" 2>/dev/null || echo "0")
 
 # Check for shared memory files
 shared_memory_exists=0
