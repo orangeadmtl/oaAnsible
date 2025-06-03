@@ -3,6 +3,6 @@
 
 - name: reload macosapi service
   shell: |
-    launchctl unload /Library/LaunchDaemons/com.orangead.macosapi.plist || true
-    launchctl load -w /Library/LaunchDaemons/com.orangead.macosapi.plist
-  become: true
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist || true
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
+  become: false

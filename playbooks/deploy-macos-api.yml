@@ -46,11 +46,11 @@
     - name: Create launchd plist for macOS API
       template:
         src: roles/macos/api/templates/com.orangead.macosapi.plist.j2
-        dest: /Library/LaunchDaemons/com.orangead.macosapi.plist
-        owner: root
-        group: wheel
+        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist"
+        owner: "{{ ansible_user }}"
+        group: staff
         mode: '0644'
-      become: true
+      become: false
     
     # Screenshot functionality has been removed
     # - name: Ensure screenshot directory exists
@@ -63,10 +63,10 @@
     #   become: true
     
     - name: Unload macOS API service if already loaded
-      command: launchctl unload /Library/LaunchDaemons/com.orangead.macosapi.plist
-      become: true
+      command: launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
+      become: false
       ignore_errors: true  # In case it's not loaded
       
     - name: Load macOS API service
-      command: launchctl load -w /Library/LaunchDaemons/com.orangead.macosapi.plist
-      become: true
+      command: launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
+      become: false

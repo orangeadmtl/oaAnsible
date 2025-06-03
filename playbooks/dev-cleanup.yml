@@ -191,15 +191,15 @@
     - name: Clean up macOS API
       block:
         - name: Stop and unload macOS API service
-          command: launchctl unload -w /Library/LaunchDaemons/com.orangead.macosapi.plist
-          become: true
+          command: launchctl unload -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
+          become: false
           ignore_errors: true
 
         - name: Remove macOS API launchd plist
           file:
-            path: /Library/LaunchDaemons/com.orangead.macosapi.plist
+            path: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist"
             state: absent
-          become: true
+          become: false
           ignore_errors: true
 
         - name: Remove macOS API directory

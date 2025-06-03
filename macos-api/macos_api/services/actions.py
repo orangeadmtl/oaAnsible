@@ -48,7 +48,7 @@ class ActionsService:
             
             # Unload the service
             unload_process = await asyncio.create_subprocess_exec(
-                LAUNCHCTL_CMD, "unload", f"/Library/LaunchDaemons/{tracker_plist}.plist",
+                LAUNCHCTL_CMD, "unload", f"~/Library/LaunchAgents/{tracker_plist}.plist",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -63,7 +63,7 @@ class ActionsService:
             
             # Load the service
             load_process = await asyncio.create_subprocess_exec(
-                LAUNCHCTL_CMD, "load", f"/Library/LaunchDaemons/{tracker_plist}.plist",
+                LAUNCHCTL_CMD, "load", f"~/Library/LaunchAgents/{tracker_plist}.plist",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )

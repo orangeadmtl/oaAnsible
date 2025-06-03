@@ -58,7 +58,7 @@ if [ $DEPLOY_STATUS -eq 0 ]; then
     if [ "$FORCE_RESTART" = true ]; then
         log_info "Forcing service restart..."
         log_info "You will be prompted for SSH password and sudo password."
-        ssh admin@${TARGET_HOST} "sudo launchctl unload /Library/LaunchDaemons/com.orangead.macosapi.plist && sudo launchctl load /Library/LaunchDaemons/com.orangead.macosapi.plist"
+        ssh admin@${TARGET_HOST} "launchctl unload ~/Library/LaunchAgents/com.orangead.macosapi.plist && launchctl load ~/Library/LaunchAgents/com.orangead.macosapi.plist"
         if [ $? -eq 0 ]; then
             log_info "Service restarted successfully!"
         else

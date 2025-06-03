@@ -59,8 +59,30 @@
       - "--exclude=data"
       - "--exclude=__pycache__"
       - "--exclude=*.pyc"
+      - "--exclude=.DS_Store"
+      - "--exclude=notebooks"
   become: true
   become_user: "{{ ansible_user }}"
+
+# Ensure models directory exists and copy YOLO model
+- name: Ensure models directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/orangead/tracker/models"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: '0755'
+  become: true
+
+- name: Copy YOLO model file
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../oaTracker/models/yolo12s.pt"
+    dest: "{{ ansible_user_dir }}/orangead/tracker/models/yolo12s.pt"
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: '0644'
+  become: true
+  ignore_errors: true
 
 # Set proper ownership
 - name: Set proper ownership for tracker files
@@ -96,16 +118,63 @@
   become: true
   ignore_errors: true  # In case the file doesn't exist yet
 
-# Detect Python installation
-- name: Include Python detection tasks
-  ansible.builtin.include_tasks: ../../tasks/python_detect.yml
+# Extract Python version from oaTracker setup.sh
+- name: Extract Python version from oaTracker setup.sh
+  ansible.builtin.shell: |
+    grep '^PYTHON_VERSION=' {{ ansible_user_dir }}/orangead/tracker/setup.sh | cut -d'=' -f2 | tr -d '"'
+  register: oatracker_python_version
+  changed_when: false
+
+- name: Set required Python version from oaTracker
+  ansible.builtin.set_fact:
+    tracker_python_version: "{{ oatracker_python_version.stdout.strip() }}"
+
+- name: Debug required Python version
+  ansible.builtin.debug:
+    msg: "oaTracker requires Python version: {{ tracker_python_version }}"
+
+# Check if required Python version is available in pyenv
+- name: Check if required Python version is available in pyenv
+  ansible.builtin.shell: |
+    export PYENV_ROOT="$HOME/.pyenv"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    $PYENV_ROOT/bin/pyenv install --list | grep -E "^\s+{{ tracker_python_version }}$" || echo "not_found"
+  register: python_version_available
+  changed_when: false
+
+- name: Find closest available Python version if exact version not found
+  ansible.builtin.shell: |
+    export PYENV_ROOT="$HOME/.pyenv"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    # Extract major.minor version (e.g., 3.11 from 3.11.11)
+    MAJOR_MINOR=$(echo {{ tracker_python_version }} | cut -d. -f1-2)
+    # Find the latest available version for this major.minor
+    $PYENV_ROOT/bin/pyenv install --list | grep -E "^\s+${MAJOR_MINOR}\.[0-9]+$" | tail -1 | xargs
+  register: closest_python_version
+  changed_when: false
+  when: python_version_available.stdout == "not_found"
+
+- name: Set final Python version to use
+  ansible.builtin.set_fact:
+    final_python_version: >
+      {%- if python_version_available.stdout != "not_found" -%}
+      {{ tracker_python_version }}
+      {%- else -%}
+      {{ closest_python_version.stdout.strip() }}
+      {%- endif -%}
+
+- name: Debug final Python version
+  ansible.builtin.debug:
+    msg: "Will use Python version: {{ final_python_version }}"
+
+# We handle Python detection directly above, no need for include
 
 # Setup Python environment
 - name: Check Python version in virtual environment
   ansible.builtin.shell: |
     if [ -f {{ ansible_user_dir }}/orangead/tracker/.venv/bin/python ]; then
       VENV_VERSION=$({{ ansible_user_dir }}/orangead/tracker/.venv/bin/python --version | awk '{print $2}')
-      REQUIRED_VERSION="{{ python.version }}"
+      REQUIRED_VERSION="{{ final_python_version }}"
       if [[ "$VENV_VERSION" == "$REQUIRED_VERSION"* ]]; then
         echo "0"
       else
@@ -124,13 +193,32 @@
   become: true
   when: python_version_check.stdout != "0"
 
+- name: Install required Python version if not present
+  ansible.builtin.shell: |
+    export PYENV_ROOT="$HOME/.pyenv"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    if ! $PYENV_ROOT/bin/pyenv versions --bare | grep -q "^{{ final_python_version }}$"; then
+      $PYENV_ROOT/bin/pyenv install {{ final_python_version }}
+    fi
+  become: true
+  become_user: "{{ ansible_user }}"
+  changed_when: false
+
 - name: Check if Python venv exists
   ansible.builtin.stat:
     path: "{{ ansible_user_dir }}/orangead/tracker/.venv"
   register: venv_exists
 
+- name: Get Python executable path for required version
+  ansible.builtin.shell: |
+    export PYENV_ROOT="$HOME/.pyenv"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    echo "$($PYENV_ROOT/bin/pyenv prefix {{ final_python_version }})/bin/python3"
+  register: dynamic_python_executable
+  changed_when: false
+
 - name: Create Python virtual environment
-  ansible.builtin.command: "{{ python_executable }} -m venv {{ ansible_user_dir }}/orangead/tracker/.venv"
+  ansible.builtin.command: "{{ dynamic_python_executable.stdout }} -m venv {{ ansible_user_dir }}/orangead/tracker/.venv"
   args:
     creates: "{{ ansible_user_dir }}/orangead/tracker/.venv"
   become: true
@@ -138,34 +226,109 @@
   when: not venv_exists.stat.exists
 
 - name: Upgrade pip in virtual environment
-  ansible.builtin.command: "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/pip install --upgrade pip"
+  ansible.builtin.shell: |
+    cd {{ ansible_user_dir }}/orangead/tracker && \
+    source .venv/bin/activate && \
+    pip install --upgrade pip
   become: true
   become_user: "{{ ansible_user }}"
   when: not venv_exists.stat.exists
+  changed_when: false
 
-# Install core dependencies directly
-- name: Install core Python dependencies
-  ansible.builtin.pip:
-    name:
-      - opencv-python
-      - ultralytics
-      - torch
-      - fastapi
-      - numpy
-      - duckdb
-      - pyarrow
-      - uvicorn
-      - pyobjc  # Required for Foundation module on macOS
-      - pyobjc-framework-Cocoa  # Specifically includes Foundation
-      - sse_starlette  # Required for Server-Sent Events in the API
-      - pygments  # Required for logger formatting
-      - anyio  # Required for async I/O operations
-      - lap  # Required for ultralytics tracker
-      - shapely  # Required for zone counter
-    virtualenv: "{{ ansible_user_dir }}/orangead/tracker/.venv"
-    state: present
+- name: Install uv package manager globally
+  ansible.builtin.shell: |
+    curl -LsSf https://astral.sh/uv/install.sh | sh
   become: true
   become_user: "{{ ansible_user }}"
+  changed_when: false
+  environment:
+    PATH: "{{ ansible_user_dir }}/.local/bin:{{ ansible_env.PATH }}"
+
+- name: Ensure uv is available in PATH
+  ansible.builtin.shell: |
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> {{ ansible_user_dir }}/.zshrc
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> {{ ansible_user_dir }}/.bashrc
+  become: true
+  become_user: "{{ ansible_user }}"
+  changed_when: false
+  ignore_errors: true
+
+# Install dependencies using uv and pyproject.toml
+- name: Check if pyproject.toml exists
+  ansible.builtin.stat:
+    path: "{{ ansible_user_dir }}/orangead/tracker/pyproject.toml"
+  register: pyproject_file
+
+- name: Fail if pyproject.toml doesn't exist
+  ansible.builtin.fail:
+    msg: "pyproject.toml not found in {{ ansible_user_dir }}/orangead/tracker/"
+  when: not pyproject_file.stat.exists
+
+- name: Install NumPy first to ensure compatibility
+  ansible.builtin.shell: |
+    cd {{ ansible_user_dir }}/orangead/tracker && \
+    source .venv/bin/activate && \
+    {{ ansible_user_dir }}/.local/bin/uv pip install 'numpy<2.0.0'
+  become: true
+  become_user: "{{ ansible_user }}"
+  changed_when: false
+  environment:
+    PATH: "{{ ansible_user_dir }}/.local/bin:{{ ansible_env.PATH }}"
+
+# Try to install dependencies using the method that works
+- name: Try installing dependencies using uv with pyproject.toml
+  ansible.builtin.shell: |
+    cd {{ ansible_user_dir }}/orangead/tracker && \
+    source .venv/bin/activate && \
+    {{ ansible_user_dir }}/.local/bin/uv pip install -e .
+  become: true
+  become_user: "{{ ansible_user }}"
+  register: uv_install_result
+  environment:
+    PATH: "{{ ansible_user_dir }}/.local/bin:{{ ansible_env.PATH }}"
+  ignore_errors: true
+  changed_when: false
+
+- name: Fallback to pip install if uv fails
+  ansible.builtin.shell: |
+    cd {{ ansible_user_dir }}/orangead/tracker && \
+    source .venv/bin/activate && \
+    if [ -f requirements.txt ]; then
+      pip install -r requirements.txt
+    elif [ -f pyproject.toml ]; then
+      pip install -e .
+    else
+      echo "No requirements.txt or pyproject.toml found"
+      exit 1
+    fi
+  become: true
+  become_user: "{{ ansible_user }}"
+  register: pip_install_result
+  changed_when: false
+  when: uv_install_result.rc != 0
+
+# Copy and run dependency verification script
+- name: Copy dependency verification script
+  ansible.builtin.copy:
+    src: verify_dependencies.py
+    dest: "{{ ansible_user_dir }}/orangead/tracker/verify_dependencies.py"
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: '0755'
+  become: true
+
+- name: Verify dependencies installation
+  ansible.builtin.command: "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python {{ ansible_user_dir }}/orangead/tracker/verify_dependencies.py"
+  register: dependency_verification
+  changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  ignore_errors: true
+
+- name: Display dependency verification results
+  ansible.builtin.debug:
+    var: dependency_verification.stdout_lines
+  when: dependency_verification.stdout_lines is defined
 
 # Configure oaTracker
 - name: Template config.yaml
@@ -181,26 +344,72 @@
 - name: Template launchd service file
   ansible.builtin.template:
     src: com.orangead.tracker.plist.j2
-    dest: "/Library/LaunchDaemons/com.orangead.tracker.plist"
-    owner: root
-    group: wheel
+    dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist"
+    owner: "{{ ansible_user }}"
+    group: staff
     mode: '0644'
-  become: true
+  become: false
   register: launchd_service
 
 - name: Unload existing launchd service if it exists
-  ansible.builtin.command: launchctl unload /Library/LaunchDaemons/com.orangead.tracker.plist
-  become: true
+  ansible.builtin.command: launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist
+  become: false
   failed_when: false
   changed_when: false
   when: launchd_service.changed
 
 - name: Load launchd service
-  ansible.builtin.command: launchctl load /Library/LaunchDaemons/com.orangead.tracker.plist
-  become: true
+  ansible.builtin.command: launchctl load {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist
+  become: false
   when: launchd_service.changed
 
 - name: Start launchd service
   ansible.builtin.command: launchctl start com.orangead.tracker
-  become: true
+  become: false
   when: launchd_service.changed
+
+# Additional verification and troubleshooting tasks
+# Detect server port from config if available
+- name: Check if config.yaml exists and extract server port
+  ansible.builtin.shell: |
+    if [ -f {{ ansible_user_dir }}/orangead/tracker/config.yaml ]; then
+      grep '^default_server_port:' {{ ansible_user_dir }}/orangead/tracker/config.yaml | awk '{print $2}' || echo "8080"
+    else
+      echo "8080"
+    fi
+  register: detected_server_port
+  changed_when: false
+
+- name: Wait for tracker service to start
+  ansible.builtin.wait_for:
+    port: "{{ detected_server_port.stdout.strip() }}"
+    host: localhost
+    delay: 5
+    timeout: 30
+  ignore_errors: true
+
+- name: Check if tracker process is running
+  ansible.builtin.shell: |
+    launchctl list | grep com.orangead.tracker || echo "Service not found"
+  register: tracker_status
+  changed_when: false
+
+- name: Display tracker service status
+  ansible.builtin.debug:
+    msg: "Tracker service status: {{ tracker_status.stdout }}"
+
+- name: Check tracker logs for any errors
+  ansible.builtin.shell: |
+    if [ -f {{ ansible_user_dir }}/orangead/tracker/logs/tracker.err.log ]; then
+      tail -10 {{ ansible_user_dir }}/orangead/tracker/logs/tracker.err.log
+    else
+      echo "No error log found"
+    fi
+  register: tracker_logs
+  changed_when: false
+  ignore_errors: true
+
+- name: Display recent tracker errors (if any)
+  ansible.builtin.debug:
+    msg: "Recent tracker errors: {{ tracker_logs.stdout_lines }}"
+  when: tracker_logs.stdout_lines is defined and tracker_logs.stdout_lines | length > 0
