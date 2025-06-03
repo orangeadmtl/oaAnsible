@@ -35,7 +35,7 @@ echo -e "${YELLOW}Checking oaTracker service status...${NC}"
 ssh ${HOSTNAME} "launchctl list | grep com.orangead.tracker" || {
     echo -e "${RED}✗ oaTracker service is not running${NC}"
     echo -e "${YELLOW}Attempting to start the service...${NC}"
-    ssh ${HOSTNAME} "sudo launchctl load -w /Library/LaunchDaemons/com.orangead.tracker.plist" || {
+    ssh ${HOSTNAME} "launchctl load -w ~/Library/LaunchAgents/com.orangead.tracker.plist" || {
         echo -e "${RED}✗ Failed to start oaTracker service${NC}"
         exit 1
     }

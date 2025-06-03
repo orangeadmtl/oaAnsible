@@ -42,7 +42,7 @@ else
     log_info "Troubleshooting tips:"
     log_info "1. Check if the service is loaded: ssh admin@$TARGET_HOST 'sudo launchctl list | grep orangead'"
     log_info "2. Check service logs: ssh admin@$TARGET_HOST 'cat ~/orangead/macos-api/logs/api-error.log'"
-    log_info "3. Try restarting the service: ssh admin@$TARGET_HOST 'sudo launchctl unload -w /Library/LaunchDaemons/com.orangead.macosapi.plist && sudo launchctl load -w /Library/LaunchDaemons/com.orangead.macosapi.plist'"
+    log_info "3. Try restarting the service: ssh admin@$TARGET_HOST 'launchctl unload -w ~/Library/LaunchAgents/com.orangead.macosapi.plist && launchctl load -w ~/Library/LaunchAgents/com.orangead.macosapi.plist'"
 fi
 
 # Check if jq is installed (needed for JSON formatting)

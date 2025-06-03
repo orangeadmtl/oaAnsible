@@ -1,9 +1,9 @@
 ---
 - name: Restart macOS API service
   ansible.builtin.shell: |
-    launchctl unload /Library/LaunchDaemons/com.orangead.macosapi.plist || true
-    launchctl load -w /Library/LaunchDaemons/com.orangead.macosapi.plist
-  become: true
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist || true
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
+  become: false
   register: api_restart
   changed_when: true
   when: ansible_distribution == "MacOSX"
@@ -11,9 +11,9 @@
 
 - name: Restart tracker service
   ansible.builtin.shell: |
-    launchctl unload /Library/LaunchDaemons/com.orangead.tracker.plist || true
-    launchctl load -w /Library/LaunchDaemons/com.orangead.tracker.plist
-  become: true
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist || true
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist
+  become: false
   register: tracker_restart
   changed_when: true
   when: ansible_distribution == "MacOSX"

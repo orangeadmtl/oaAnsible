@@ -57,8 +57,8 @@ ssh ${HOSTNAME} "sudo cp /tmp/macos-api-update/tracker.py /Users/admin/orangead/
 
 # Restart the macos-api service
 echo -e "${YELLOW}Restarting macos-api service...${NC}"
-ssh ${HOSTNAME} "sudo launchctl unload -w /Library/LaunchDaemons/com.orangead.macosapi.plist && \
-                 sudo launchctl load -w /Library/LaunchDaemons/com.orangead.macosapi.plist"
+ssh ${HOSTNAME} "launchctl unload -w ~/Library/LaunchAgents/com.orangead.macosapi.plist && \
+                 launchctl load -w ~/Library/LaunchAgents/com.orangead.macosapi.plist"
 
 # Clean up
 echo -e "${YELLOW}Cleaning up...${NC}"
