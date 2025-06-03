@@ -99,6 +99,16 @@
   become_user: "{{ ansible_user }}"
   changed_when: false
 
+- name: Check if requirements.txt exists
+  ansible.builtin.stat:
+    path: "{{ ansible_user_dir }}/orangead/macos-api/requirements.txt"
+  register: requirements_file
+
+- name: Fail if requirements.txt doesn't exist
+  ansible.builtin.fail:
+    msg: "requirements.txt not found in {{ ansible_user_dir }}/orangead/macos-api/"
+  when: not requirements_file.stat.exists
+
 - name: Install NumPy first to ensure compatibility
   shell: |
     cd {{ ansible_user_dir }}/orangead/macos-api && \
@@ -108,7 +118,7 @@
   become_user: "{{ ansible_user }}"
   changed_when: false
 
-- name: Install remaining dependencies with uv
+- name: Install all dependencies from requirements.txt
   shell: |
     cd {{ ansible_user_dir }}/orangead/macos-api && \
     source .venv/bin/activate && \
@@ -116,15 +126,7 @@
   become: true
   become_user: "{{ ansible_user }}"
   changed_when: false
-
-- name: Install critical dependencies
-  shell: |
-    cd {{ ansible_user_dir }}/orangead/macos-api && \
-    source .venv/bin/activate && \
-    python -m uv pip install httpx fastapi uvicorn opencv-python-headless anyio
-  become: true
-  become_user: "{{ ansible_user }}"
-  changed_when: false
+  register: pip_install_result
 
 - name: Copy OpenCV verification script
   copy:
@@ -188,11 +190,11 @@
 - name: Create launchd plist for macOS API
   template:
     src: com.orangead.macosapi.plist.j2
-    dest: /Library/LaunchDaemons/com.orangead.macosapi.plist
-    owner: root
-    group: wheel
+    dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist"
+    owner: "{{ ansible_user }}"
+    group: staff
     mode: '0644'
-  become: true
+  become: false
   notify: reload macosapi service
 
 # Screenshot functionality has been removed
@@ -204,6 +206,6 @@
   ignore_errors: true  # Some systems might not have firewall enabled
 
 - name: Load macOS API service
-  command: launchctl load -w /Library/LaunchDaemons/com.orangead.macosapi.plist
-  become: true
+  command: launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
+  become: false
   ignore_errors: true  # In case it's already loaded
