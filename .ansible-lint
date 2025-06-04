@@ -1,0 +1,50 @@
+---
+# .ansible-lint configuration for oaAnsible
+
+# Profile for ansible-lint
+profile: production
+
+# Exclude paths from linting
+exclude_paths:
+  - .git/
+  - .github/
+  - .venv/
+  - logs/
+  - roles/elliotweiser.osx-command-line-tools/
+  - group_vars/all/vault.yml
+
+# Enable specific rules
+enable_list:
+  - fqcn-builtins # Use FQCN for builtin actions
+  - no-log-password # Check for passwords in logs
+  - no-same-owner # Warn if owner is the same as default
+  - yaml # Check YAML syntax
+
+# Disable specific rules
+skip_list:
+  - meta-no-info # Allow roles without meta/main.yml info
+  - role-name # Allow role names that don't match pattern
+  - schema # Skip JSON schema validation for now
+
+# Warn on these rules but don't fail
+warn_list:
+  - command-instead-of-module # Warn when using command instead of module
+  - deprecated-command-syntax # Warn on deprecated command syntax
+  - no-changed-when # Warn when changed_when is not used with commands
+  - no-handler # Warn when tasks use notify but no handlers are defined
+  - yaml[line-length] # Warn on long lines but don't fail
+
+# Set the default verbosity level
+verbosity: 1
+
+# Use default rules
+use_default_rules: true
+
+# Offline mode for faster processing
+offline: true
+
+# Enforce variable names to follow pattern
+var_naming_pattern: "^[a-z_][a-z0-9_]*$"
+
+# Allow tasks to have name with uppercase letters
+task_name_prefix: ""

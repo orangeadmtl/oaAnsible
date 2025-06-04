@@ -1,10 +1,28 @@
 ---
-extends: default
+# .yamllint configuration for oaAnsible
 
-rules:
-  line-length:
-    max: 160
-    level: warning
+# Configure line length
+line-length:
+  max: 160
+  level: warning
+
+# Configure comment spacing to be compatible with ansible-lint
+comments:
+  min-spaces-from-content: 1
+
+# Disable comments-indentation to be compatible with ansible-lint
+comments-indentation: false
+
+# Configure braces to be compatible with ansible-lint
+braces:
+  max-spaces-inside: 1
+
+# Configure octal values to be compatible with ansible-lint
+octal-values:
+  forbid-implicit-octal: true
+  forbid-explicit-octal: true
 
 ignore: |
   .github/workflows/
+  roles/elliotweiser.osx-command-line-tools/
+  group_vars/all/vault.yml
