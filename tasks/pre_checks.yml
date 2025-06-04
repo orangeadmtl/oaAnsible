@@ -18,12 +18,12 @@
 - name: Verify system requirements
   assert:
     that:
-      - memory_gb | int >= 8
       - ansible_distribution == "MacOSX"
+      - ansible_architecture == "arm64"
     fail_msg: |
       System requirements not met:
-      - Minimum 8GB RAM required (found: {{ memory_gb }}GB)
       - Must be running macOS (found: {{ ansible_distribution }})
+      - Must be running on arm64 architecture (found: {{ ansible_architecture }})
     success_msg: "System requirements verified successfully"
   tags: ["always"]
 
