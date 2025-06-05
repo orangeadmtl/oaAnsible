@@ -187,6 +187,15 @@
   become: true
   ignore_errors: true  # In case the file doesn't exist yet
 
+- name: Ensure LaunchAgents directory exists
+  file:
+    path: "{{ ansible_user_dir }}/Library/LaunchAgents"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: staff
+  become: true
+
 - name: Create launchd plist for macOS API
   template:
     src: com.orangead.macosapi.plist.j2
