@@ -3,13 +3,12 @@
   hosts: all
   gather_facts: false
   tags: ["macos"]
-
   pre_tasks:
     - name: Gather facts
-      setup:
+      ansible.builtin.setup:
 
     - name: Debug connection info
-      debug:
+      ansible.builtin.debug:
         msg: |
           Connection Details:
           - Host: {{ ansible_host }}
@@ -17,17 +16,17 @@
           - Python: {{ ansible_python.executable }}
 
     - name: Verify target is macOS
-      fail:
+      ansible.builtin.fail:
         msg: "This playbook only supports macOS"
       when: ansible_distribution != "MacOSX"
 
     - name: Ensure system requirements are met
-      import_tasks: tasks/pre_checks.yml
+      ansible.builtin.import_tasks: tasks/pre_checks.yml
       tags: ["always"]
 
   roles:
     - role: elliotweiser.osx-command-line-tools
-      become: yes
+      become: true
       tags: ["cli", "setup"]
 
     - role: geerlingguy.mac.homebrew
@@ -65,15 +64,15 @@
 
   post_tasks:
     - name: Verify installation
-      import_tasks: tasks/verify.yml
+      ansible.builtin.import_tasks: tasks/verify.yml
       tags: ["verify"]
 
     - name: Restart and verify services
-      import_tasks: tasks/restart_services.yml
+      ansible.builtin.import_tasks: tasks/restart_services.yml
       tags: ["services", "restart", "verify"]
 
     - name: Display completion message
-      debug:
+      ansible.builtin.debug:
         msg: |
           Installation completed successfully!
           Please restart your terminal to apply all changes.

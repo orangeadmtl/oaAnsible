@@ -42,7 +42,7 @@
   tags: ["services", "verify"]
 
 - name: Show service status
-  debug:
+  ansible.builtin.debug:
     msg: |
       API Service: {{ 'Running' if api_health_check.status == 200 else 'Not running' }}
       Tracker Service: {{ 'Running' if tracker_health_check is defined and tracker_health_check.status == 200 else 'Not running' }}

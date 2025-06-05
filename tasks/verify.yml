@@ -4,12 +4,12 @@
     - name: Verify Python environment
       block:
         - name: Check pyenv installation
-          stat:
+          ansible.builtin.stat:
             path: "{{ ansible_env.HOME }}/.pyenv/bin/pyenv"
           register: pyenv_binary
 
         - name: Get Python version
-          shell: |
+          ansible.builtin.shell: |
             source {{ shell_profile }}
             pyenv version
           register: python_version
@@ -18,7 +18,7 @@
           when: pyenv_binary.stat.exists
 
         - name: Check common uv installation paths
-          stat:
+          ansible.builtin.stat:
             path: "{{ item }}"
           register: uv_paths
           with_items:
@@ -28,11 +28,12 @@
             - /opt/homebrew/bin/uv
 
         - name: Set uv path fact
-          set_fact:
-            uv_path: "{{ (uv_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('') }}"
+          ansible.builtin.set_fact:
+            uv_path: "{{ (uv_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('')
+              }}"
 
         - name: Get uv version
-          shell: |
+          ansible.builtin.shell: |
             {{ uv_path }} --version || echo "Not installed"
           register: uv_version
           changed_when: false
@@ -44,12 +45,12 @@
     - name: Verify Node.js environment
       block:
         - name: Check NVM installation
-          stat:
+          ansible.builtin.stat:
             path: "{{ ansible_env.HOME }}/.nvm/nvm.sh"
           register: nvm_script
 
         - name: Get Node.js version
-          shell: |
+          ansible.builtin.shell: |
             source {{ shell_profile }}
             node --version
           register: node_version
@@ -58,7 +59,7 @@
           when: nvm_script.stat.exists
 
         - name: Check common bun installation paths
-          stat:
+          ansible.builtin.stat:
             path: "{{ item }}"
           register: bun_paths
           with_items:
@@ -67,11 +68,12 @@
             - /opt/homebrew/bin/bun
 
         - name: Set bun path fact
-          set_fact:
-            bun_path: "{{ (bun_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('') }}"
+          ansible.builtin.set_fact:
+            bun_path: "{{ (bun_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('')
+              }}"
 
         - name: Get bun version
-          shell: |
+          ansible.builtin.shell: |
             {{ bun_path }} --version || echo "Not installed"
           register: bun_version
           changed_when: false
@@ -83,19 +85,19 @@
     - name: Verify Tailscale
       block:
         - name: Check if Tailscale binary exists
-          stat:
+          ansible.builtin.stat:
             path: /usr/local/bin/tailscale
           register: tailscale_binary_exists
 
         - name: Check Tailscale status
-          command: /usr/local/bin/tailscale status
+          ansible.builtin.command: /usr/local/bin/tailscale status
           register: tailscale_status
           changed_when: false
           failed_when: false
           when: tailscale_binary_exists.stat.exists
 
         - name: Get Tailscale version
-          command: /usr/local/bin/tailscale version
+          ansible.builtin.command: /usr/local/bin/tailscale version
           register: tailscale_version
           changed_when: false
           failed_when: false
@@ -106,7 +108,7 @@
     - name: Verify Homebrew packages
       block:
         - name: Check common Homebrew installation paths
-          stat:
+          ansible.builtin.stat:
             path: "{{ item }}"
           register: homebrew_paths
           with_items:
@@ -115,11 +117,12 @@
             - /home/linuxbrew/.linuxbrew/bin/brew
 
         - name: Set Homebrew path fact
-          set_fact:
-            homebrew_path: "{{ (homebrew_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('') }}"
+          ansible.builtin.set_fact:
+            homebrew_path: "{{ (homebrew_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first)
+              | default('') }}"
 
         - name: Get Homebrew version
-          shell: |
+          ansible.builtin.shell: |
             {{ homebrew_path }} --version | head -n 1
           register: homebrew_version
           changed_when: false
@@ -127,7 +130,7 @@
           when: homebrew_path != ''
 
         - name: Get installed Homebrew packages
-          shell: |
+          ansible.builtin.shell: |
             {{ homebrew_path }} list --versions | grep -E 'go|opencv|python|node'
           register: homebrew_packages
           changed_when: false
@@ -139,7 +142,7 @@
     - name: Verify services
       block:
         - name: Check macOS API service status
-          shell: |
+          ansible.builtin.shell: |
             sudo launchctl list | grep com.orangead.macosapi || echo "Not running"
           register: macos_api_status
           changed_when: false
@@ -147,7 +150,7 @@
           become: true
 
         - name: Check tracker service status
-          shell: |
+          ansible.builtin.shell: |
             sudo launchctl list | grep com.orangead.tracker || echo "Not running"
           register: tracker_status
           changed_when: false
@@ -155,7 +158,7 @@
           become: true
 
         - name: Check macOS API service via HTTP
-          uri:
+          ansible.builtin.uri:
             url: http://localhost:9090/health
             method: GET
             status_code: 200
@@ -164,7 +167,7 @@
           ignore_errors: true
 
         - name: Check tracker service via HTTP
-          uri:
+          ansible.builtin.uri:
             url: http://localhost:8080/api/stats
             method: GET
             status_code: 200
@@ -175,13 +178,13 @@
       tags: ["verify", "services"]
 
     - name: Set verification status fact
-      set_fact:
+      ansible.builtin.set_fact:
         verification_status: >
           {% if (macos_api_status is defined and macos_api_status.stdout is defined and macos_api_status.stdout != 'Not running') or
                 (tracker_status is defined and tracker_status.stdout is defined and tracker_status.stdout != 'Not running') %}true{% else %}false{% endif %}
 
     - name: Display verification results
-      debug:
+      ansible.builtin.debug:
         msg: |
           ============================================================
                           VERIFICATION RESULTS
@@ -232,5 +235,5 @@
 
   rescue:
     - name: Handle verification failures
-      debug:
+      ansible.builtin.debug:
         msg: "Verification failed. Please check the installation logs for details."

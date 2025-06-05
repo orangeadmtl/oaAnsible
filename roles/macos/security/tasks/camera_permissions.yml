@@ -51,26 +51,26 @@
   ansible.builtin.set_fact:
     camera_apps:
       - name: "{{ api_python }}"
-        type: 1  # Executable path
+        type: 1 # Executable path
       - name: "{{ python_execs.real_api }}"
-        type: 1  # Executable path
+        type: 1 # Executable path
       - name: "{{ tracker_python }}"
-        type: 1  # Executable path
+        type: 1 # Executable path
       - name: "{{ python_execs.real_tracker }}"
-        type: 1  # Executable path
+        type: 1 # Executable path
       - name: "/usr/local/bin/tailscaled"
-        type: 1  # Executable path
+        type: 1 # Executable path
       - name: "/usr/libexec/sshd-keygen-wrapper"
-        type: 1  # Executable path
+        type: 1 # Executable path
       - name: "com.apple.Terminal"
-        type: 0  # Bundle ID
+        type: 0 # Bundle ID
 
 # Check camera permissions using template
 - name: Create script to check camera permissions
   ansible.builtin.template:
     src: check_camera_permissions.sh.j2
     dest: /tmp/check_camera_permissions.sh
-    mode: '0755'
+    mode: "0755"
   changed_when: false
 
 # Run the check camera permissions script
@@ -126,7 +126,7 @@
       - Tailscale: {{ tailscale_access_status }}
       - Terminal: {{ terminal_access_status }}
       - SSH: {{ ssh_access_status }}
-      
+
       Shared memory status:
       - Shared memory file exists: {{ shared_memory_status }}
       - Tracker is running: {{ tracker_running_status }}
@@ -155,13 +155,14 @@
 
 - name: Check if camera permissions need to be granted
   ansible.builtin.set_fact:
-    need_camera_permissions: "{{ api_access_missing == 'true' or tracker_access_missing == 'true' or tailscale_access_missing == 'true' or terminal_access_missing == 'true' or ssh_access_missing == 'true' }}"
+    need_camera_permissions: "{{ api_access_missing == 'true' or tracker_access_missing == 'true' or tailscale_access_missing == 'true' or terminal_access_missing
+      == 'true' or ssh_access_missing == 'true' }}"
 
 - name: Create script to grant camera permissions
   ansible.builtin.template:
     src: grant_camera_permissions.sh.j2
     dest: /tmp/grant_camera_permissions.sh
-    mode: '0755'
+    mode: "0755"
   changed_when: true
   when: need_camera_permissions
 
@@ -185,13 +186,14 @@
 # Verify camera access
 - name: Check if camera permissions are granted
   ansible.builtin.set_fact:
-    camera_permissions_granted: "{{ api_access_status == 'Granted' and tracker_access_status == 'Granted' and tailscale_access_status == 'Granted' and terminal_access_status == 'Granted' and ssh_access_status == 'Granted' }}"
+    camera_permissions_granted: "{{ api_access_status == 'Granted' and tracker_access_status == 'Granted' and tailscale_access_status == 'Granted' and terminal_access_status
+      == 'Granted' and ssh_access_status == 'Granted' }}"
 
 - name: Create script to verify camera access
   ansible.builtin.template:
     src: verify_camera_access.sh.j2
     dest: /tmp/verify_camera_access.sh
-    mode: '0755'
+    mode: "0755"
   changed_when: true
   when: camera_permissions_granted
 
@@ -211,7 +213,7 @@
   ansible.builtin.template:
     src: verify_camera_permissions.sh.j2
     dest: /tmp/verify_camera_permissions.sh
-    mode: '0755'
+    mode: "0755"
   changed_when: false
 
 - name: Run script to verify camera permissions
@@ -235,7 +237,7 @@
       ❌ Camera permissions may require manual intervention
          Please check System Settings > Privacy & Security > Camera
       {% endif %}
-      
+
       {% if shared_memory_status == 'Yes' and tracker_running_status == 'Yes' %}
       ℹ️ Tracker is running and using the camera via shared memory
       {% if tracker_accessible_status == 'Yes' %}
@@ -243,7 +245,7 @@
       {% else %}
       ⚠️ Tracker's camera feed is not accessible via HTTP
       {% endif %}
-      
+
       Note: The macos-api has been configured to proxy the Tracker's camera feed
       instead of accessing the camera directly.
       {% endif %}

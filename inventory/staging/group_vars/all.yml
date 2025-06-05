@@ -31,6 +31,6 @@ tracker:
   default_model: "yolo12s.pt"
   server_port: 8080
 
-# Dashboard configuration  
+# Dashboard configuration
 dashboard:
   url: "http://localhost:3000"

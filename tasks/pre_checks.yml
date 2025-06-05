@@ -1,6 +1,6 @@
 ---
 - name: Gather system facts
-  setup:
+  ansible.builtin.setup:
     gather_subset:
       - hardware
       - network
@@ -8,7 +8,7 @@
   tags: ["always"]
 
 - name: Set system facts
-  set_fact:
+  ansible.builtin.set_fact:
     memory_gb: "{{ ansible_memtotal_mb | int // 1024 }}"
     homebrew_prefix: "{{ (ansible_architecture == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
     is_apple_silicon: "{{ ansible_architecture == 'arm64' }}"
@@ -16,7 +16,7 @@
   tags: ["always"]
 
 - name: Verify system requirements
-  assert:
+  ansible.builtin.assert:
     that:
       - ansible_distribution == "MacOSX"
       - ansible_architecture == "arm64"
@@ -28,7 +28,7 @@
   tags: ["always"]
 
 - name: Debug system information
-  debug:
+  ansible.builtin.debug:
     msg: |
       System Information:
       - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}

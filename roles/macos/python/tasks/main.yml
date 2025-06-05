@@ -1,6 +1,8 @@
 ---
 # Install and configure pyenv and Python
 - name: Configure pyenv and Python
+  when: configure.pyenv | bool
+  # This entire block will only run if configure.pyenv is set to true in default.config.yml
   block:
     # Check if pyenv is already installed
     - name: Check if pyenv is installed
@@ -14,7 +16,7 @@
         repo: https://github.com/pyenv/pyenv.git
         dest: "{{ ansible_env.HOME }}/.pyenv"
         version: master
-        update: yes
+        update: true
       when: not pyenv_install.stat.exists
 
     # Add pyenv to PATH
@@ -22,18 +24,18 @@
       ansible.builtin.lineinfile:
         dest: "{{ ansible_env.HOME }}/.bash_profile"
         line: 'export PATH="$HOME/.pyenv/bin:$PATH"'
-        create: yes
+        create: true
 
     # Initialize pyenv
     - name: Initialize pyenv
       ansible.builtin.lineinfile:
         dest: "{{ ansible_env.HOME }}/.bash_profile"
         line: 'eval "$(pyenv init -)"'
-        create: yes
+        create: true
 
     # Check if Python version is installed
     - name: Check if Python version is installed
-      shell: |
+      ansible.builtin.shell: |
         export PYENV_ROOT="$HOME/.pyenv"
         export PATH="$PYENV_ROOT/bin:$PATH"
         eval "$($PYENV_ROOT/bin/pyenv init -)"
@@ -43,7 +45,7 @@
 
     # Install Python version
     - name: Install Python version
-      shell: |
+      ansible.builtin.shell: |
         export PYENV_ROOT="$HOME/.pyenv"
         export PATH="$PYENV_ROOT/bin:$PATH"
         eval "$($PYENV_ROOT/bin/pyenv init -)"
@@ -52,7 +54,7 @@
 
     # Set global Python version
     - name: Set global Python version
-      shell: |
+      ansible.builtin.shell: |
         export PYENV_ROOT="$HOME/.pyenv"
         export PATH="$PYENV_ROOT/bin:$PATH"
         eval "$($PYENV_ROOT/bin/pyenv init -)"
@@ -70,27 +72,24 @@
       args:
         executable: /bin/bash
       when: pyenv_set_global.changed | default(false)
-    
+
     # Install uv - modern Python package manager
     - name: Check if uv is installed
       ansible.builtin.command: which uv
       register: uv_check
       changed_when: false
       failed_when: false
-      
+
     - name: Install uv via curl
       ansible.builtin.shell: |
         curl -fsSL https://astral.sh/uv/install.sh | sh
       args:
         executable: /bin/bash
       when: uv_check.rc != 0
-      
+
     - name: Add uv to PATH
       ansible.builtin.lineinfile:
         dest: "{{ ansible_env.HOME }}/.bash_profile"
         line: 'export PATH="$HOME/.cargo/bin:$PATH"'
-        create: yes
+        create: true
       when: uv_check.rc != 0
-
-  when: configure.pyenv | bool
-  # This entire block will only run if configure.pyenv is set to true in default.config.yml

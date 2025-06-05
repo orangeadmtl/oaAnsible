@@ -37,7 +37,6 @@ dns:
   enable_magic_dns: true
   preserve_dhcp_dns: true
   tailscale_servers: ["100.100.100.100"]
-
 # Shell Configuration
 # -----------------
 shell_config:

@@ -1,10 +1,11 @@
 ---
 - name: Restart tailscaled if changed
-  command: launchctl kickstart -k system/com.tailscale.tailscaled
+  ansible.builtin.command: launchctl kickstart -k system/com.tailscale.tailscaled
   become: true
   listen: "Restart tailscaled if changed"
 
 - name: Suggest reboot for new Tailscale install/config
-  debug:
-    msg: "Tailscale was newly installed or reconfigured. If you encounter firewall prompts or issues, a reboot of the target Mac ({{ inventory_hostname }}) is recommended to ensure all system network filters and services are correctly initialized."
+  ansible.builtin.debug:
+    msg: "Tailscale was newly installed or reconfigured. If you encounter firewall prompts or issues, a reboot of the target Mac ({{ inventory_hostname }}) is recommended
+      to ensure all system network filters and services are correctly initialized."
   listen: "Suggest reboot for new Tailscale install/config"

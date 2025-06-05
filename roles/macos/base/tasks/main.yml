@@ -3,12 +3,12 @@
 - name: Configure shell environment
   block:
     - name: Get default shell
-      command: dscl . -read /Users/{{ ansible_user }} UserShell
+      ansible.builtin.command: dscl . -read /Users/{{ ansible_user }} UserShell
       register: user_shell_info
       changed_when: false
 
     - name: Set shell configuration facts
-      set_fact:
+      ansible.builtin.set_fact:
         shell_config:
           zsh:
             profile_file: .zprofile
@@ -18,13 +18,13 @@
             rc_file: .bash_profile
 
     - name: Set shell-specific facts
-      set_fact:
+      ansible.builtin.set_fact:
         user_shell: "{{ user_shell_info.stdout.split('/')[-1] }}"
         shell_profile: "{{ ansible_env.HOME }}/{{ shell_config[user_shell_info.stdout.split('/')[-1]].profile_file }}"
         shell_rc: "{{ ansible_env.HOME }}/{{ shell_config[user_shell_info.stdout.split('/')[-1]].rc_file }}"
 
     - name: Ensure shell configuration files exist
-      file:
+      ansible.builtin.file:
         path: "{{ item }}"
         state: touch
         mode: "0644"
@@ -33,7 +33,7 @@
         - "{{ shell_rc }}"
 
     - name: Configure shell environment
-      blockinfile:
+      ansible.builtin.blockinfile:
         path: "{{ item.path }}"
         marker: "# {mark} ANSIBLE MANAGED BLOCK - {{ item.name }}"
         block: "{{ item.content }}"
@@ -71,7 +71,7 @@
 # Configure passwordless sudo for the ansible_user (admin)
 - name: Ensure ansible_user can sudo without a password
   become: true # This task itself needs sudo to modify /etc/sudoers
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/sudoers
     state: present
     regexp: "^{{ ansible_user }} ALL="

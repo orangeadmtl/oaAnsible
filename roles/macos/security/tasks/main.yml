@@ -4,26 +4,26 @@
 - name: Configure macOS Firewall
   block:
     - name: Enable macOS Firewall
-      command: /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
+      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
       become: true
       register: firewall_global_state_result
       # Changed if it wasn't already on. stdout for "on" can be "Firewall is enabled. (State = 1)" or just empty if already on.
       # stderr might say "Firewall already enabled." if it was already on.
       changed_when: >
-        firewall_global_state_result.rc == 0 and 
+        firewall_global_state_result.rc == 0 and
         "already enabled" not in (firewall_global_state_result.stderr | default('')) and
         "Firewall is enabled" not in (firewall_global_state_result.stdout | default(''))
       failed_when: false # Don't fail if it's already on or other benign messages
 
     - name: Allow SSH connections
-      command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/sbin/sshd
+      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/sbin/sshd
       become: true
       register: ssh_firewall_result
       changed_when: "'already has a rule' not in (ssh_firewall_result.stdout | default('') + ssh_firewall_result.stderr | default(''))"
       failed_when: false
 
     - name: Allow Tailscale CLI App (if exists, for user interactions)
-      command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /Applications/Tailscale.app
+      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /Applications/Tailscale.app
       become: true
       register: tailscale_app_firewall_result
       changed_when: "'already has a rule' not in (tailscale_app_firewall_result.stdout | default('') + tailscale_app_firewall_result.stderr | default(''))"
@@ -31,22 +31,23 @@
       ignore_errors: true # Path might not exist if only daemon is used
 
     - name: Allow Tailscale Daemon (tailscaled)
-      command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/local/bin/tailscaled
+      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/local/bin/tailscaled
       become: true
       register: tailscaled_firewall_result
       changed_when: "'already has a rule' not in (tailscaled_firewall_result.stdout | default('') + tailscaled_firewall_result.stderr | default(''))"
       failed_when: false # Don't fail, but we need it to succeed
 
     - name: Unblock Tailscale Daemon (tailscaled) - ensures it's allowed if previously blocked
-      command: /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /usr/local/bin/tailscaled
+      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /usr/local/bin/tailscaled
       become: true
       register: tailscaled_unblock_result
-      changed_when: tailscaled_unblock_result.rc == 0 and "not blocked" not in (tailscaled_unblock_result.stdout | default('') + tailscaled_unblock_result.stderr | default(''))
+      changed_when: tailscaled_unblock_result.rc == 0 and "not blocked" not in (tailscaled_unblock_result.stdout | default('') + tailscaled_unblock_result.stderr
+        | default(''))
       failed_when: false
       ignore_errors: true # It's okay if it wasn't blocked
 
     - name: Allow macOS API (Python)
-      command: /usr/libexec/ApplicationFirewall/socketfilterfw --add {{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3
+      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add {{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3
       become: true
       register: api_firewall_result
       changed_when: "'already has a rule' not in (api_firewall_result.stdout | default('') + api_firewall_result.stderr | default(''))"
@@ -54,7 +55,7 @@
       ignore_errors: true # Path might not exist until deployment
 
     - name: Restart Firewall Service to apply changes (macOS 10.15 Catalina and earlier)
-      command: pkill -HUP socketfilterfw # Sends HUP signal to reload config
+      ansible.builtin.command: pkill -HUP socketfilterfw # Sends HUP signal to reload config
       become: true
       changed_when: false # This action itself doesn't indicate a config change, the rules do
       ignore_errors: true
@@ -66,35 +67,35 @@
       # If issues persist, a more forceful "kickstart" or even a temporary disable/enable might be needed,
       # but this can be disruptive. Let's assume --add and --unblockapp are sufficient for now.
       # A reboot after provisioning is the most foolproof way if prompts persist.
-      debug:
+      ansible.builtin.debug:
         msg: "Firewall rules updated. A reboot may be required for all changes to take full effect without prompts on macOS Big Sur or newer."
       when: ansible_distribution_version is version('11.0', '>=')
 
 - name: Configure screen lock after inactivity
   block:
     - name: Require password after screen saver
-      command: defaults write com.apple.screensaver askForPassword -int 1
+      ansible.builtin.command: defaults write com.apple.screensaver askForPassword -int 1
       become: true
 
     - name: Set password delay to 5 seconds
-      command: defaults write com.apple.screensaver askForPasswordDelay -int 5
+      ansible.builtin.command: defaults write com.apple.screensaver askForPasswordDelay -int 5
       become: true
 
 - name: Check FileVault status
-  command: fdesetup status
+  ansible.builtin.command: fdesetup status
   register: filevault_status
   changed_when: false
   failed_when: false
   become: true
 
 - name: Display FileVault status
-  debug:
+  ansible.builtin.debug:
     msg: "FileVault status: {{ filevault_status.stdout }}"
 
 - name: Configure Gatekeeper settings
   block:
     - name: Enable Gatekeeper
-      command: spctl --master-enable
+      ansible.builtin.command: spctl --master-enable
       become: true
       register: gatekeeper_result
       changed_when: false # This command is idempotent in effect
@@ -105,19 +106,19 @@
     # 'spctl --master-enable' usually defaults to "App Store and identified developers".
     # We can verify the current setting if needed.
     - name: Check Gatekeeper current assessment source setting
-      command: spctl --status
+      ansible.builtin.command: spctl --status
       register: gatekeeper_status_check
       changed_when: false
       become: true
 
     - name: Display Gatekeeper status
-      debug:
+      ansible.builtin.debug:
         msg: "Gatekeeper status: {{ gatekeeper_status_check.stdout }}"
 
 - name: Configure basic password policies
   block:
     - name: Set minimum password length
-      command: pwpolicy -n /Local/Default -setglobalpolicy "minChars=8"
+      ansible.builtin.command: pwpolicy -n /Local/Default -setglobalpolicy "minChars=8"
       become: true
       register: pwpolicy_result
       changed_when: false # Idempotent if already set
@@ -125,7 +126,7 @@
       ignore_errors: true # This might require additional authentication
 
     - name: Display password policy result
-      debug:
+      ansible.builtin.debug:
         msg: "Password policy result: {{ pwpolicy_result.stdout | default('Command may require interactive authentication or no change made') }}"
       when: pwpolicy_result is defined
 

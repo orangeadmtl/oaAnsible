@@ -1,47 +1,50 @@
 ---
 - name: Manage DNS Configuration
+  become: true
+  tags: ["dns", "network", "tailscale"]
   block:
     - name: Get network interface information
-      shell: "route -n get default | grep interface | awk '{print $2}'"
+      ansible.builtin.shell: "route -n get default | grep interface | awk '{print $2}'"
       register: network_interface_info
       changed_when: false
 
     - name: Set network interface fact
-      set_fact:
+      ansible.builtin.set_fact:
         primary_interface: "{{ network_interface_info.stdout }}"
 
     - name: Get network service list
-      shell: "networksetup -listallnetworkservices | grep -v '*'"
+      ansible.builtin.shell: "networksetup -listallnetworkservices | grep -v '*'"
       register: network_services
       changed_when: false
 
     - name: Get hardware port for each service
-      shell: "networksetup -listnetworkserviceorder | grep -B 1 'Device: {{ primary_interface }}' | head -n 1 | awk -F') ' '{print $2}'"
+      ansible.builtin.shell: "networksetup -listnetworkserviceorder | grep -B 1 'Device: {{ primary_interface }}' | head -n 1 | awk -F') ' '{print $2}'"
       register: network_service_name
       changed_when: false
 
     - name: Set network service fact
-      set_fact:
+      ansible.builtin.set_fact:
         primary_service: "{{ network_service_name.stdout }}"
 
     - name: Get current DNS configuration
-      command: networksetup -getdnsservers "{{ primary_service }}"
+      ansible.builtin.command: networksetup -getdnsservers "{{ primary_service }}"
       register: current_dns
       changed_when: false
       ignore_errors: true
 
     - name: Get DHCP DNS information
-      command: ipconfig getpacket "{{ primary_interface }}"
+      ansible.builtin.command: ipconfig getpacket "{{ primary_interface }}"
       register: dhcp_info
       changed_when: false
 
     - name: Set DHCP DNS servers fact
-      set_fact:
+      ansible.builtin.set_fact:
         # Correctly assign a list by letting Jinja2 directly return the list structure
-        dhcp_dns_servers_list: "{% set dns_raw = dhcp_info.stdout | regex_findall('domain_name_server \\(ip_mult\\): \\{([^\\}]*)\\}') %}{% if dns_raw and dns_raw[0] %}{{ dns_raw[0].split(',') | map('trim') | map('regex_replace', '[{}]', '') | list }}{% else %}[]{% endif %}"
+        dhcp_dns_servers_list: "{% set dns_raw = dhcp_info.stdout | regex_findall('domain_name_server \\(ip_mult\\): \\{([^\\}]*)\\}') %}{% if dns_raw and dns_raw[0]
+          %}{{ dns_raw[0].split(',') | map('trim') | map('regex_replace', '[{}]', '') | list }}{% else %}[]{% endif %}"
 
     - name: Define fallback public DNS servers
-      set_fact:
+      ansible.builtin.set_fact:
         public_dns_servers:
           - "1.1.1.1"
           - "8.8.8.8"
@@ -50,18 +53,15 @@
       vars:
         final_dns_list: >-
           {{ (dhcp_dns_servers_list + public_dns_servers + (dns.tailscale_servers | default([]))) | unique | list }}
-      command: >-
+      ansible.builtin.command: >-
         networksetup -setdnsservers "{{ primary_service }}" {{ final_dns_list | join(' ') }}
       when: configure.tailscale | bool and final_dns_list | length > 0
       register: dns_result
       changed_when: dns_result.rc == 0 and (current_dns.stdout_lines | default([]) | join(' ') != final_dns_list | join(' '))
 
     - name: Store original DNS configuration (from DHCP if available)
-      copy:
+      ansible.builtin.copy:
         content: "{{ dhcp_dns_servers_list | join('\\n') }}"
         dest: "{{ ansible_env.HOME }}/.dns_backup_dhcp"
         mode: "0600"
       when: configure.tailscale | bool and dhcp_dns_servers_list | length > 0
-
-  become: true
-  tags: ["dns", "network", "tailscale"]

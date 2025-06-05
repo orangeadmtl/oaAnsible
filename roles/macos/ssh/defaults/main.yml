@@ -4,7 +4,7 @@
 ssh:
   # Whether to deploy the SSH key from vault to authorized_keys
   deploy_key: true
-  
+
   # SSH configuration settings
   config:
     enable: true

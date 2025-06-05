@@ -4,14 +4,14 @@
 - name: Configure system preferences
   block:
     - name: Disable guest user
-      command: |
+      ansible.builtin.command: |
         defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool NO
       become: true
       register: guest_result
       changed_when: false
 
     - name: Set time zone to America/New_York
-      command: |
+      ansible.builtin.command: |
         systemsetup -settimezone America/New_York
       become: true
       register: timezone_result
@@ -19,7 +19,7 @@
       failed_when: false
 
     - name: Enable remote login (SSH)
-      command: |
+      ansible.builtin.command: |
         systemsetup -setremotelogin on
       become: true
       register: ssh_result
@@ -27,7 +27,7 @@
       failed_when: false
 
     - name: Disable sleep mode
-      command: |
+      ansible.builtin.command: |
         systemsetup -setsleep Never
       become: true
       register: sleep_result
@@ -35,7 +35,7 @@
       failed_when: false
 
     - name: Disable display sleep
-      command: |
+      ansible.builtin.command: |
         systemsetup -setdisplaysleep Never
       become: true
       register: display_sleep_result
@@ -43,7 +43,7 @@
       failed_when: false
 
     - name: Disable hard disk sleep
-      command: |
+      ansible.builtin.command: |
         systemsetup -setharddisksleep Never
       become: true
       register: disk_sleep_result
@@ -51,7 +51,7 @@
       failed_when: false
 
     - name: Set restart on power failure
-      command: |
+      ansible.builtin.command: |
         systemsetup -setrestartpowerfailure on
       become: true
       register: power_failure_result
@@ -59,7 +59,7 @@
       failed_when: false
 
     - name: Set restart on freeze
-      command: |
+      ansible.builtin.command: |
         systemsetup -setrestartfreeze on
       become: true
       register: freeze_result
@@ -69,12 +69,12 @@
 - name: Set hostname if not matching inventory
   block:
     - name: Get current hostname
-      command: hostname
+      ansible.builtin.command: hostname
       register: current_hostname
       changed_when: false
 
     - name: Set hostname to match inventory
-      command: |
+      ansible.builtin.command: |
         scutil --set HostName {{ inventory_hostname }}
       become: true
       when: current_hostname.stdout != inventory_hostname
@@ -82,7 +82,7 @@
       changed_when: hostname_result.rc == 0
 
     - name: Set ComputerName to match inventory
-      command: |
+      ansible.builtin.command: |
         scutil --set ComputerName {{ inventory_hostname }}
       become: true
       when: current_hostname.stdout != inventory_hostname
@@ -90,7 +90,7 @@
       changed_when: computername_result.rc == 0
 
     - name: Set LocalHostName to match inventory
-      command: |
+      ansible.builtin.command: |
         scutil --set LocalHostName {{ inventory_hostname }}
       become: true
       when: current_hostname.stdout != inventory_hostname
@@ -100,32 +100,32 @@
 - name: Configure daily reboot
   block:
     - name: Ensure log directory exists
-      file:
+      ansible.builtin.file:
         path: /var/log/orangead
         state: directory
         owner: root
         group: wheel
-        mode: '0755'
+        mode: "0755"
       become: true
 
     - name: Create daily reboot launchd plist
-      template:
+      ansible.builtin.template:
         src: com.orangead.dailyreboot.plist.j2
         dest: /Library/LaunchDaemons/com.orangead.dailyreboot.plist
         owner: root
         group: wheel
-        mode: '0644'
+        mode: "0644"
       become: true
       register: daily_reboot_plist
 
     - name: Unload existing daily reboot service if it exists and changed
-      command: launchctl unload /Library/LaunchDaemons/com.orangead.dailyreboot.plist
+      ansible.builtin.command: launchctl unload /Library/LaunchDaemons/com.orangead.dailyreboot.plist
       become: true
       failed_when: false
       changed_when: false
       when: daily_reboot_plist.changed
 
     - name: Load daily reboot service
-      command: launchctl load /Library/LaunchDaemons/com.orangead.dailyreboot.plist
+      ansible.builtin.command: launchctl load /Library/LaunchDaemons/com.orangead.dailyreboot.plist
       become: true
       when: daily_reboot_plist.changed

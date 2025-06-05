@@ -2,17 +2,17 @@
 - name: Deploy macOS API
   hosts: macos
   gather_facts: true
-  
+
   roles:
     - role: macos/security
       tags: [security, camera_permissions]
-  
+
   tasks:
     - name: Ensure orangead directories exist in user's home
-      file:
+      ansible.builtin.file:
         path: "{{ item }}"
         state: directory
-        mode: '0755'
+        mode: "0755"
         owner: "{{ ansible_user }}"
         group: staff
       loop:
@@ -20,18 +20,18 @@
         - "{{ ansible_user_dir }}/orangead/macos-api"
         - "{{ ansible_user_dir }}/orangead/macos-api/logs"
       become: true
-    
+
     - name: Copy macOS API files
-      copy:
+      ansible.builtin.copy:
         src: "{{ playbook_dir }}/macos-api/"
         dest: "{{ ansible_user_dir }}/orangead/macos-api/"
         owner: "{{ ansible_user }}"
         group: staff
-        mode: '0755'
+        mode: "0755"
       become: true
-    
+
     - name: Create Python virtual environment
-      shell: |
+      ansible.builtin.shell: |
         cd {{ ansible_user_dir }}/orangead/macos-api
         python3 -m venv .venv
         source .venv/bin/activate
@@ -40,18 +40,18 @@
         creates: "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/activate"
       become: true
       become_user: "{{ ansible_user }}"
-    
+
     # No longer creating a separate user - using ansible_user instead
-    
+
     - name: Create launchd plist for macOS API
-      template:
+      ansible.builtin.template:
         src: roles/macos/api/templates/com.orangead.macosapi.plist.j2
         dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist"
         owner: "{{ ansible_user }}"
         group: staff
-        mode: '0644'
+        mode: "0644"
       become: false
-    
+
     # Screenshot functionality has been removed
     # - name: Ensure screenshot directory exists
     #   file:
@@ -61,12 +61,12 @@
     #     owner: "{{ ansible_user }}"
     #     group: staff
     #   become: true
-    
+
     - name: Unload macOS API service if already loaded
-      command: launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
+      ansible.builtin.command: launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
       become: false
-      ignore_errors: true  # In case it's not loaded
-      
+      ignore_errors: true # In case it's not loaded
+
     - name: Load macOS API service
-      command: launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
+      ansible.builtin.command: launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
       become: false

@@ -5,31 +5,31 @@
     state: latest
 
 - name: Define homebrew_prefix for this role
-  set_fact:
+  ansible.builtin.set_fact:
     _homebrew_prefix: "{{ (ansible_architecture == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
 
 - name: Set Go environment variables
   block:
     - name: Get Go environment
-      command: "{{ _homebrew_prefix }}/bin/go env GOPATH"
+      ansible.builtin.command: "{{ _homebrew_prefix }}/bin/go env GOPATH"
       register: go_path
       changed_when: false
       environment:
         PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
 
     - name: Set Go binary path fact
-      set_fact:
+      ansible.builtin.set_fact:
         go_bin_path_for_tailscale: "{{ ansible_env.HOME }}/go/bin"
         go_executable_path: "{{ _homebrew_prefix }}/bin/go"
 
     - name: Ensure Go binary path for Tailscale exists
-      file:
+      ansible.builtin.file:
         path: "{{ go_bin_path_for_tailscale }}"
         state: directory
         mode: "0755"
 
 - name: Get user ID for Tailscale service management
-  ansible.builtin.shell: "id -u {{ ansible_user }}"
+  ansible.builtin.command: "id -u {{ ansible_user }}"
   register: user_id_result
   changed_when: false
   failed_when: false
@@ -44,19 +44,19 @@
   when: user_id_result.rc == 0 and user_id_result.stdout != ""
 
 - name: Remove user-level Tailscale plist if it exists
-  file:
+  ansible.builtin.file:
     path: "/Users/{{ ansible_user }}/Library/LaunchAgents/homebrew.mxcl.tailscale.plist"
     state: absent
   become: true # Ensure root can delete it even if perms are weird
 
 - name: Pre-cleanup - Stop and remove any existing system-level Tailscale daemon service definition
-  command: launchctl bootout system /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+  ansible.builtin.command: launchctl bootout system /Library/LaunchDaemons/com.tailscale.tailscaled.plist
   become: true
   ignore_errors: true
   changed_when: false
 
 - name: Pre-cleanup - Remove existing system-level Tailscale daemon plist file
-  file:
+  ansible.builtin.file:
     path: /Library/LaunchDaemons/com.tailscale.tailscaled.plist
     state: absent
   become: true
@@ -68,7 +68,7 @@
   changed_when: false
 
 - name: Pre-cleanup - Kill any lingering tailscaled processes
-  ansible.builtin.shell: pkill tailscaled
+  ansible.builtin.command: pkill tailscaled
   become: true
   register: tailscaled_kill_result
   failed_when: false
@@ -76,20 +76,20 @@
   when: tailscaled_process_check.stdout != "not_running"
 
 - name: Pre-cleanup - Remove Tailscale.app if it exists (from old Cask install)
-  file:
+  ansible.builtin.file:
     path: /Applications/Tailscale.app
     state: absent
   become: true
 
 # Install/Update tailscale binary
 - name: Get checksum of existing tailscale binary (if any)
-  command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscale"
+  ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscale"
   register: tailscale_checksum_before
   ignore_errors: true
   changed_when: false
 
 - name: Install/Update tailscale binary using Go
-  command: "{{ go_executable_path }} install tailscale.com/cmd/tailscale@latest"
+  ansible.builtin.command: "{{ go_executable_path }} install tailscale.com/cmd/tailscale@latest"
   environment:
     GOPATH: "{{ ansible_env.HOME }}/go"
     GOBIN: "{{ go_bin_path_for_tailscale }}"
@@ -100,13 +100,13 @@
   failed_when: tailscale_go_install_result.rc != 0
 
 - name: Get checksum of tailscale binary after install/update
-  command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscale"
+  ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscale"
   register: tailscale_checksum_after
   ignore_errors: true
   changed_when: false
 
 - name: Set fact for tailscale binary change
-  set_fact:
+  ansible.builtin.set_fact:
     tailscale_binary_changed: >-
       {{ ((tailscale_checksum_before.stdout | default('')).split(' ')[0] !=
           (tailscale_checksum_after.stdout | default('')).split(' ')[0]) or
@@ -115,13 +115,13 @@
 
 # Install/Update tailscaled binary
 - name: Get checksum of existing tailscaled binary (if any)
-  command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscaled"
+  ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscaled"
   register: tailscaled_checksum_before
   ignore_errors: true
   changed_when: false
 
 - name: Install/Update tailscaled binary using Go
-  command: "{{ go_executable_path }} install tailscale.com/cmd/tailscaled@latest"
+  ansible.builtin.command: "{{ go_executable_path }} install tailscale.com/cmd/tailscaled@latest"
   environment:
     GOPATH: "{{ ansible_env.HOME }}/go"
     GOBIN: "{{ go_bin_path_for_tailscale }}"
@@ -132,13 +132,13 @@
   failed_when: tailscaled_go_install_result.rc != 0
 
 - name: Get checksum of tailscaled binary after install/update
-  command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscaled"
+  ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscaled"
   register: tailscaled_checksum_after
   ignore_errors: true
   changed_when: false
 
 - name: Set fact for tailscaled binary change
-  set_fact:
+  ansible.builtin.set_fact:
     tailscaled_binary_changed: >-
       {{ ((tailscaled_checksum_before.stdout | default('')).split(' ')[0] !=
           (tailscaled_checksum_after.stdout | default('')).split(' ')[0]) or
@@ -146,7 +146,7 @@
   when: tailscaled_go_install_result.rc == 0
 
 - name: Check if source files for symlinks exist
-  stat:
+  ansible.builtin.stat:
     path: "{{ go_bin_path_for_tailscale }}/{{ item }}"
   loop:
     - tailscale
@@ -154,24 +154,24 @@
   register: tailscale_binaries_stat_check
 
 - name: Ensure /usr/local/bin directory exists
-  file:
+  ansible.builtin.file:
     path: /usr/local/bin
     state: directory
-    mode: '0755'
+    mode: "0755"
   become: true
 
 - name: Create symlinks in /usr/local/bin for easier access
-  file:
+  ansible.builtin.file:
     src: "{{ go_bin_path_for_tailscale }}/{{ item.item }}"
     dest: "/usr/local/bin/{{ item.item }}"
     state: link
-    force: yes
+    force: true
   loop: "{{ tailscale_binaries_stat_check.results }}"
   when: item.stat.exists
   become: true
 
 - name: Ensure Tailscale operational directories exist
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     state: directory
     owner: root
@@ -184,13 +184,13 @@
   become: true
 
 - name: Check if Tailscale daemon plist exists
-  stat:
+  ansible.builtin.stat:
     path: /Library/LaunchDaemons/com.tailscale.tailscaled.plist
   register: tailscale_plist_exists
   become: true
 
 - name: Install Tailscale system daemon
-  command: /usr/local/bin/tailscaled install-system-daemon
+  ansible.builtin.command: /usr/local/bin/tailscaled install-system-daemon
   become: true # sudo is required
   register: tailscale_daemon_installed
   changed_when: tailscale_daemon_installed.rc == 0
@@ -199,18 +199,18 @@
 
 # Ensure the service is enabled and loaded
 - name: Ensure tailscaled service is enabled
-  command: launchctl enable system/com.tailscale.tailscaled
+  ansible.builtin.command: launchctl enable system/com.tailscale.tailscaled
   become: true
   changed_when: false # This just ensures it's enabled, doesn't mean it changed state now
 
 - name: Ensure tailscaled service is loaded
-  command: launchctl load -w /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+  ansible.builtin.command: launchctl load -w /Library/LaunchDaemons/com.tailscale.tailscaled.plist
   become: true
   changed_when: false # Loading an already loaded service is not a change
   ignore_errors: true # It might already be loaded by RunAtLoad
 
 - name: Wait for Tailscale daemon to be ready (CRITICAL)
-  wait_for:
+  ansible.builtin.wait_for:
     path: /var/run/tailscaled.socket
     state: present
     timeout: 30
@@ -219,7 +219,7 @@
 
 # Check current Tailscale status using JSON output for better parsing
 - name: Check current Tailscale status
-  command: /usr/local/bin/tailscale status --json
+  ansible.builtin.command: /usr/local/bin/tailscale status --json
   register: ts_status_result
   changed_when: false
   failed_when: false # Don't fail if Tailscale isn't configured yet
@@ -228,14 +228,14 @@
 
 # Parse the JSON output to determine current state
 - name: Parse Tailscale status JSON
-  set_fact:
+  ansible.builtin.set_fact:
     ts_status_data: "{{ ts_status_result.stdout | from_json }}"
     ts_status_error: "{{ ts_status_result.rc != 0 or not ts_status_result.stdout }}"
   when: ts_status_result.stdout is defined and ts_status_result.stdout != ""
 
 # Determine if Tailscale is logged in and get current configuration
 - name: Determine current Tailscale state
-  set_fact:
+  ansible.builtin.set_fact:
     is_tailscale_logged_in: "{{ ts_status_data.Self is defined and ts_status_data.Self.Online | default(false) }}"
     current_ts_hostname: "{{ ts_status_data.Self.HostName | default('') }}"
     current_ts_tags: "{{ ts_status_data.Self.Tags | default([]) }}"
@@ -243,18 +243,18 @@
 
 # Define expected Tailscale tags for comparison
 - name: Define expected Tailscale tags
-  set_fact:
+  ansible.builtin.set_fact:
     expected_ts_tags_list: "{{ (vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker')).split(',') | map('trim') | sort }}"
 
 # Compare current tags with expected tags
 - name: Compare current tags with expected tags
-  set_fact:
+  ansible.builtin.set_fact:
     tags_are_correct: "{{ current_ts_tags | default([]) | map('trim') | sort == expected_ts_tags_list }}"
   when: is_tailscale_logged_in | default(false)
 
 # Decide if full 'tailscale up' is needed or just configuration changes
 - name: Decide if full 'tailscale up' is needed
-  set_fact:
+  ansible.builtin.set_fact:
     needs_full_tailscale_up: >-
       {{ not is_tailscale_logged_in | default(true) or
          current_ts_hostname | default('') != inventory_hostname or
@@ -263,7 +263,7 @@
 
 # Debug output to help understand the decision logic
 - name: Debug Tailscale decision logic
-  debug:
+  ansible.builtin.debug:
     msg: |
       is_tailscale_logged_in: {{ is_tailscale_logged_in | default('N/A') }}
       current_ts_hostname: {{ current_ts_hostname | default('N/A') }} vs inventory_hostname: {{ inventory_hostname }}
@@ -274,7 +274,7 @@
 
 # Scenario 1: Tailscale is logged in, but hostname is wrong
 - name: Correct Tailscale hostname if mismatched and already logged in
-  command: /usr/local/bin/tailscale set --hostname={{ inventory_hostname }}
+  ansible.builtin.command: /usr/local/bin/tailscale set --hostname={{ inventory_hostname }}
   become: true
   when:
     - is_tailscale_logged_in | default(false)
@@ -285,7 +285,7 @@
 
 # Scenario 1: Tailscale is logged in, but tags are wrong
 - name: Correct Tailscale tags if mismatched and already logged in
-  command: /usr/local/bin/tailscale set --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }}
+  ansible.builtin.command: /usr/local/bin/tailscale set --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }}
   become: true
   when:
     - is_tailscale_logged_in | default(false)
@@ -296,7 +296,7 @@
 
 # Scenario 2: Try gentle authentication first without --force-reauth
 - name: Authenticate Tailscale if needed (gentle approach first)
-  command: >
+  ansible.builtin.command: >
     /usr/local/bin/tailscale up
     --authkey={{ vault_tailscale_auth_key }}
     --hostname={{ inventory_hostname }}
@@ -312,7 +312,7 @@
 
 # Scenario 3: If gentle approach fails, try with --force-reauth
 - name: Authenticate Tailscale with force-reauth if gentle approach failed
-  command: >
+  ansible.builtin.command: >
     /usr/local/bin/tailscale up
     --authkey={{ vault_tailscale_auth_key }}
     --hostname={{ inventory_hostname }}
@@ -323,7 +323,7 @@
     --reset
   become: true # Run as root to ensure it interacts with system daemon and has perms
   register: tailscale_up_force
-  when: 
+  when:
     - needs_full_tailscale_up | default(false)
     - tailscale_up_gentle.rc != 0
   changed_when: tailscale_up_force.rc == 0 and ('Success.' in tailscale_up_force.stdout or tailscale_up_force.stdout == "")
@@ -335,7 +335,7 @@
     not ('Success.' in tailscale_up_force.stdout or tailscale_up_force.stdout == "")
 
 - name: Verify Tailscale installation and get final status
-  command: /usr/local/bin/tailscale status --json
+  ansible.builtin.command: /usr/local/bin/tailscale status --json
   become: true # Run as root
   register: tailscale_final_status_json
   changed_when: false
@@ -343,12 +343,12 @@
   when: tailscale_socket_wait is succeeded
 
 - name: Parse final Tailscale status JSON
-  set_fact:
+  ansible.builtin.set_fact:
     final_ts_status_data: "{{ tailscale_final_status_json.stdout | from_json }}"
   when: tailscale_final_status_json.stdout is defined and tailscale_final_status_json.stdout != ""
 
 - name: Display final Tailscale connection status
-  debug:
+  ansible.builtin.debug:
     msg: |
       Tailscale Status: {{ final_ts_status_data.Self.Online | default(false) | ternary('Connected', 'Not Connected') }}
       Hostname: {{ final_ts_status_data.Self.HostName | default('Unknown') }}
@@ -358,17 +358,17 @@
 
 # Enable Tailscale SSH after confirming Tailscale is working properly
 - name: Check if Tailscale SSH is enabled
-  command: /usr/local/bin/tailscale status --ssh
+  ansible.builtin.command: /usr/local/bin/tailscale status --ssh
   become: true
   register: tailscale_ssh_status
   changed_when: false
   failed_when: false
-  when: 
+  when:
     - final_ts_status_data is defined
     - final_ts_status_data.Self.Online | default(false)
 
 - name: Enable Tailscale SSH
-  command: /usr/local/bin/tailscale set --ssh
+  ansible.builtin.command: /usr/local/bin/tailscale set --ssh
   become: true
   register: tailscale_ssh_enabled
   changed_when: tailscale_ssh_enabled.rc == 0
@@ -379,13 +379,13 @@
     - "'disabled' in tailscale_ssh_status.stdout"
 
 - name: Check for hostname duplication
-  debug:
+  ansible.builtin.debug:
     msg: |
-      WARNING: The Tailscale hostname ({{ final_ts_status_data.Self.HostName | default('Unknown') }}) 
-      does not match the expected hostname ({{ inventory_hostname }}). 
+      WARNING: The Tailscale hostname ({{ final_ts_status_data.Self.HostName | default('Unknown') }})
+      does not match the expected hostname ({{ inventory_hostname }}).
       This may indicate a hostname duplication issue in the Tailscale admin console.
       Consider cleaning up old nodes in the Tailscale admin console.
-  when: 
+  when:
     - final_ts_status_data is defined
     - final_ts_status_data.Self.HostName is defined
     - final_ts_status_data.Self.HostName != inventory_hostname

@@ -9,9 +9,9 @@
 
   pre_tasks:
     - name: Display development-only warning
-      debug:
+      ansible.builtin.debug:
         msg: |
-          DEVELOPMENT/STAGING USE ONLY 
+          DEVELOPMENT/STAGING USE ONLY
           ===============================
           This playbook is strictly for development and staging environments.
           DO NOT RUN THIS IN PRODUCTION!
@@ -27,18 +27,18 @@
           removing all components that would be installed by the main playbook.
 
     - name: Verify staging environment
-      fail:
+      ansible.builtin.fail:
         msg: "This playbook can only be run against staging environments"
       when: inventory_file is not regex('staging')
 
     - name: Confirm cleanup operation
-      pause:
+      ansible.builtin.pause:
         prompt: "Are you sure you want to proceed? Type 'yes' to continue"
       register: confirmation
       when: not ansible_check_mode
 
     - name: Fail if not confirmed
-      fail:
+      ansible.builtin.fail:
         msg: "Cleanup cancelled by user"
       when: not ansible_check_mode and confirmation.user_input != "yes"
 
@@ -46,7 +46,7 @@
     - name: Stop and remove Tailscale
       block:
         - name: Check if Tailscale is installed
-          command: "{{ homebrew_prefix }}/bin/brew list tailscale"
+          ansible.builtin.command: "{{ homebrew_prefix }}/bin/brew list tailscale"
           register: tailscale_check
           changed_when: false
           failed_when: false
@@ -54,77 +54,77 @@
             PATH: "{{ brew_path }}"
 
         - name: Stop Tailscale service
-          command: "{{ homebrew_prefix }}/bin/brew services stop tailscale"
+          ansible.builtin.command: "{{ homebrew_prefix }}/bin/brew services stop tailscale"
           when: tailscale_check.rc == 0
           environment:
             PATH: "{{ brew_path }}"
           ignore_errors: true
 
         - name: Uninstall Tailscale
-          command: "{{ homebrew_prefix }}/bin/brew uninstall tailscale"
+          ansible.builtin.command: "{{ homebrew_prefix }}/bin/brew uninstall tailscale"
           when: tailscale_check.rc == 0
           environment:
             PATH: "{{ brew_path }}"
           ignore_errors: true
 
         - name: Reset DNS settings
+          when: tailscale_check.rc == 0
+
           block:
             - name: Get active network interface
-              shell: |
+              ansible.builtin.shell: |
                 networksetup -listallnetworkservices | grep -v '*' | grep -i wi-fi || networksetup -listallnetworkservices | grep -v '*' | head -1
               register: active_interface
               changed_when: false
               become: true
 
             - name: Set interface fact
-              set_fact:
+              ansible.builtin.set_fact:
                 network_interface: "{{ active_interface.stdout_lines[0] | trim }}"
 
             - name: Get current DNS servers
-              command: networksetup -getdnsservers "{{ network_interface }}"
+              ansible.builtin.command: networksetup -getdnsservers "{{ network_interface }}"
               register: current_dns
               changed_when: false
               become: true
 
             - name: Reset DNS to empty
-              command: networksetup -setdnsservers "{{ network_interface }}" empty
+              ansible.builtin.command: networksetup -setdnsservers "{{ network_interface }}" empty
               become: true
 
             - name: Get network service info
-              shell: |
+              ansible.builtin.shell: |
                 networksetup -listallhardwareports | grep -A 1 "{{ network_interface }}" | grep Device | awk '{print $2}'
               register: network_device
               changed_when: false
               become: true
 
             - name: Get DHCP info for interface
-              command: ipconfig getpacket "{{ network_device.stdout }}"
+              ansible.builtin.command: ipconfig getpacket "{{ network_device.stdout }}"
               register: dhcp_info
               changed_when: false
               become: true
               when: network_device.stdout != ""
 
             - name: Extract DHCP DNS servers
-              set_fact:
+              ansible.builtin.set_fact:
                 dhcp_dns_servers: "{{ dhcp_info.stdout | regex_findall('domain_name_server[^\\n]*\\n\\s+([^\\n]*)') | first | split(' ') }}"
               when: dhcp_info is defined and dhcp_info.stdout != ""
 
-            - name: Restore DHCP DNS servers
-              command: networksetup -setdnsservers "{{ network_interface }}" {{ dhcp_dns_servers | join(' ') }}
-              when: dhcp_dns_servers is defined
+            - ansible.builtin.command: networksetup -setdnsservers "{{ network_interface }}" {{ dhcp_dns_servers | join(' ') }}
               become: true
-          when: tailscale_check.rc == 0
-
+              name: Restore DHCP DNS servers
+              when: dhcp_dns_servers is defined
     - name: Remove development tools
       block:
         - name: Remove pyenv
-          file:
+          ansible.builtin.file:
             path: "{{ ansible_env.HOME }}/.pyenv"
             state: absent
           ignore_errors: true
 
         - name: Remove nvm
-          file:
+          ansible.builtin.file:
             path: "{{ ansible_env.HOME }}/.nvm"
             state: absent
           ignore_errors: true
@@ -132,21 +132,21 @@
     - name: Remove Homebrew
       block:
         - name: Check if Homebrew exists
-          stat:
+          ansible.builtin.stat:
             path: "{{ homebrew_prefix }}/bin/brew"
           register: brew_check
 
         - name: Remove Homebrew (if exists)
           block:
             - name: Download Homebrew uninstall script
-              get_url:
+              ansible.builtin.get_url:
                 url: https://raw.githubusercontent.com/Homebrew/install/master/uninstall.sh
                 dest: /tmp/brew-uninstall.sh
                 mode: "0755"
               register: download_result
 
             - name: Execute Homebrew uninstall script
-              command: /bin/bash /tmp/brew-uninstall.sh --force
+              ansible.builtin.command: /bin/bash /tmp/brew-uninstall.sh --force
               environment:
                 NONINTERACTIVE: "1"
               become: true
@@ -156,7 +156,7 @@
 
         # Always try to remove directories, even if uninstall script fails
         - name: Remove Homebrew directories (final cleanup)
-          file:
+          ansible.builtin.file:
             path: "{{ item }}"
             state: absent
           with_items:
@@ -167,17 +167,17 @@
           become: true
 
         - name: Clean up uninstall script
-          file:
+          ansible.builtin.file:
             path: /tmp/brew-uninstall.sh
             state: absent
           ignore_errors: true
 
         - name: Display Homebrew cleanup status
-          debug:
+          ansible.builtin.debug:
             msg: "Homebrew {{ brew_check.stat.exists | ternary('was removed', 'was not present') }}"
 
     - name: Clean up shell configurations
-      blockinfile:
+      ansible.builtin.blockinfile:
         path: "{{ item }}"
         marker: "# {mark} ANSIBLE MANAGED BLOCK"
         state: absent
@@ -191,26 +191,26 @@
     - name: Clean up macOS API
       block:
         - name: Stop and unload macOS API service
-          command: launchctl unload -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
+          ansible.builtin.command: launchctl unload -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
           become: false
           ignore_errors: true
 
         - name: Remove macOS API launchd plist
-          file:
+          ansible.builtin.file:
             path: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist"
             state: absent
           become: false
           ignore_errors: true
 
         - name: Remove macOS API directory
-          file:
+          ansible.builtin.file:
             path: "{{ ansible_user_dir }}/orangead/macos-api"
             state: absent
           become: true
           ignore_errors: true
 
         - name: Remove screenshots directory
-          file:
+          ansible.builtin.file:
             path: /tmp/screenshots
             state: absent
           become: true
@@ -219,39 +219,39 @@
     - name: Revert macOS security settings
       block:
         - name: Disable password requirement after screen saver
-          command: defaults write com.apple.screensaver askForPassword -int 0
+          ansible.builtin.command: defaults write com.apple.screensaver askForPassword -int 0
           become: true
           ignore_errors: true
 
         - name: Reset Gatekeeper to default
-          command: spctl --master-enable
+          ansible.builtin.command: spctl --master-enable
           become: true
           ignore_errors: true
 
     - name: Revert macOS system settings
       block:
         - name: Enable guest user
-          command: defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool YES
+          ansible.builtin.command: defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool YES
           become: true
           ignore_errors: true
 
         - name: Reset sleep settings to default
-          command: systemsetup -setsleep 60
+          ansible.builtin.command: systemsetup -setsleep 60
           become: true
           ignore_errors: true
 
         - name: Reset display sleep to default
-          command: systemsetup -setdisplaysleep 15
+          ansible.builtin.command: systemsetup -setdisplaysleep 15
           become: true
           ignore_errors: true
 
         - name: Reset hard disk sleep to default
-          command: systemsetup -setharddisksleep 10
+          ansible.builtin.command: systemsetup -setharddisksleep 10
           become: true
           ignore_errors: true
 
     - name: Clean up temporary files
-      file:
+      ansible.builtin.file:
         path: "{{ item }}"
         state: absent
       with_items:
@@ -261,7 +261,7 @@
 
   post_tasks:
     - name: Display completion message
-      debug:
+      ansible.builtin.debug:
         msg: |
           Cleanup completed successfully!
           The system has been restored to a pre-installation state.

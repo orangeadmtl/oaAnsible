@@ -14,7 +14,7 @@
     state: directory
     owner: "{{ ansible_user }}"
     group: staff
-    mode: '0755'
+    mode: "0755"
   become: true
 
 - name: Ensure tracker data directory exists
@@ -23,7 +23,7 @@
     state: directory
     owner: "{{ ansible_user }}"
     group: staff
-    mode: '0755'
+    mode: "0755"
   become: true
 
 # Create a symbolic link to accommodate the hardcoded database path in flight_server.py
@@ -43,7 +43,7 @@
     state: directory
     owner: "{{ ansible_user }}"
     group: staff
-    mode: '0755'
+    mode: "0755"
   become: true
 
 # Copy project files
@@ -71,7 +71,7 @@
     state: directory
     owner: "{{ ansible_user }}"
     group: staff
-    mode: '0755'
+    mode: "0755"
   become: true
 
 - name: Copy YOLO model file
@@ -80,7 +80,7 @@
     dest: "{{ ansible_user_dir }}/orangead/tracker/models/yolo12s.pt"
     owner: "{{ ansible_user }}"
     group: staff
-    mode: '0644'
+    mode: "0644"
   become: true
   ignore_errors: true
 
@@ -99,7 +99,7 @@
     state: directory
     owner: "{{ ansible_user }}"
     group: staff
-    mode: '0755'
+    mode: "0755"
   loop:
     - "{{ ansible_user_dir }}/orangead/tracker/logs"
     - "{{ ansible_user_dir }}/orangead/tracker/data"
@@ -109,14 +109,14 @@
   ansible.builtin.file:
     path: "{{ item }}"
     state: file
-    mode: '0755'
+    mode: "0755"
     owner: "{{ ansible_user }}"
     group: staff
   loop:
     - "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python"
     - "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python3"
   become: true
-  ignore_errors: true  # In case the file doesn't exist yet
+  ignore_errors: true # In case the file doesn't exist yet
 
 # Use standardized Python version from group_vars
 - name: Set required Python version from group_vars
@@ -151,11 +151,8 @@
 - name: Set final Python version to use
   ansible.builtin.set_fact:
     final_python_version: >
-      {%- if python_version_available.stdout != "not_found" -%}
-      {{ tracker_python_version | trim }}
-      {%- else -%}
-      {{ closest_python_version.stdout | trim }}
-      {%- endif -%}
+      {%- if python_version_available.stdout != "not_found" -%} {{ tracker_python_version | trim }}{%- else -%} {{ closest_python_version.stdout | trim }}{%- endif
+      -%}
 
 - name: Debug final Python version
   ansible.builtin.debug:
@@ -319,7 +316,7 @@
       pyobjc-framework-AVFoundation; platform_system == "Darwin"
     owner: "{{ ansible_user }}"
     group: staff
-    mode: '0644'
+    mode: "0644"
   become: true
 
 - name: Try installing dependencies using uv with extracted requirements
@@ -358,7 +355,7 @@
     dest: "{{ ansible_user_dir }}/orangead/tracker/verify_dependencies.py"
     owner: "{{ ansible_user }}"
     group: staff
-    mode: '0755'
+    mode: "0755"
   become: true
 
 - name: Verify dependencies installation
@@ -381,15 +378,15 @@
     dest: "{{ ansible_user_dir }}/orangead/tracker/config.yaml"
     owner: "{{ ansible_user }}"
     group: staff
-    mode: '0644'
+    mode: "0644"
   become: true
 
 # Setup launchd service
 - name: Ensure LaunchAgents directory exists
-  file:
+  ansible.builtin.file:
     path: "{{ ansible_user_dir }}/Library/LaunchAgents"
     state: directory
-    mode: '0755'
+    mode: "0755"
     owner: "{{ ansible_user }}"
     group: staff
   become: true
@@ -400,7 +397,7 @@
     dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist"
     owner: "{{ ansible_user }}"
     group: staff
-    mode: '0644'
+    mode: "0644"
   become: false
   register: launchd_service
 

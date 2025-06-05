@@ -1,8 +1,8 @@
 ---
 # Handlers for macos_api role
 
-- name: reload macosapi service
-  shell: |
+- name: Reload macosapi service
+  ansible.builtin.shell: |
     launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist || true
     launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
   become: false

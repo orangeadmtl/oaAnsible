@@ -2,21 +2,21 @@
 # SSH key management tasks for macOS
 
 - name: Ensure .ssh directory exists
-  file:
+  ansible.builtin.file:
     path: "~/.ssh"
     state: directory
     mode: "0700"
   become: false # Should run as the ansible_user
 
 - name: Add SSH public key to authorized_keys
-  authorized_key:
-    user: "{{ ansible_user }}"
+  ansible.posix.authorized_key:
+    ansible.builtin.user: "{{ ansible_user }}"
     key: "{{ vault_ssh_public_key }}"
     state: present
   become: false # Should run as the ansible_user
 
 - name: Define a unique portion of the public key for verification
-  set_fact:
+  ansible.builtin.set_fact:
     # Extracts roughly the middle 60 characters of the Base64 part of an ssh-rsa key
     # This is more robust than grepping the whole key or just the comment
     public_key_fingerprint_segment: >-
@@ -24,7 +24,7 @@
   when: vault_ssh_public_key is defined and vault_ssh_public_key != ""
 
 - name: Verify SSH key was added
-  shell: "grep -F -- '{{ public_key_fingerprint_segment }}' ~/.ssh/authorized_keys"
+  ansible.builtin.command: "grep -F -- '{{ public_key_fingerprint_segment }}' ~/.ssh/authorized_keys"
   register: key_check
   changed_when: false
   failed_when: false # This task itself should not fail the playbook
@@ -32,16 +32,18 @@
   when: public_key_fingerprint_segment is defined and public_key_fingerprint_segment != "INVALID_KEY_FORMAT_IN_VAULT"
 
 - name: Show SSH key status
-  debug:
+  ansible.builtin.debug:
     msg: "SSH key successfully added to {{ inventory_hostname }} and verified in authorized_keys."
   when: key_check is defined and key_check.rc == 0
 
 - name: Show SSH key error or verification issue
-  debug:
-    msg: "SSH key was likely added by 'authorized_key' module, but 'grep' verification failed for host {{ inventory_hostname }}. Public key segment used for grep: '{{ public_key_fingerprint_segment | default('COULD_NOT_EXTRACT_SEGMENT') }}'. Please manually check ~/.ssh/authorized_keys on the target. Possible whitespace/format differences in vault vs. file."
+  ansible.builtin.debug:
+    msg: "SSH key was likely added by 'authorized_key' module, but 'grep' verification failed for host {{ inventory_hostname }}. Public key segment used for grep:
+      '{{ public_key_fingerprint_segment | default('COULD_NOT_EXTRACT_SEGMENT') }}'. Please manually check ~/.ssh/authorized_keys on the target. Possible whitespace/format
+      differences in vault vs. file."
   when: key_check is defined and key_check.rc != 0
 
 - name: Notify if public key segment could not be extracted
-  debug:
+  ansible.builtin.debug:
     msg: "Could not extract a public key segment for verification from 'vault_ssh_public_key'. Key might be missing or malformed in the vault."
   when: public_key_fingerprint_segment is not defined or public_key_fingerprint_segment == "INVALID_KEY_FORMAT_IN_VAULT"
