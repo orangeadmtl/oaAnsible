@@ -61,10 +61,26 @@ fi
 # --- End SSH Agent Key Loading ---
 
 log_info "Running Ansible playbook for staging environment..."
+
+# Check if this is the first run by looking for a flag file
+FIRST_RUN_FLAG="$OA_ANSIBLE_ROOT_DIR/.first_run_completed"
+SUDO_FLAG=""
+
+if [ ! -f "$FIRST_RUN_FLAG" ]; then
+  log_info "First-time setup detected. Will ask for sudo password."
+  SUDO_FLAG="--ask-become-pass"
+fi
+
 # ANSIBLE_CONFIG is set relative to the Ansible root, which ensure_ansible_root_dir should have handled.
-ANSIBLE_CONFIG=ansible.cfg ansible-playbook main.yml -i inventory/staging/hosts.yml "$@"
+ANSIBLE_CONFIG=ansible.cfg ansible-playbook main.yml -i inventory/staging/hosts.yml $SUDO_FLAG "$@"
 
 PLAYBOOK_EXIT_CODE=$?
+
+# If the playbook runs successfully, create the flag file to indicate first run is complete
+if [ $PLAYBOOK_EXIT_CODE -eq 0 ] && [ ! -f "$FIRST_RUN_FLAG" ]; then
+  touch "$FIRST_RUN_FLAG"
+  log_info "First-time setup completed successfully. Future runs will not require sudo password."
+fi
 
 if [ $PLAYBOOK_EXIT_CODE -eq 0 ]; then
   log_info "Ansible playbook completed successfully for staging."
