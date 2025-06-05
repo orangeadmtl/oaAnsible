@@ -13,3 +13,11 @@ vault_ssh_private_key: |
   # Your private key here
   -----END OPENSSH PRIVATE KEY-----
 vault_ssh_public_key: "ssh-rsa AAAAB3NzaC1yc2E... user@example.com"
+
+# Sudo passwords for each host
+vault_sudo_passwords:
+  b2: "password_for_b2"
+  b3: "password_for_b3"
+
+# Default sudo password (fallback if host-specific not found)
+vault_default_sudo_password: "default_password"
