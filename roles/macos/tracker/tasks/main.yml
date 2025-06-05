@@ -341,6 +341,15 @@
   become: true
 
 # Setup launchd service
+- name: Ensure LaunchAgents directory exists
+  file:
+    path: "{{ ansible_user_dir }}/Library/LaunchAgents"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: staff
+  become: true
+
 - name: Template launchd service file
   ansible.builtin.template:
     src: com.orangead.tracker.plist.j2
