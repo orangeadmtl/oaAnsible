@@ -153,6 +153,13 @@
     - tailscaled
   register: tailscale_binaries_stat_check
 
+- name: Ensure /usr/local/bin directory exists
+  file:
+    path: /usr/local/bin
+    state: directory
+    mode: '0755'
+  become: true
+
 - name: Create symlinks in /usr/local/bin for easier access
   file:
     src: "{{ go_bin_path_for_tailscale }}/{{ item.item }}"
