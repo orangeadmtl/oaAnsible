@@ -188,6 +188,40 @@
         - "{{ ansible_env.HOME }}/.bash_profile"
       ignore_errors: true
 
+    - name: Clean up legacy JPR services
+      block:
+        - name: Get list of JPR Launch Agents
+          ansible.builtin.shell: |
+            launchctl list | grep ca.jpr | awk '{print $3}' || true
+          register: jpr_agents
+          changed_when: false
+
+        - name: Get list of JPR Launch Daemons
+          ansible.builtin.shell: |
+            sudo launchctl list | grep ca.jpr | awk '{print $3}' || true
+          register: jpr_daemons
+          changed_when: false
+          become: true
+
+        - name: Unload and remove JPR Launch Agents
+          ansible.builtin.shell: |
+            launchctl unload "{{ ansible_env.HOME }}/Library/LaunchAgents/{{ item }}.plist" && rm "{{ ansible_env.HOME }}/Library/LaunchAgents/{{ item }}.plist"
+          loop: "{{ jpr_agents.stdout_lines }}"
+          when: jpr_agents.stdout_lines | length > 0
+          ignore_errors: true
+
+        - name: Unload and remove JPR Launch Daemons
+          ansible.builtin.shell: |
+            sudo launchctl unload "/Library/LaunchDaemons/{{ item }}.plist" && sudo rm "/Library/LaunchDaemons/{{ item }}.plist"
+          loop: "{{ jpr_daemons.stdout_lines }}"
+          when: jpr_daemons.stdout_lines | length > 0
+          become: true
+          ignore_errors: true
+
+        - name: Report JPR cleanup
+          ansible.builtin.debug:
+            msg: "Removed {{ jpr_agents.stdout_lines | length }} JPR agents and {{ jpr_daemons.stdout_lines | length }} JPR daemons"
+
     - name: Clean up macOS API
       block:
         - name: Stop and unload macOS API service
