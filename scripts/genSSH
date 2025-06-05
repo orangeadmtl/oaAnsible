@@ -35,16 +35,11 @@ if [ $# -eq 3 ]; then
   SSH_PASSWORD="$3"
   
   # Determine inventory and host alias based on IP
-  if [[ "$TARGET_CONNECT_HOST" == "192.168.64."* ]]; then
-    TARGET_INVENTORY_PATH="$OA_ANSIBLE_INVENTORY_DIR/staging/hosts.yml"
-    # Find the host alias for this IP
-    TARGET_HOST_ALIAS=$(yq e ".all.children.macos.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$TARGET_INVENTORY_PATH")
-    if [ -z "$TARGET_HOST_ALIAS" ] || [ "$TARGET_HOST_ALIAS" == "null" ]; then
-      log_error "No host found with IP $TARGET_CONNECT_HOST in staging inventory"
-      exit 1
-    fi
-  else
-    log_error "IP $TARGET_CONNECT_HOST not recognized. Expected staging IP (192.168.64.x)"
+  TARGET_INVENTORY_PATH="$OA_ANSIBLE_INVENTORY_DIR/staging/hosts.yml"
+  # Find the host alias for this IP
+  TARGET_HOST_ALIAS=$(yq e ".all.children.macos.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$TARGET_INVENTORY_PATH")
+  if [ -z "$TARGET_HOST_ALIAS" ] || [ "$TARGET_HOST_ALIAS" == "null" ]; then
+    log_error "No host found with IP $TARGET_CONNECT_HOST in staging inventory"
     exit 1
   fi
   
