@@ -1,6 +1,7 @@
 ---
 # Runtime versions
-# Python version is now dynamically detected from oaTracker/setup.sh
+python:
+  version: "3.11.11"
 node:
   version: "22.11.0"
 
