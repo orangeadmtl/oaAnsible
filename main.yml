@@ -51,9 +51,6 @@
     - role: macos/node
       tags: ["node", "dev"]
 
-    - role: macos/security # Firewall rules, including for tailscaled
-      tags: ["security", "configuration"]
-
     - role: macos/settings
       tags: ["settings", "configuration"]
 
@@ -62,6 +59,9 @@
 
     - role: macos/tracker
       tags: ["tracker", "services"]
+
+    - role: macos/security # Firewall rules, including for tailscaled - AFTER API/Tracker for camera permissions
+      tags: ["security", "configuration"]
 
   post_tasks:
     - name: Verify installation
