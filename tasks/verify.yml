@@ -10,7 +10,9 @@
 
         - name: Get Python version
           ansible.builtin.shell: |
-            source {{ shell_profile }}
+            export PYENV_ROOT="$HOME/.pyenv"
+            export PATH="$PYENV_ROOT/bin:$PATH"
+            eval "$($PYENV_ROOT/bin/pyenv init -)"
             pyenv version
           register: python_version
           changed_when: false
@@ -51,7 +53,8 @@
 
         - name: Get Node.js version
           ansible.builtin.shell: |
-            source {{ shell_profile }}
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             node --version
           register: node_version
           changed_when: false

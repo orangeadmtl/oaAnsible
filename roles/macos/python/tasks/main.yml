@@ -19,15 +19,38 @@
         update: true
       when: not pyenv_install.stat.exists
 
-    # Add pyenv to PATH
-    - name: Add pyenv to PATH
+    # Update pyenv to get latest Python versions
+    - name: Update pyenv
+      ansible.builtin.git:
+        repo: https://github.com/pyenv/pyenv.git
+        dest: "{{ ansible_env.HOME }}/.pyenv"
+        version: master
+        update: true
+      when: pyenv_install.stat.exists
+
+    # Add pyenv to PATH (zsh)
+    - name: Add pyenv to PATH in .zshrc
+      ansible.builtin.lineinfile:
+        dest: "{{ ansible_env.HOME }}/.zshrc"
+        line: 'export PATH="$HOME/.pyenv/bin:$PATH"'
+        create: true
+
+    # Initialize pyenv (zsh)
+    - name: Initialize pyenv in .zshrc
+      ansible.builtin.lineinfile:
+        dest: "{{ ansible_env.HOME }}/.zshrc"
+        line: 'eval "$(pyenv init -)"'
+        create: true
+
+    # Add pyenv to PATH (bash - for compatibility)
+    - name: Add pyenv to PATH in .bash_profile
       ansible.builtin.lineinfile:
         dest: "{{ ansible_env.HOME }}/.bash_profile"
         line: 'export PATH="$HOME/.pyenv/bin:$PATH"'
         create: true
 
-    # Initialize pyenv
-    - name: Initialize pyenv
+    # Initialize pyenv (bash - for compatibility)
+    - name: Initialize pyenv in .bash_profile
       ansible.builtin.lineinfile:
         dest: "{{ ansible_env.HOME }}/.bash_profile"
         line: 'eval "$(pyenv init -)"'
@@ -87,7 +110,14 @@
         executable: /bin/bash
       when: uv_check.rc != 0
 
-    - name: Add uv to PATH
+    - name: Add uv to PATH in .zshrc
+      ansible.builtin.lineinfile:
+        dest: "{{ ansible_env.HOME }}/.zshrc"
+        line: 'export PATH="$HOME/.cargo/bin:$PATH"'
+        create: true
+      when: uv_check.rc != 0
+
+    - name: Add uv to PATH in .bash_profile
       ansible.builtin.lineinfile:
         dest: "{{ ansible_env.HOME }}/.bash_profile"
         line: 'export PATH="$HOME/.cargo/bin:$PATH"'
