@@ -27,10 +27,34 @@ check_yq_installed
 # The function is now defined in helpers.sh
 
 # --- Main Script ---
-# Use the common select_target_host function from helpers.sh
-if ! select_target_host false; then
-  log_error "Host selection failed. Exiting genSSH."
-  exit 1
+# Check if arguments are provided for non-interactive mode
+if [ $# -eq 3 ]; then
+  # Non-interactive mode: genSSH <ip> <user> <password>
+  TARGET_CONNECT_HOST="$1"
+  TARGET_CONNECT_USER="$2"
+  SSH_PASSWORD="$3"
+  
+  # Determine inventory and host alias based on IP
+  if [[ "$TARGET_CONNECT_HOST" == "192.168.64."* ]]; then
+    TARGET_INVENTORY_PATH="$OA_ANSIBLE_INVENTORY_DIR/staging/hosts.yml"
+    # Find the host alias for this IP
+    TARGET_HOST_ALIAS=$(yq e ".all.children.macos.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$TARGET_INVENTORY_PATH")
+    if [ -z "$TARGET_HOST_ALIAS" ] || [ "$TARGET_HOST_ALIAS" == "null" ]; then
+      log_error "No host found with IP $TARGET_CONNECT_HOST in staging inventory"
+      exit 1
+    fi
+  else
+    log_error "IP $TARGET_CONNECT_HOST not recognized. Expected staging IP (192.168.64.x)"
+    exit 1
+  fi
+  
+  log_info "Non-interactive mode: deploying SSH key to $TARGET_HOST_ALIAS ($TARGET_CONNECT_HOST) as $TARGET_CONNECT_USER"
+else
+  # Interactive mode: use the common select_target_host function from helpers.sh
+  if ! select_target_host false; then
+    log_error "Host selection failed. Exiting genSSH."
+    exit 1
+  fi
 fi
 
 log_info "Preparing to deploy SSH public key to '$TARGET_HOST_ALIAS' in '$TARGET_INVENTORY_PATH'..."
@@ -44,8 +68,17 @@ ANSIBLE_COMMAND=(
   "--tags" "ssh"
   "--limit" "$TARGET_HOST_ALIAS"
   "--vault-password-file" "$OA_ANSIBLE_VAULT_PASSWORD_FILE"
-  "--ask-pass" # Add this to prompt for SSH password
 )
+
+# Add SSH password handling
+if [ -n "$SSH_PASSWORD" ]; then
+  # Non-interactive mode with provided password
+  export ANSIBLE_SSH_PASS="$SSH_PASSWORD"
+  ANSIBLE_COMMAND+=("--extra-vars" "ansible_ssh_pass=$SSH_PASSWORD")
+else
+  # Interactive mode - ask for password
+  ANSIBLE_COMMAND+=("--ask-pass")
+fi
 
 # Ask for become pass if not using a passwordless sudo setup
 # Check ansible.cfg for become_ask_pass more reliably
