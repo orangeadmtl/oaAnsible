@@ -10,7 +10,7 @@
 
 - name: Add SSH public key to authorized_keys
   ansible.posix.authorized_key:
-    ansible.builtin.user: "{{ ansible_user }}"
+    user: "{{ ansible_user }}"
     key: "{{ vault_ssh_public_key }}"
     state: present
   become: false # Should run as the ansible_user
