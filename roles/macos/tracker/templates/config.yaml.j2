@@ -1,5 +1,5 @@
 default_yolo_source: {{ tracker.default_yolo_source | default(0) }}
-cam_id: {{ tracker.cam_id | default('macos-' + inventory_hostname) }}
+cam_id: {{ cam_id | default('macos-' + inventory_hostname) }}
 cors:
   allowed_headers:
   - Content-Type

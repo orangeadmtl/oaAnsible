@@ -23,8 +23,7 @@ system:
 # Tracker configuration
 tracker:
   default_yolo_source: 0
-  cam_id: "macos-{{ inventory_hostname }}"
-  default_model: "yolo12s.pt"
+  default_model: "yoloe-11s-seg-custom.pt"
   server_port: 8080
 
 # Dashboard configuration

@@ -76,8 +76,8 @@
 
 - name: Copy YOLO model file
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../oaTracker/models/yolo12s.pt"
-    dest: "{{ ansible_user_dir }}/orangead/tracker/models/yolo12s.pt"
+    src: "{{ playbook_dir }}/../oaTracker/models/yoloe-11s-seg-custom.pt"
+    dest: "{{ ansible_user_dir }}/orangead/tracker/models/yoloe-11s-seg-custom.pt"
     owner: "{{ ansible_user }}"
     group: staff
     mode: "0644"
