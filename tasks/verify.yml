@@ -151,20 +151,20 @@
         - name: Check macOS API service status
           ansible.builtin.shell: |
             set -o pipefail
-            sudo launchctl list | grep com.orangead.macosapi || echo "Not running"
+            launchctl list | grep com.orangead.macosapi || echo "Not running"
           register: macos_api_status
           changed_when: false
           failed_when: false
-          become: true
+          become: false
 
         - name: Check tracker service status
           ansible.builtin.shell: |
             set -o pipefail
-            sudo launchctl list | grep com.orangead.tracker || echo "Not running"
+            launchctl list | grep com.orangead.tracker || echo "Not running"
           register: tracker_status
           changed_when: false
           failed_when: false
-          become: true
+          become: false
 
         - name: Check macOS API service via HTTP
           ansible.builtin.uri:
