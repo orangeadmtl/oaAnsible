@@ -1,9 +1,9 @@
 ---
 # .yamllint configuration for oaAnsible
 
-# Configure line length
+# Configure line length to match prettier
 line-length:
-  max: 160
+  max: 120
   level: warning
 
 # Configure comment spacing to be compatible with ansible-lint

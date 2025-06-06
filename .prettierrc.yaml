@@ -1,0 +1,31 @@
+---
+# Prettier configuration for oaAnsible
+# This ensures consistent YAML formatting across all editors and the format script
+
+printWidth: 120
+tabWidth: 2
+useTabs: false
+proseWrap: "always"
+endOfLine: "lf"
+
+# YAML-specific settings
+overrides:
+  - files: "*.yml"
+    options:
+      printWidth: 120
+      tabWidth: 2
+      singleQuote: false
+      trailingComma: "none"
+  - files: "*.yaml"
+    options:
+      printWidth: 120
+      tabWidth: 2
+      singleQuote: false
+      trailingComma: "none"
+
+# Files to ignore
+ignore:
+  - "group_vars/all/vault.yml"
+  - "roles/elliotweiser.osx-command-line-tools/**/*"
+  - "logs/**/*"
+  - ".git/**/*"
