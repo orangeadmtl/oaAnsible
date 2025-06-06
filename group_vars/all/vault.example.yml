@@ -16,8 +16,10 @@ vault_ssh_public_key: "ssh-rsa AAAAB3NzaC1yc2E... user@example.com"
 
 # Sudo passwords for each host
 vault_sudo_passwords:
-  b2: "password_for_b2"
-  b3: "password_for_b3"
+  f1-12: "host-specific-password"
+  f1-13: "host-specific-password"
+  f1-14: "host-specific-password"
+  f1-15: "host-specific-password"
 
 # Default sudo password (fallback if host-specific not found)
 vault_default_sudo_password: "default_password"
