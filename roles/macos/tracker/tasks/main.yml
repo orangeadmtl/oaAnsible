@@ -4,8 +4,40 @@
 
 # No longer creating a separate user - using ansible_user instead
 
-# OpenCV is installed via pip as part of the Python dependencies
-# in the pyproject.toml file, so we don't need to install it separately via Homebrew
+# Ensure required system packages are installed
+- name: Ensure util-linux is installed
+  community.general.homebrew:
+    name: util-linux
+    state: present
+  register: util_linux_install
+  become: true
+  become_user: "{{ ansible_user }}"
+
+- name: Debug util-linux installation
+  ansible.builtin.debug:
+    msg: "util-linux installation result: {{ util_linux_install }}"
+
+# Ensure util-linux binaries are in PATH
+- name: Add util-linux to shell profiles
+  ansible.builtin.blockinfile:
+    path: "{{ item }}"
+    create: true
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - util-linux"
+    block: |
+      # Add util-linux to PATH
+      export PATH="/opt/homebrew/opt/util-linux/bin:$PATH"
+      export PATH="/opt/homebrew/opt/util-linux/sbin:$PATH"
+      # For compilers
+      export LDFLAGS="-L/opt/homebrew/opt/util-linux/lib"
+      export CPPFLAGS="-I/opt/homebrew/opt/util-linux/include"
+      export PKG_CONFIG_PATH="/opt/homebrew/opt/util-linux/lib/pkgconfig"
+  loop:
+    - "{{ ansible_user_dir }}/.zshrc"
+    - "{{ ansible_user_dir }}/.bashrc"
+    - "{{ ansible_user_dir }}/.bash_profile"
+  become: true
+  become_user: "{{ ansible_user }}"
+  ignore_errors: true
 
 # Create directory structure in ansible_user's home directory
 - name: Ensure tracker directory exists
@@ -26,17 +58,6 @@
     mode: "0755"
   become: true
 
-# Create a symbolic link to accommodate the hardcoded database path in flight_server.py
-- name: Create symbolic link from events.db to data/events.db
-  ansible.builtin.file:
-    src: "{{ ansible_user_dir }}/orangead/tracker/data/events.db"
-    dest: "{{ ansible_user_dir }}/orangead/tracker/events.db"
-    state: link
-    owner: "{{ ansible_user }}"
-    group: staff
-    force: true
-  become: true
-
 - name: Ensure tracker logs directory exists
   ansible.builtin.file:
     path: "{{ ansible_user_dir }}/orangead/tracker/logs"
@@ -46,25 +67,6 @@
     mode: "0755"
   become: true
 
-# Copy project files
-- name: Synchronize oaTracker files
-  ansible.posix.synchronize:
-    src: "{{ playbook_dir }}/../oaTracker/"
-    dest: "{{ ansible_user_dir }}/orangead/tracker/"
-    delete: false
-    rsync_opts:
-      - "--exclude=.git"
-      - "--exclude=.venv"
-      - "--exclude=logs"
-      - "--exclude=data"
-      - "--exclude=__pycache__"
-      - "--exclude=*.pyc"
-      - "--exclude=.DS_Store"
-      - "--exclude=notebooks"
-  become: true
-  become_user: "{{ ansible_user }}"
-
-# Ensure models directory exists and copy YOLO model
 - name: Ensure models directory exists
   ansible.builtin.file:
     path: "{{ ansible_user_dir }}/orangead/tracker/models"
@@ -74,15 +76,134 @@
     mode: "0755"
   become: true
 
-- name: Copy YOLO model file
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../oaTracker/models/yoloe-11s-seg-custom.pt"
-    dest: "{{ ansible_user_dir }}/orangead/tracker/models/yoloe-11s-seg-custom.pt"
-    owner: "{{ ansible_user }}"
-    group: staff
-    mode: "0644"
+# Check if tracker directory exists and is not empty
+- name: Check if tracker directory exists
+  ansible.builtin.stat:
+    path: "{{ ansible_user_dir }}/orangead/tracker"
+  register: tracker_dir
   become: true
+  become_user: "{{ ansible_user }}"
+
+# Check if git repository already exists
+- name: Check if tracker repository exists
+  ansible.builtin.stat:
+    path: "{{ ansible_user_dir }}/orangead/tracker/.git"
+  register: tracker_git_repo
+  become: true
+  become_user: "{{ ansible_user }}"
+
+# Check if directory exists and is not empty
+- name: Check if directory exists and has content
+  ansible.builtin.shell: |
+    set -o pipefail
+    if [ -d "{{ ansible_user_dir }}/orangead/tracker" ] && [ "$(ls -A {{ ansible_user_dir }}/orangead/tracker)" ]; then
+      echo "directory_has_content"
+    else
+      echo "directory_empty_or_missing"
+    fi
+  register: dir_content_status
+  changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
+
+# Check if directory is a git repository
+- name: Check if directory is a git repository
+  ansible.builtin.shell: |
+    set -o pipefail
+    if [ -d "{{ ansible_user_dir }}/orangead/tracker/.git" ] && cd "{{ ansible_user_dir }}/orangead/tracker" && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      echo "is_git_repo"
+    else
+      echo "not_git_repo"
+    fi
+  register: git_repo_status
+  changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
   failed_when: false
+
+# Backup and clean non-empty directory that is not a git repository
+- name: Backup and clean non-empty directory that is not a git repository
+  ansible.builtin.shell: |
+    set -o pipefail
+    BACKUP_DIR="{{ ansible_user_dir }}/orangead/tracker_backup_$(date +%Y%m%d_%H%M%S)"
+    echo "Backing up existing files to $BACKUP_DIR"
+    mkdir -p "$BACKUP_DIR"
+    cp -R "{{ ansible_user_dir }}/orangead/tracker/"* "$BACKUP_DIR/" 2>/dev/null || true
+    rm -rf "{{ ansible_user_dir }}/orangead/tracker"
+    mkdir -p "{{ ansible_user_dir }}/orangead/tracker"
+  become: true
+  become_user: "{{ ansible_user }}"
+  when: dir_content_status.stdout == "directory_has_content" and git_repo_status.stdout == "not_git_repo"
+  register: backup_result
+  changed_when: backup_result.stdout is search('Backing up existing files')
+
+# Check disk space before operations
+- name: Check available disk space
+  ansible.builtin.shell: |
+    set -o pipefail
+    df -h {{ ansible_user_dir }}/orangead | awk 'NR==2 {print $4}'
+  register: disk_space
+  changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
+
+- name: Display available disk space
+  ansible.builtin.debug:
+    msg: "Available disk space: {{ disk_space.stdout }}"
+
+# Ensure tracker directory exists and is empty if not a git repo
+- name: Ensure tracker directory is in proper state for git operations
+  ansible.builtin.shell: |
+    set -o pipefail
+    if [ "{{ git_repo_status.stdout }}" != "is_git_repo" ]; then
+      if [ -d "{{ ansible_user_dir }}/orangead/tracker" ]; then
+        # Directory exists but is not a git repo, clean it
+        echo "Cleaning existing directory"
+        rm -rf "{{ ansible_user_dir }}/orangead/tracker"
+      fi
+      # Create fresh directory
+      mkdir -p "{{ ansible_user_dir }}/orangead/tracker"
+      echo "Directory prepared for clone"
+    else
+      echo "Directory is already a git repo"
+    fi
+  register: dir_prep
+  changed_when: dir_prep.stdout is search('Cleaning existing directory') or dir_prep.stdout is search('Directory prepared for clone')
+  become: true
+  become_user: "{{ ansible_user }}"
+
+# Clone the tracker repository if it doesn't exist or was cleaned
+- name: Clone oaTracker repository
+  ansible.builtin.git:
+    repo: "{{ tracker.repository_url }}"
+    dest: "{{ ansible_user_dir }}/orangead/tracker"
+    clone: true
+    update: true
+    force: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  when: git_repo_status.stdout == "not_git_repo" or dir_content_status.stdout == "directory_empty_or_missing"
+  register: git_clone_result
+  retries: 3
+  delay: 5
+  until: git_clone_result is success
+
+# Update the tracker repository if it already exists
+- name: Update oaTracker repository
+  ansible.builtin.git:
+    repo: "{{ tracker.repository_url }}"
+    dest: "{{ ansible_user_dir }}/orangead/tracker"
+    update: true
+    force: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  when: git_repo_status.stdout == "is_git_repo"
+  register: git_update_result
+
+- name: Display git update status
+  ansible.builtin.debug:
+    msg: "{{ 'Repository updated: ' + git_update_result.after if git_update_result.changed else 'Repository already at latest version' }}"
+  when: git_update_result is defined and git_update_result.changed is defined
 
 # Set proper ownership
 - name: Set proper ownership for tracker files
@@ -105,23 +226,20 @@
     - "{{ ansible_user_dir }}/orangead/tracker/data"
   become: true
 
-- name: Ensure specific executable files have proper permissions
+# Make sure start.sh script is executable
+- name: Ensure start.sh script is executable
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ ansible_user_dir }}/orangead/tracker/scripts/start.sh"
     state: file
     mode: "0755"
     owner: "{{ ansible_user }}"
     group: staff
-  loop:
-    - "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python"
-    - "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python3"
   become: true
-  failed_when: false # In case the file doesn't exist yet
 
 # Use standardized Python version from group_vars
 - name: Set required Python version from group_vars
   ansible.builtin.set_fact:
-    tracker_python_version: "{{ macos_python.version }}"
+    tracker_python_version: "{{ python.version }}"
 
 - name: Debug required Python version
   ansible.builtin.debug:
@@ -136,6 +254,8 @@
     $PYENV_ROOT/bin/pyenv install --list | grep -E "^\s+{{ tracker_python_version }}$" || echo "not_found"
   register: python_version_available
   changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
 
 - name: Find closest available Python version if exact version not found
   ansible.builtin.shell: |
@@ -148,6 +268,8 @@
     $PYENV_ROOT/bin/pyenv install --list | grep -E "^\s+${MAJOR_MINOR}\.[0-9]+$" | tail -1 | xargs
   register: closest_python_version
   changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
   when: python_version_available.stdout == "not_found"
 
 - name: Set final Python version to use
@@ -160,205 +282,34 @@
   ansible.builtin.debug:
     msg: "Will use Python version: {{ final_python_version }}"
 
-# We handle Python detection directly above, no need for include
+# Note: uv installation is handled by the setup.sh script
 
-# Setup Python environment
-- name: Check Python version in virtual environment
-  ansible.builtin.shell: |
-    set -o pipefail
-    if [ -f {{ ansible_user_dir }}/orangead/tracker/.venv/bin/python ]; then
-      VENV_VERSION=$({{ ansible_user_dir }}/orangead/tracker/.venv/bin/python --version | awk '{print $2}')
-      REQUIRED_VERSION="{{ final_python_version }}"
-      if [[ "$VENV_VERSION" == "$REQUIRED_VERSION"* ]]; then
-        echo "0"
-      else
-        echo "1"
-      fi
-    else
-      echo "1"
-    fi
-  register: python_version_check
-  changed_when: false
-
-- name: Remove existing virtual environment if Python version doesn't match required version
+# Run the setup.sh script to handle virtual environment and dependencies
+- name: Make setup.sh executable
   ansible.builtin.file:
-    path: "{{ ansible_user_dir }}/orangead/tracker/.venv"
-    state: absent
-  become: true
-  when: python_version_check.stdout != "0"
-
-- name: Install required Python version if not present
-  ansible.builtin.shell: |
-    set -o pipefail
-    export PYENV_ROOT="$HOME/.pyenv"
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    REQUIRED_VERSION="{{ final_python_version | trim }}"
-    echo "Checking for Python version: '$REQUIRED_VERSION'"
-    echo "Available versions:"
-    $PYENV_ROOT/bin/pyenv versions --bare
-    if ! $PYENV_ROOT/bin/pyenv versions --bare | grep -q "^$REQUIRED_VERSION$"; then
-      echo "Installing Python $REQUIRED_VERSION"
-      $PYENV_ROOT/bin/pyenv install "$REQUIRED_VERSION"
-      echo "installed"
-    else
-      echo "already_present"
-    fi
-  register: python_install_result
-  become: true
-  become_user: "{{ ansible_user }}"
-  changed_when: python_install_result.stdout_lines[-1] == "installed"
-
-- name: Debug Python installation result
-  ansible.builtin.debug:
-    var: python_install_result
-
-- name: Check if Python venv exists
-  ansible.builtin.stat:
-    path: "{{ ansible_user_dir }}/orangead/tracker/.venv"
-  register: venv_exists
-
-- name: Get Python executable path for required version
-  ansible.builtin.shell: |
-    set -o pipefail
-    export PYENV_ROOT="$HOME/.pyenv"
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    REQUIRED_VERSION="{{ final_python_version | trim }}"
-    echo "$($PYENV_ROOT/bin/pyenv prefix "$REQUIRED_VERSION")/bin/python3"
-  register: dynamic_python_executable
-  changed_when: false
-
-- name: Create Python virtual environment
-  ansible.builtin.command: "{{ dynamic_python_executable.stdout }} -m venv {{ ansible_user_dir }}/orangead/tracker/.venv"
-  args:
-    creates: "{{ ansible_user_dir }}/orangead/tracker/.venv"
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: not venv_exists.stat.exists
-
-- name: Upgrade pip in virtual environment
-  ansible.builtin.shell: |
-    set -o pipefail
-    cd {{ ansible_user_dir }}/orangead/tracker && \
-    source .venv/bin/activate && \
-    pip install --upgrade pip
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: not venv_exists.stat.exists
-  changed_when: false
-
-- name: Install uv package manager globally
-  ansible.builtin.shell: |
-    set -o pipefail
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-  become: true
-  become_user: "{{ ansible_user }}"
-  changed_when: false
-  environment:
-    PATH: "{{ ansible_user_dir }}/.local/bin:{{ ansible_env.PATH }}"
-
-- name: Ensure uv is available in PATH
-  ansible.builtin.shell: |
-    set -o pipefail
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> {{ ansible_user_dir }}/.zshrc
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> {{ ansible_user_dir }}/.bashrc
-  become: true
-  become_user: "{{ ansible_user }}"
-  changed_when: false
-  failed_when: false
-
-# Install dependencies using uv and pyproject.toml
-- name: Check if pyproject.toml exists
-  ansible.builtin.stat:
-    path: "{{ ansible_user_dir }}/orangead/tracker/pyproject.toml"
-  register: pyproject_file
-
-- name: Fail if pyproject.toml doesn't exist
-  ansible.builtin.fail:
-    msg: "pyproject.toml not found in {{ ansible_user_dir }}/orangead/tracker/"
-  when: not pyproject_file.stat.exists
-
-- name: Install NumPy first to ensure compatibility
-  ansible.builtin.shell: |
-    set -o pipefail
-    cd {{ ansible_user_dir }}/orangead/tracker && \
-    source .venv/bin/activate && \
-    {{ ansible_user_dir }}/.local/bin/uv pip install 'numpy<2.0.0'
-  become: true
-  become_user: "{{ ansible_user }}"
-  changed_when: false
-  environment:
-    PATH: "{{ ansible_user_dir }}/.local/bin:{{ ansible_env.PATH }}"
-
-# Try to install dependencies using the method that works
-- name: Create requirements.txt from pyproject.toml dependencies
-  ansible.builtin.copy:
-    dest: "{{ ansible_user_dir }}/orangead/tracker/requirements.txt"
-    content: |
-      opencv-python
-      ultralytics
-      torch
-      fastapi
-      sse_starlette
-      numpy
-      pygments
-      shapely
-      duckdb
-      boto3
-      pyarrow
-      pylint
-      uvicorn
-      lap>=0.5.12
-      jupysql
-      duckdb-engine
-      rich
-      pyusb
-      ipykernel
-      matplotlib
-      notebook
-      jupyter-client
-      pyzmq
-      bokeh
-      jupyter_bokeh
-      ipywidgets_bokeh
-      pyobjc; platform_system == "Darwin"
-      pyobjc-framework-Quartz; platform_system == "Darwin"
-      pyobjc-framework-AVFoundation; platform_system == "Darwin"
+    path: "{{ ansible_user_dir }}/orangead/tracker/setup.sh"
+    mode: "0755"
     owner: "{{ ansible_user }}"
     group: staff
-    mode: "0644"
   become: true
 
-- name: Try installing dependencies using uv with extracted requirements
+- name: Run setup.sh script to set up virtual environment and dependencies
   ansible.builtin.shell: |
     set -o pipefail
-    cd {{ ansible_user_dir }}/orangead/tracker && \
-    source .venv/bin/activate && \
-    {{ ansible_user_dir }}/.local/bin/uv pip install -r requirements.txt
+    cd {{ ansible_user_dir }}/orangead/tracker
+    ./setup.sh
+  register: setup_result
+  changed_when: setup_result.stdout is search('Setup complete')
   become: true
   become_user: "{{ ansible_user }}"
-  register: uv_install_result
   environment:
-    PATH: "{{ ansible_user_dir }}/.local/bin:{{ ansible_env.PATH }}"
-  failed_when: false
-  changed_when: false
+    PATH: "/opt/homebrew/bin:/opt/homebrew/sbin:{{ ansible_user_dir }}/.local/bin:{{ ansible_env.PATH }}"
 
-- name: Fallback to pip install if uv fails
-  ansible.builtin.shell: |
-    set -o pipefail
-    cd {{ ansible_user_dir }}/orangead/tracker && \
-    source .venv/bin/activate && \
-    if [ -f requirements.txt ]; then
-      pip install -r requirements.txt
-    else
-      echo "No requirements.txt found"
-      exit 1
-    fi
-  become: true
-  become_user: "{{ ansible_user }}"
-  register: pip_install_result
-  changed_when: false
-  when: uv_install_result.rc != 0
-
+- name: Display setup script output
+  ansible.builtin.debug:
+    msg: "{{ setup_result.stdout_lines }}"
+  when: setup_result.stdout_lines is defined
+# Note: uv installation and dependency management are handled by the setup.sh script
 # Copy and run dependency verification script
 - name: Copy dependency verification script
   ansible.builtin.copy:

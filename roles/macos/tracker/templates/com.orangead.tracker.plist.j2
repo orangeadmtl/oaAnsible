@@ -6,9 +6,7 @@
     <string>com.orangead.tracker</string>
     <key>ProgramArguments</key>
     <array>
-        <string>{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python</string>
-        <string>-m</string>
-        <string>app</string>
+        <string>{{ ansible_user_dir }}/orangead/tracker/scripts/start.sh</string>
     </array>
     <key>WorkingDirectory</key>
     <string>{{ ansible_user_dir }}/orangead/tracker</string>
@@ -25,11 +23,15 @@
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>{{ ansible_user_dir }}/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>/opt/homebrew/opt/util-linux/bin:/opt/homebrew/opt/util-linux/sbin:{{ ansible_user_dir }}/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>PYTHONPATH</key>
         <string>{{ ansible_user_dir }}/orangead/tracker</string>
         <key>PYTHONUNBUFFERED</key>
         <string>1</string>
+        <key>PYTORCH_ENABLE_MPS_FALLBACK</key>
+        <string>1</string>
+        <key>ACERO_ALIGNMENT_HANDLING</key>
+        <string>ignore</string>
     </dict>
 </dict>
 </plist>
