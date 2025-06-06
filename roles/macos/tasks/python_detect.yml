@@ -2,16 +2,18 @@
 # Detect Python installation from pyenv
 - name: Get pyenv root directory
   ansible.builtin.shell: |
+    set -o pipefail
     echo $HOME/.pyenv
   register: pyenv_root
   changed_when: false
 
 - name: Get Python version from inventory
   ansible.builtin.set_fact:
-    python_version: "{{ python.version | default('3.11.11') }}"
+    python_version: "{{ macos_python.version | default('3.11.11') }}"
 
 - name: Get Python executable path from pyenv
   ansible.builtin.shell: |
+    set -o pipefail
     export PYENV_ROOT="{{ pyenv_root.stdout }}"
     export PATH="$PYENV_ROOT/bin:$PATH"
     eval "$($PYENV_ROOT/bin/pyenv init -)"

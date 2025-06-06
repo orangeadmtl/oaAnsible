@@ -1,7 +1,7 @@
 ---
 # Install and configure pyenv and Python
 - name: Configure pyenv and Python
-  when: configure.pyenv | bool
+  when: macos_configure.pyenv | bool
   # This entire block will only run if configure.pyenv is set to true in default.config.yml
   block:
     # Check if pyenv is already installed
@@ -34,6 +34,7 @@
         dest: "{{ ansible_env.HOME }}/.zshrc"
         line: 'export PATH="$HOME/.pyenv/bin:$PATH"'
         create: true
+        mode: "0644"
 
     # Initialize pyenv (zsh)
     - name: Initialize pyenv in .zshrc
@@ -41,6 +42,7 @@
         dest: "{{ ansible_env.HOME }}/.zshrc"
         line: 'eval "$(pyenv init -)"'
         create: true
+        mode: "0644"
 
     # Add pyenv to PATH (bash - for compatibility)
     - name: Add pyenv to PATH in .bash_profile
@@ -48,6 +50,7 @@
         dest: "{{ ansible_env.HOME }}/.bash_profile"
         line: 'export PATH="$HOME/.pyenv/bin:$PATH"'
         create: true
+        mode: "0644"
 
     # Initialize pyenv (bash - for compatibility)
     - name: Initialize pyenv in .bash_profile
@@ -55,10 +58,12 @@
         dest: "{{ ansible_env.HOME }}/.bash_profile"
         line: 'eval "$(pyenv init -)"'
         create: true
+        mode: "0644"
 
     # Check if Python version is installed
     - name: Check if Python version is installed
       ansible.builtin.shell: |
+        set -o pipefail
         export PYENV_ROOT="$HOME/.pyenv"
         export PATH="$PYENV_ROOT/bin:$PATH"
         eval "$($PYENV_ROOT/bin/pyenv init -)"
@@ -69,32 +74,30 @@
     # Install Python version
     - name: Install Python version
       ansible.builtin.shell: |
+        set -o pipefail
         export PYENV_ROOT="$HOME/.pyenv"
         export PATH="$PYENV_ROOT/bin:$PATH"
         eval "$($PYENV_ROOT/bin/pyenv init -)"
-        $PYENV_ROOT/bin/pyenv install {{ python.version }}
-      when: python.version not in (installed_versions.stdout_lines | default([]))
+        $PYENV_ROOT/bin/pyenv install {{ macos_python.version }}
+      when: macos_python.version not in (installed_versions.stdout_lines | default([]))
+      changed_when: false
 
     # Set global Python version
     - name: Set global Python version
       ansible.builtin.shell: |
+        set -o pipefail
         export PYENV_ROOT="$HOME/.pyenv"
         export PATH="$PYENV_ROOT/bin:$PATH"
         eval "$($PYENV_ROOT/bin/pyenv init -)"
-        $PYENV_ROOT/bin/pyenv global {{ python.version }}
+        $PYENV_ROOT/bin/pyenv global {{ macos_python.version }}
       register: pyenv_set_global
       changed_when: pyenv_set_global.rc == 0
 
-    # Rehash pyenv only when new version is installed
-    - name: Rehash pyenv
-      ansible.builtin.shell: |
-        export PYENV_ROOT="$HOME/.pyenv"
-        export PATH="$PYENV_ROOT/bin:$PATH"
-        eval "$(pyenv init -)"
-        pyenv rehash
-      args:
-        executable: /bin/bash
+    # Notify handler to rehash pyenv when new version is installed
+    - name: Rehash pyenv when global version changes
+      ansible.builtin.meta: flush_handlers
       when: pyenv_set_global.changed | default(false)
+      notify: Rehash pyenv
 
     # Install uv - modern Python package manager
     - name: Check if uv is installed
@@ -105,16 +108,19 @@
 
     - name: Install uv via curl
       ansible.builtin.shell: |
+        set -o pipefail
         curl -fsSL https://astral.sh/uv/install.sh | sh
       args:
         executable: /bin/bash
       when: uv_check.rc != 0
+      changed_when: false
 
     - name: Add uv to PATH in .zshrc
       ansible.builtin.lineinfile:
         dest: "{{ ansible_env.HOME }}/.zshrc"
         line: 'export PATH="$HOME/.cargo/bin:$PATH"'
         create: true
+        mode: "0644"
       when: uv_check.rc != 0
 
     - name: Add uv to PATH in .bash_profile
@@ -122,4 +128,5 @@
         dest: "{{ ansible_env.HOME }}/.bash_profile"
         line: 'export PATH="$HOME/.cargo/bin:$PATH"'
         create: true
+        mode: "0644"
       when: uv_check.rc != 0

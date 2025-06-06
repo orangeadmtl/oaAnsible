@@ -10,8 +10,8 @@
       # Changed if it wasn't already on. stdout for "on" can be "Firewall is enabled. (State = 1)" or just empty if already on.
       # stderr might say "Firewall already enabled." if it was already on.
       changed_when: >
-        firewall_global_state_result.rc == 0 and "already enabled" not in (firewall_global_state_result.stderr |
-        default('')) and "Firewall is enabled" not in (firewall_global_state_result.stdout | default(''))
+        firewall_global_state_result.rc == 0 and "already enabled" not in (firewall_global_state_result.stderr | default('')) and "Firewall is enabled" not in
+        (firewall_global_state_result.stdout | default(''))
       failed_when: false # Don't fail if it's already on or other benign messages
 
     - name: Allow SSH connections
@@ -26,8 +26,7 @@
       become: true
       register: tailscale_app_firewall_result
       changed_when: "'already has a rule' not in (tailscale_app_firewall_result.stdout | default('') + tailscale_app_firewall_result.stderr | default(''))"
-      failed_when: false
-      ignore_errors: true # Path might not exist if only daemon is used
+      failed_when: false # Path might not exist if only daemon is used
 
     - name: Allow Tailscale Daemon (tailscaled)
       ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/local/bin/tailscaled
@@ -42,22 +41,20 @@
       register: tailscaled_unblock_result
       changed_when: tailscaled_unblock_result.rc == 0 and "not blocked" not in (tailscaled_unblock_result.stdout | default('') + tailscaled_unblock_result.stderr
         | default(''))
-      failed_when: false
-      ignore_errors: true # It's okay if it wasn't blocked
+      failed_when: false # It's okay if it wasn't blocked
 
     - name: Allow macOS API (Python)
       ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add {{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3
       become: true
       register: api_firewall_result
       changed_when: "'already has a rule' not in (api_firewall_result.stdout | default('') + api_firewall_result.stderr | default(''))"
-      failed_when: false
-      ignore_errors: true # Path might not exist until deployment
+      failed_when: false # Path might not exist until deployment
 
     - name: Restart Firewall Service to apply changes (macOS 10.15 Catalina and earlier)
       ansible.builtin.command: pkill -HUP socketfilterfw # Sends HUP signal to reload config
       become: true
       changed_when: false # This action itself doesn't indicate a config change, the rules do
-      ignore_errors: true
+      failed_when: false
       when: ansible_distribution_version is version('10.15', '<=')
 
     - name: Reload Firewall Service (macOS 11 Big Sur and newer - more involved)
@@ -75,10 +72,12 @@
     - name: Require password after screen saver
       ansible.builtin.command: defaults write com.apple.screensaver askForPassword -int 1
       become: true
+      changed_when: false
 
     - name: Set password delay to 5 seconds
       ansible.builtin.command: defaults write com.apple.screensaver askForPasswordDelay -int 5
       become: true
+      changed_when: false
 
 - name: Check FileVault status
   ansible.builtin.command: fdesetup status
@@ -121,8 +120,7 @@
       become: true
       register: pwpolicy_result
       changed_when: false # Idempotent if already set
-      failed_when: false
-      ignore_errors: true # This might require additional authentication
+      failed_when: false # This might require additional authentication
 
     - name: Display password policy result
       ansible.builtin.debug:

@@ -69,7 +69,7 @@
 - name: Pre-cleanup - Stop and remove any existing system-level Tailscale daemon service definition
   ansible.builtin.command: launchctl bootout system /Library/LaunchDaemons/com.tailscale.tailscaled.plist
   become: true
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Pre-cleanup - Remove existing system-level Tailscale daemon plist file
@@ -102,7 +102,7 @@
 - name: Get checksum of existing tailscale binary (if any)
   ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscale"
   register: tailscale_checksum_before
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Install/Update tailscale binary using Go
@@ -151,7 +151,7 @@
 - name: Get checksum of tailscale binary after install/update
   ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscale"
   register: tailscale_checksum_after
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Set fact for tailscale binary change
@@ -166,7 +166,7 @@
 - name: Get checksum of existing tailscaled binary (if any)
   ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscaled"
   register: tailscaled_checksum_before
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Install/Update tailscaled binary using Go
@@ -215,7 +215,7 @@
 - name: Get checksum of tailscaled binary after install/update
   ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscaled"
   register: tailscaled_checksum_after
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Set fact for tailscaled binary change
@@ -288,7 +288,7 @@
   ansible.builtin.command: launchctl load -w /Library/LaunchDaemons/com.tailscale.tailscaled.plist
   become: true
   changed_when: false # Loading an already loaded service is not a change
-  ignore_errors: true # It might already be loaded by RunAtLoad
+  failed_when: false # It might already be loaded by RunAtLoad
 
 - name: Wait for Tailscale daemon to be ready (CRITICAL)
   ansible.builtin.wait_for:
@@ -378,9 +378,8 @@
 # Scenario 2: Try gentle authentication first without --force-reauth
 - name: Authenticate Tailscale if needed (gentle approach first)
   ansible.builtin.command: >
-    /usr/local/bin/tailscale up --authkey={{ vault_tailscale_auth_key }} --hostname={{ inventory_hostname }}
-    --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }} --accept-dns=false --ssh
-    --reset
+    /usr/local/bin/tailscale up --authkey={{ vault_tailscale_auth_key }} --hostname={{ inventory_hostname }} --advertise-tags={{ vault_tailscale_tags_macos |
+    default('tag:oa-macos,tag:oa-tracker') }} --accept-dns=false --ssh --reset
   become: true # Run as root to ensure it interacts with system daemon and has perms
   register: tailscale_up_gentle
   when: needs_full_tailscale_up | default(false)
@@ -390,9 +389,8 @@
 # Scenario 3: If gentle approach fails, try with --force-reauth
 - name: Authenticate Tailscale with force-reauth if gentle approach failed
   ansible.builtin.command: >
-    /usr/local/bin/tailscale up --authkey={{ vault_tailscale_auth_key }} --hostname={{ inventory_hostname }}
-    --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }} --accept-dns=false
-    --force-reauth --ssh --reset
+    /usr/local/bin/tailscale up --authkey={{ vault_tailscale_auth_key }} --hostname={{ inventory_hostname }} --advertise-tags={{ vault_tailscale_tags_macos |
+    default('tag:oa-macos,tag:oa-tracker') }} --accept-dns=false --force-reauth --ssh --reset
   become: true # Run as root to ensure it interacts with system daemon and has perms
   register: tailscale_up_force
   when:
@@ -400,10 +398,9 @@
     - tailscale_up_gentle.rc != 0
   changed_when: tailscale_up_force.rc == 0 and ('Success.' in tailscale_up_force.stdout or tailscale_up_force.stdout == "")
   failed_when: >
-    tailscale_up_force.rc != 0 and 'already logged in' not in (tailscale_up_force.stderr | default('')) and 'already
-    using auth key' not in (tailscale_up_force.stderr | default('')) and 'already authenticated' not in
-    (tailscale_up_force.stderr | default('')) and not ('Success.' in tailscale_up_force.stdout or
-    tailscale_up_force.stdout == "")
+    tailscale_up_force.rc != 0 and 'already logged in' not in (tailscale_up_force.stderr | default('')) and 'already using auth key' not in
+    (tailscale_up_force.stderr | default('')) and 'already authenticated' not in (tailscale_up_force.stderr | default('')) and not ('Success.' in
+    tailscale_up_force.stdout or tailscale_up_force.stdout == "")
 
 - name: Verify Tailscale installation and get final status
   ansible.builtin.command: /usr/local/bin/tailscale status --json

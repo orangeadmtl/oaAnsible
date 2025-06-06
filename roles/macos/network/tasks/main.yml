@@ -4,7 +4,9 @@
   tags: ["dns", "network", "tailscale"]
   block:
     - name: Get network interface information
-      ansible.builtin.shell: "route -n get default | grep interface | awk '{print $2}'"
+      ansible.builtin.shell: |
+        set -o pipefail
+        route -n get default | grep interface | awk '{print $2}'
       register: network_interface_info
       changed_when: false
 
@@ -13,12 +15,16 @@
         primary_interface: "{{ network_interface_info.stdout }}"
 
     - name: Get network service list
-      ansible.builtin.shell: "networksetup -listallnetworkservices | grep -v '*'"
+      ansible.builtin.shell: |
+        set -o pipefail
+        networksetup -listallnetworkservices | grep -v '*'
       register: network_services
       changed_when: false
 
     - name: Get hardware port for each service
-      ansible.builtin.shell: "networksetup -listnetworkserviceorder | grep -B 1 'Device: {{ primary_interface }}' | head -n 1 | awk -F') ' '{print $2}'"
+      ansible.builtin.shell: |
+        set -o pipefail
+        networksetup -listnetworkserviceorder | grep -B 1 'Device: {{ primary_interface }}' | head -n 1 | awk -F') ' '{print $2}'
       register: network_service_name
       changed_when: false
 
@@ -30,7 +36,7 @@
       ansible.builtin.command: networksetup -getdnsservers "{{ primary_service }}"
       register: current_dns
       changed_when: false
-      ignore_errors: true
+      failed_when: false
 
     - name: Get DHCP DNS information
       ansible.builtin.command: ipconfig getpacket "{{ primary_interface }}"
@@ -52,10 +58,10 @@
     - name: Configure DNS servers
       vars:
         final_dns_list: >-
-          {{ (dhcp_dns_servers_list + public_dns_servers + (dns.tailscale_servers | default([]))) | unique | list }}
+          {{ (dhcp_dns_servers_list + public_dns_servers + (macos_dns.tailscale_servers | default([]))) | unique | list }}
       ansible.builtin.command: >-
         networksetup -setdnsservers "{{ primary_service }}" {{ final_dns_list | join(' ') }}
-      when: configure.tailscale | bool and final_dns_list | length > 0
+      when: macos_configure.tailscale | bool and final_dns_list | length > 0
       register: dns_result
       changed_when: dns_result.rc == 0 and (current_dns.stdout_lines | default([]) | join(' ') != final_dns_list | join(' '))
 
@@ -64,4 +70,4 @@
         content: "{{ dhcp_dns_servers_list | join('\\n') }}"
         dest: "{{ ansible_env.HOME }}/.dns_backup_dhcp"
         mode: "0600"
-      when: configure.tailscale | bool and dhcp_dns_servers_list | length > 0
+      when: macos_configure.tailscale | bool and dhcp_dns_servers_list | length > 0

@@ -126,14 +126,9 @@
       become: true
       register: daily_reboot_plist
 
-    - name: Unload existing daily reboot service if it exists and changed
-      ansible.builtin.command: launchctl unload /Library/LaunchDaemons/com.orangead.dailyreboot.plist
-      become: true
-      failed_when: false
-      changed_when: false
+    - name: Reload daily reboot service when changed
+      ansible.builtin.meta: flush_handlers
       when: daily_reboot_plist.changed
-
-    - name: Load daily reboot service
-      ansible.builtin.command: launchctl load /Library/LaunchDaemons/com.orangead.dailyreboot.plist
-      become: true
-      when: daily_reboot_plist.changed
+      notify:
+        - Unload existing daily reboot service
+        - Load daily reboot service

@@ -128,6 +128,7 @@
 
         - name: Get Homebrew version
           ansible.builtin.shell: |
+            set -o pipefail
             {{ homebrew_path }} --version | head -n 1
           register: homebrew_version
           changed_when: false
@@ -136,6 +137,7 @@
 
         - name: Get installed Homebrew packages
           ansible.builtin.shell: |
+            set -o pipefail
             {{ homebrew_path }} list --versions | grep -E 'go|opencv|python|node'
           register: homebrew_packages
           changed_when: false
@@ -148,6 +150,7 @@
       block:
         - name: Check macOS API service status
           ansible.builtin.shell: |
+            set -o pipefail
             sudo launchctl list | grep com.orangead.macosapi || echo "Not running"
           register: macos_api_status
           changed_when: false
@@ -156,6 +159,7 @@
 
         - name: Check tracker service status
           ansible.builtin.shell: |
+            set -o pipefail
             sudo launchctl list | grep com.orangead.tracker || echo "Not running"
           register: tracker_status
           changed_when: false
@@ -183,8 +187,7 @@
     - name: Set verification status fact
       ansible.builtin.set_fact:
         verification_status: >
-          {% if (macos_api_status is defined and macos_api_status.stdout is defined and macos_api_status.stdout != 'Not
-          running') or
+          {% if (macos_api_status is defined and macos_api_status.stdout is defined and macos_api_status.stdout != 'Not running') or
                 (tracker_status is defined and tracker_status.stdout is defined and tracker_status.stdout != 'Not
           running') %}true{% else %}false{% endif %}
 

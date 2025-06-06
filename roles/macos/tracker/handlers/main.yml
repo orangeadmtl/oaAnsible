@@ -1,3 +1,19 @@
-#SPDX-License-Identifier: MIT-0
 ---
+#SPDX-License-Identifier: MIT-0
 # handlers file for roles/macos/tracker
+
+- name: Unload existing launchd service
+  ansible.builtin.command: launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist
+  become: false
+  failed_when: false
+  changed_when: false
+
+- name: Load launchd service
+  ansible.builtin.command: launchctl load {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist
+  become: false
+  changed_when: false
+
+- name: Start launchd service
+  ansible.builtin.command: launchctl start com.orangead.tracker
+  become: false
+  changed_when: false

@@ -1,7 +1,7 @@
 ---
 # System Configuration
 # -------------------
-system:
+macos_system:
   homebrew:
     prefix: "{{ (ansible_architecture == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
     install_path: "{{ (ansible_architecture == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
@@ -12,20 +12,20 @@ system:
 
 # Feature Toggles
 # --------------
-configure:
+macos_configure:
   tailscale: false
   pyenv: false
   node: false
 
 # Development Environment
 # ---------------------
-python:
+macos_python:
   version: "3.11.11"
   packages:
     - pip
     - virtualenv
 
-node:
+macos_node:
   version: "22.11.0"
   packages:
     - pm2
@@ -33,13 +33,13 @@ node:
 
 # Network Configuration
 # -------------------
-dns:
+macos_dns:
   enable_magic_dns: true
   preserve_dhcp_dns: true
   tailscale_servers: ["100.100.100.100"]
 # Shell Configuration
 # -----------------
-shell_config:
+macos_shell_config:
   zsh:
     rc_file: .zshrc
     profile_file: .zprofile

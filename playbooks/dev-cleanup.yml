@@ -58,14 +58,16 @@
           when: tailscale_check.rc == 0
           environment:
             PATH: "{{ brew_path }}"
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
         - name: Uninstall Tailscale
           ansible.builtin.command: "{{ homebrew_prefix }}/bin/brew uninstall tailscale"
           when: tailscale_check.rc == 0
           environment:
             PATH: "{{ brew_path }}"
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
         - name: Reset DNS settings
           when: tailscale_check.rc == 0
@@ -73,6 +75,7 @@
           block:
             - name: Get active network interface
               ansible.builtin.shell: |
+                set -o pipefail
                 networksetup -listallnetworkservices | grep -v '*' | grep -i wi-fi || networksetup -listallnetworkservices | grep -v '*' | head -1
               register: active_interface
               changed_when: false
@@ -86,14 +89,18 @@
               ansible.builtin.command: networksetup -getdnsservers "{{ network_interface }}"
               register: current_dns
               changed_when: false
+              failed_when: false
               become: true
 
             - name: Reset DNS to empty
               ansible.builtin.command: networksetup -setdnsservers "{{ network_interface }}" empty
               become: true
+              changed_when: false
+              failed_when: false
 
             - name: Get network service info
               ansible.builtin.shell: |
+                set -o pipefail
                 networksetup -listallhardwareports | grep -A 1 "{{ network_interface }}" | grep Device | awk '{print $2}'
               register: network_device
               changed_when: false
@@ -111,23 +118,28 @@
                 dhcp_dns_servers: "{{ dhcp_info.stdout | regex_findall('domain_name_server[^\\n]*\\n\\s+([^\\n]*)') | first | split(' ') }}"
               when: dhcp_info is defined and dhcp_info.stdout != ""
 
-            - ansible.builtin.command: networksetup -setdnsservers "{{ network_interface }}" {{ dhcp_dns_servers | join(' ') }}
+            - name: Restore DHCP DNS servers
+              ansible.builtin.command: networksetup -setdnsservers "{{ network_interface }}" {{ dhcp_dns_servers | join(' ') }}
+              changed_when: false
+              failed_when: false
               become: true
-              name: Restore DHCP DNS servers
               when: dhcp_dns_servers is defined
+
     - name: Remove development tools
       block:
         - name: Remove pyenv
           ansible.builtin.file:
             path: "{{ ansible_env.HOME }}/.pyenv"
             state: absent
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
         - name: Remove nvm
           ansible.builtin.file:
             path: "{{ ansible_env.HOME }}/.nvm"
             state: absent
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
     - name: Remove Homebrew
       block:
@@ -137,6 +149,7 @@
           register: brew_check
 
         - name: Remove Homebrew (if exists)
+          when: brew_check.stat.exists
           block:
             - name: Download Homebrew uninstall script
               ansible.builtin.get_url:
@@ -151,8 +164,8 @@
                 NONINTERACTIVE: "1"
               become: true
               register: uninstall_result
-              ignore_errors: true
-          when: brew_check.stat.exists
+              changed_when: false
+              failed_when: false
 
         # Always try to remove directories, even if uninstall script fails
         - name: Remove Homebrew directories (final cleanup)
@@ -170,7 +183,8 @@
           ansible.builtin.file:
             path: /tmp/brew-uninstall.sh
             state: absent
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
         - name: Display Homebrew cleanup status
           ansible.builtin.debug:
@@ -186,18 +200,21 @@
         - "{{ ansible_env.HOME }}/.bashrc"
         - "{{ ansible_env.HOME }}/.zprofile"
         - "{{ ansible_env.HOME }}/.bash_profile"
-      ignore_errors: true
+      changed_when: false
+      failed_when: false
 
     - name: Clean up legacy JPR services
       block:
         - name: Get list of JPR Launch Agents
           ansible.builtin.shell: |
+            set -o pipefail
             launchctl list | grep ca.jpr | awk '{print $3}' || true
           register: jpr_agents
           changed_when: false
 
         - name: Get list of JPR Launch Daemons
           ansible.builtin.shell: |
+            set -o pipefail
             sudo launchctl list | grep ca.jpr | awk '{print $3}' || true
           register: jpr_daemons
           changed_when: false
@@ -205,18 +222,22 @@
 
         - name: Unload and remove JPR Launch Agents
           ansible.builtin.shell: |
+            set -o pipefail
             launchctl unload "{{ ansible_env.HOME }}/Library/LaunchAgents/{{ item }}.plist" && rm "{{ ansible_env.HOME }}/Library/LaunchAgents/{{ item }}.plist"
           loop: "{{ jpr_agents.stdout_lines }}"
           when: jpr_agents.stdout_lines | length > 0
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
         - name: Unload and remove JPR Launch Daemons
           ansible.builtin.shell: |
+            set -o pipefail
             sudo launchctl unload "/Library/LaunchDaemons/{{ item }}.plist" && sudo rm "/Library/LaunchDaemons/{{ item }}.plist"
           loop: "{{ jpr_daemons.stdout_lines }}"
           when: jpr_daemons.stdout_lines | length > 0
           become: true
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
         - name: Report JPR cleanup
           ansible.builtin.debug:
@@ -227,62 +248,72 @@
         - name: Stop and unload macOS API service
           ansible.builtin.command: launchctl unload -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
           become: false
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
         - name: Remove macOS API launchd plist
           ansible.builtin.file:
             path: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist"
             state: absent
           become: false
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
         - name: Remove macOS API directory
           ansible.builtin.file:
             path: "{{ ansible_user_dir }}/orangead/macos-api"
             state: absent
           become: true
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
         - name: Remove screenshots directory
           ansible.builtin.file:
             path: /tmp/screenshots
             state: absent
           become: true
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
     - name: Revert macOS security settings
       block:
         - name: Disable password requirement after screen saver
           ansible.builtin.command: defaults write com.apple.screensaver askForPassword -int 0
           become: true
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
         - name: Reset Gatekeeper to default
           ansible.builtin.command: spctl --master-enable
           become: true
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
     - name: Revert macOS system settings
       block:
         - name: Enable guest user
           ansible.builtin.command: defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool YES
           become: true
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
         - name: Reset sleep settings to default
           ansible.builtin.command: systemsetup -setsleep 60
           become: true
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
         - name: Reset display sleep to default
           ansible.builtin.command: systemsetup -setdisplaysleep 15
           become: true
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
         - name: Reset hard disk sleep to default
           ansible.builtin.command: systemsetup -setharddisksleep 10
           become: true
-          ignore_errors: true
+          changed_when: false
+          failed_when: false
 
     - name: Clean up temporary files
       ansible.builtin.file:
@@ -291,7 +322,8 @@
       with_items:
         - "/tmp/brew-uninstall.sh"
         - "./ansible.log"
-      ignore_errors: true
+      changed_when: false
+      failed_when: false
 
   post_tasks:
     - name: Display completion message

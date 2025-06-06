@@ -19,6 +19,7 @@
 # Get Python paths
 - name: Get Python paths
   ansible.builtin.shell: |
+    set -o pipefail
     which python3
   register: python_path
   changed_when: false
@@ -26,6 +27,7 @@
 # Determine real Python executable paths (following symlinks)
 - name: Get real Python executable paths
   ansible.builtin.shell: |
+    set -o pipefail
     readlink -f $(which python3) || which python3
   register: real_python_path
   changed_when: false

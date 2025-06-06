@@ -3,6 +3,8 @@
 
 - name: Reload macosapi service
   ansible.builtin.shell: |
+    set -o pipefail
     launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist || true
     launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
   become: false
+  changed_when: false

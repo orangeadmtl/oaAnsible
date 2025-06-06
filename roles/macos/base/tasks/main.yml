@@ -9,13 +9,7 @@
 
     - name: Set shell configuration facts
       ansible.builtin.set_fact:
-        shell_config:
-          zsh:
-            profile_file: .zprofile
-            rc_file: .zshrc
-          bash:
-            profile_file: .bashrc
-            rc_file: .bash_profile
+        shell_config: "{{ macos_shell_config }}"
 
     - name: Set shell-specific facts
       ansible.builtin.set_fact:
@@ -47,14 +41,14 @@
             # Homebrew configuration
             eval "$({{ homebrew_prefix }}/bin/brew shellenv)"
 
-            {% if configure.pyenv %}
+            {% if macos_configure.pyenv %}
             # Pyenv configuration
             export PYENV_ROOT="$HOME/.pyenv"
             export PATH="$PYENV_ROOT/bin:$PATH"
             eval "$(pyenv init -)"
             {% endif %}
 
-            {% if configure.node %}
+            {% if macos_configure.node %}
             # Node.js configuration
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
@@ -85,12 +79,14 @@
   block:
     - name: Get list of JPR Launch Agents
       ansible.builtin.shell: |
+        set -o pipefail
         launchctl list | grep ca.jpr | awk '{print $3}' || true
       register: jpr_agents
       changed_when: false
 
     - name: Get list of JPR Launch Daemons
       ansible.builtin.shell: |
+        set -o pipefail
         sudo launchctl list | grep ca.jpr | awk '{print $3}' || true
       register: jpr_daemons
       changed_when: false
@@ -98,10 +94,12 @@
 
     - name: Unload JPR Launch Agents
       ansible.builtin.shell: |
+        set -o pipefail
         launchctl unload "{{ ansible_env.HOME }}/Library/LaunchAgents/{{ item }}.plist"
       loop: "{{ jpr_agents.stdout_lines }}"
       when: jpr_agents.stdout_lines | length > 0
-      ignore_errors: true
+      failed_when: false
+      changed_when: false
 
     - name: Remove JPR Launch Agent files
       ansible.builtin.file:
@@ -112,11 +110,13 @@
 
     - name: Unload JPR Launch Daemons
       ansible.builtin.shell: |
+        set -o pipefail
         sudo launchctl unload "/Library/LaunchDaemons/{{ item }}.plist"
       loop: "{{ jpr_daemons.stdout_lines }}"
       when: jpr_daemons.stdout_lines | length > 0
       become: true
-      ignore_errors: true
+      failed_when: false
+      changed_when: false
 
     - name: Remove JPR Launch Daemon files
       ansible.builtin.file:
@@ -128,12 +128,14 @@
 
     - name: Verify JPR cleanup - check remaining agents
       ansible.builtin.shell: |
+        set -o pipefail
         launchctl list | grep ca.jpr || echo "No JPR agents found"
       register: remaining_agents
       changed_when: false
 
     - name: Verify JPR cleanup - check remaining daemons
       ansible.builtin.shell: |
+        set -o pipefail
         sudo launchctl list | grep ca.jpr || echo "No JPR daemons found"
       register: remaining_daemons
       changed_when: false

@@ -47,9 +47,10 @@
 
 - name: Check Python version in virtual environment
   ansible.builtin.shell: |
+    set -o pipefail
     if [ -f {{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python ]; then
       VENV_VERSION=$({{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python --version | awk '{print $2}')
-      REQUIRED_VERSION="{{ python.version }}"
+      REQUIRED_VERSION="{{ macos_python.version }}"
       if [[ "$VENV_VERSION" == "$REQUIRED_VERSION"* ]]; then
         echo "0"
       else
@@ -80,6 +81,7 @@
 
 - name: Create Python virtual environment
   ansible.builtin.shell: |
+    set -o pipefail
     cd {{ ansible_user_dir }}/orangead/macos-api
     {{ python_executable }} -m venv .venv
     source .venv/bin/activate
@@ -92,6 +94,7 @@
 
 - name: Install uv package manager
   ansible.builtin.shell: |
+    set -o pipefail
     cd {{ ansible_user_dir }}/orangead/macos-api && \
     source .venv/bin/activate && \
     pip install uv
@@ -111,6 +114,7 @@
 
 - name: Install NumPy first to ensure compatibility
   ansible.builtin.shell: |
+    set -o pipefail
     cd {{ ansible_user_dir }}/orangead/macos-api && \
     source .venv/bin/activate && \
     python -m uv pip install 'numpy<2.0.0'
@@ -120,6 +124,7 @@
 
 - name: Install all dependencies from requirements.txt
   ansible.builtin.shell: |
+    set -o pipefail
     cd {{ ansible_user_dir }}/orangead/macos-api && \
     source .venv/bin/activate && \
     python -m uv pip install -r requirements.txt
@@ -139,6 +144,7 @@
 
 - name: Verify OpenCV installation
   ansible.builtin.shell: |
+    set -o pipefail
     cd {{ ansible_user_dir }}/orangead/macos-api && \
     source .venv/bin/activate && \
     python3 ./verify_opencv.py
@@ -146,7 +152,7 @@
   changed_when: false
   become: true
   become_user: "{{ ansible_user }}"
-  ignore_errors: true # Don't fail the playbook if verification fails
+  failed_when: false # Don't fail the playbook if verification fails
 
 - name: Create rebuild flag if OpenCV verification fails
   ansible.builtin.file:
@@ -185,7 +191,7 @@
     - "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python"
     - "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3"
   become: true
-  ignore_errors: true # In case the file doesn't exist yet
+  failed_when: false # In case the file doesn't exist yet
 
 - name: Ensure LaunchAgents directory exists
   ansible.builtin.file:
@@ -210,11 +216,16 @@
 
 - name: Configure firewall to allow API port
   ansible.builtin.command: |
+    set -o pipefail
     /usr/libexec/ApplicationFirewall/socketfilterfw --add {{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3
   become: true
-  ignore_errors: true # Some systems might not have firewall enabled
+  changed_when: false
+  failed_when: false # Some systems might not have firewall enabled
 
 - name: Load macOS API service
-  ansible.builtin.command: launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
+  ansible.builtin.command: |
+    set -o pipefail
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
   become: false
-  ignore_errors: true # In case it's already loaded
+  changed_when: false
+  failed_when: false # In case it's already loaded

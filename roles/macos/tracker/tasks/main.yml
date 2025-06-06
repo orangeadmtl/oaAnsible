@@ -1,5 +1,5 @@
-#SPDX-License-Identifier: MIT-0
 ---
+#SPDX-License-Identifier: MIT-0
 # tasks file for roles/macos/tracker
 
 # No longer creating a separate user - using ansible_user instead
@@ -82,7 +82,7 @@
     group: staff
     mode: "0644"
   become: true
-  ignore_errors: true
+  failed_when: false
 
 # Set proper ownership
 - name: Set proper ownership for tracker files
@@ -116,12 +116,12 @@
     - "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python"
     - "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python3"
   become: true
-  ignore_errors: true # In case the file doesn't exist yet
+  failed_when: false # In case the file doesn't exist yet
 
 # Use standardized Python version from group_vars
 - name: Set required Python version from group_vars
   ansible.builtin.set_fact:
-    tracker_python_version: "{{ python.version }}"
+    tracker_python_version: "{{ macos_python.version }}"
 
 - name: Debug required Python version
   ansible.builtin.debug:
@@ -130,6 +130,7 @@
 # Check if required Python version is available in pyenv
 - name: Check if required Python version is available in pyenv
   ansible.builtin.shell: |
+    set -o pipefail
     export PYENV_ROOT="$HOME/.pyenv"
     export PATH="$PYENV_ROOT/bin:$PATH"
     $PYENV_ROOT/bin/pyenv install --list | grep -E "^\s+{{ tracker_python_version }}$" || echo "not_found"
@@ -138,6 +139,7 @@
 
 - name: Find closest available Python version if exact version not found
   ansible.builtin.shell: |
+    set -o pipefail
     export PYENV_ROOT="$HOME/.pyenv"
     export PATH="$PYENV_ROOT/bin:$PATH"
     # Extract major.minor version (e.g., 3.11 from 3.11.11)
@@ -151,8 +153,8 @@
 - name: Set final Python version to use
   ansible.builtin.set_fact:
     final_python_version: >
-      {%- if python_version_available.stdout != "not_found" -%} {{ tracker_python_version | trim }}{%- else -%} {{
-      closest_python_version.stdout | trim }}{%- endif -%}
+      {%- if python_version_available.stdout != "not_found" -%} {{ tracker_python_version | trim }}{%- else -%} {{ closest_python_version.stdout | trim }}{%-
+      endif -%}
 
 - name: Debug final Python version
   ansible.builtin.debug:
@@ -163,6 +165,7 @@
 # Setup Python environment
 - name: Check Python version in virtual environment
   ansible.builtin.shell: |
+    set -o pipefail
     if [ -f {{ ansible_user_dir }}/orangead/tracker/.venv/bin/python ]; then
       VENV_VERSION=$({{ ansible_user_dir }}/orangead/tracker/.venv/bin/python --version | awk '{print $2}')
       REQUIRED_VERSION="{{ final_python_version }}"
@@ -186,6 +189,7 @@
 
 - name: Install required Python version if not present
   ansible.builtin.shell: |
+    set -o pipefail
     export PYENV_ROOT="$HOME/.pyenv"
     export PATH="$PYENV_ROOT/bin:$PATH"
     REQUIRED_VERSION="{{ final_python_version | trim }}"
@@ -215,6 +219,7 @@
 
 - name: Get Python executable path for required version
   ansible.builtin.shell: |
+    set -o pipefail
     export PYENV_ROOT="$HOME/.pyenv"
     export PATH="$PYENV_ROOT/bin:$PATH"
     REQUIRED_VERSION="{{ final_python_version | trim }}"
@@ -232,6 +237,7 @@
 
 - name: Upgrade pip in virtual environment
   ansible.builtin.shell: |
+    set -o pipefail
     cd {{ ansible_user_dir }}/orangead/tracker && \
     source .venv/bin/activate && \
     pip install --upgrade pip
@@ -242,6 +248,7 @@
 
 - name: Install uv package manager globally
   ansible.builtin.shell: |
+    set -o pipefail
     curl -LsSf https://astral.sh/uv/install.sh | sh
   become: true
   become_user: "{{ ansible_user }}"
@@ -251,12 +258,13 @@
 
 - name: Ensure uv is available in PATH
   ansible.builtin.shell: |
+    set -o pipefail
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> {{ ansible_user_dir }}/.zshrc
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> {{ ansible_user_dir }}/.bashrc
   become: true
   become_user: "{{ ansible_user }}"
   changed_when: false
-  ignore_errors: true
+  failed_when: false
 
 # Install dependencies using uv and pyproject.toml
 - name: Check if pyproject.toml exists
@@ -271,6 +279,7 @@
 
 - name: Install NumPy first to ensure compatibility
   ansible.builtin.shell: |
+    set -o pipefail
     cd {{ ansible_user_dir }}/orangead/tracker && \
     source .venv/bin/activate && \
     {{ ansible_user_dir }}/.local/bin/uv pip install 'numpy<2.0.0'
@@ -321,6 +330,7 @@
 
 - name: Try installing dependencies using uv with extracted requirements
   ansible.builtin.shell: |
+    set -o pipefail
     cd {{ ansible_user_dir }}/orangead/tracker && \
     source .venv/bin/activate && \
     {{ ansible_user_dir }}/.local/bin/uv pip install -r requirements.txt
@@ -329,11 +339,12 @@
   register: uv_install_result
   environment:
     PATH: "{{ ansible_user_dir }}/.local/bin:{{ ansible_env.PATH }}"
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Fallback to pip install if uv fails
   ansible.builtin.shell: |
+    set -o pipefail
     cd {{ ansible_user_dir }}/orangead/tracker && \
     source .venv/bin/activate && \
     if [ -f requirements.txt ]; then
@@ -364,7 +375,7 @@
   changed_when: false
   become: true
   become_user: "{{ ansible_user }}"
-  ignore_errors: true
+  failed_when: false
 
 - name: Display dependency verification results
   ansible.builtin.debug:
@@ -401,27 +412,19 @@
   become: false
   register: launchd_service
 
-- name: Unload existing launchd service if it exists
-  ansible.builtin.command: launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist
-  become: false
-  failed_when: false
-  changed_when: false
+- name: Reload tracker service when changed
+  ansible.builtin.meta: flush_handlers
   when: launchd_service.changed
-
-- name: Load launchd service
-  ansible.builtin.command: launchctl load {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist
-  become: false
-  when: launchd_service.changed
-
-- name: Start launchd service
-  ansible.builtin.command: launchctl start com.orangead.tracker
-  become: false
-  when: launchd_service.changed
+  notify:
+    - Unload existing launchd service
+    - Load launchd service
+    - Start launchd service
 
 # Additional verification and troubleshooting tasks
 # Detect server port from config if available
 - name: Check if config.yaml exists and extract server port
   ansible.builtin.shell: |
+    set -o pipefail
     if [ -f {{ ansible_user_dir }}/orangead/tracker/config.yaml ]; then
       grep '^default_server_port:' {{ ansible_user_dir }}/orangead/tracker/config.yaml | awk '{print $2}' || echo "8080"
     else
@@ -436,10 +439,11 @@
     host: localhost
     delay: 5
     timeout: 30
-  ignore_errors: true
+  failed_when: false
 
 - name: Check if tracker process is running
   ansible.builtin.shell: |
+    set -o pipefail
     launchctl list | grep com.orangead.tracker || echo "Service not found"
   register: tracker_status
   changed_when: false
@@ -450,6 +454,7 @@
 
 - name: Check tracker logs for any errors
   ansible.builtin.shell: |
+    set -o pipefail
     if [ -f {{ ansible_user_dir }}/orangead/tracker/logs/tracker.err.log ]; then
       tail -10 {{ ansible_user_dir }}/orangead/tracker/logs/tracker.err.log
     else
@@ -457,7 +462,7 @@
     fi
   register: tracker_logs
   changed_when: false
-  ignore_errors: true
+  failed_when: false
 
 - name: Display recent tracker errors (if any)
   ansible.builtin.debug:

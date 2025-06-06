@@ -2,7 +2,7 @@
 # Prettier configuration for oaAnsible
 # This ensures consistent YAML formatting across all editors and the format script
 
-printWidth: 120
+printWidth: 160
 tabWidth: 2
 useTabs: false
 proseWrap: "always"
@@ -12,13 +12,13 @@ endOfLine: "lf"
 overrides:
   - files: "*.yml"
     options:
-      printWidth: 120
+      printWidth: 160
       tabWidth: 2
       singleQuote: false
       trailingComma: "none"
   - files: "*.yaml"
     options:
-      printWidth: 120
+      printWidth: 160
       tabWidth: 2
       singleQuote: false
       trailingComma: "none"

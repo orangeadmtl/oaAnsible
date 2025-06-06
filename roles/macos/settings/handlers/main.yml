@@ -1,0 +1,14 @@
+---
+#SPDX-License-Identifier: MIT-0
+# handlers file for roles/macos/settings
+
+- name: Unload existing daily reboot service
+  ansible.builtin.command: launchctl unload /Library/LaunchDaemons/com.orangead.dailyreboot.plist
+  become: true
+  failed_when: false
+  changed_when: false
+
+- name: Load daily reboot service
+  ansible.builtin.command: launchctl load /Library/LaunchDaemons/com.orangead.dailyreboot.plist
+  become: true
+  changed_when: false

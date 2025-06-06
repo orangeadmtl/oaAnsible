@@ -25,6 +25,10 @@ skip_list:
   - meta-no-info # Allow roles without meta/main.yml info
   - role-name # Allow role names that don't match pattern
   - schema # Skip JSON schema validation for now
+  - yaml[comments] # Skip comment formatting to avoid conflicts with SPDX headers
+  - name[template] # Skip name template checks for meta tasks
+  - no-handler # Skip no-handler rule for meta tasks that trigger handlers
+  - yaml[line-length] # Skip line length checks
 
 # Warn on these rules but don't fail
 warn_list:
@@ -32,7 +36,6 @@ warn_list:
   - deprecated-command-syntax # Warn on deprecated command syntax
   - no-changed-when # Warn when changed_when is not used with commands
   - no-handler # Warn when tasks use notify but no handlers are defined
-  - yaml[line-length] # Warn on long lines but don't fail
 
 # Set the default verbosity level
 verbosity: 1

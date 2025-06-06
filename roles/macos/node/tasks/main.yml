@@ -1,7 +1,7 @@
 ---
 # Install and configure Node.js
 - name: Configure Node.js
-  when: configure.node | bool
+  when: macos_configure.node | bool
   # This entire block will only run if configure.node is set to true
   block:
     # Check if NVM is installed
@@ -13,6 +13,7 @@
     # Install NVM if not already installed
     - name: Install NVM
       ansible.builtin.shell: |
+        set -o pipefail
         curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
       args:
         creates: "{{ ansible_env.HOME }}/.nvm/nvm.sh"
@@ -28,12 +29,14 @@
           [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
         marker: "# {mark} ANSIBLE MANAGED BLOCK - NVM"
         create: true
+        mode: "0644"
 
     # Install Node.js using NVM
     - name: Check if Node.js version is installed
       ansible.builtin.shell: |
+        set -o pipefail
         source {{ ansible_env.HOME }}/.nvm/nvm.sh
-        nvm list | grep "v{{ node.version }}"
+        nvm list | grep "v{{ macos_node.version }}"
       args:
         executable: /bin/bash
       register: node_version_check
@@ -42,17 +45,20 @@
 
     - name: Install Node.js with NVM
       ansible.builtin.shell: |
+        set -o pipefail
         source {{ ansible_env.HOME }}/.nvm/nvm.sh
-        nvm install {{ node.version }}
-        nvm alias default {{ node.version }}
+        nvm install {{ macos_node.version }}
+        nvm alias default {{ macos_node.version }}
       args:
         executable: /bin/bash
       register: node_install
+      changed_when: false
       when: node_version_check.rc != 0 or node_version_check.stdout == ""
 
     # Check existing global npm packages
     - name: Check existing global npm packages
       ansible.builtin.shell: |
+        set -o pipefail
         source {{ ansible_env.HOME }}/.nvm/nvm.sh
         npm list -g --depth=0 {{ item }}
       args:
@@ -60,7 +66,7 @@
       register: npm_check
       changed_when: false
       failed_when: false
-      loop: "{{ node.packages | default([]) }}"
+      loop: "{{ macos_node.packages | default([]) }}"
 
     # Install global npm packages
     - name: Install global npm packages
@@ -68,10 +74,10 @@
         name: "{{ item }}"
         global: true
         state: latest
-      loop: "{{ node.packages | default([]) }}"
+      loop: "{{ macos_node.packages | default([]) }}"
       when: "npm_check.results | selectattr('item', 'equalto', item) | map(attribute='rc') | first != 0"
       environment:
-        PATH: "{{ ansible_env.HOME }}/.nvm/versions/node/v{{ node.version }}/bin:{{ ansible_env.PATH }}"
+        PATH: "{{ ansible_env.HOME }}/.nvm/versions/node/v{{ macos_node.version }}/bin:{{ ansible_env.PATH }}"
 
     # Install bun - modern JavaScript runtime and package manager
     - name: Check if bun is installed
@@ -82,10 +88,12 @@
 
     - name: Install bun via curl
       ansible.builtin.shell: |
+        set -o pipefail
         curl -fsSL https://bun.sh/install | bash
       args:
         executable: /bin/bash
       when: bun_check.rc != 0
+      changed_when: false
 
     - name: Add bun to PATH
       ansible.builtin.blockinfile:
@@ -95,4 +103,6 @@
           export PATH="$BUN_INSTALL/bin:$PATH"
         marker: "# {mark} ANSIBLE MANAGED BLOCK - BUN"
         create: true
+        mode: "0644"
       when: bun_check.rc != 0
+      changed_when: false

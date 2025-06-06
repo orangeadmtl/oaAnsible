@@ -1,0 +1,14 @@
+---
+#SPDX-License-Identifier: MIT-0
+# handlers file for roles/macos/python
+
+- name: Rehash pyenv
+  ansible.builtin.shell: |
+    set -o pipefail
+    export PYENV_ROOT="$HOME/.pyenv"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init -)"
+    pyenv rehash
+  args:
+    executable: /bin/bash
+  changed_when: false

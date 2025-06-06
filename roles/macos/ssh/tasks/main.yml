@@ -20,8 +20,8 @@
     # Extracts roughly the middle 60 characters of the Base64 part of an ssh-rsa key
     # This is more robust than grepping the whole key or just the comment
     public_key_fingerprint_segment: >-
-      {{ (vault_ssh_public_key.split(' ')[1] | default(''))[100:160] if vault_ssh_public_key and ' ' in
-      vault_ssh_public_key else "INVALID_KEY_FORMAT_IN_VAULT" }}
+      {{ (vault_ssh_public_key.split(' ')[1] | default(''))[100:160] if vault_ssh_public_key and ' ' in vault_ssh_public_key else "INVALID_KEY_FORMAT_IN_VAULT"
+      }}
   when: vault_ssh_public_key is defined and vault_ssh_public_key != ""
 
 - name: Verify SSH key was added
