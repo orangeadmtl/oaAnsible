@@ -3,16 +3,16 @@
 
 - name: Configure macOS Firewall
   block:
-    - name: Enable macOS Firewall
-      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
+    - name: Disable macOS Firewall
+      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate off
       become: true
       register: firewall_global_state_result
-      # Changed if it wasn't already on. stdout for "on" can be "Firewall is enabled. (State = 1)" or just empty if already on.
-      # stderr might say "Firewall already enabled." if it was already on.
+      # Changed if it wasn't already off. stdout for "off" can be "Firewall is disabled. (State = 0)" or just empty if already off.
+      # stderr might say "Firewall already disabled." if it was already off.
       changed_when: >
-        firewall_global_state_result.rc == 0 and "already enabled" not in (firewall_global_state_result.stderr | default('')) and "Firewall is enabled" not in
+        firewall_global_state_result.rc == 0 and "already disabled" not in (firewall_global_state_result.stderr | default('')) and "Firewall is disabled" not in
         (firewall_global_state_result.stdout | default(''))
-      failed_when: false # Don't fail if it's already on or other benign messages
+      failed_when: false # Don't fail if it's already off or other benign messages
 
     - name: Allow SSH connections
       ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/sbin/sshd
