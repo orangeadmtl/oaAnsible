@@ -1,6 +1,7 @@
 # OrangeAd Mac Setup Playbook
 
-Ansible playbook for automated setup and configuration of macOS devices for OrangeAd. This repository is part of the `oaPangaea` monorepo and provides comprehensive macOS device management capabilities.
+Ansible playbook for automated setup and configuration of macOS devices for OrangeAd. This repository is part of the `oaPangaea` monorepo and provides
+comprehensive macOS device management capabilities.
 
 ## Features
 
@@ -139,11 +140,13 @@ The playbook installs Tailscale using the Go install method rather than Homebrew
 3. Configures the system daemon using `tailscaled install-system-daemon`
 4. Sets up DNS configuration for the OrangeAd network
 
-**Note on Node Identity**: When a Mac is reimaged or reinstalled, it may appear as a new device in the Tailscale admin console. You may need to remove the old device entry to avoid confusion.
+**Note on Node Identity**: When a Mac is reimaged or reinstalled, it may appear as a new device in the Tailscale admin console. You may need to remove the old
+device entry to avoid confusion.
 
 #### Security Considerations
 
-- **macOS API Security**: The macOS API service is secured through Tailscale's network-level security. Only devices on the Tailscale network with the appropriate ACLs can access the API endpoints.
+- **macOS API Security**: The macOS API service is secured through Tailscale's network-level security. Only devices on the Tailscale network with the
+  appropriate ACLs can access the API endpoints.
 - **No API Keys**: The current implementation relies on Tailscale IP-based access control rather than API keys.
 - **User Account**: Both services run as the `ansible_user` (typically the `admin` user) for easier management and camera access permissions.
 
@@ -277,19 +280,41 @@ This script:
 2. Configures the macOS API service on the target machine
 3. Sets up the launchd service to run as the `ansible_user` (typically the `admin` user)
 
-### Dynamic Inventory
+### Enhanced Dynamic Inventory
 
-The dynamic inventory script (`inventory/dynamic_inventory.py`) uses the Tailscale API to:
+The enhanced dynamic inventory script (`scripts/dynamic-inventory.py`) provides:
 
-1. Discover all devices in your Tailscale network
-2. Filter for macOS devices
-3. Generate an inventory with appropriate groups and variables
+1. **Automatic Discovery**: Uses Tailscale API to find macOS devices
+2. **Safety Mechanisms**: Connectivity validation for production environments
+3. **Fallback Support**: Falls back to static inventory if API fails
+4. **Environment Aware**: Handles both staging and production configurations
+5. **Backup Creation**: Automatically backs up static inventories
 
-To use dynamic inventory:
+#### Usage
 
 ```bash
-ansible-playbook main.yml -i inventory/dynamic_inventory.py
+# Generate inventory for staging
+./scripts/dynamic-inventory.py --list --env staging
+
+# Generate inventory for production (with safety checks)
+./scripts/dynamic-inventory.py --list --env production
+
+# Use with ansible-playbook
+ansible-playbook main.yml -i scripts/dynamic-inventory.py
+
+# Safe production deployment
+./scripts/safe-run-prod
 ```
+
+#### Migration from Legacy
+
+The new script replaces the old `inventory/dynamic_inventory.py` and `inventory/dynamic_inventory.sh` with enhanced features:
+
+- Better error handling and fallbacks
+- Production safety mechanisms
+- Connectivity validation
+- Automatic backup creation
+- Environment-specific configurations
 
 ## Troubleshooting
 
