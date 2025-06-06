@@ -20,6 +20,12 @@
         msg: "This playbook only supports macOS"
       when: ansible_distribution != "MacOSX"
 
+    - name: Map homebrew packages from group_vars to role variables
+      ansible.builtin.set_fact:
+        homebrew_installed_packages: "{{ system.homebrew.packages }}"
+      when: system is defined and system.homebrew is defined and system.homebrew.packages is defined
+      tags: ["homebrew", "setup"]
+
     - name: Ensure system requirements are met
       ansible.builtin.import_tasks: tasks/pre_checks.yml
       tags: ["always"]
