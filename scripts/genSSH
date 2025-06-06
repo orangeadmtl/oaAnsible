@@ -4,7 +4,7 @@
 # Assuming helpers.sh is in the same directory or in a known path
 HELPER_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
 if [ -f "$HELPER_SCRIPT_PATH" ]; then
-  # shellcheck source=/Users/kaitran/OrangeAd/oaPangaea/oaAnsible/scripts/helpers.sh
+  # shellcheck source=./helpers.sh
   source "$HELPER_SCRIPT_PATH"
 else
   echo "ERROR: helpers.sh not found at $HELPER_SCRIPT_PATH"
