@@ -1,8 +1,14 @@
 ---
-- name: Install Go using Homebrew
+- name: Install Go using Homebrew (latest version)
   community.general.homebrew:
     name: go
     state: latest
+    update_homebrew: true
+  register: go_install_result
+
+- name: Display Go installation status
+  ansible.builtin.debug:
+    msg: "Go installation {{ go_install_result.changed | ternary('updated to latest version', 'already at latest version') }}"
 
 - name: Define homebrew_prefix for this role
   ansible.builtin.set_fact:
@@ -10,6 +16,17 @@
 
 - name: Set Go environment variables
   block:
+    - name: Get Go version
+      ansible.builtin.command: "{{ _homebrew_prefix }}/bin/go version"
+      register: go_version_output
+      changed_when: false
+      environment:
+        PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
+      
+    - name: Display Go version
+      ansible.builtin.debug:
+        msg: "Using Go version: {{ go_version_output.stdout }}"
+
     - name: Get Go environment
       ansible.builtin.command: "{{ _homebrew_prefix }}/bin/go env GOPATH"
       register: go_path
@@ -89,15 +106,46 @@
   changed_when: false
 
 - name: Install/Update tailscale binary using Go
-  ansible.builtin.command: "{{ go_executable_path }} install tailscale.com/cmd/tailscale@latest"
-  environment:
-    GOPATH: "{{ ansible_env.HOME }}/go"
-    GOBIN: "{{ go_bin_path_for_tailscale }}"
-    PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
-    GOTOOLCHAIN: "auto"
-  register: tailscale_go_install_result
-  changed_when: false
-  failed_when: tailscale_go_install_result.rc != 0
+  block:
+    - name: Try installing latest Tailscale version
+      ansible.builtin.command: "{{ go_executable_path }} install tailscale.com/cmd/tailscale@latest"
+      environment:
+        GOPATH: "{{ ansible_env.HOME }}/go"
+        GOBIN: "{{ go_bin_path_for_tailscale }}"
+        PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
+        GOTOOLCHAIN: "auto"
+      register: tailscale_go_install_latest_result
+      changed_when: false
+      failed_when: false
+
+    - name: Display Tailscale latest installation attempt result
+      ansible.builtin.debug:
+        msg: "{{ tailscale_go_install_latest_result.stderr | default('No errors') }}"
+      when: tailscale_go_install_latest_result.rc != 0
+
+    - name: Try installing specific Tailscale version as fallback
+      ansible.builtin.command: "{{ go_executable_path }} install tailscale.com/cmd/tailscale@v1.60.0"
+      environment:
+        GOPATH: "{{ ansible_env.HOME }}/go"
+        GOBIN: "{{ go_bin_path_for_tailscale }}"
+        PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
+        GOTOOLCHAIN: "auto"
+      register: tailscale_go_install_fallback_result
+      changed_when: false
+      when: tailscale_go_install_latest_result.rc != 0
+
+    - name: Set combined install result
+      ansible.builtin.set_fact:
+        tailscale_install_success: "{{ tailscale_go_install_latest_result.rc == 0 or (tailscale_go_install_fallback_result.rc | default(1) == 0) }}"
+        tailscale_go_install_result: "{{ tailscale_go_install_latest_result if tailscale_go_install_latest_result.rc == 0 else tailscale_go_install_fallback_result }}"
+
+    - name: Fail if both installation attempts failed
+      ansible.builtin.fail:
+        msg: |
+          Failed to install Tailscale binary.
+          Latest version error: {{ tailscale_go_install_latest_result.stderr | default('None') }}
+          Fallback version error: {{ tailscale_go_install_fallback_result.stderr | default('None') }}
+      when: tailscale_go_install_latest_result.rc != 0 and tailscale_go_install_fallback_result.rc != 0
 
 - name: Get checksum of tailscale binary after install/update
   ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscale"
@@ -111,7 +159,7 @@
       {{ ((tailscale_checksum_before.stdout | default('')).split(' ')[0] !=
           (tailscale_checksum_after.stdout | default('')).split(' ')[0]) or
           (tailscale_checksum_before.rc | default(1) != 0) }}
-  when: tailscale_go_install_result.rc == 0
+  when: tailscale_install_success | bool
 
 # Install/Update tailscaled binary
 - name: Get checksum of existing tailscaled binary (if any)
@@ -121,15 +169,46 @@
   changed_when: false
 
 - name: Install/Update tailscaled binary using Go
-  ansible.builtin.command: "{{ go_executable_path }} install tailscale.com/cmd/tailscaled@latest"
-  environment:
-    GOPATH: "{{ ansible_env.HOME }}/go"
-    GOBIN: "{{ go_bin_path_for_tailscale }}"
-    PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
-    GOTOOLCHAIN: "auto"
-  register: tailscaled_go_install_result
-  changed_when: false
-  failed_when: tailscaled_go_install_result.rc != 0
+  block:
+    - name: Try installing latest tailscaled version
+      ansible.builtin.command: "{{ go_executable_path }} install tailscale.com/cmd/tailscaled@latest"
+      environment:
+        GOPATH: "{{ ansible_env.HOME }}/go"
+        GOBIN: "{{ go_bin_path_for_tailscale }}"
+        PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
+        GOTOOLCHAIN: "auto"
+      register: tailscaled_go_install_latest_result
+      changed_when: false
+      failed_when: false
+
+    - name: Display tailscaled latest installation attempt result
+      ansible.builtin.debug:
+        msg: "{{ tailscaled_go_install_latest_result.stderr | default('No errors') }}"
+      when: tailscaled_go_install_latest_result.rc != 0
+
+    - name: Try installing specific tailscaled version as fallback
+      ansible.builtin.command: "{{ go_executable_path }} install tailscale.com/cmd/tailscaled@v1.84.0"
+      environment:
+        GOPATH: "{{ ansible_env.HOME }}/go"
+        GOBIN: "{{ go_bin_path_for_tailscale }}"
+        PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
+        GOTOOLCHAIN: "auto"
+      register: tailscaled_go_install_fallback_result
+      changed_when: false
+      when: tailscaled_go_install_latest_result.rc != 0
+
+    - name: Set combined tailscaled install result
+      ansible.builtin.set_fact:
+        tailscaled_install_success: "{{ tailscaled_go_install_latest_result.rc == 0 or (tailscaled_go_install_fallback_result.rc | default(1) == 0) }}"
+        tailscaled_go_install_result: "{{ tailscaled_go_install_latest_result if tailscaled_go_install_latest_result.rc == 0 else tailscaled_go_install_fallback_result }}"
+
+    - name: Fail if both tailscaled installation attempts failed
+      ansible.builtin.fail:
+        msg: |
+          Failed to install tailscaled binary.
+          Latest version error: {{ tailscaled_go_install_latest_result.stderr | default('None') }}
+          Fallback version error: {{ tailscaled_go_install_fallback_result.stderr | default('None') }}
+      when: tailscaled_go_install_latest_result.rc != 0 and tailscaled_go_install_fallback_result.rc != 0
 
 - name: Get checksum of tailscaled binary after install/update
   ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscaled"
@@ -143,7 +222,7 @@
       {{ ((tailscaled_checksum_before.stdout | default('')).split(' ')[0] !=
           (tailscaled_checksum_after.stdout | default('')).split(' ')[0]) or
           (tailscaled_checksum_before.rc | default(1) != 0) }}
-  when: tailscaled_go_install_result.rc == 0
+  when: tailscaled_install_success | bool
 
 - name: Check if source files for symlinks exist
   ansible.builtin.stat:

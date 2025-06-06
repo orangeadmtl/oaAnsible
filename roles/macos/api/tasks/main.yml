@@ -204,7 +204,7 @@
     group: staff
     mode: "0644"
   become: false
-  notify: reload macosapi service
+  notify: Reload macosapi service
 
 # Screenshot functionality has been removed
 
