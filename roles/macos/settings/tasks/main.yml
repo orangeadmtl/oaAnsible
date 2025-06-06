@@ -66,6 +66,14 @@
       changed_when: false
       failed_when: false
 
+    - name: Enable auto restart after power loss
+      ansible.builtin.command: |
+        pmset autorestart 1
+      become: true
+      register: autorestart_result
+      changed_when: false
+      failed_when: false
+
 - name: Set hostname if not matching inventory
   block:
     - name: Get current hostname
