@@ -197,6 +197,23 @@ def build_inventory(devices: List[Dict], env: str) -> Dict:
 
         # Get device details
         hostname = device.get("hostname", "").split(".")[0]  # Remove domain part
+        
+        # Apply naming convention transformation to f1-ca-XXX format
+        if hostname.startswith("f1"):
+            import re
+            # Handle various legacy formats and convert to f1-ca-XXX
+            if hostname.startswith("f1-") and not hostname.startswith("f1-ca-"):
+                # Legacy f1-XX format -> f1-ca-0XX
+                match = re.match(r"^f1-(\d+)$", hostname)
+                if match:
+                    number = match.group(1)
+                    hostname = f"f1-ca-{number.zfill(3)}"
+            elif re.match(r"^f1\d+$", hostname):
+                # Legacy f1XX format -> f1-ca-0XX  
+                number = hostname[2:]  # Remove "f1" prefix
+                hostname = f"f1-ca-{number.zfill(3)}"
+            # If already f1-ca-XXX format, keep as-is
+        
         ip_address = device.get("addresses", [None])[0]  # Get first IP (Tailscale IP)
         
         if not hostname or not ip_address:
