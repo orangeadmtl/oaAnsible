@@ -13,9 +13,9 @@ macos_system:
 # Feature Toggles
 # --------------
 macos_configure:
-  tailscale: false
-  pyenv: false
-  node: false
+  tailscale: true
+  pyenv: true
+  node: true
 
 # Development Environment
 # ---------------------
