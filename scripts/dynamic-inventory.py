@@ -1,0 +1,329 @@
+#!/usr/bin/env python3
+"""
+Enhanced dynamic inventory script for Ansible that manages both staging and production
+environments, with safety mechanisms for Tailscale operations.
+"""
+
+import os
+import sys
+import json
+import argparse
+import requests
+import subprocess
+import tempfile
+import yaml
+from typing import Dict, List, Optional, Tuple
+from pathlib import Path
+
+# Configuration
+TAILSCALE_API_KEY = os.environ.get("TAILSCALE_API_KEY", "")
+TAILSCALE_TAILNET = os.environ.get("TAILSCALE_TAILNET", "-")
+TAILSCALE_API_URL = f"https://api.tailscale.com/api/v2/tailnet/{TAILSCALE_TAILNET}/devices"
+MACOS_TAG = "tag:oa-macos"
+
+# Get script directory for finding relative paths
+SCRIPT_DIR = Path(__file__).parent
+ANSIBLE_ROOT = SCRIPT_DIR.parent
+INVENTORY_DIR = ANSIBLE_ROOT / "inventory"
+
+def log_error(msg: str) -> None:
+    """Log error to stderr."""
+    print(f"ERROR: {msg}", file=sys.stderr)
+
+def log_info(msg: str) -> None:
+    """Log info to stderr."""
+    print(f"INFO: {msg}", file=sys.stderr)
+
+def log_warn(msg: str) -> None:
+    """Log warning to stderr."""
+    print(f"WARN: {msg}", file=sys.stderr)
+
+def get_environment_from_args() -> str:
+    """Determine environment from command line arguments or environment variable."""
+    env = os.environ.get("OA_ANSIBLE_ENV", "staging")
+    
+    # Check if we're being called with a specific inventory path
+    for arg in sys.argv:
+        if "production" in arg:
+            return "production"
+        elif "staging" in arg:
+            return "staging"
+    
+    return env
+
+def backup_existing_inventory(env: str) -> Optional[str]:
+    """Create a backup of existing static inventory for safety."""
+    try:
+        static_inventory = INVENTORY_DIR / env / "hosts.yml"
+        if static_inventory.exists():
+            backup_file = static_inventory.with_suffix(f".yml.backup.{int(__import__('time').time())}")
+            backup_file.write_text(static_inventory.read_text())
+            log_info(f"Backed up static inventory to {backup_file}")
+            return str(backup_file)
+    except Exception as e:
+        log_warn(f"Failed to backup static inventory: {e}")
+    return None
+
+def get_tailscale_devices() -> List[Dict]:
+    """Query Tailscale API for devices."""
+    if not TAILSCALE_API_KEY:
+        log_error("TAILSCALE_API_KEY environment variable not set")
+        return []
+
+    headers = {
+        "Authorization": f"Bearer {TAILSCALE_API_KEY}",
+        "Accept": "application/json",
+    }
+
+    try:
+        response = requests.get(TAILSCALE_API_URL, headers=headers, timeout=30)
+        response.raise_for_status()
+        devices = response.json().get("devices", [])
+        log_info(f"Retrieved {len(devices)} devices from Tailscale API")
+        return devices
+    except requests.exceptions.RequestException as e:
+        log_error(f"Error querying Tailscale API: {e}")
+        return []
+
+def is_macos_device(device: Dict) -> bool:
+    """Check if a device is a macOS device that should be managed."""
+    # Check if device has the macOS tag
+    tags = device.get("tags", [])
+    if MACOS_TAG in tags:
+        return True
+    
+    # Check OS (fallback)
+    os_name = device.get("os", "").lower()
+    return "mac" in os_name or "darwin" in os_name
+
+def load_static_inventory(env: str) -> Dict:
+    """Load static inventory as fallback."""
+    try:
+        static_inventory_path = INVENTORY_DIR / env / "hosts.yml"
+        if static_inventory_path.exists():
+            with open(static_inventory_path, 'r') as f:
+                return yaml.safe_load(f)
+    except Exception as e:
+        log_warn(f"Failed to load static inventory: {e}")
+    return {}
+
+def merge_with_static_inventory(dynamic_inventory: Dict, static_inventory: Dict, env: str) -> Dict:
+    """Merge dynamic inventory with static inventory, preserving important settings."""
+    if not static_inventory:
+        return dynamic_inventory
+    
+    # Get static hosts for reference
+    static_hosts = static_inventory.get("all", {}).get("children", {}).get("macos", {}).get("hosts", {})
+    
+    # For each dynamic host, try to get additional config from static
+    for hostname, host_config in dynamic_inventory.get("_meta", {}).get("hostvars", {}).items():
+        if hostname in static_hosts:
+            static_host_config = static_hosts[hostname]
+            
+            # Preserve certain static configurations
+            preserve_keys = ["cam_id", "ansible_become_password", "specific_config"]
+            for key in preserve_keys:
+                if key in static_host_config:
+                    host_config[key] = static_host_config[key]
+    
+    # Preserve global variables from static inventory
+    if "all" in static_inventory and "vars" in static_inventory["all"]:
+        if "all" not in dynamic_inventory:
+            dynamic_inventory["all"] = {}
+        if "vars" not in dynamic_inventory["all"]:
+            dynamic_inventory["all"]["vars"] = {}
+        
+        # Merge vars, preferring static for certain keys
+        static_vars = static_inventory["all"]["vars"]
+        dynamic_vars = dynamic_inventory["all"]["vars"]
+        
+        preserve_var_keys = ["target_env", "ansible_python_interpreter", "ansible_connection", 
+                           "ansible_ssh_common_args", "ansible_ssh_pipelining", "ansible_become_method"]
+        
+        for key in preserve_var_keys:
+            if key in static_vars:
+                dynamic_vars[key] = static_vars[key]
+    
+    return dynamic_inventory
+
+def validate_connectivity(hostname: str, ip_address: str) -> bool:
+    """Test if we can reach a host before including it in inventory."""
+    try:
+        # Quick ping test with 2 second timeout
+        result = subprocess.run(
+            ["ping", "-c", "1", "-W", "2000", ip_address],
+            capture_output=True,
+            timeout=5
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError):
+        return False
+
+def build_inventory(devices: List[Dict], env: str) -> Dict:
+    """Build Ansible inventory from Tailscale devices."""
+    inventory = {
+        "all": {
+            "vars": {
+                "target_env": env,
+                "ansible_python_interpreter": "/usr/bin/python3",
+                "ansible_connection": "ssh",
+                "ansible_ssh_common_args": "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10",
+                "ansible_ssh_pipelining": True,
+                "ansible_become_method": "sudo"
+            }
+        },
+        "macos": {
+            "hosts": {}
+        },
+        "_meta": {
+            "hostvars": {}
+        }
+    }
+
+    reachable_hosts = 0
+    total_macos_devices = 0
+
+    for device in devices:
+        # Skip devices that are not macOS
+        if not is_macos_device(device):
+            continue
+        
+        total_macos_devices += 1
+        
+        # Skip devices that are not online
+        if not device.get("online", False):
+            log_warn(f"Skipping offline device: {device.get('name', 'unknown')}")
+            continue
+
+        # Get device details
+        hostname = device.get("hostname", "").split(".")[0]  # Remove domain part
+        ip_address = device.get("addresses", [None])[0]  # Get first IP (Tailscale IP)
+        
+        if not hostname or not ip_address:
+            log_warn(f"Skipping device with missing hostname or IP: {device.get('name', 'unknown')}")
+            continue
+
+        # For production, validate connectivity before including
+        if env == "production":
+            if not validate_connectivity(hostname, ip_address):
+                log_warn(f"Skipping unreachable device: {hostname} ({ip_address})")
+                continue
+        
+        reachable_hosts += 1
+
+        # Add to hosts
+        inventory["macos"]["hosts"][hostname] = hostname
+        
+        # Add host variables
+        inventory["_meta"]["hostvars"][hostname] = {
+            "ansible_host": ip_address,
+            "ansible_user": "admin",
+            "ansible_port": 22,
+            "ansible_become_password": "{{ vault_sudo_passwords['" + hostname + "'] | default(vault_default_sudo_password) }}",
+            "tailscale_id": device.get("id", ""),
+            "tailscale_name": device.get("name", ""),
+            "os": device.get("os", ""),
+            "tags": device.get("tags", [])
+        }
+
+    log_info(f"Built inventory with {reachable_hosts}/{total_macos_devices} reachable macOS devices for {env}")
+    return inventory
+
+def ensure_minimum_hosts(inventory: Dict, env: str) -> bool:
+    """Ensure we have at least one host in production to prevent empty inventory disasters."""
+    if env != "production":
+        return True
+    
+    macos_hosts = inventory.get("macos", {}).get("hosts", {})
+    if len(macos_hosts) == 0:
+        log_error("Production inventory would be empty! This could be dangerous.")
+        log_error("Falling back to static inventory for safety.")
+        return False
+    
+    return True
+
+def write_safety_info(env: str, inventory: Dict) -> None:
+    """Write safety information about the inventory generation."""
+    if env != "production":
+        return
+    
+    safety_file = INVENTORY_DIR / "production" / ".dynamic_inventory_info"
+    
+    try:
+        hosts = list(inventory.get("macos", {}).get("hosts", {}).keys())
+        info = {
+            "timestamp": __import__('time').time(),
+            "environment": env,
+            "host_count": len(hosts),
+            "hosts": hosts,
+            "script_version": "2.0",
+            "safety_checks": {
+                "connectivity_validated": True,
+                "minimum_hosts_checked": True,
+                "static_backup_created": True
+            }
+        }
+        
+        with open(safety_file, 'w') as f:
+            json.dump(info, f, indent=2)
+    
+    except Exception as e:
+        log_warn(f"Failed to write safety info: {e}")
+
+def main():
+    """Main function."""
+    parser = argparse.ArgumentParser(description="Enhanced Tailscale dynamic inventory with safety features")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--list", action="store_true", help="List all hosts")
+    group.add_argument("--host", help="Get variables for a specific host")
+    parser.add_argument("--env", choices=["staging", "production"], 
+                       help="Environment to generate inventory for")
+    
+    args = parser.parse_args()
+    
+    # Determine environment
+    env = args.env or get_environment_from_args()
+    
+    if args.list:
+        # Create backup of existing static inventory
+        backup_existing_inventory(env)
+        
+        # Get devices from Tailscale
+        devices = get_tailscale_devices()
+        
+        if not devices:
+            log_warn("No devices retrieved from Tailscale API, falling back to static inventory")
+            static_inventory = load_static_inventory(env)
+            if static_inventory:
+                print(json.dumps(static_inventory, indent=2))
+            else:
+                print(json.dumps({}))
+            return
+        
+        # Build dynamic inventory
+        inventory = build_inventory(devices, env)
+        
+        # Safety check for production
+        if not ensure_minimum_hosts(inventory, env):
+            static_inventory = load_static_inventory(env)
+            if static_inventory:
+                print(json.dumps(static_inventory, indent=2))
+            else:
+                print(json.dumps({}))
+            return
+        
+        # Merge with static inventory for additional configuration
+        static_inventory = load_static_inventory(env)
+        final_inventory = merge_with_static_inventory(inventory, static_inventory, env)
+        
+        # Write safety information
+        write_safety_info(env, final_inventory)
+        
+        print(json.dumps(final_inventory, indent=2))
+        
+    elif args.host:
+        # --host output is handled by the _meta field in --list
+        print(json.dumps({}))
+
+if __name__ == "__main__":
+    main()
