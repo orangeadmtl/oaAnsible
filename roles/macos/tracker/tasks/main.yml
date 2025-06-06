@@ -151,8 +151,8 @@
 - name: Set final Python version to use
   ansible.builtin.set_fact:
     final_python_version: >
-      {%- if python_version_available.stdout != "not_found" -%} {{ tracker_python_version | trim }}{%- else -%} {{ closest_python_version.stdout | trim }}{%- endif
-      -%}
+      {%- if python_version_available.stdout != "not_found" -%} {{ tracker_python_version | trim }}{%- else -%} {{
+      closest_python_version.stdout | trim }}{%- endif -%}
 
 - name: Debug final Python version
   ansible.builtin.debug:

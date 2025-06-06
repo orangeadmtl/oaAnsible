@@ -10,9 +10,8 @@
       # Changed if it wasn't already on. stdout for "on" can be "Firewall is enabled. (State = 1)" or just empty if already on.
       # stderr might say "Firewall already enabled." if it was already on.
       changed_when: >
-        firewall_global_state_result.rc == 0 and
-        "already enabled" not in (firewall_global_state_result.stderr | default('')) and
-        "Firewall is enabled" not in (firewall_global_state_result.stdout | default(''))
+        firewall_global_state_result.rc == 0 and "already enabled" not in (firewall_global_state_result.stderr |
+        default('')) and "Firewall is enabled" not in (firewall_global_state_result.stdout | default(''))
       failed_when: false # Don't fail if it's already on or other benign messages
 
     - name: Allow SSH connections

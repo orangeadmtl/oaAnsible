@@ -2,6 +2,8 @@
 - name: Verify installations
   block:
     - name: Verify Python environment
+      when: configure.pyenv | bool
+      tags: ["verify", "python"]
       block:
         - name: Check pyenv installation
           ansible.builtin.stat:
@@ -41,10 +43,10 @@
           changed_when: false
           failed_when: false
           when: uv_path != ''
-      when: configure.pyenv | bool
-      tags: ["verify", "python"]
 
     - name: Verify Node.js environment
+      when: configure.node | bool
+      tags: ["verify", "node"]
       block:
         - name: Check NVM installation
           ansible.builtin.stat:
@@ -82,10 +84,10 @@
           changed_when: false
           failed_when: false
           when: bun_path != ''
-      when: configure.node | bool
-      tags: ["verify", "node"]
 
     - name: Verify Tailscale
+      when: configure.tailscale | bool
+      tags: ["verify", "tailscale"]
       block:
         - name: Check if Tailscale binary exists
           ansible.builtin.stat:
@@ -105,10 +107,10 @@
           changed_when: false
           failed_when: false
           when: tailscale_binary_exists.stat.exists
-      when: configure.tailscale | bool
-      tags: ["verify", "tailscale"]
 
     - name: Verify Homebrew packages
+      when: ansible_distribution == "MacOSX"
+      tags: ["verify", "homebrew"]
       block:
         - name: Check common Homebrew installation paths
           ansible.builtin.stat:
@@ -139,10 +141,10 @@
           changed_when: false
           failed_when: false
           when: homebrew_path != ''
-      when: ansible_distribution == "MacOSX"
-      tags: ["verify", "homebrew"]
 
     - name: Verify services
+      when: ansible_distribution == "MacOSX"
+      tags: ["verify", "services"]
       block:
         - name: Check macOS API service status
           ansible.builtin.shell: |
@@ -177,14 +179,14 @@
             timeout: 5
           register: tracker_http_check
           ignore_errors: true
-      when: ansible_distribution == "MacOSX"
-      tags: ["verify", "services"]
 
     - name: Set verification status fact
       ansible.builtin.set_fact:
         verification_status: >
-          {% if (macos_api_status is defined and macos_api_status.stdout is defined and macos_api_status.stdout != 'Not running') or
-                (tracker_status is defined and tracker_status.stdout is defined and tracker_status.stdout != 'Not running') %}true{% else %}false{% endif %}
+          {% if (macos_api_status is defined and macos_api_status.stdout is defined and macos_api_status.stdout != 'Not
+          running') or
+                (tracker_status is defined and tracker_status.stdout is defined and tracker_status.stdout != 'Not
+          running') %}true{% else %}false{% endif %}
 
     - name: Display verification results
       ansible.builtin.debug:

@@ -81,6 +81,7 @@
 
 # Clean up legacy JPR Launch Agents and Daemons
 - name: Clean up legacy JPR services
+  tags: ["cleanup", "jpr"]
   block:
     - name: Get list of JPR Launch Agents
       ansible.builtin.shell: |
@@ -143,5 +144,3 @@
         msg:
           - "JPR Launch Agents cleanup: {{ 'COMPLETE' if 'No JPR agents found' in remaining_agents.stdout else 'INCOMPLETE - ' + remaining_agents.stdout }}"
           - "JPR Launch Daemons cleanup: {{ 'COMPLETE' if 'No JPR daemons found' in remaining_daemons.stdout else 'INCOMPLETE - ' + remaining_daemons.stdout }}"
-
-  tags: ["cleanup", "jpr"]

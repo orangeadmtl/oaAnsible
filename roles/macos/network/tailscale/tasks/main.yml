@@ -22,7 +22,7 @@
       changed_when: false
       environment:
         PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
-      
+
     - name: Display Go version
       ansible.builtin.debug:
         msg: "Using Go version: {{ go_version_output.stdout }}"
@@ -137,7 +137,8 @@
     - name: Set combined install result
       ansible.builtin.set_fact:
         tailscale_install_success: "{{ tailscale_go_install_latest_result.rc == 0 or (tailscale_go_install_fallback_result.rc | default(1) == 0) }}"
-        tailscale_go_install_result: "{{ tailscale_go_install_latest_result if tailscale_go_install_latest_result.rc == 0 else tailscale_go_install_fallback_result }}"
+        tailscale_go_install_result: "{{ tailscale_go_install_latest_result if tailscale_go_install_latest_result.rc == 0 else tailscale_go_install_fallback_result
+          }}"
 
     - name: Fail if both installation attempts failed
       ansible.builtin.fail:
@@ -200,7 +201,8 @@
     - name: Set combined tailscaled install result
       ansible.builtin.set_fact:
         tailscaled_install_success: "{{ tailscaled_go_install_latest_result.rc == 0 or (tailscaled_go_install_fallback_result.rc | default(1) == 0) }}"
-        tailscaled_go_install_result: "{{ tailscaled_go_install_latest_result if tailscaled_go_install_latest_result.rc == 0 else tailscaled_go_install_fallback_result }}"
+        tailscaled_go_install_result: "{{ tailscaled_go_install_latest_result if tailscaled_go_install_latest_result.rc == 0 else tailscaled_go_install_fallback_result
+          }}"
 
     - name: Fail if both tailscaled installation attempts failed
       ansible.builtin.fail:
@@ -376,12 +378,8 @@
 # Scenario 2: Try gentle authentication first without --force-reauth
 - name: Authenticate Tailscale if needed (gentle approach first)
   ansible.builtin.command: >
-    /usr/local/bin/tailscale up
-    --authkey={{ vault_tailscale_auth_key }}
-    --hostname={{ inventory_hostname }}
-    --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }}
-    --accept-dns=false
-    --ssh
+    /usr/local/bin/tailscale up --authkey={{ vault_tailscale_auth_key }} --hostname={{ inventory_hostname }}
+    --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }} --accept-dns=false --ssh
     --reset
   become: true # Run as root to ensure it interacts with system daemon and has perms
   register: tailscale_up_gentle
@@ -392,14 +390,9 @@
 # Scenario 3: If gentle approach fails, try with --force-reauth
 - name: Authenticate Tailscale with force-reauth if gentle approach failed
   ansible.builtin.command: >
-    /usr/local/bin/tailscale up
-    --authkey={{ vault_tailscale_auth_key }}
-    --hostname={{ inventory_hostname }}
-    --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }}
-    --accept-dns=false
-    --force-reauth
-    --ssh
-    --reset
+    /usr/local/bin/tailscale up --authkey={{ vault_tailscale_auth_key }} --hostname={{ inventory_hostname }}
+    --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }} --accept-dns=false
+    --force-reauth --ssh --reset
   become: true # Run as root to ensure it interacts with system daemon and has perms
   register: tailscale_up_force
   when:
@@ -407,11 +400,10 @@
     - tailscale_up_gentle.rc != 0
   changed_when: tailscale_up_force.rc == 0 and ('Success.' in tailscale_up_force.stdout or tailscale_up_force.stdout == "")
   failed_when: >
-    tailscale_up_force.rc != 0 and
-    'already logged in' not in (tailscale_up_force.stderr | default('')) and
-    'already using auth key' not in (tailscale_up_force.stderr | default('')) and
-    'already authenticated' not in (tailscale_up_force.stderr | default('')) and
-    not ('Success.' in tailscale_up_force.stdout or tailscale_up_force.stdout == "")
+    tailscale_up_force.rc != 0 and 'already logged in' not in (tailscale_up_force.stderr | default('')) and 'already
+    using auth key' not in (tailscale_up_force.stderr | default('')) and 'already authenticated' not in
+    (tailscale_up_force.stderr | default('')) and not ('Success.' in tailscale_up_force.stdout or
+    tailscale_up_force.stdout == "")
 
 - name: Verify Tailscale installation and get final status
   ansible.builtin.command: /usr/local/bin/tailscale status --json
