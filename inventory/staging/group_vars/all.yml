@@ -32,4 +32,4 @@ tracker:
 
 # Dashboard configuration
 dashboard:
-  url: "http://localhost:3000"
+  url: "http://100.79.103.84"

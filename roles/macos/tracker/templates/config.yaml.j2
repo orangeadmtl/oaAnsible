@@ -11,6 +11,7 @@ cors:
   - {{ dashboard.url | default('http://localhost:3000') }}
 counters:
   zone_counter:
+    enabled: true
     zones:
     - color:
       - 0
@@ -26,5 +27,5 @@ counters:
         - 100
       - - 0
         - 100
-default_model: {{ tracker.default_model | default('yolo12s.pt') }}
+default_model: {{ tracker.default_model | default('yoloe-11s-seg-custom.pt') }}
 default_server_port: {{ tracker.server_port | default(8080) }}
