@@ -322,6 +322,29 @@
     current_ts_tags: "{{ ts_status_data.Self.Tags | default([]) }}"
   when: not ts_status_error | default(true)
 
+# Check if Tailscale hostname needs updating (regardless of format)
+- name: Check if Tailscale hostname needs updating
+  ansible.builtin.set_fact:
+    tailscale_hostname_mismatch: >-
+      {{ current_ts_hostname | default('') != inventory_hostname }}
+    has_legacy_hostname: >-
+      {{ (current_ts_hostname | default('') | regex_search('^f1-\d+$') is not none) or
+         (current_ts_hostname | default('') | regex_search('^f1\d+$') is not none) }}
+    expected_new_hostname: "{{ inventory_hostname }}"
+  when: is_tailscale_logged_in | default(false)
+
+# Debug hostname detection
+- name: Debug hostname detection
+  ansible.builtin.debug:
+    msg: |
+      Current Tailscale hostname: {{ current_ts_hostname | default('N/A') }}
+      Target hostname: {{ inventory_hostname }}
+      Hostname mismatch: {{ tailscale_hostname_mismatch | default('N/A') }}
+      Has legacy format: {{ has_legacy_hostname | default('N/A') }}
+      Environment: {{ target_env | default('unknown') }}
+    verbosity: 1
+  when: is_tailscale_logged_in | default(false)
+
 # Define expected Tailscale tags for comparison
 - name: Define expected Tailscale tags
   ansible.builtin.set_fact:
@@ -338,7 +361,7 @@
   ansible.builtin.set_fact:
     needs_full_tailscale_up: >-
       {{ not is_tailscale_logged_in | default(true) or
-         current_ts_hostname | default('') != inventory_hostname or
+         tailscale_hostname_mismatch | default(false) or
          not tags_are_correct | default(false)
       }}
 
@@ -348,23 +371,82 @@
     msg: |
       is_tailscale_logged_in: {{ is_tailscale_logged_in | default('N/A') }}
       current_ts_hostname: {{ current_ts_hostname | default('N/A') }} vs inventory_hostname: {{ inventory_hostname }}
+      tailscale_hostname_mismatch: {{ tailscale_hostname_mismatch | default('N/A') }}
+      has_legacy_hostname: {{ has_legacy_hostname | default('N/A') }}
       current_ts_tags: {{ current_ts_tags | default([]) }} vs expected_ts_tags_list: {{ expected_ts_tags_list }}
       tags_are_correct: {{ tags_are_correct | default('N/A') }}
       needs_full_tailscale_up: {{ needs_full_tailscale_up }}
     verbosity: 1
 
-# Scenario 1: Tailscale is logged in, but hostname is wrong
-- name: Correct Tailscale hostname if mismatched and already logged in
+# Scenario 1: Force hostname update when Tailscale hostname doesn't match
+- name: Notice Tailscale hostname mismatch detected
+  ansible.builtin.debug:
+    msg: |
+      🔄 Tailscale hostname mismatch detected: {{ current_ts_hostname }} → {{ inventory_hostname }}
+      Current Tailscale registration: {{ current_ts_hostname }}
+      Target hostname: {{ inventory_hostname }}
+      Environment: {{ target_env | default('unknown') }}
+      Will use force-reauth: {{ target_env | default('production') != 'production' }}
+      Legacy format detected: {{ has_legacy_hostname | default(false) }}
+  when:
+    - is_tailscale_logged_in | default(false)
+    - tailscale_hostname_mismatch | default(false)
+
+- name: Force full Tailscale re-authentication for hostname mismatch (staging only)
+  ansible.builtin.command: >
+    /usr/local/bin/tailscale up --authkey={{ vault_tailscale_auth_key }} --hostname={{ inventory_hostname }} 
+    --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }} 
+    --accept-dns=false --force-reauth --ssh --reset
+  become: true
+  when:
+    - is_tailscale_logged_in | default(false)
+    - tailscale_hostname_mismatch | default(false)
+    - target_env | default('production') != 'production'  # Only in staging
+    - not needs_full_tailscale_up | default(true) # Only run if we are not doing a full 'up'
+  changed_when: true
+  register: tailscale_hostname_reauth
+
+- name: Safe hostname update for hostname mismatch (production only)
   ansible.builtin.command: /usr/local/bin/tailscale set --hostname={{ inventory_hostname }}
   become: true
   when:
     - is_tailscale_logged_in | default(false)
-    - current_ts_hostname | default('') != inventory_hostname
+    - tailscale_hostname_mismatch | default(false)
+    - target_env | default('production') == 'production'  # Only in production
+    - not needs_full_tailscale_up | default(true) # Only run if we are not doing a full 'up'
+  changed_when: true
+  register: tailscale_hostname_safe
+
+- name: Display hostname change completion notice
+  ansible.builtin.debug:
+    msg: |
+      ✅ Tailscale hostname update completed for {{ inventory_hostname }}
+      Previous Tailscale hostname: {{ current_ts_hostname }}
+      New Tailscale hostname: {{ inventory_hostname }}
+      Method: {{ 'Force re-authentication' if target_env != 'production' else 'Safe update' }}
+      Environment: {{ target_env | default('unknown') }}
+      
+      Note: You should now be able to SSH using the new hostname: admin@{{ inventory_hostname }}
+  when:
+    - is_tailscale_logged_in | default(false)
+    - tailscale_hostname_mismatch | default(false)
+    - (tailscale_hostname_reauth is defined and tailscale_hostname_reauth.changed) or 
+      (tailscale_hostname_safe is defined and tailscale_hostname_safe.changed)
+
+# Scenario 2: Fallback hostname correction (if not handled above)
+- name: Fallback Tailscale hostname correction
+  ansible.builtin.command: /usr/local/bin/tailscale set --hostname={{ inventory_hostname }}
+  become: true
+  when:
+    - is_tailscale_logged_in | default(false)
+    - tailscale_hostname_mismatch | default(false)
+    - not (tailscale_hostname_reauth is defined and tailscale_hostname_reauth.changed)
+    - not (tailscale_hostname_safe is defined and tailscale_hostname_safe.changed)
     - not needs_full_tailscale_up | default(true) # Only run if we are not doing a full 'up'
   changed_when: true # Assume change
   register: tailscale_hostname_correction
 
-# Scenario 1: Tailscale is logged in, but tags are wrong
+# Scenario 3: Tailscale is logged in, but tags are wrong
 - name: Correct Tailscale tags if mismatched and already logged in
   ansible.builtin.command: /usr/local/bin/tailscale set --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }}
   become: true
