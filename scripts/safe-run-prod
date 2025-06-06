@@ -1,0 +1,259 @@
+#!/bin/bash
+
+# Safe production deployment script with connection loss prevention
+# This script adds safety mechanisms around the original run-prod script
+
+# Source helper functions and variables
+HELPER_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
+if [ -f "$HELPER_SCRIPT_PATH" ]; then
+  # shellcheck source=./helpers.sh
+  source "$HELPER_SCRIPT_PATH"
+else
+  echo "ERROR: helpers.sh not found at $HELPER_SCRIPT_PATH"
+  exit 1
+fi
+
+# Set script-specific log level
+SCRIPT_LOG_LEVEL=$_LOG_LEVEL_INFO
+export SCRIPT_LOG_LEVEL
+
+log_info "🔒 Safe production deployment script started"
+ensure_ansible_root_dir
+
+# Safety configuration
+SAFETY_ENABLED=${OA_ANSIBLE_SAFETY_ENABLED:-true}
+CONNECTION_TEST_TIMEOUT=${OA_ANSIBLE_CONNECTION_TIMEOUT:-10}
+PRE_DEPLOYMENT_BACKUP=${OA_ANSIBLE_PRE_BACKUP:-true}
+TAILSCALE_SAFETY_MODE=${OA_ANSIBLE_TAILSCALE_SAFETY:-true}
+
+# Enhanced safety functions
+test_connection_to_host() {
+  local host="$1"
+  local timeout="${2:-$CONNECTION_TEST_TIMEOUT}"
+  
+  log_info "Testing connection to $host..."
+  
+  # Test SSH connectivity
+  if timeout "$timeout" ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no \
+     -o UserKnownHostsFile=/dev/null -o BatchMode=yes \
+     "$host" "echo 'Connection test successful'" >/dev/null 2>&1; then
+    log_info "✅ Connection to $host successful"
+    return 0
+  else
+    log_error "❌ Failed to connect to $host within ${timeout}s"
+    return 1
+  fi
+}
+
+test_all_production_hosts() {
+  log_info "Testing connectivity to all production hosts..."
+  
+  # Use the new dynamic inventory to get host list
+  local inventory_script="$OA_ANSIBLE_ROOT_DIR/scripts/dynamic-inventory.py"
+  
+  if [ ! -f "$inventory_script" ]; then
+    log_error "Dynamic inventory script not found at $inventory_script"
+    return 1
+  fi
+  
+  # Get list of hosts from dynamic inventory
+  local hosts
+  hosts=$(OA_ANSIBLE_ENV=production python3 "$inventory_script" --list | \
+          jq -r '.macos.hosts | keys[]' 2>/dev/null)
+  
+  if [ -z "$hosts" ]; then
+    log_error "No hosts found in production inventory"
+    return 1
+  fi
+  
+  local failed_hosts=()
+  local successful_hosts=()
+  
+  for host in $hosts; do
+    # Get the actual IP from the inventory
+    local host_ip
+    host_ip=$(OA_ANSIBLE_ENV=production python3 "$inventory_script" --list | \
+              jq -r "._meta.hostvars[\"$host\"].ansible_host" 2>/dev/null)
+    
+    if [ "$host_ip" != "null" ] && [ -n "$host_ip" ]; then
+      if test_connection_to_host "admin@$host_ip"; then
+        successful_hosts+=("$host")
+      else
+        failed_hosts+=("$host")
+      fi
+    else
+      log_warn "Could not determine IP for host: $host"
+      failed_hosts+=("$host")
+    fi
+  done
+  
+  log_info "Connection test results:"
+  log_info "✅ Successful: ${#successful_hosts[@]} hosts"
+  log_info "❌ Failed: ${#failed_hosts[@]} hosts"
+  
+  if [ "${#failed_hosts[@]}" -gt 0 ]; then
+    log_warn "Failed hosts: ${failed_hosts[*]}"
+    
+    if [ "${#successful_hosts[@]}" -eq 0 ]; then
+      log_error "All hosts failed connectivity test. Aborting deployment."
+      return 1
+    else
+      log_warn "Some hosts are unreachable. Continuing with available hosts only."
+      log_warn "Press CTRL+C within 10 seconds to abort, or wait to continue..."
+      sleep 10
+    fi
+  fi
+  
+  return 0
+}
+
+create_connection_monitoring() {
+  local monitor_file="/tmp/ansible_connection_monitor_$$"
+  
+  log_info "Setting up connection monitoring..."
+  
+  # Create a background process to monitor our own connection
+  {
+    while true; do
+      if ! ping -c 1 -W 3 8.8.8.8 >/dev/null 2>&1; then
+        echo "$(date): WARNING - Internet connectivity lost" >> "$monitor_file"
+      fi
+      sleep 30
+    done
+  } &
+  
+  local monitor_pid=$!
+  echo "$monitor_pid" > "${monitor_file}.pid"
+  
+  log_info "Connection monitor started with PID: $monitor_pid"
+  echo "$monitor_file"
+}
+
+cleanup_connection_monitoring() {
+  local monitor_file="$1"
+  local pid_file="${monitor_file}.pid"
+  
+  if [ -f "$pid_file" ]; then
+    local monitor_pid
+    monitor_pid=$(cat "$pid_file")
+    if kill -0 "$monitor_pid" 2>/dev/null; then
+      kill "$monitor_pid" 2>/dev/null
+      log_info "Connection monitor stopped"
+    fi
+    rm -f "$pid_file"
+  fi
+  
+  if [ -f "$monitor_file" ]; then
+    if [ -s "$monitor_file" ]; then
+      log_warn "Connection issues detected during deployment:"
+      cat "$monitor_file"
+    fi
+    rm -f "$monitor_file"
+  fi
+}
+
+backup_current_state() {
+  if [ "$PRE_DEPLOYMENT_BACKUP" != "true" ]; then
+    return 0
+  fi
+  
+  log_info "Creating pre-deployment backup..."
+  
+  local backup_dir="$OA_ANSIBLE_ROOT_DIR/backups/$(date +%Y%m%d_%H%M%S)"
+  mkdir -p "$backup_dir"
+  
+  # Backup current inventory
+  if [ -f "$OA_ANSIBLE_ROOT_DIR/inventory/production/hosts.yml" ]; then
+    cp "$OA_ANSIBLE_ROOT_DIR/inventory/production/hosts.yml" "$backup_dir/hosts.yml.backup"
+  fi
+  
+  # Backup any deployment state
+  if [ -d "$OA_ANSIBLE_ROOT_DIR/logs" ]; then
+    cp -r "$OA_ANSIBLE_ROOT_DIR/logs" "$backup_dir/logs_backup" 2>/dev/null || true
+  fi
+  
+  log_info "Backup created at: $backup_dir"
+}
+
+run_with_tailscale_safety() {
+  log_info "Running deployment with Tailscale safety mechanisms..."
+  
+  # Set environment variable to signal safe Tailscale handling
+  export OA_ANSIBLE_TAILSCALE_SAFE_MODE=true
+  export OA_ANSIBLE_DEPLOYMENT_PHASE="production"
+  
+  # Use the original run-prod script but with our safety environment
+  local original_script="$OA_ANSIBLE_ROOT_DIR/scripts/run-prod"
+  
+  if [ ! -f "$original_script" ]; then
+    log_error "Original run-prod script not found at: $original_script"
+    return 1
+  fi
+  
+  # Execute with modified inventory if using dynamic inventory
+  if [ -f "$OA_ANSIBLE_ROOT_DIR/scripts/dynamic-inventory.py" ]; then
+    log_info "Using dynamic inventory for production deployment"
+    export OA_ANSIBLE_ENV=production
+    
+    # Modify the ansible-playbook command to use dynamic inventory
+    ANSIBLE_CONFIG=ansible.cfg ansible-playbook main.yml \
+      -i "$OA_ANSIBLE_ROOT_DIR/scripts/dynamic-inventory.py" \
+      -e "ansible_host_key_checking=False" \
+      -e "tailscale_safe_mode=true" \
+      "$@"
+  else
+    log_info "Using static inventory for production deployment"
+    "$original_script" "$@"
+  fi
+}
+
+# Main execution flow
+main() {
+  log_warn "🚨 SAFE PRODUCTION DEPLOYMENT MODE 🚨"
+  log_warn "Environment: PRODUCTION"
+  log_warn "Safety checks: ${SAFETY_ENABLED}"
+  log_warn "Tailscale safety: ${TAILSCALE_SAFETY_MODE}"
+  
+  if [ "$SAFETY_ENABLED" = "true" ]; then
+    log_warn "Press CTRL+C within 10 seconds to abort, or wait to continue with safety checks..."
+    sleep 10
+    
+    # Pre-deployment safety checks
+    log_info "Performing pre-deployment safety checks..."
+    
+    # Test connectivity to all hosts
+    if ! test_all_production_hosts; then
+      log_error "Pre-deployment connectivity test failed"
+      exit 1
+    fi
+    
+    # Create backup
+    backup_current_state
+    
+    # Set up connection monitoring
+    local monitor_file
+    monitor_file=$(create_connection_monitoring)
+    
+    # Trap to cleanup monitoring on exit
+    trap "cleanup_connection_monitoring '$monitor_file'" EXIT
+    
+    log_info "All safety checks passed. Starting deployment..."
+  else
+    log_warn "Safety checks disabled. Press CTRL+C within 5 seconds to abort..."
+    sleep 5
+  fi
+  
+  # Run the deployment
+  if run_with_tailscale_safety "$@"; then
+    log_info "✅ Production deployment completed successfully"
+    exit 0
+  else
+    log_error "❌ Production deployment failed"
+    exit 1
+  fi
+}
+
+# Check if script is being sourced or executed
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
