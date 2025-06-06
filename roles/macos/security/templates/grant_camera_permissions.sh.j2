@@ -21,6 +21,11 @@ client_types+=(1)
 apps+=("{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python3")
 client_types+=(1)
 
+# Add setsid for tracker (used in start.sh script)
+# Use the setsid path found by Ansible
+apps+=("{{ setsid_path.stdout }}")
+client_types+=(1)
+
 # Add other required applications
 apps+=("/usr/local/bin/tailscaled")
 client_types+=(1)

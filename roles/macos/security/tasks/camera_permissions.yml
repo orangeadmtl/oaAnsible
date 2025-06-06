@@ -24,6 +24,45 @@
   register: python_path
   changed_when: false
 
+# Find setsid path
+- name: Find setsid executable path
+  ansible.builtin.shell: |
+    set -o pipefail
+    # Try to find setsid using 'which'
+    SETSID_PATH=$(which setsid 2>/dev/null)
+    if [ -z "$SETSID_PATH" ] || [ ! -f "$SETSID_PATH" ]; then
+      # Try common locations
+      for path in \
+        /opt/homebrew/Cellar/util-linux/*/bin/setsid \
+        /usr/local/opt/util-linux/bin/setsid \
+        /usr/bin/setsid \
+        /opt/homebrew/bin/setsid \
+        /usr/local/bin/setsid; do
+        if [ -f "$path" ]; then
+          SETSID_PATH="$path"
+          break
+        fi
+      done
+    fi
+    
+    # Output the path if found, otherwise output an error message
+    if [ -n "$SETSID_PATH" ] && [ -f "$SETSID_PATH" ]; then
+      echo "$SETSID_PATH"
+    else
+      echo "SETSID_NOT_FOUND"
+    fi
+  register: setsid_path
+  changed_when: false
+
+- name: Display setsid path
+  ansible.builtin.debug:
+    msg: "Found setsid at: {{ setsid_path.stdout }}"
+
+- name: Fail if setsid is not found
+  ansible.builtin.fail:
+    msg: "setsid executable not found. Please install util-linux package."
+  when: setsid_path.stdout == "SETSID_NOT_FOUND"
+
 # Determine real Python executable paths (following symlinks)
 - name: Get real Python executable paths
   ansible.builtin.shell: |
@@ -60,6 +99,8 @@
         type: 1 # Executable path
       - name: "{{ python_execs.real_tracker }}"
         type: 1 # Executable path
+      - name: "{{ setsid_path.stdout }}"
+        type: 1 # Executable path (dynamically found)
       - name: "/usr/local/bin/tailscaled"
         type: 1 # Executable path
       - name: "/usr/libexec/sshd-keygen-wrapper"
@@ -95,6 +136,10 @@
   ansible.builtin.set_fact:
     tracker_access_status: "{% if camera_status.tracker_access | int > 0 %}Granted{% else %}Not granted{% endif %}"
 
+- name: Set setsid access status
+  ansible.builtin.set_fact:
+    setsid_access_status: "{% if camera_status.setsid_access | int > 0 %}Granted{% else %}Not granted{% endif %}"
+
 - name: Set Tailscale access status
   ansible.builtin.set_fact:
     tailscale_access_status: "{% if camera_status.tailscale_access | int > 0 %}Granted{% else %}Not granted{% endif %}"
@@ -125,6 +170,7 @@
       Camera permissions status:
       - API Python: {{ api_access_status }}
       - Tracker Python: {{ tracker_access_status }}
+      - setsid ({{ setsid_path.stdout }}): {{ setsid_access_status }}
       - Tailscale: {{ tailscale_access_status }}
       - Terminal: {{ terminal_access_status }}
       - SSH: {{ ssh_access_status }}
@@ -143,6 +189,10 @@
   ansible.builtin.set_fact:
     tracker_access_missing: "{% if camera_status.tracker_access | int == 0 %}true{% else %}false{% endif %}"
 
+- name: Check if setsid access is missing
+  ansible.builtin.set_fact:
+    setsid_access_missing: "{% if camera_status.setsid_access | int == 0 %}true{% else %}false{% endif %}"
+
 - name: Check if Tailscale access is missing
   ansible.builtin.set_fact:
     tailscale_access_missing: "{% if camera_status.tailscale_access | int == 0 %}true{% else %}false{% endif %}"
@@ -157,8 +207,7 @@
 
 - name: Check if camera permissions need to be granted
   ansible.builtin.set_fact:
-    need_camera_permissions: "{{ api_access_missing == 'true' or tracker_access_missing == 'true' or tailscale_access_missing == 'true' or terminal_access_missing
-      == 'true' or ssh_access_missing == 'true' }}"
+    need_camera_permissions: "{{ api_access_missing == 'true' or tracker_access_missing == 'true' or setsid_access_missing == 'true' or tailscale_access_missing == 'true' or terminal_access_missing == 'true' or ssh_access_missing == 'true' }}"
 
 # Always create and run the grant script to ensure permissions are set correctly
 # This is needed because the check might not accurately detect if the TCC database needs initialization
@@ -188,8 +237,7 @@
 # Verify camera access
 - name: Check if camera permissions are granted
   ansible.builtin.set_fact:
-    camera_permissions_granted: "{{ api_access_status == 'Granted' and tracker_access_status == 'Granted' and tailscale_access_status == 'Granted' and terminal_access_status
-      == 'Granted' and ssh_access_status == 'Granted' }}"
+    camera_permissions_granted: "{{ api_access_status == 'Granted' and tracker_access_status == 'Granted' and setsid_access_status == 'Granted' and tailscale_access_status == 'Granted' and terminal_access_status == 'Granted' and ssh_access_status == 'Granted' }}"
 
 - name: Create script to verify camera access
   ansible.builtin.template:

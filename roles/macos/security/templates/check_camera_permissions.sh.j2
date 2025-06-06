@@ -15,6 +15,11 @@ api_access=$(sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCS
 # Check camera permissions for Tracker Python (both real and venv)
 tracker_access=$(sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND (client='$REAL_PYTHON' OR client='$TRACKER_VENV_PYTHON') AND auth_value=2;" 2>/dev/null || echo "0")
 
+# Check camera permissions for setsid (needed for tracker start.sh)
+# Use the setsid path found by Ansible
+SETSID_PATH="{{ setsid_path.stdout }}"
+setsid_access=$(sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND client='$SETSID_PATH' AND auth_value=2;" 2>/dev/null || echo "0")
+
 # Check camera permissions for Tailscale
 tailscale_access=$(sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND (client='/usr/local/bin/tailscaled' OR client='/Users/{{ ansible_user }}/go/bin/tailscaled') AND auth_value=2;" 2>/dev/null || echo "0")
 
@@ -45,4 +50,4 @@ if [ -f "/tmp/cam.shm" ]; then
 fi
 
 # Output as JSON
-echo "{\"api_access\": $api_access, \"tracker_access\": $tracker_access, \"tailscale_access\": $tailscale_access, \"terminal_access\": $terminal_access, \"ssh_access\": $ssh_access, \"shared_memory_exists\": $shared_memory_exists, \"tracker_running\": $tracker_running, \"tracker_accessible\": $tracker_accessible}"
+echo "{\"api_access\": $api_access, \"tracker_access\": $tracker_access, \"setsid_access\": $setsid_access, \"tailscale_access\": $tailscale_access, \"terminal_access\": $terminal_access, \"ssh_access\": $ssh_access, \"shared_memory_exists\": $shared_memory_exists, \"tracker_running\": $tracker_running, \"tracker_accessible\": $tracker_accessible}"
