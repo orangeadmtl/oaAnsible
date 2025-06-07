@@ -10,14 +10,30 @@
         path: "{{ ansible_env.HOME }}/.pyenv"
       register: pyenv_install
 
-    # Install pyenv if not already installed
+    # Check if .pyenv is a valid git repository
+    - name: Check if .pyenv is a valid git repository
+      ansible.builtin.command: git -C "{{ ansible_env.HOME }}/.pyenv" rev-parse
+      register: pyenv_git_check
+      changed_when: false
+      failed_when: false
+      when: pyenv_install.stat.exists
+
+    # Remove .pyenv if it exists but is not a valid git repository
+    - name: Remove invalid .pyenv directory
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/.pyenv"
+        state: absent
+      when: pyenv_install.stat.exists and (pyenv_git_check.rc | default(1)) != 0
+      register: pyenv_removed
+
+    # Install pyenv if not already installed or was just removed
     - name: Install pyenv
       ansible.builtin.git:
         repo: https://github.com/pyenv/pyenv.git
         dest: "{{ ansible_env.HOME }}/.pyenv"
         version: master
         update: true
-      when: not pyenv_install.stat.exists
+      when: not pyenv_install.stat.exists or pyenv_removed.changed | default(false)
 
     # Update pyenv to get latest Python versions
     - name: Update pyenv
@@ -26,7 +42,7 @@
         dest: "{{ ansible_env.HOME }}/.pyenv"
         version: master
         update: true
-      when: pyenv_install.stat.exists
+      when: pyenv_install.stat.exists and not pyenv_removed.changed | default(false) and (pyenv_git_check.rc | default(1)) == 0
 
     # Add pyenv to PATH (zsh)
     - name: Add pyenv to PATH in .zshrc
