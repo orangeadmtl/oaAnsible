@@ -2,6 +2,11 @@
 # Set up shell configuration first
 - name: Configure shell environment
   block:
+    - name: Set default shell to zsh
+      ansible.builtin.shell: |
+        chsh -s /bin/zsh {{ ansible_user }}
+      become: true
+      
     - name: Get default shell
       ansible.builtin.command: dscl . -read /Users/{{ ansible_user }} UserShell
       register: user_shell_info
@@ -11,11 +16,11 @@
       ansible.builtin.set_fact:
         shell_config: "{{ macos_shell_config }}"
 
-    - name: Set shell-specific facts
+    - name: Set shell-specific facts (force zsh)
       ansible.builtin.set_fact:
-        user_shell: "{{ user_shell_info.stdout.split('/')[-1] }}"
-        shell_profile: "{{ ansible_env.HOME }}/{{ shell_config[user_shell_info.stdout.split('/')[-1]].profile_file }}"
-        shell_rc: "{{ ansible_env.HOME }}/{{ shell_config[user_shell_info.stdout.split('/')[-1]].rc_file }}"
+        user_shell: "zsh"
+        shell_profile: "{{ ansible_env.HOME }}/.zprofile"
+        shell_rc: "{{ ansible_env.HOME }}/.zshrc"
 
     - name: Ensure shell configuration files exist
       ansible.builtin.file:
@@ -146,3 +151,78 @@
         msg:
           - "JPR Launch Agents cleanup: {{ 'COMPLETE' if 'No JPR agents found' in remaining_agents.stdout else 'INCOMPLETE - ' + remaining_agents.stdout }}"
           - "JPR Launch Daemons cleanup: {{ 'COMPLETE' if 'No JPR daemons found' in remaining_daemons.stdout else 'INCOMPLETE - ' + remaining_daemons.stdout }}"
+
+# Configure sound settings
+- name: Configure macOS sound settings
+  tags: ["sound", "audio"]
+  block:
+    - name: Disable startup sound
+      ansible.builtin.shell: |
+        sudo nvram StartupMute=%01
+      become: true
+      
+    - name: Set default volume to 0
+      ansible.builtin.shell: |
+        osascript -e "set volume output volume 0"
+      
+    - name: Disable user interface sound effects
+      ansible.builtin.shell: |
+        defaults write com.apple.systemsound 'com.apple.sound.uiaudio.enabled' -int 0
+        
+    - name: Disable alert volume
+      ansible.builtin.shell: |
+        defaults write NSGlobalDomain com.apple.sound.beep.volume -float 0.0
+        
+    - name: Disable beep sound
+      ansible.builtin.shell: |
+        defaults write NSGlobalDomain com.apple.sound.beep.sound -string ""
+        
+    - name: Disable feedback sounds for volume changes
+      ansible.builtin.shell: |
+        defaults write NSGlobalDomain com.apple.sound.beep.feedback -int 0
+        
+    - name: Apply sound settings immediately
+      ansible.builtin.shell: |
+        killall SystemUIServer
+      failed_when: false
+
+# Configure screen saver and display settings
+- name: Configure screen saver and display settings
+  tags: ["screensaver", "display"]
+  block:
+    - name: Disable screen saver
+      ansible.builtin.shell: |
+        defaults -currentHost write com.apple.screensaver idleTime -int 0
+        
+    - name: Never turn off display (set to never)
+      ansible.builtin.shell: |
+        sudo pmset -a displaysleep 0
+      become: true
+      
+    - name: Disable computer sleep
+      ansible.builtin.shell: |
+        sudo pmset -a sleep 0
+      become: true
+      
+    - name: Disable disk sleep
+      ansible.builtin.shell: |
+        sudo pmset -a disksleep 0
+      become: true
+      
+    - name: No password required after screen saver begins
+      ansible.builtin.shell: |
+        defaults write com.apple.screensaver askForPassword -int 0
+        
+    - name: No password required after display is turned off
+      ansible.builtin.shell: |
+        defaults write com.apple.screensaver askForPasswordDelay -int 0
+        
+    - name: Disable screen saver for all users
+      ansible.builtin.shell: |
+        defaults write /Library/Preferences/com.apple.screensaver idleTime -int 0
+      become: true
+      
+    - name: Apply screen saver settings immediately
+      ansible.builtin.shell: |
+        killall cfprefsd
+      failed_when: false
