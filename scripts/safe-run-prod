@@ -49,7 +49,7 @@ test_all_production_hosts() {
   log_info "Testing connectivity to all production hosts..."
   
   # Use the new dynamic inventory to get host list
-  local inventory_script="$OA_ANSIBLE_ROOT_DIR/scripts/dynamic-inventory.py"
+  local inventory_script="$OA_ANSIBLE_ROOT_DIR/scripts/dynamic-inventory"
   
   if [ ! -f "$inventory_script" ]; then
     log_error "Dynamic inventory script not found at $inventory_script"
@@ -191,13 +191,13 @@ run_with_tailscale_safety() {
   fi
   
   # Execute with modified inventory if using dynamic inventory
-  if [ -f "$OA_ANSIBLE_ROOT_DIR/scripts/dynamic-inventory.py" ]; then
+  if [ -f "$OA_ANSIBLE_ROOT_DIR/scripts/dynamic-inventory" ]; then
     log_info "Using dynamic inventory for production deployment"
     export OA_ANSIBLE_ENV=production
     
     # Modify the ansible-playbook command to use dynamic inventory
     ANSIBLE_CONFIG=ansible.cfg ansible-playbook main.yml \
-      -i "$OA_ANSIBLE_ROOT_DIR/scripts/dynamic-inventory.py" \
+      -i "$OA_ANSIBLE_ROOT_DIR/scripts/dynamic-inventory" \
       -e "ansible_host_key_checking=False" \
       -e "tailscale_safe_mode=true" \
       "$@"
