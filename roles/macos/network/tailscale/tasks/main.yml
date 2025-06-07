@@ -98,133 +98,118 @@
     state: absent
   become: true
 
-# Install/Update tailscale binary
-- name: Get checksum of existing tailscale binary (if any)
-  ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscale"
-  register: tailscale_checksum_before
+# Install/Update both Tailscale binaries together (following official macOS guide)
+- name: Get checksums of existing Tailscale binaries (if any)
+  ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/{{ item }}"
+  register: tailscale_checksums_before
   failed_when: false
   changed_when: false
+  loop:
+    - tailscale
+    - tailscaled
 
-- name: Install/Update tailscale binary using Go
+- name: Get latest stable Tailscale release version
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/tailscale/tailscale/releases/latest
+    method: GET
+    return_content: true
+  register: tailscale_latest_release
+  failed_when: false
+
+- name: Extract latest version tag
+  ansible.builtin.set_fact:
+    tailscale_latest_version: "{{ tailscale_latest_release.json.tag_name | default('v1.84.1') }}"
+  when: tailscale_latest_release.status == 200
+
+- name: Set fallback version if API call failed
+  ansible.builtin.set_fact:
+    tailscale_latest_version: "v1.84.1"
+  when: tailscale_latest_release.status != 200
+
+- name: Install/Update Tailscale binaries using Go (latest stable version)
   block:
-    - name: Try installing latest Tailscale version
-      ansible.builtin.command: "{{ go_executable_path }} install tailscale.com/cmd/tailscale@latest"
+    - name: Install Tailscale binaries with proper build info (latest stable)
+      ansible.builtin.shell: |
+        set -e
+        cd "{{ ansible_env.HOME }}"
+        export GOPATH="{{ ansible_env.HOME }}/go"
+        export GOBIN="{{ go_bin_path_for_tailscale }}"
+        export PATH="{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
+        
+        # Clean any existing installs
+        rm -f "{{ go_bin_path_for_tailscale }}/tailscale" "{{ go_bin_path_for_tailscale }}/tailscaled"
+        
+        # Install both binaries with proper version info
+        "{{ go_executable_path }}" install -ldflags "-X tailscale.com/version.longStamp={{ tailscale_latest_version }}" tailscale.com/cmd/tailscale@{{ tailscale_latest_version }}
+        "{{ go_executable_path }}" install -ldflags "-X tailscale.com/version.longStamp={{ tailscale_latest_version }}" tailscale.com/cmd/tailscaled@{{ tailscale_latest_version }}
       environment:
-        GOPATH: "{{ ansible_env.HOME }}/go"
-        GOBIN: "{{ go_bin_path_for_tailscale }}"
-        PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
         GOTOOLCHAIN: "auto"
-      register: tailscale_go_install_latest_result
+      register: tailscale_install_with_buildinfo
       changed_when: false
       failed_when: false
 
-    - name: Display Tailscale latest installation attempt result
-      ansible.builtin.debug:
-        msg: "{{ tailscale_go_install_latest_result.stderr | default('No errors') }}"
-      when: tailscale_go_install_latest_result.rc != 0
-
-    - name: Try installing specific Tailscale version as fallback
-      ansible.builtin.command: "{{ go_executable_path }} install tailscale.com/cmd/tailscale@v1.60.0"
+    - name: Try fallback version if latest stable failed
+      ansible.builtin.shell: |
+        set -e
+        cd "{{ ansible_env.HOME }}"
+        export GOPATH="{{ ansible_env.HOME }}/go"
+        export GOBIN="{{ go_bin_path_for_tailscale }}"
+        export PATH="{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
+        
+        # Clean any existing installs
+        rm -f "{{ go_bin_path_for_tailscale }}/tailscale" "{{ go_bin_path_for_tailscale }}/tailscaled"
+        
+        # Install both binaries with proper version info (fallback)
+        "{{ go_executable_path }}" install -ldflags "-X tailscale.com/version.longStamp=v1.82.0" tailscale.com/cmd/tailscale@v1.82.0
+        "{{ go_executable_path }}" install -ldflags "-X tailscale.com/version.longStamp=v1.82.0" tailscale.com/cmd/tailscaled@v1.82.0
       environment:
-        GOPATH: "{{ ansible_env.HOME }}/go"
-        GOBIN: "{{ go_bin_path_for_tailscale }}"
-        PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
         GOTOOLCHAIN: "auto"
-      register: tailscale_go_install_fallback_result
+      register: tailscale_fallback_with_buildinfo
       changed_when: false
-      when: tailscale_go_install_latest_result.rc != 0
+      when: tailscale_install_with_buildinfo.rc != 0
 
     - name: Set combined install result
       ansible.builtin.set_fact:
-        tailscale_install_success: "{{ tailscale_go_install_latest_result.rc == 0 or (tailscale_go_install_fallback_result.rc | default(1) == 0) }}"
-        tailscale_go_install_result: "{{ tailscale_go_install_latest_result if tailscale_go_install_latest_result.rc == 0 else tailscale_go_install_fallback_result
-          }}"
+        tailscale_install_success: >-
+          {{ tailscale_install_with_buildinfo.rc == 0 or 
+             (tailscale_fallback_with_buildinfo.rc | default(1) == 0) }}
+        tailscale_version_used: >-
+          {{ tailscale_latest_version if tailscale_install_with_buildinfo.rc == 0 else 'v1.82.0' }}
+
+    - name: Display installation results
+      ansible.builtin.debug:
+        msg: |
+          Tailscale installation completed:
+          Version used: {{ tailscale_version_used }}
+          Latest install: {{ 'Success' if tailscale_install_with_buildinfo.rc == 0 else 'Failed' }}
+          Fallback install: {{ 'Success' if (tailscale_fallback_with_buildinfo.rc | default(1) == 0) else 'Not attempted' }}
 
     - name: Fail if both installation attempts failed
       ansible.builtin.fail:
         msg: |
-          Failed to install Tailscale binary.
-          Latest version error: {{ tailscale_go_install_latest_result.stderr | default('None') }}
-          Fallback version error: {{ tailscale_go_install_fallback_result.stderr | default('None') }}
-      when: tailscale_go_install_latest_result.rc != 0 and tailscale_go_install_fallback_result.rc != 0
+          Failed to install Tailscale binaries with proper build info.
+          Latest version ({{ tailscale_latest_version }}) error:
+          {{ tailscale_install_with_buildinfo.stderr | default('None') }}
+          Fallback version (v1.82.0) error:
+          {{ tailscale_fallback_with_buildinfo.stderr | default('None') }}
+      when: not tailscale_install_success
 
-- name: Get checksum of tailscale binary after install/update
-  ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscale"
-  register: tailscale_checksum_after
+- name: Get checksums of Tailscale binaries after install/update
+  ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/{{ item }}"
+  register: tailscale_checksums_after
   failed_when: false
   changed_when: false
+  loop:
+    - tailscale
+    - tailscaled
 
-- name: Set fact for tailscale binary change
+- name: Set fact for tailscale binaries change
   ansible.builtin.set_fact:
-    tailscale_binary_changed: >-
-      {{ ((tailscale_checksum_before.stdout | default('')).split(' ')[0] !=
-          (tailscale_checksum_after.stdout | default('')).split(' ')[0]) or
-          (tailscale_checksum_before.rc | default(1) != 0) }}
+    tailscale_binaries_changed: >-
+      {{ tailscale_checksums_before.results | map(attribute='stdout') | map('default', '') | map('regex_replace', '^([a-f0-9]+).*', '\1') | list !=
+         tailscale_checksums_after.results | map(attribute='stdout') | map('default', '') | map('regex_replace', '^([a-f0-9]+).*', '\1') | list or
+         tailscale_checksums_before.results | selectattr('rc', 'ne', 0) | list | length > 0 }}
   when: tailscale_install_success | bool
-
-# Install/Update tailscaled binary
-- name: Get checksum of existing tailscaled binary (if any)
-  ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscaled"
-  register: tailscaled_checksum_before
-  failed_when: false
-  changed_when: false
-
-- name: Install/Update tailscaled binary using Go
-  block:
-    - name: Try installing latest tailscaled version
-      ansible.builtin.command: "{{ go_executable_path }} install tailscale.com/cmd/tailscaled@latest"
-      environment:
-        GOPATH: "{{ ansible_env.HOME }}/go"
-        GOBIN: "{{ go_bin_path_for_tailscale }}"
-        PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
-        GOTOOLCHAIN: "auto"
-      register: tailscaled_go_install_latest_result
-      changed_when: false
-      failed_when: false
-
-    - name: Display tailscaled latest installation attempt result
-      ansible.builtin.debug:
-        msg: "{{ tailscaled_go_install_latest_result.stderr | default('No errors') }}"
-      when: tailscaled_go_install_latest_result.rc != 0
-
-    - name: Try installing specific tailscaled version as fallback
-      ansible.builtin.command: "{{ go_executable_path }} install tailscale.com/cmd/tailscaled@v1.84.0"
-      environment:
-        GOPATH: "{{ ansible_env.HOME }}/go"
-        GOBIN: "{{ go_bin_path_for_tailscale }}"
-        PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
-        GOTOOLCHAIN: "auto"
-      register: tailscaled_go_install_fallback_result
-      changed_when: false
-      when: tailscaled_go_install_latest_result.rc != 0
-
-    - name: Set combined tailscaled install result
-      ansible.builtin.set_fact:
-        tailscaled_install_success: "{{ tailscaled_go_install_latest_result.rc == 0 or (tailscaled_go_install_fallback_result.rc | default(1) == 0) }}"
-        tailscaled_go_install_result: "{{ tailscaled_go_install_latest_result if tailscaled_go_install_latest_result.rc == 0 else tailscaled_go_install_fallback_result
-          }}"
-
-    - name: Fail if both tailscaled installation attempts failed
-      ansible.builtin.fail:
-        msg: |
-          Failed to install tailscaled binary.
-          Latest version error: {{ tailscaled_go_install_latest_result.stderr | default('None') }}
-          Fallback version error: {{ tailscaled_go_install_fallback_result.stderr | default('None') }}
-      when: tailscaled_go_install_latest_result.rc != 0 and tailscaled_go_install_fallback_result.rc != 0
-
-- name: Get checksum of tailscaled binary after install/update
-  ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/tailscaled"
-  register: tailscaled_checksum_after
-  failed_when: false
-  changed_when: false
-
-- name: Set fact for tailscaled binary change
-  ansible.builtin.set_fact:
-    tailscaled_binary_changed: >-
-      {{ ((tailscaled_checksum_before.stdout | default('')).split(' ')[0] !=
-          (tailscaled_checksum_after.stdout | default('')).split(' ')[0]) or
-          (tailscaled_checksum_before.rc | default(1) != 0) }}
-  when: tailscaled_install_success | bool
 
 - name: Check if source files for symlinks exist
   ansible.builtin.stat:
@@ -289,6 +274,18 @@
   become: true
   changed_when: false # Loading an already loaded service is not a change
   failed_when: false # It might already be loaded by RunAtLoad
+
+- name: Restart tailscaled daemon if binaries were updated
+  ansible.builtin.command: launchctl kickstart -k system/com.tailscale.tailscaled
+  become: true
+  when: tailscale_binaries_changed | default(false)
+  changed_when: true
+  register: tailscaled_restart_result
+
+- name: Wait after daemon restart for proper initialization
+  ansible.builtin.pause:
+    seconds: 10
+  when: tailscaled_restart_result.changed | default(false)
 
 - name: Wait for Tailscale daemon to be ready (CRITICAL)
   ansible.builtin.wait_for:
@@ -402,9 +399,84 @@
     - is_tailscale_logged_in | default(false)
     - tailscale_hostname_mismatch | default(false)
     - target_env | default('production') != 'production'  # Only in staging
-    - not needs_full_tailscale_up | default(true) # Only run if we are not doing a full 'up'
   changed_when: true
   register: tailscale_hostname_reauth
+  failed_when: >
+    tailscale_hostname_reauth.rc != 0 and 
+    'Success.' not in (tailscale_hostname_reauth.stdout | default('')) and
+    'already logged in' not in (tailscale_hostname_reauth.stderr | default('')) and
+    'already using auth key' not in (tailscale_hostname_reauth.stderr | default('')) and
+    'already authenticated' not in (tailscale_hostname_reauth.stderr | default('')) and
+    'SSH server does not run in sandboxed' not in (tailscale_hostname_reauth.stderr | default('')) and
+    'different tailnet' not in (tailscale_hostname_reauth.stderr | default('')) and
+    'auth key is not valid' not in (tailscale_hostname_reauth.stderr | default('')) and
+    'invalid auth key' not in (tailscale_hostname_reauth.stderr | default(''))
+
+- name: Handle cross-Tailnet scenario with logout and re-auth
+  block:
+    - name: Detect cross-Tailnet authentication issue
+      ansible.builtin.debug:
+        msg: |
+          🔄 Cross-Tailnet scenario detected for {{ inventory_hostname }}
+          This device appears to be registered on a different Tailnet.
+          Will perform logout and re-authentication to join the correct Tailnet.
+          Previous hostname: {{ current_ts_hostname | default('Unknown') }}
+          Target hostname: {{ inventory_hostname }}
+      when: 
+        - tailscale_hostname_reauth is defined
+        - tailscale_hostname_reauth.rc is defined
+        - tailscale_hostname_reauth.rc != 0
+        - ('different tailnet' in (tailscale_hostname_reauth.stderr | default('')) or 
+           'auth key is not valid' in (tailscale_hostname_reauth.stderr | default('')) or
+           'invalid auth key' in (tailscale_hostname_reauth.stderr | default('')))
+
+    - name: Logout from current Tailnet (cross-Tailnet scenario)
+      ansible.builtin.command: /usr/local/bin/tailscale logout
+      become: true
+      register: tailscale_logout_result
+      when: 
+        - tailscale_hostname_reauth is defined
+        - tailscale_hostname_reauth.rc is defined
+        - tailscale_hostname_reauth.rc != 0
+        - ('different tailnet' in (tailscale_hostname_reauth.stderr | default('')) or 
+           'auth key is not valid' in (tailscale_hostname_reauth.stderr | default('')) or
+           'invalid auth key' in (tailscale_hostname_reauth.stderr | default('')))
+      failed_when: false
+      changed_when: tailscale_logout_result.rc == 0
+
+    - name: Re-authenticate to correct Tailnet (cross-Tailnet scenario)
+      ansible.builtin.command: >
+        /usr/local/bin/tailscale up --authkey={{ vault_tailscale_auth_key }} --hostname={{ inventory_hostname }} 
+        --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }} 
+        --accept-dns=false --ssh --reset
+      become: true
+      register: tailscale_cross_tailnet_reauth
+      when: 
+        - tailscale_hostname_reauth is defined
+        - tailscale_hostname_reauth.rc is defined
+        - tailscale_hostname_reauth.rc != 0
+        - ('different tailnet' in (tailscale_hostname_reauth.stderr | default('')) or 
+           'auth key is not valid' in (tailscale_hostname_reauth.stderr | default('')) or
+           'invalid auth key' in (tailscale_hostname_reauth.stderr | default('')))
+        - tailscale_logout_result is defined and tailscale_logout_result.rc == 0
+      changed_when: tailscale_cross_tailnet_reauth.rc == 0
+      failed_when: >
+        tailscale_cross_tailnet_reauth.rc != 0 and 
+        'Success.' not in (tailscale_cross_tailnet_reauth.stdout | default('')) and
+        'SSH server does not run in sandboxed' not in (tailscale_cross_tailnet_reauth.stderr | default(''))
+
+    - name: Display cross-Tailnet completion notice
+      ansible.builtin.debug:
+        msg: |
+          ✅ Cross-Tailnet migration completed for {{ inventory_hostname }}
+          The device has been moved to the correct Tailnet.
+          New Tailscale hostname: {{ inventory_hostname }}
+          
+          Note: The old node on the previous Tailnet should be manually removed from the admin console.
+          You can now SSH using: admin@{{ inventory_hostname }}
+      when:
+        - tailscale_cross_tailnet_reauth is defined 
+        - tailscale_cross_tailnet_reauth.changed
 
 - name: Safe hostname update for hostname mismatch (production only)
   ansible.builtin.command: /usr/local/bin/tailscale set --hostname={{ inventory_hostname }}
@@ -413,7 +485,8 @@
     - is_tailscale_logged_in | default(false)
     - tailscale_hostname_mismatch | default(false)
     - target_env | default('production') == 'production'  # Only in production
-    - not needs_full_tailscale_up | default(true) # Only run if we are not doing a full 'up'
+    - not (tailscale_hostname_reauth is defined and tailscale_hostname_reauth.changed)
+    - not (tailscale_cross_tailnet_reauth is defined and tailscale_cross_tailnet_reauth.changed)
   changed_when: true
   register: tailscale_hostname_safe
 
@@ -431,7 +504,8 @@
     - is_tailscale_logged_in | default(false)
     - tailscale_hostname_mismatch | default(false)
     - (tailscale_hostname_reauth is defined and tailscale_hostname_reauth.changed) or 
-      (tailscale_hostname_safe is defined and tailscale_hostname_safe.changed)
+      (tailscale_hostname_safe is defined and tailscale_hostname_safe.changed) or
+      (tailscale_cross_tailnet_reauth is defined and tailscale_cross_tailnet_reauth.changed)
 
 # Scenario 2: Fallback hostname correction (if not handled above)
 - name: Fallback Tailscale hostname correction
@@ -442,7 +516,7 @@
     - tailscale_hostname_mismatch | default(false)
     - not (tailscale_hostname_reauth is defined and tailscale_hostname_reauth.changed)
     - not (tailscale_hostname_safe is defined and tailscale_hostname_safe.changed)
-    - not needs_full_tailscale_up | default(true) # Only run if we are not doing a full 'up'
+    - not (tailscale_cross_tailnet_reauth is defined and tailscale_cross_tailnet_reauth.changed)
   changed_when: true # Assume change
   register: tailscale_hostname_correction
 
@@ -453,11 +527,15 @@
   when:
     - is_tailscale_logged_in | default(false)
     - not tags_are_correct | default(false)
-    - not needs_full_tailscale_up | default(true) # Only run if we are not doing a full 'up'
+    - not (tailscale_hostname_reauth is defined and tailscale_hostname_reauth.changed)
+    - not (tailscale_hostname_safe is defined and tailscale_hostname_safe.changed)
+    - not (tailscale_hostname_correction is defined and tailscale_hostname_correction.changed)
+    - not (tailscale_cross_tailnet_reauth is defined and tailscale_cross_tailnet_reauth.changed)
+    - not (tailscale_cross_tailnet_reauth is defined and tailscale_cross_tailnet_reauth.changed)
   changed_when: true # Assume change
   register: tailscale_tags_correction
 
-# Scenario 2: Try gentle authentication first without --force-reauth
+# Scenario 4: Try gentle authentication first without --force-reauth (if hostname mismatch wasn't handled)
 - name: Authenticate Tailscale if needed (gentle approach first)
   ansible.builtin.command: >
     /usr/local/bin/tailscale up --authkey={{ vault_tailscale_auth_key }} --hostname={{ inventory_hostname }} --advertise-tags={{ vault_tailscale_tags_macos |
@@ -467,10 +545,14 @@
   when: 
     - needs_full_tailscale_up | default(false)
     - not (ansible_env.OA_ANSIBLE_TAILSCALE_SAFE_MODE | default(false) | bool and ansible_env.OA_ANSIBLE_DEPLOYMENT_PHASE | default('') == 'production')
+    - not (tailscale_hostname_reauth is defined and tailscale_hostname_reauth.changed)
+    - not (tailscale_hostname_safe is defined and tailscale_hostname_safe.changed)
+    - not (tailscale_hostname_correction is defined and tailscale_hostname_correction.changed)
+    - not (tailscale_cross_tailnet_reauth is defined and tailscale_cross_tailnet_reauth.changed)
   changed_when: tailscale_up_gentle.rc == 0 and ('Success.' in tailscale_up_gentle.stdout or tailscale_up_gentle.stdout == "")
   failed_when: false # Allow to fail to try with --force-reauth
 
-# Scenario 3: Safe Tailscale authentication for production
+# Scenario 5: Safe Tailscale authentication for production
 - name: Authenticate Tailscale in safe mode (production only)
   ansible.builtin.command: >
     /usr/local/bin/tailscale set --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }} --hostname={{ inventory_hostname }}
@@ -480,10 +562,14 @@
     - needs_full_tailscale_up | default(false)
     - ansible_env.OA_ANSIBLE_TAILSCALE_SAFE_MODE | default(false) | bool
     - ansible_env.OA_ANSIBLE_DEPLOYMENT_PHASE | default('') == 'production'
+    - not (tailscale_hostname_reauth is defined and tailscale_hostname_reauth.changed)
+    - not (tailscale_hostname_safe is defined and tailscale_hostname_safe.changed)
+    - not (tailscale_hostname_correction is defined and tailscale_hostname_correction.changed)
+    - not (tailscale_cross_tailnet_reauth is defined and tailscale_cross_tailnet_reauth.changed)
   changed_when: tailscale_safe_config.rc == 0
   failed_when: false
 
-# Scenario 4: If gentle approach fails and not in safe mode, try with --force-reauth
+# Scenario 6: If gentle approach fails and not in safe mode, try with --force-reauth
 - name: Authenticate Tailscale with force-reauth if gentle approach failed
   ansible.builtin.command: >
     /usr/local/bin/tailscale up --authkey={{ vault_tailscale_auth_key }} --hostname={{ inventory_hostname }} --advertise-tags={{ vault_tailscale_tags_macos |
@@ -492,8 +578,12 @@
   register: tailscale_up_force
   when:
     - needs_full_tailscale_up | default(false)
-    - tailscale_up_gentle.rc != 0
+    - tailscale_up_gentle is defined and tailscale_up_gentle.rc is defined and tailscale_up_gentle.rc != 0
     - not (ansible_env.OA_ANSIBLE_TAILSCALE_SAFE_MODE | default(false) | bool and ansible_env.OA_ANSIBLE_DEPLOYMENT_PHASE | default('') == 'production')
+    - not (tailscale_hostname_reauth is defined and tailscale_hostname_reauth.changed)
+    - not (tailscale_hostname_safe is defined and tailscale_hostname_safe.changed)
+    - not (tailscale_hostname_correction is defined and tailscale_hostname_correction.changed)
+    - not (tailscale_cross_tailnet_reauth is defined and tailscale_cross_tailnet_reauth.changed)
   changed_when: tailscale_up_force.rc == 0 and ('Success.' in tailscale_up_force.stdout or tailscale_up_force.stdout == "")
   failed_when: >
     tailscale_up_force.rc != 0 and 'already logged in' not in (tailscale_up_force.stderr | default('')) and 'already using auth key' not in
