@@ -16,9 +16,6 @@ from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
 # Configuration
-TAILSCALE_API_KEY = os.environ.get("TAILSCALE_API_KEY", "")
-TAILSCALE_TAILNET = os.environ.get("TAILSCALE_TAILNET", "-")
-TAILSCALE_API_URL = f"https://api.tailscale.com/api/v2/tailnet/{TAILSCALE_TAILNET}/devices"
 MACOS_TAG = "tag:oa-macos"
 
 # Get script directory for finding relative paths
@@ -64,19 +61,66 @@ def backup_existing_inventory(env: str) -> Optional[str]:
         log_warn(f"Failed to backup static inventory: {e}")
     return None
 
-def get_tailscale_devices() -> List[Dict]:
-    """Query Tailscale API for devices."""
-    if not TAILSCALE_API_KEY:
-        log_error("TAILSCALE_API_KEY environment variable not set")
-        return []
+def get_vault_vars():
+    """Get Tailscale credentials from Ansible vault."""
+    vault_file = ANSIBLE_ROOT / "group_vars" / "all" / "vault.yml"
+    if not vault_file.exists():
+        log_error("vault.yml not found")
+        return None, None
+    
+    try:
+        # Use ansible-vault to decrypt and get the vars
+        result = subprocess.run([
+            "ansible-vault", "view", str(vault_file)
+        ], capture_output=True, text=True, timeout=30)
+        
+        if result.returncode != 0:
+            log_error(f"Failed to decrypt vault: {result.stderr}")
+            return None, None
+        
+        # Parse the YAML content to extract values
+        vault_content = result.stdout
+        api_key = None
+        tailnet = None
+        
+        for line in vault_content.split('\n'):
+            if 'vault_tailscale_api_key:' in line:
+                api_key = line.split(':', 1)[1].strip().strip('"')
+            elif 'vault_tailscale_tailnet:' in line:
+                tailnet = line.split(':', 1)[1].strip().strip('"')
+        
+        return api_key, tailnet
+        
+    except Exception as e:
+        log_error(f"Failed to read vault: {e}")
+        return None, None
 
+def get_tailscale_devices() -> List[Dict]:
+    """Query Tailscale API for devices using vault credentials."""
+    # Try environment variables first, fallback to vault
+    api_key = os.environ.get("TAILSCALE_API_KEY")
+    tailnet = os.environ.get("TAILSCALE_TAILNET")
+    
+    if not api_key:
+        log_info("Fetching Tailscale credentials from Ansible vault...")
+        api_key, tailnet = get_vault_vars()
+        
+    if not api_key:
+        log_error("No Tailscale API key found in environment or vault")
+        return []
+    
+    if not tailnet:
+        tailnet = "-"  # Default tailnet
+    
+    api_url = f"https://api.tailscale.com/api/v2/tailnet/{tailnet}/devices"
+    
     headers = {
-        "Authorization": f"Bearer {TAILSCALE_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Accept": "application/json",
     }
 
     try:
-        response = requests.get(TAILSCALE_API_URL, headers=headers, timeout=30)
+        response = requests.get(api_url, headers=headers, timeout=30)
         response.raise_for_status()
         devices = response.json().get("devices", [])
         log_info(f"Retrieved {len(devices)} devices from Tailscale API")
