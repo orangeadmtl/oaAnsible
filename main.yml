@@ -44,6 +44,9 @@
     - role: macos/ssh
       tags: ["ssh", "security", "setup"]
 
+    - role: macos/settings
+      tags: ["settings", "configuration"]
+
     - role: macos/network # General network settings, DNS
       tags: ["network", "dns"]
 
@@ -55,9 +58,6 @@
 
     - role: macos/node
       tags: ["node", "dev"]
-
-    - role: macos/settings
-      tags: ["settings", "configuration"]
 
     - role: macos/api
       tags: ["api", "services"]
