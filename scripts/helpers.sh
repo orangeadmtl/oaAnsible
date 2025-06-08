@@ -344,6 +344,57 @@ find_host_by_name() {
   return 0
 }
 
+# Function to find the closest virtual environment starting from a given directory
+# Searches upward in the directory tree until it finds a .venv directory with a valid Python executable
+# Returns 0 on success and echoes the path to the .venv directory
+# Returns 1 on failure (no .venv found)
+find_closest_venv() {
+    local current_dir="${1:-$PWD}"
+    
+    # Check if .venv exists in the current directory
+    if [ -d "$current_dir/.venv" ] && [ -f "$current_dir/.venv/bin/python" ]; then
+        echo "$current_dir/.venv"
+        return 0
+    fi
+    
+    # If not found and we're not at root, check parent directory
+    if [ "$current_dir" != "/" ]; then
+        local parent_dir="$(dirname "$current_dir")"
+        if [ "$parent_dir" != "$current_dir" ]; then
+            find_closest_venv "$parent_dir"
+            return $?
+        fi
+    fi
+    
+    return 1
+}
+
+# Function to get the appropriate Python executable
+# First tries to find a virtual environment, then falls back to system Python
+# Sets global variables: VENV_PATH and PYTHON_BIN
+# Returns 0 on success, 1 on failure
+get_python_executable() {
+    local start_dir="${1:-$OA_ANSIBLE_ROOT_DIR}"
+    
+    # Try to find venv starting from the specified directory
+    VENV_PATH=$(find_closest_venv "$start_dir")
+    
+    if [ -n "$VENV_PATH" ] && [ -f "$VENV_PATH/bin/python" ]; then
+        log_info "Using Python from virtual environment at $VENV_PATH"
+        PYTHON_BIN="$VENV_PATH/bin/python"
+        export VENV_PATH
+        export PYTHON_BIN
+        return 0
+    else
+        log_warn "No virtual environment found in $start_dir or parent directories, using system Python"
+        VENV_PATH=""
+        PYTHON_BIN="python3"
+        export VENV_PATH
+        export PYTHON_BIN
+        return 0
+    fi
+}
+
 # Example of setting a different log level for a specific script:
 # At the top of your script, after sourcing helpers.sh:
 # SCRIPT_LOG_LEVEL=$_LOG_LEVEL_DEBUG # To see debug messages for this script
