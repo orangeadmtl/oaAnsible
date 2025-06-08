@@ -8,11 +8,48 @@ set -e
 # Source helper functions and variables
 HELPER_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
 if [ -f "$HELPER_SCRIPT_PATH" ]; then
-  # shellcheck source=./helpers.sh
-  source "$HELPER_SCRIPT_PATH"
+    # shellcheck source=./helpers.sh
+    source "$HELPER_SCRIPT_PATH"
 else
-  echo "ERROR: helpers.sh not found at $HELPER_SCRIPT_PATH"
-  exit 1
+    echo "ERROR: helpers.sh not found at $HELPER_SCRIPT_PATH"
+    exit 1
+fi
+
+# Find the closest virtual environment
+find_closest_venv() {
+    local current_dir="$1"
+    
+    # Check if .venv exists in the current directory
+    if [ -d "$current_dir/.venv" ] && [ -f "$current_dir/.venv/bin/python" ]; then
+        echo "$current_dir/.venv"
+        return 0
+    fi
+    
+    # If not found and we're not at root, check parent directory
+    if [ "$current_dir" != "/" ]; then
+        local parent_dir="$(dirname "$current_dir")"
+        if [ "$parent_dir" != "$current_dir" ]; then
+            find_closest_venv "$parent_dir"
+            return $?
+        fi
+    fi
+    
+    return 1
+}
+
+# Start from the script's directory and find the closest .venv
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ANSIBLE_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Try to find venv starting from oaAnsible directory
+VENV_PATH=$(find_closest_venv "$ANSIBLE_DIR")
+
+if [ -n "$VENV_PATH" ] && [ -f "$VENV_PATH/bin/python" ]; then
+    log_info "Using Python from virtual environment at $VENV_PATH"
+    PYTHON_BIN="$VENV_PATH/bin/python"
+else
+    log_warn "No virtual environment found in $ANSIBLE_DIR or parent directories, using system Python"
+    PYTHON_BIN="python3"
 fi
 
 # Set script-specific log level
@@ -56,7 +93,7 @@ should_exclude() {
     local file="$1"
     for pattern in "${exclude_patterns[@]}"; do
         case "$file" in
-            $pattern) return 0 ;;
+        $pattern) return 0 ;;
         esac
     done
     return 1
@@ -65,7 +102,7 @@ should_exclude() {
 # Function to validate YAML syntax
 validate_yaml() {
     local file="$1"
-    python3 -c "
+    "$PYTHON_BIN" -c "
 import yaml
 import sys
 try:
@@ -81,19 +118,19 @@ except Exception as e:
 # Function to safely fix FQCN issues preserving indentation
 fix_fqcn_issues() {
     log_info "Fixing FQCN (Fully Qualified Collection Names) issues..."
-    
+
     # Common modules that need FQCN (excluding gather_facts which is typically playbook-level)
     # Note: "user" module excluded to prevent breaking existing code
     local modules=(
-        "debug" "set_fact" "fail" "copy" "file" "template" "lineinfile" 
+        "debug" "set_fact" "fail" "copy" "file" "template" "lineinfile"
         "stat" "command" "shell" "service" "meta" "pause"
-        "uri" "get_url" "unarchive" "include_tasks" "import_tasks" 
+        "uri" "get_url" "unarchive" "include_tasks" "import_tasks"
         "include_vars" "package" "pip" "git" "cron" "mount" "systemd"
         "find" "replace" "blockinfile" "script" "raw" "wait_for"
-        "assert" "include_role" "import_role" "setup" 
+        "assert" "include_role" "import_role" "setup"
         "add_host" "group_by"
     )
-    
+
     for dir in "${directories[@]}"; do
         if [ -d "$dir" ]; then
             log_info "Processing FQCN in $dir..."
@@ -101,23 +138,23 @@ fix_fqcn_issues() {
                 if ! should_exclude "$file"; then
                     # Create backup
                     cp "$file" "${file}.bak"
-                    
+
                     # Process each module
                     for module in "${modules[@]}"; do
                         # Only replace if it's a task module at the correct indentation level
                         sed -i '' "s/^\\([[:space:]]*\\)${module}:/\\1ansible.builtin.${module}:/g" "$file"
                     done
-                    
+
                     # Fix incorrectly applied FQCN to common parameters
                     sed -i '' 's/ansible\.builtin\.group: staff/group: staff/g' "$file"
                     sed -i '' 's/ansible\.builtin\.owner:/owner:/g' "$file"
                     sed -i '' 's/ansible\.builtin\.mode:/mode:/g' "$file"
                     sed -i '' 's/ansible\.builtin\.state:/state:/g' "$file"
                     sed -i '' 's/ansible\.builtin\.path:/path:/g' "$file"
-                    
+
                     # Fix playbook-level gather_facts that got incorrectly converted
                     sed -i '' 's/ansible\.builtin\.gather_facts: /gather_facts: /g' "$file"
-                    
+
                     # Validate the result
                     if validate_yaml "$file"; then
                         rm -f "${file}.bak"
@@ -135,23 +172,23 @@ fix_fqcn_issues() {
 # Function to process root files
 process_root_files() {
     log_info "Processing root YAML files..."
-    
+
     for file in "${root_files[@]}"; do
         if [ -f "$file" ] && ! should_exclude "$file"; then
             # Create backup
             cp "$file" "${file}.bak"
-            
+
             # Apply formatting fixes
             sed -i '' -e 's/[[:space:]]*$//' "$file"
             sed -i '' -e 's/: yes$/: true/g' "$file"
             sed -i '' -e 's/: no$/: false/g' "$file"
-            
+
             if ! head -n1 "$file" | grep -q "^---" && grep -q "^[[:space:]]*[^#[:space:]]" "$file"; then
                 sed -i '' '1i\
 ---
 ' "$file"
             fi
-            
+
             if validate_yaml "$file"; then
                 rm -f "${file}.bak"
                 log_info "✓ Fixed formatting in $file"
@@ -166,34 +203,34 @@ process_root_files() {
 # Function to fix basic YAML formatting issues safely
 fix_yaml_formatting() {
     log_info "Fixing basic YAML formatting issues..."
-    
+
     # Process root files first
     process_root_files
-    
+
     for dir in "${directories[@]}"; do
         if [ -d "$dir" ]; then
             log_info "Processing YAML formatting in $dir..."
-            
+
             find "$dir" -name "*.yml" -o -name "*.yaml" | while read -r file; do
                 if ! should_exclude "$file"; then
                     # Create backup
                     cp "$file" "${file}.bak"
-                    
+
                     # Only make safe changes
                     # 1. Remove trailing spaces
                     sed -i '' -e 's/[[:space:]]*$//' "$file"
-                    
+
                     # 2. Fix obvious truthy values
                     sed -i '' -e 's/: yes$/: true/g' "$file"
                     sed -i '' -e 's/: no$/: false/g' "$file"
-                    
+
                     # 3. Add document start marker only if file is missing it and has content
                     if ! head -n1 "$file" | grep -q "^---" && grep -q "^[[:space:]]*[^#[:space:]]" "$file"; then
                         sed -i '' '1i\
 ---
 ' "$file"
                     fi
-                    
+
                     # Validate the result
                     if validate_yaml "$file"; then
                         rm -f "${file}.bak"
@@ -227,9 +264,12 @@ install_prettier() {
 # Function to run ansible-lint automatic fixes
 run_ansible_lint_fixes() {
     log_info "Running ansible-lint automatic fixes..."
-    
-    if command -v ansible-lint >/dev/null 2>&1; then
-        log_info "Applying automatic fixes with ansible-lint..."
+
+    if [ -f "$VENV_PATH/bin/ansible-lint" ]; then
+        log_info "Applying automatic fixes with ansible-lint from virtual environment..."
+        "$VENV_PATH/bin/ansible-lint" --fix --offline -q || log_warn "Some ansible-lint issues could not be automatically fixed"
+    elif command -v ansible-lint >/dev/null 2>&1; then
+        log_info "Applying automatic fixes with system ansible-lint..."
         ansible-lint --fix --offline -q || log_warn "Some ansible-lint issues could not be automatically fixed"
     else
         log_error "ansible-lint not found. Please install it with: pip install ansible-lint"
@@ -240,18 +280,18 @@ run_ansible_lint_fixes() {
 # Function to fix line lengths and other YAML formatting while preserving blank lines
 run_prettier_fixes() {
     log_info "Running prettier to fix line lengths while preserving readability..."
-    
+
     install_prettier
-    
+
     if command -v prettier >/dev/null 2>&1; then
         # Check if .prettierrc.yaml exists
         if [ ! -f ".prettierrc.yaml" ]; then
             log_warn ".prettierrc.yaml not found. Please ensure it exists in the project root."
             return 1
         fi
-        
+
         log_info "Using existing .prettierrc.yaml configuration"
-        
+
         # Apply prettier to all directories
         for dir in "${directories[@]}"; do
             if [ -d "$dir" ]; then
@@ -263,14 +303,14 @@ run_prettier_fixes() {
                 done
             fi
         done
-        
+
         # Format root files
         for file in "${root_files[@]}"; do
             if [ -f "$file" ] && ! should_exclude "$file"; then
                 prettier --write "$file" 2>/dev/null || log_warn "Could not format $file with prettier"
             fi
         done
-        
+
         log_info "Prettier formatting completed using project configuration"
     else
         log_warn "prettier not available, skipping line length fixes"
@@ -280,8 +320,18 @@ run_prettier_fixes() {
 # Function to run yamllint validation
 run_yamllint_check() {
     log_info "Running yamllint validation..."
-    
-    if command -v yamllint >/dev/null 2>&1; then
+
+    if [ -f "$VENV_PATH/bin/yamllint" ]; then
+        log_info "Using yamllint from virtual environment..."
+        if "$VENV_PATH/bin/yamllint" . >/dev/null 2>&1; then
+            log_info "All YAML files pass yamllint validation"
+        else
+            log_warn "Some yamllint issues found:"
+            "$VENV_PATH/bin/yamllint" . | head -20
+            echo "..."
+            log_warn "Run 'yamllint .' for full output"
+        fi
+    elif command -v yamllint >/dev/null 2>&1; then
         if yamllint . >/dev/null 2>&1; then
             log_info "All YAML files pass yamllint validation"
         else
@@ -299,7 +349,7 @@ run_yamllint_check() {
 # Function to show summary of changes
 show_changes_summary() {
     log_info "Checking for modified files..."
-    
+
     if command -v git >/dev/null 2>&1 && [ -d .git ]; then
         local modified_files=$(git diff --name-only)
         if [ -n "$modified_files" ]; then
@@ -338,7 +388,7 @@ show_changes_summary
 log_info "=== Format script completed safely ==="
 log_info "Summary of fixes applied:"
 log_info "  ✓ Fixed YAML document start markers (validated)"
-log_info "  ✓ Removed trailing spaces" 
+log_info "  ✓ Removed trailing spaces"
 log_info "  ✓ Converted truthy values (yes/no → true/false)"
 log_info "  ✓ Added FQCN for builtin modules (with validation)"
 log_info "  ✓ Fixed line lengths with prettier (preserving blank lines)"
