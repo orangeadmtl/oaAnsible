@@ -15,42 +15,8 @@ else
     exit 1
 fi
 
-# Find the closest virtual environment
-find_closest_venv() {
-    local current_dir="$1"
-    
-    # Check if .venv exists in the current directory
-    if [ -d "$current_dir/.venv" ] && [ -f "$current_dir/.venv/bin/python" ]; then
-        echo "$current_dir/.venv"
-        return 0
-    fi
-    
-    # If not found and we're not at root, check parent directory
-    if [ "$current_dir" != "/" ]; then
-        local parent_dir="$(dirname "$current_dir")"
-        if [ "$parent_dir" != "$current_dir" ]; then
-            find_closest_venv "$parent_dir"
-            return $?
-        fi
-    fi
-    
-    return 1
-}
-
-# Start from the script's directory and find the closest .venv
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ANSIBLE_DIR="$(dirname "$SCRIPT_DIR")"
-
-# Try to find venv starting from oaAnsible directory
-VENV_PATH=$(find_closest_venv "$ANSIBLE_DIR")
-
-if [ -n "$VENV_PATH" ] && [ -f "$VENV_PATH/bin/python" ]; then
-    log_info "Using Python from virtual environment at $VENV_PATH"
-    PYTHON_BIN="$VENV_PATH/bin/python"
-else
-    log_warn "No virtual environment found in $ANSIBLE_DIR or parent directories, using system Python"
-    PYTHON_BIN="python3"
-fi
+# Get the appropriate Python executable using helper function
+get_python_executable "$OA_ANSIBLE_ROOT_DIR"
 
 # Set script-specific log level
 SCRIPT_LOG_LEVEL=$_LOG_LEVEL_INFO
