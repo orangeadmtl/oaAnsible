@@ -135,10 +135,10 @@
         export GOPATH="{{ ansible_env.HOME }}/go"
         export GOBIN="{{ go_bin_path_for_tailscale }}"
         export PATH="{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
-        
+
         # Clean any existing installs
         rm -f "{{ go_bin_path_for_tailscale }}/tailscale" "{{ go_bin_path_for_tailscale }}/tailscaled"
-        
+
         # Install both binaries with proper version info
         "{{ go_executable_path }}" install -ldflags "-X tailscale.com/version.longStamp={{ tailscale_latest_version }}" tailscale.com/cmd/tailscale@{{ tailscale_latest_version }}
         "{{ go_executable_path }}" install -ldflags "-X tailscale.com/version.longStamp={{ tailscale_latest_version }}" tailscale.com/cmd/tailscaled@{{ tailscale_latest_version }}
@@ -155,10 +155,10 @@
         export GOPATH="{{ ansible_env.HOME }}/go"
         export GOBIN="{{ go_bin_path_for_tailscale }}"
         export PATH="{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
-        
+
         # Clean any existing installs
         rm -f "{{ go_bin_path_for_tailscale }}/tailscale" "{{ go_bin_path_for_tailscale }}/tailscaled"
-        
+
         # Install both binaries with proper version info (fallback)
         "{{ go_executable_path }}" install -ldflags "-X tailscale.com/version.longStamp=v1.82.0" tailscale.com/cmd/tailscale@v1.82.0
         "{{ go_executable_path }}" install -ldflags "-X tailscale.com/version.longStamp=v1.82.0" tailscale.com/cmd/tailscaled@v1.82.0
@@ -171,7 +171,7 @@
     - name: Set combined install result
       ansible.builtin.set_fact:
         tailscale_install_success: >-
-          {{ tailscale_install_with_buildinfo.rc == 0 or 
+          {{ tailscale_install_with_buildinfo.rc == 0 or
              (tailscale_fallback_with_buildinfo.rc | default(1) == 0) }}
         tailscale_version_used: >-
           {{ tailscale_latest_version if tailscale_install_with_buildinfo.rc == 0 else 'v1.82.0' }}
@@ -391,26 +391,21 @@
 
 - name: Force full Tailscale re-authentication for hostname mismatch (staging only)
   ansible.builtin.command: >
-    /usr/local/bin/tailscale up --authkey={{ vault_tailscale_auth_key }} --hostname={{ inventory_hostname }} 
-    --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }} 
-    --accept-dns=false --force-reauth --ssh --reset
+    /usr/local/bin/tailscale up --authkey={{ vault_tailscale_auth_key }} --hostname={{ inventory_hostname }} --advertise-tags={{ vault_tailscale_tags_macos |
+    default('tag:oa-macos,tag:oa-tracker') }} --accept-dns=false --force-reauth --ssh --reset
   become: true
   when:
     - is_tailscale_logged_in | default(false)
     - tailscale_hostname_mismatch | default(false)
-    - target_env | default('production') != 'production'  # Only in staging
+    - target_env | default('production') != 'production' # Only in staging
   changed_when: true
   register: tailscale_hostname_reauth
   failed_when: >
-    tailscale_hostname_reauth.rc != 0 and 
-    'Success.' not in (tailscale_hostname_reauth.stdout | default('')) and
-    'already logged in' not in (tailscale_hostname_reauth.stderr | default('')) and
-    'already using auth key' not in (tailscale_hostname_reauth.stderr | default('')) and
-    'already authenticated' not in (tailscale_hostname_reauth.stderr | default('')) and
-    'SSH server does not run in sandboxed' not in (tailscale_hostname_reauth.stderr | default('')) and
-    'different tailnet' not in (tailscale_hostname_reauth.stderr | default('')) and
-    'auth key is not valid' not in (tailscale_hostname_reauth.stderr | default('')) and
-    'invalid auth key' not in (tailscale_hostname_reauth.stderr | default(''))
+    tailscale_hostname_reauth.rc != 0 and 'Success.' not in (tailscale_hostname_reauth.stdout | default('')) and 'already logged in' not in
+    (tailscale_hostname_reauth.stderr | default('')) and 'already using auth key' not in (tailscale_hostname_reauth.stderr | default('')) and 'already
+    authenticated' not in (tailscale_hostname_reauth.stderr | default('')) and 'SSH server does not run in sandboxed' not in (tailscale_hostname_reauth.stderr |
+    default('')) and 'different tailnet' not in (tailscale_hostname_reauth.stderr | default('')) and 'auth key is not valid' not in
+    (tailscale_hostname_reauth.stderr | default('')) and 'invalid auth key' not in (tailscale_hostname_reauth.stderr | default(''))
 
 - name: Handle cross-Tailnet scenario with logout and re-auth
   block:
@@ -422,48 +417,43 @@
           Will perform logout and re-authentication to join the correct Tailnet.
           Previous hostname: {{ current_ts_hostname | default('Unknown') }}
           Target hostname: {{ inventory_hostname }}
-      when: 
+      when:
         - tailscale_hostname_reauth is defined
         - tailscale_hostname_reauth.rc is defined
         - tailscale_hostname_reauth.rc != 0
-        - ('different tailnet' in (tailscale_hostname_reauth.stderr | default('')) or 
-           'auth key is not valid' in (tailscale_hostname_reauth.stderr | default('')) or
-           'invalid auth key' in (tailscale_hostname_reauth.stderr | default('')))
+        - ('different tailnet' in (tailscale_hostname_reauth.stderr | default('')) or 'auth key is not valid' in (tailscale_hostname_reauth.stderr |
+          default('')) or 'invalid auth key' in (tailscale_hostname_reauth.stderr | default('')))
 
     - name: Logout from current Tailnet (cross-Tailnet scenario)
       ansible.builtin.command: /usr/local/bin/tailscale logout
       become: true
       register: tailscale_logout_result
-      when: 
+      when:
         - tailscale_hostname_reauth is defined
         - tailscale_hostname_reauth.rc is defined
         - tailscale_hostname_reauth.rc != 0
-        - ('different tailnet' in (tailscale_hostname_reauth.stderr | default('')) or 
-           'auth key is not valid' in (tailscale_hostname_reauth.stderr | default('')) or
-           'invalid auth key' in (tailscale_hostname_reauth.stderr | default('')))
+        - ('different tailnet' in (tailscale_hostname_reauth.stderr | default('')) or 'auth key is not valid' in (tailscale_hostname_reauth.stderr |
+          default('')) or 'invalid auth key' in (tailscale_hostname_reauth.stderr | default('')))
       failed_when: false
       changed_when: tailscale_logout_result.rc == 0
 
     - name: Re-authenticate to correct Tailnet (cross-Tailnet scenario)
       ansible.builtin.command: >
-        /usr/local/bin/tailscale up --authkey={{ vault_tailscale_auth_key }} --hostname={{ inventory_hostname }} 
-        --advertise-tags={{ vault_tailscale_tags_macos | default('tag:oa-macos,tag:oa-tracker') }} 
-        --accept-dns=false --ssh --reset
+        /usr/local/bin/tailscale up --authkey={{ vault_tailscale_auth_key }} --hostname={{ inventory_hostname }} --advertise-tags={{ vault_tailscale_tags_macos
+        | default('tag:oa-macos,tag:oa-tracker') }} --accept-dns=false --ssh --reset
       become: true
       register: tailscale_cross_tailnet_reauth
-      when: 
+      when:
         - tailscale_hostname_reauth is defined
         - tailscale_hostname_reauth.rc is defined
         - tailscale_hostname_reauth.rc != 0
-        - ('different tailnet' in (tailscale_hostname_reauth.stderr | default('')) or 
-           'auth key is not valid' in (tailscale_hostname_reauth.stderr | default('')) or
-           'invalid auth key' in (tailscale_hostname_reauth.stderr | default('')))
+        - ('different tailnet' in (tailscale_hostname_reauth.stderr | default('')) or 'auth key is not valid' in (tailscale_hostname_reauth.stderr |
+          default('')) or 'invalid auth key' in (tailscale_hostname_reauth.stderr | default('')))
         - tailscale_logout_result is defined and tailscale_logout_result.rc == 0
       changed_when: tailscale_cross_tailnet_reauth.rc == 0
       failed_when: >
-        tailscale_cross_tailnet_reauth.rc != 0 and 
-        'Success.' not in (tailscale_cross_tailnet_reauth.stdout | default('')) and
-        'SSH server does not run in sandboxed' not in (tailscale_cross_tailnet_reauth.stderr | default(''))
+        tailscale_cross_tailnet_reauth.rc != 0 and 'Success.' not in (tailscale_cross_tailnet_reauth.stdout | default('')) and 'SSH server does not run in
+        sandboxed' not in (tailscale_cross_tailnet_reauth.stderr | default(''))
 
     - name: Display cross-Tailnet completion notice
       ansible.builtin.debug:
@@ -471,11 +461,11 @@
           ✅ Cross-Tailnet migration completed for {{ inventory_hostname }}
           The device has been moved to the correct Tailnet.
           New Tailscale hostname: {{ inventory_hostname }}
-          
+
           Note: The old node on the previous Tailnet should be manually removed from the admin console.
           You can now SSH using: admin@{{ inventory_hostname }}
       when:
-        - tailscale_cross_tailnet_reauth is defined 
+        - tailscale_cross_tailnet_reauth is defined
         - tailscale_cross_tailnet_reauth.changed
 
 - name: Safe hostname update for hostname mismatch (production only)
@@ -484,7 +474,7 @@
   when:
     - is_tailscale_logged_in | default(false)
     - tailscale_hostname_mismatch | default(false)
-    - target_env | default('production') == 'production'  # Only in production
+    - target_env | default('production') == 'production' # Only in production
     - not (tailscale_hostname_reauth is defined and tailscale_hostname_reauth.changed)
     - not (tailscale_cross_tailnet_reauth is defined and tailscale_cross_tailnet_reauth.changed)
   changed_when: true
@@ -498,14 +488,13 @@
       New Tailscale hostname: {{ inventory_hostname }}
       Method: {{ 'Force re-authentication' if target_env != 'production' else 'Safe update' }}
       Environment: {{ target_env | default('unknown') }}
-      
+
       Note: You should now be able to SSH using the new hostname: admin@{{ inventory_hostname }}
   when:
     - is_tailscale_logged_in | default(false)
     - tailscale_hostname_mismatch | default(false)
-    - (tailscale_hostname_reauth is defined and tailscale_hostname_reauth.changed) or 
-      (tailscale_hostname_safe is defined and tailscale_hostname_safe.changed) or
-      (tailscale_cross_tailnet_reauth is defined and tailscale_cross_tailnet_reauth.changed)
+    - (tailscale_hostname_reauth is defined and tailscale_hostname_reauth.changed) or (tailscale_hostname_safe is defined and tailscale_hostname_safe.changed)
+      or (tailscale_cross_tailnet_reauth is defined and tailscale_cross_tailnet_reauth.changed)
 
 # Scenario 2: Fallback hostname correction (if not handled above)
 - name: Fallback Tailscale hostname correction
@@ -542,7 +531,7 @@
     default('tag:oa-macos,tag:oa-tracker') }} --accept-dns=false --ssh --reset
   become: true # Run as root to ensure it interacts with system daemon and has perms
   register: tailscale_up_gentle
-  when: 
+  when:
     - needs_full_tailscale_up | default(false)
     - not (ansible_env.OA_ANSIBLE_TAILSCALE_SAFE_MODE | default(false) | bool and ansible_env.OA_ANSIBLE_DEPLOYMENT_PHASE | default('') == 'production')
     - not (tailscale_hostname_reauth is defined and tailscale_hostname_reauth.changed)

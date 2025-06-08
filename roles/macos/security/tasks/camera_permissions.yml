@@ -44,7 +44,7 @@
         fi
       done
     fi
-    
+
     # Output the path if found, otherwise output an error message
     if [ -n "$SETSID_PATH" ] && [ -f "$SETSID_PATH" ]; then
       echo "$SETSID_PATH"
@@ -207,7 +207,8 @@
 
 - name: Check if camera permissions need to be granted
   ansible.builtin.set_fact:
-    need_camera_permissions: "{{ api_access_missing == 'true' or tracker_access_missing == 'true' or setsid_access_missing == 'true' or tailscale_access_missing == 'true' or terminal_access_missing == 'true' or ssh_access_missing == 'true' }}"
+    need_camera_permissions: "{{ api_access_missing == 'true' or tracker_access_missing == 'true' or setsid_access_missing == 'true' or tailscale_access_missing ==
+      'true' or terminal_access_missing == 'true' or ssh_access_missing == 'true' }}"
 
 # Always create and run the grant script to ensure permissions are set correctly
 # This is needed because the check might not accurately detect if the TCC database needs initialization
@@ -237,7 +238,8 @@
 # Verify camera access
 - name: Check if camera permissions are granted
   ansible.builtin.set_fact:
-    camera_permissions_granted: "{{ api_access_status == 'Granted' and tracker_access_status == 'Granted' and setsid_access_status == 'Granted' and tailscale_access_status == 'Granted' and terminal_access_status == 'Granted' and ssh_access_status == 'Granted' }}"
+    camera_permissions_granted: "{{ api_access_status == 'Granted' and tracker_access_status == 'Granted' and setsid_access_status == 'Granted' and tailscale_access_status
+      == 'Granted' and terminal_access_status == 'Granted' and ssh_access_status == 'Granted' }}"
 
 - name: Create script to verify camera access
   ansible.builtin.template:

@@ -12,10 +12,9 @@
 
     # Check if .pyenv is a valid git repository
     - name: Check if .pyenv is a valid git repository
-      ansible.builtin.command: git -C "{{ ansible_env.HOME }}/.pyenv" rev-parse
+      ansible.builtin.stat:
+        path: "{{ ansible_env.HOME }}/.pyenv/.git"
       register: pyenv_git_check
-      changed_when: false
-      failed_when: false
       when: pyenv_install.stat.exists
 
     # Remove .pyenv if it exists but is not a valid git repository
@@ -79,7 +78,7 @@
     # Ensure readline and openssl are available via Homebrew (for Python compilation)
     - name: Install readline and openssl via Homebrew
       community.general.homebrew:
-        name: 
+        name:
           - readline
           - openssl@3
         state: present
@@ -110,7 +109,7 @@
       changed_when: false
       register: python_install_attempt1
       failed_when: false
-      
+
     # Retry with alternative mirror if first attempt failed
     - name: Install Python version (attempt 2 - with alternative readline mirror)
       ansible.builtin.shell: |
@@ -121,13 +120,13 @@
         export PYTHON_BUILD_MIRROR_URL="https://npm.taobao.org/mirrors/python"
         export PYTHON_BUILD_MIRROR_URL_SKIP_CHECKSUM=1
         $PYENV_ROOT/bin/pyenv install {{ macos_python.version }}
-      when: 
+      when:
         - macos_python.version not in (installed_versions.stdout_lines | default([]))
         - python_install_attempt1.rc != 0
       changed_when: false
       register: python_install_attempt2
       failed_when: false
-      
+
     # Final attempt with Homebrew's readline if pyenv still fails
     - name: Install Python version (attempt 3 - using system readline)
       ansible.builtin.shell: |
@@ -140,13 +139,13 @@
         export CPPFLAGS="-I$(brew --prefix readline)/include -I$(brew --prefix openssl)/include"
         export PYTHON_CONFIGURE_OPTS="--with-readline"
         $PYENV_ROOT/bin/pyenv install {{ macos_python.version }}
-      when: 
+      when:
         - macos_python.version not in (installed_versions.stdout_lines | default([]))
         - python_install_attempt1.rc != 0
         - python_install_attempt2.rc != 0
       changed_when: false
       register: python_install_attempt3
-      
+
     # Last resort: try clearing cache and retry
     - name: Install Python version (attempt 4 - clear cache and retry)
       ansible.builtin.shell: |
@@ -163,12 +162,12 @@
       when:
         - macos_python.version not in (installed_versions.stdout_lines | default([]))
         - python_install_attempt1.rc != 0
-        - python_install_attempt2.rc != 0  
+        - python_install_attempt2.rc != 0
         - python_install_attempt3.rc != 0
       changed_when: false
       register: python_install_attempt4
       failed_when: false
-    
+
     # Fail if all attempts failed
     - name: Fail if Python installation failed after all attempts
       ansible.builtin.fail:
@@ -178,7 +177,7 @@
           Attempt 2 (alternative mirror): {{ python_install_attempt2.stderr | default('N/A') }}
           Attempt 3 (system readline): {{ python_install_attempt3.stderr | default('N/A') }}
           Attempt 4 (cache clear retry): {{ python_install_attempt4.stderr | default('N/A') }}
-          
+
           Common solutions:
           1. Check internet connectivity
           2. Try running manually: pyenv install {{ macos_python.version }}

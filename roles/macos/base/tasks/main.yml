@@ -6,7 +6,8 @@
       ansible.builtin.shell: |
         chsh -s /bin/zsh {{ ansible_user }}
       become: true
-      
+      changed_when: false
+
     - name: Get default shell
       ansible.builtin.command: dscl . -read /Users/{{ ansible_user }} UserShell
       register: user_shell_info
@@ -15,12 +16,14 @@
     - name: Set shell configuration facts
       ansible.builtin.set_fact:
         shell_config: "{{ macos_shell_config }}"
+      changed_when: false
 
     - name: Set shell-specific facts (force zsh)
       ansible.builtin.set_fact:
         user_shell: "zsh"
         shell_profile: "{{ ansible_env.HOME }}/.zprofile"
         shell_rc: "{{ ansible_env.HOME }}/.zshrc"
+      changed_when: false
 
     - name: Ensure shell configuration files exist
       ansible.builtin.file:
@@ -30,6 +33,7 @@
       loop:
         - "{{ shell_profile }}"
         - "{{ shell_rc }}"
+      changed_when: false
 
     - name: Configure shell environment
       ansible.builtin.blockinfile:
@@ -66,6 +70,7 @@
             # Shell-specific configurations
             export LANG=en_US.UTF-8
             export EDITOR=vim
+      changed_when: false
 
 # Configure passwordless sudo for the ansible_user (admin)
 - name: Ensure ansible_user can sudo without a password
@@ -112,6 +117,7 @@
         state: absent
       loop: "{{ jpr_agents.stdout_lines }}"
       when: jpr_agents.stdout_lines | length > 0
+      changed_when: false
 
     - name: Unload JPR Launch Daemons
       ansible.builtin.shell: |
@@ -130,6 +136,7 @@
       loop: "{{ jpr_daemons.stdout_lines }}"
       when: jpr_daemons.stdout_lines | length > 0
       become: true
+      changed_when: false
 
     - name: Verify JPR cleanup - check remaining agents
       ansible.builtin.shell: |
@@ -160,31 +167,38 @@
       ansible.builtin.shell: |
         sudo nvram StartupMute=%01
       become: true
-      
+      changed_when: false
+
     - name: Set default volume to 0
       ansible.builtin.shell: |
         osascript -e "set volume output volume 0"
-      
+      changed_when: false
+
     - name: Disable user interface sound effects
       ansible.builtin.shell: |
         defaults write com.apple.systemsound 'com.apple.sound.uiaudio.enabled' -int 0
-        
+      changed_when: false
+
     - name: Disable alert volume
       ansible.builtin.shell: |
         defaults write NSGlobalDomain com.apple.sound.beep.volume -float 0.0
-        
+      changed_when: false
+
     - name: Disable beep sound
       ansible.builtin.shell: |
         defaults write NSGlobalDomain com.apple.sound.beep.sound -string ""
-        
+      changed_when: false
+
     - name: Disable feedback sounds for volume changes
       ansible.builtin.shell: |
         defaults write NSGlobalDomain com.apple.sound.beep.feedback -int 0
-        
+      changed_when: false
+
     - name: Apply sound settings immediately
       ansible.builtin.shell: |
         killall SystemUIServer
       failed_when: false
+      changed_when: false
 
 # Configure screen saver and display settings
 - name: Configure screen saver and display settings
@@ -193,36 +207,44 @@
     - name: Disable screen saver
       ansible.builtin.shell: |
         defaults -currentHost write com.apple.screensaver idleTime -int 0
-        
+      changed_when: false
+
     - name: Never turn off display (set to never)
       ansible.builtin.shell: |
         sudo pmset -a displaysleep 0
       become: true
-      
+      changed_when: false
+
     - name: Disable computer sleep
       ansible.builtin.shell: |
         sudo pmset -a sleep 0
       become: true
-      
+      changed_when: false
+
     - name: Disable disk sleep
       ansible.builtin.shell: |
         sudo pmset -a disksleep 0
       become: true
-      
+      changed_when: false
+
     - name: No password required after screen saver begins
       ansible.builtin.shell: |
         defaults write com.apple.screensaver askForPassword -int 0
-        
+      changed_when: false
+
     - name: No password required after display is turned off
       ansible.builtin.shell: |
         defaults write com.apple.screensaver askForPasswordDelay -int 0
-        
+      changed_when: false
+
     - name: Disable screen saver for all users
       ansible.builtin.shell: |
         defaults write /Library/Preferences/com.apple.screensaver idleTime -int 0
       become: true
-      
+      changed_when: false
+
     - name: Apply screen saver settings immediately
       ansible.builtin.shell: |
         killall cfprefsd
       failed_when: false
+      changed_when: false

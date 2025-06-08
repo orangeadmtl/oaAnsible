@@ -22,6 +22,7 @@
   ansible.builtin.blockinfile:
     path: "{{ item }}"
     create: true
+    mode: "0644"
     marker: "# {mark} ANSIBLE MANAGED BLOCK - util-linux"
     block: |
       # Add util-linux to PATH
@@ -31,13 +32,15 @@
       export LDFLAGS="-L/opt/homebrew/opt/util-linux/lib"
       export CPPFLAGS="-I/opt/homebrew/opt/util-linux/include"
       export PKG_CONFIG_PATH="/opt/homebrew/opt/util-linux/lib/pkgconfig"
+  changed_when: false
   loop:
     - "{{ ansible_user_dir }}/.zshrc"
     - "{{ ansible_user_dir }}/.bashrc"
     - "{{ ansible_user_dir }}/.bash_profile"
   become: true
   become_user: "{{ ansible_user }}"
-  ignore_errors: true
+  register: shell_profile_result
+  failed_when: false
 
 # Create directory structure in ansible_user's home directory
 - name: Ensure tracker directory exists
@@ -180,6 +183,7 @@
     clone: true
     update: true
     force: false
+    version: "{{ tracker.git_version | default('main') }}"
   become: true
   become_user: "{{ ansible_user }}"
   when: git_repo_status.stdout == "not_git_repo" or dir_content_status.stdout == "directory_empty_or_missing"
@@ -195,6 +199,7 @@
     dest: "{{ ansible_user_dir }}/orangead/tracker"
     update: true
     force: false
+    version: "{{ tracker.git_version | default('main') }}"
   become: true
   become_user: "{{ ansible_user }}"
   when: git_repo_status.stdout == "is_git_repo"
