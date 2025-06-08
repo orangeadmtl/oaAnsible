@@ -13,6 +13,9 @@ else
   exit 1
 fi
 
+# Get the appropriate Python executable using helper function
+get_python_executable "$OA_ANSIBLE_ROOT_DIR"
+
 # Set script-specific log level
 SCRIPT_LOG_LEVEL=$_LOG_LEVEL_INFO
 export SCRIPT_LOG_LEVEL
@@ -58,7 +61,7 @@ test_all_production_hosts() {
   
   # Get list of hosts from dynamic inventory
   local hosts
-  hosts=$(OA_ANSIBLE_ENV=production python3 "$inventory_script" --list | \
+  hosts=$(OA_ANSIBLE_ENV=production "$PYTHON_BIN" "$inventory_script" --list | \
           jq -r '.macos.hosts | keys[]' 2>/dev/null)
   
   if [ -z "$hosts" ]; then
@@ -72,7 +75,7 @@ test_all_production_hosts() {
   for host in $hosts; do
     # Get the actual IP from the inventory
     local host_ip
-    host_ip=$(OA_ANSIBLE_ENV=production python3 "$inventory_script" --list | \
+    host_ip=$(OA_ANSIBLE_ENV=production "$PYTHON_BIN" "$inventory_script" --list | \
               jq -r "._meta.hostvars[\"$host\"].ansible_host" 2>/dev/null)
     
     if [ "$host_ip" != "null" ] && [ -n "$host_ip" ]; then
