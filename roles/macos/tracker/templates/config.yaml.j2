@@ -29,3 +29,5 @@ counters:
         - 100
 default_model: {{ tracker.default_model | default('yoloe-11s-seg-custom.pt') }}
 default_server_port: {{ tracker.server_port | default(8080) }}
+access_key: {{ vault_tracker_access_key }}
+secret_key: {{ vault_tracker_secret_key }}

@@ -33,3 +33,7 @@ vault_sudo_passwords:
 
 # Default sudo password (fallback if host-specific not found)
 vault_default_sudo_password: "default_password"
+
+# Tracker secrets
+vault_tracker_access_key: "tracker-access-key"
+vault_tracker_secret_key: "tracker-secret-key"
