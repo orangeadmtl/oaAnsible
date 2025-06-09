@@ -17,12 +17,36 @@
       register: pyenv_git_check
       when: pyenv_install.stat.exists
 
+    # Backup Python versions before removing invalid pyenv
+    - name: Check if Python versions exist to backup
+      ansible.builtin.find:
+        paths: "{{ ansible_env.HOME }}/.pyenv/versions"
+        file_type: directory
+      register: pyenv_versions_check
+      when: pyenv_install.stat.exists and not (pyenv_git_check.stat.exists | default(false))
+      failed_when: false
+
+    - name: Backup existing Python versions
+      ansible.builtin.shell: |
+        set -o pipefail
+        BACKUP_DIR="{{ ansible_env.HOME }}/.pyenv_versions_backup_$(date +%Y%m%d_%H%M%S)"
+        echo "Backing up Python versions to $BACKUP_DIR"
+        mkdir -p "$BACKUP_DIR"
+        cp -R "{{ ansible_env.HOME }}/.pyenv/versions/"* "$BACKUP_DIR/" 2>/dev/null || true
+        echo "Backup completed at: $BACKUP_DIR"
+      register: pyenv_backup_result
+      when: 
+        - pyenv_install.stat.exists 
+        - not (pyenv_git_check.stat.exists | default(false))
+        - pyenv_versions_check.matched | default(0) > 0
+      changed_when: pyenv_backup_result.stdout is search('Backup completed')
+
     # Remove .pyenv if it exists but is not a valid git repository
     - name: Remove invalid .pyenv directory
       ansible.builtin.file:
         path: "{{ ansible_env.HOME }}/.pyenv"
         state: absent
-      when: pyenv_install.stat.exists and (pyenv_git_check.rc | default(1)) != 0
+      when: pyenv_install.stat.exists and not (pyenv_git_check.stat.exists | default(false))
       register: pyenv_removed
 
     # Install pyenv if not already installed or was just removed
@@ -34,6 +58,23 @@
         update: true
       when: not pyenv_install.stat.exists or pyenv_removed.changed | default(false)
 
+    # Restore backed up Python versions if they were backed up
+    - name: Restore backed up Python versions
+      ansible.builtin.shell: |
+        set -o pipefail
+        LATEST_BACKUP=$(ls -1td {{ ansible_env.HOME }}/.pyenv_versions_backup_* 2>/dev/null | head -1 || echo "")
+        if [ -n "$LATEST_BACKUP" ] && [ -d "$LATEST_BACKUP" ]; then
+          echo "Restoring Python versions from: $LATEST_BACKUP"
+          mkdir -p "{{ ansible_env.HOME }}/.pyenv/versions"
+          cp -R "$LATEST_BACKUP/"* "{{ ansible_env.HOME }}/.pyenv/versions/" 2>/dev/null || true
+          echo "Restore completed from: $LATEST_BACKUP"
+        else
+          echo "No backup found to restore"
+        fi
+      register: pyenv_restore_result
+      when: pyenv_removed.changed | default(false)
+      changed_when: pyenv_restore_result.stdout is search('Restore completed')
+
     # Update pyenv to get latest Python versions
     - name: Update pyenv
       ansible.builtin.git:
@@ -41,7 +82,7 @@
         dest: "{{ ansible_env.HOME }}/.pyenv"
         version: master
         update: true
-      when: pyenv_install.stat.exists and not pyenv_removed.changed | default(false) and (pyenv_git_check.rc | default(1)) == 0
+      when: pyenv_install.stat.exists and not pyenv_removed.changed | default(false) and (pyenv_git_check.stat.exists | default(false))
 
     # Add pyenv to PATH (zsh)
     - name: Add pyenv to PATH in .zshrc
@@ -86,18 +127,143 @@
       register: homebrew_deps
       failed_when: false
 
-    # Check if Python version is installed
-    - name: Check if Python version is installed
+    # Comprehensive Python readiness check
+    - name: Check if pyenv is working properly
+      ansible.builtin.shell: |
+        set -o pipefail
+        export PYENV_ROOT="$HOME/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        if [ ! -f "$PYENV_ROOT/bin/pyenv" ]; then
+          echo "PYENV_MISSING"
+          exit 0
+        fi
+        eval "$($PYENV_ROOT/bin/pyenv init -)"
+        $PYENV_ROOT/bin/pyenv --version >/dev/null 2>&1 && echo "PYENV_OK" || echo "PYENV_ERROR"
+      register: pyenv_check
+      changed_when: false
+      failed_when: false
+
+    - name: Check if target Python version is installed
       ansible.builtin.shell: |
         set -o pipefail
         export PYENV_ROOT="$HOME/.pyenv"
         export PATH="$PYENV_ROOT/bin:$PATH"
         eval "$($PYENV_ROOT/bin/pyenv init -)"
-        $PYENV_ROOT/bin/pyenv versions --bare
-      register: installed_versions
+        if $PYENV_ROOT/bin/pyenv versions --bare | grep -q "^{{ macos_python.version }}$"; then
+          echo "VERSION_INSTALLED"
+        else
+          echo "VERSION_MISSING"
+        fi
+      register: python_version_check
       changed_when: false
+      failed_when: false
+      when: pyenv_check.stdout == "PYENV_OK"
 
-    # Install Python version with retry and fallback mechanisms
+    - name: Check current Python global version
+      ansible.builtin.shell: |
+        set -o pipefail
+        export PYENV_ROOT="$HOME/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        eval "$($PYENV_ROOT/bin/pyenv init -)"
+        current_global=$($PYENV_ROOT/bin/pyenv global 2>/dev/null || echo "none")
+        if [ "$current_global" = "{{ macos_python.version }}" ]; then
+          echo "GLOBAL_CORRECT"
+        else
+          echo "GLOBAL_WRONG:$current_global"
+        fi
+      register: python_global_check
+      changed_when: false
+      failed_when: false
+      when: pyenv_check.stdout == "PYENV_OK" and python_version_check.stdout == "VERSION_INSTALLED"
+
+    - name: Test Python execution and basic functionality
+      ansible.builtin.shell: |
+        set -o pipefail
+        export PYENV_ROOT="$HOME/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        eval "$($PYENV_ROOT/bin/pyenv init -)"
+        if python3 --version 2>&1 | grep -q "{{ macos_python.version }}"; then
+          echo "PYTHON_EXECUTABLE"
+        else
+          echo "PYTHON_NOT_EXECUTABLE"
+        fi
+      register: python_execution_check
+      changed_when: false
+      failed_when: false
+      when: pyenv_check.stdout == "PYENV_OK" and python_version_check.stdout == "VERSION_INSTALLED"
+
+    # Set initial readiness facts
+    - name: Set initial Python readiness facts
+      ansible.builtin.set_fact:
+        pyenv_ready: "{{ pyenv_check.stdout == 'PYENV_OK' }}"
+        python_version_installed: "{{ python_version_check.stdout | default('') == 'VERSION_INSTALLED' }}"
+        python_global_correct: "{{ python_global_check.stdout | default('') == 'GLOBAL_CORRECT' }}"
+        python_executable: "{{ python_execution_check.stdout | default('') == 'PYTHON_EXECUTABLE' }}"
+
+    # Fix global version if needed (when version exists but global is wrong)
+    - name: Set global Python version
+      ansible.builtin.shell: |
+        set -o pipefail
+        export PYENV_ROOT="$HOME/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        eval "$($PYENV_ROOT/bin/pyenv init -)"
+        $PYENV_ROOT/bin/pyenv global {{ macos_python.version }}
+        $PYENV_ROOT/bin/pyenv rehash
+      register: pyenv_set_global
+      when: pyenv_ready and python_version_installed and not python_global_correct
+      changed_when: pyenv_set_global.rc == 0
+
+    # Re-check Python readiness after fixing global version
+    - name: Re-check Python execution after global fix
+      ansible.builtin.shell: |
+        set -o pipefail
+        export PYENV_ROOT="$HOME/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        eval "$($PYENV_ROOT/bin/pyenv init -)"
+        if python3 --version 2>&1 | grep -q "{{ macos_python.version }}"; then
+          echo "PYTHON_EXECUTABLE"
+        else
+          echo "PYTHON_NOT_EXECUTABLE"
+        fi
+      register: python_execution_recheck
+      changed_when: false
+      failed_when: false
+      when: pyenv_ready and python_version_installed and pyenv_set_global.changed | default(false)
+
+    # Set final readiness facts
+    - name: Set final Python readiness facts
+      ansible.builtin.set_fact:
+        python_global_correct: "{{ pyenv_set_global.changed | default(false) or python_global_correct }}"
+        python_executable: "{{ python_execution_recheck.stdout | default(python_execution_check.stdout | default('')) == 'PYTHON_EXECUTABLE' }}"
+        python_stack_ready: "{{ pyenv_ready and python_version_installed and (pyenv_set_global.changed | default(false) or python_global_correct) and (python_execution_recheck.stdout | default(python_execution_check.stdout | default('')) == 'PYTHON_EXECUTABLE') }}"
+
+    - name: Display Python stack readiness status
+      ansible.builtin.debug:
+        msg: |
+          Python Stack Readiness Check:
+          - Pyenv working: {{ pyenv_ready }}
+          - Python {{ macos_python.version }} installed: {{ python_version_installed }}
+          - Global version correct: {{ python_global_correct }}
+          - Python executable: {{ python_executable }}
+          - Overall stack ready: {{ python_stack_ready }}
+          {% if not python_stack_ready and not python_version_installed %}
+          
+          Will proceed with Python installation...
+          {% elif not python_stack_ready %}
+          
+          Version exists but configuration needs fixing...
+          {% else %}
+          
+          ✅ Python stack is ready - skipping installation
+          {% endif %}
+
+    # Early exit if Python stack is ready
+    - name: Skip installation - Python stack is ready
+      ansible.builtin.debug:
+        msg: "Python {{ macos_python.version }} is already properly installed and configured. Skipping all installation tasks."
+      when: python_stack_ready
+
+    # Install Python version with retry and fallback mechanisms (only if version not installed)
     - name: Install Python version (attempt 1 - standard installation)
       ansible.builtin.shell: |
         set -o pipefail
@@ -105,10 +271,11 @@
         export PATH="$PYENV_ROOT/bin:$PATH"
         eval "$($PYENV_ROOT/bin/pyenv init -)"
         $PYENV_ROOT/bin/pyenv install {{ macos_python.version }}
-      when: macos_python.version not in (installed_versions.stdout_lines | default([]))
-      changed_when: false
+      when: not python_version_installed
       register: python_install_attempt1
       failed_when: false
+      async: 600
+      poll: 30
 
     # Retry with alternative mirror if first attempt failed
     - name: Install Python version (attempt 2 - with alternative readline mirror)
@@ -121,11 +288,13 @@
         export PYTHON_BUILD_MIRROR_URL_SKIP_CHECKSUM=1
         $PYENV_ROOT/bin/pyenv install {{ macos_python.version }}
       when:
-        - macos_python.version not in (installed_versions.stdout_lines | default([]))
+        - not python_version_installed
         - python_install_attempt1.rc != 0
       changed_when: false
       register: python_install_attempt2
       failed_when: false
+      async: 600
+      poll: 30
 
     # Final attempt with Homebrew's readline if pyenv still fails
     - name: Install Python version (attempt 3 - using system readline)
@@ -140,11 +309,13 @@
         export PYTHON_CONFIGURE_OPTS="--with-readline"
         $PYENV_ROOT/bin/pyenv install {{ macos_python.version }}
       when:
-        - macos_python.version not in (installed_versions.stdout_lines | default([]))
+        - not python_version_installed
         - python_install_attempt1.rc != 0
         - python_install_attempt2.rc != 0
       changed_when: false
       register: python_install_attempt3
+      async: 600
+      poll: 30
 
     # Last resort: try clearing cache and retry
     - name: Install Python version (attempt 4 - clear cache and retry)
@@ -160,13 +331,15 @@
         export MAKEFLAGS="-j$(sysctl -n hw.ncpu)"
         $PYENV_ROOT/bin/pyenv install {{ macos_python.version }}
       when:
-        - macos_python.version not in (installed_versions.stdout_lines | default([]))
+        - not python_version_installed
         - python_install_attempt1.rc != 0
         - python_install_attempt2.rc != 0
         - python_install_attempt3.rc != 0
       changed_when: false
       register: python_install_attempt4
       failed_when: false
+      async: 600
+      poll: 30
 
     # Fail if all attempts failed
     - name: Fail if Python installation failed after all attempts
@@ -183,28 +356,12 @@
           2. Try running manually: pyenv install {{ macos_python.version }}
           3. Clear pyenv cache: rm -rf ~/.pyenv/cache/*
       when:
-        - macos_python.version not in (installed_versions.stdout_lines | default([]))
+        - not python_version_installed
         - python_install_attempt1.rc != 0
         - python_install_attempt2.rc != 0
         - python_install_attempt3.rc != 0
         - python_install_attempt4.rc != 0
 
-    # Set global Python version
-    - name: Set global Python version
-      ansible.builtin.shell: |
-        set -o pipefail
-        export PYENV_ROOT="$HOME/.pyenv"
-        export PATH="$PYENV_ROOT/bin:$PATH"
-        eval "$($PYENV_ROOT/bin/pyenv init -)"
-        $PYENV_ROOT/bin/pyenv global {{ macos_python.version }}
-      register: pyenv_set_global
-      changed_when: pyenv_set_global.rc == 0
-
-    # Notify handler to rehash pyenv when new version is installed
-    - name: Rehash pyenv when global version changes
-      ansible.builtin.meta: flush_handlers
-      when: pyenv_set_global.changed | default(false)
-      notify: Rehash pyenv
 
     # Install uv - modern Python package manager
     - name: Check if uv is installed
