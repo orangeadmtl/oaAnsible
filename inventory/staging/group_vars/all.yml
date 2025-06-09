@@ -11,6 +11,14 @@ configure:
   pyenv: true
   node: true
 
+# Environment-specific features
+oa_environment:
+  name: "staging"
+  allow_experimental: true
+  allow_server_optimizations: true
+  allow_destructive_operations: true
+  allow_tailscale_changes: true
+
 # System packages
 system:
   homebrew:

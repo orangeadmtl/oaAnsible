@@ -30,6 +30,10 @@
       ansible.builtin.import_tasks: tasks/pre_checks.yml
       tags: ["always"]
 
+    - name: Environment safety checks
+      ansible.builtin.import_tasks: tasks/environment_checks.yml
+      tags: ["always"]
+
   roles:
     - role: elliotweiser.osx-command-line-tools
       become: true
@@ -47,17 +51,24 @@
     - role: macos/settings
       tags: ["settings", "configuration"]
 
+    - role: macos/server_optimizations # Server-like optimizations for minimal UI and maximum uptime
+      tags: ["server", "configuration", "optimization"]
+      when: oa_environment.allow_server_optimizations | default(false)
+
     - role: macos/network # General network settings, DNS
       tags: ["network", "dns"]
 
     - role: macos/network/tailscale # Installs tailscale binaries and deploys plist
       tags: ["tailscale", "network"]
+      when: oa_environment.allow_tailscale_changes | default(true)
 
     - role: macos/python
       tags: ["python", "dev"]
+      # Python is required for all environments (API and tracker need it)
 
     - role: macos/node
       tags: ["node", "dev"]
+      # Node is required for all environments
 
     - role: macos/api
       tags: ["api", "services"]

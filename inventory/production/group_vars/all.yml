@@ -11,6 +11,14 @@ configure:
   pyenv: true
   node: true
 
+# Environment-specific features
+oa_environment:
+  name: "production"
+  allow_experimental: false
+  allow_server_optimizations: false
+  allow_destructive_operations: false
+  allow_tailscale_changes: false  # Extra careful - require explicit override
+
 # System packages
 system:
   homebrew:
@@ -18,7 +26,11 @@ system:
       - go
       - git
       - wget
+      - jq
+      - btop
+      - httpie
       - curl
+      - telnet
       - util-linux
 
 # Tracker configuration
