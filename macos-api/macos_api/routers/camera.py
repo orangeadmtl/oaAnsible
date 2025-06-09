@@ -36,7 +36,7 @@ async def list_cameras():
     return {
         "cameras": cameras,
         "count": len(cameras),
-        "has_camera": len(cameras) > 0
+        "device_has_camera_support": len(cameras) > 0
     }
 
 
