@@ -30,6 +30,9 @@ client_types+=(1)
 apps+=("/usr/local/bin/tailscaled")
 client_types+=(1)
 
+apps+=("{{ ansible_user_dir }}/go/bin/tailscaled")
+client_types+=(1)
+
 apps+=("/usr/libexec/sshd-keygen-wrapper")
 client_types+=(1)
 

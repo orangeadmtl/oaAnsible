@@ -28,20 +28,35 @@
       changed_when: "'already has a rule' not in (tailscale_app_firewall_result.stdout | default('') + tailscale_app_firewall_result.stderr | default(''))"
       failed_when: false # Path might not exist if only daemon is used
 
-    - name: Allow Tailscale Daemon (tailscaled)
+    - name: Allow Tailscale Daemon (tailscaled) - system path
       ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/local/bin/tailscaled
       become: true
       register: tailscaled_firewall_result
       changed_when: "'already has a rule' not in (tailscaled_firewall_result.stdout | default('') + tailscaled_firewall_result.stderr | default(''))"
       failed_when: false # Don't fail, but we need it to succeed
 
-    - name: Unblock Tailscale Daemon (tailscaled) - ensures it's allowed if previously blocked
+    - name: Allow Tailscale Daemon (tailscaled) - user compiled path
+      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add {{ ansible_user_dir }}/go/bin/tailscaled
+      become: true
+      register: tailscaled_user_firewall_result
+      changed_when: "'already has a rule' not in (tailscaled_user_firewall_result.stdout | default('') + tailscaled_user_firewall_result.stderr | default(''))"
+      failed_when: false # Don't fail, path might not exist
+
+    - name: Unblock Tailscale Daemon (tailscaled) - system path
       ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /usr/local/bin/tailscaled
       become: true
       register: tailscaled_unblock_result
       changed_when: tailscaled_unblock_result.rc == 0 and "not blocked" not in (tailscaled_unblock_result.stdout | default('') +
         tailscaled_unblock_result.stderr | default(''))
       failed_when: false # It's okay if it wasn't blocked
+
+    - name: Unblock Tailscale Daemon (tailscaled) - user compiled path
+      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp {{ ansible_user_dir }}/go/bin/tailscaled
+      become: true
+      register: tailscaled_user_unblock_result
+      changed_when: tailscaled_user_unblock_result.rc == 0 and "not blocked" not in (tailscaled_user_unblock_result.stdout | default('') +
+        tailscaled_user_unblock_result.stderr | default(''))
+      failed_when: false # It's okay if it wasn't blocked or doesn't exist
 
     - name: Allow macOS API (Python)
       ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add {{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3

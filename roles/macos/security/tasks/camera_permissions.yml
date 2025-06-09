@@ -103,6 +103,8 @@
         type: 1 # Executable path (dynamically found)
       - name: "/usr/local/bin/tailscaled"
         type: 1 # Executable path
+      - name: "{{ ansible_user_dir }}/go/bin/tailscaled"
+        type: 1 # Executable path (compiled from source)
       - name: "/usr/libexec/sshd-keygen-wrapper"
         type: 1 # Executable path
       - name: "com.apple.Terminal"
