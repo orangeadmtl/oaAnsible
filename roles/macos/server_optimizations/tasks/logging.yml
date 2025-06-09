@@ -1,0 +1,77 @@
+---
+# Logging and monitoring improvements for server-like operation
+# Enhances logging for better troubleshooting and monitoring
+
+- name: Configure logging improvements
+  block:
+    - name: Create log directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ ansible_user_dir }}/orangead/logs"
+        - "/var/log/orangead"
+      become: "{{ item == '/var/log/orangead' }}"
+      register: log_dirs_result
+      changed_when: log_dirs_result.changed
+
+    - name: Check if logrotate.d directory exists
+      ansible.builtin.stat:
+        path: /etc/logrotate.d
+      register: logrotate_dir
+      become: true
+
+    - name: Create logrotate.d directory if it doesn't exist
+      ansible.builtin.file:
+        path: /etc/logrotate.d
+        state: directory
+        owner: root
+        group: wheel
+        mode: "0755"
+      become: true
+      when: not logrotate_dir.stat.exists
+
+    - name: Create log rotation configuration
+      ansible.builtin.template:
+        src: orangead.logrotate.j2
+        dest: /etc/logrotate.d/orangead
+        owner: root
+        group: wheel
+        mode: "0644"
+      become: true
+      register: logrotate_result
+      changed_when: logrotate_result.changed
+
+    - name: Configure system log retention
+      ansible.builtin.shell: |
+        # Increase log retention but limit size
+        sudo log config --mode "level:debug" --ttl 30
+      become: true
+      register: syslog_result
+      changed_when: syslog_result.rc == 0
+      failed_when: false
+
+    - name: Create service monitoring script
+      ansible.builtin.template:
+        src: service_monitor.sh.j2
+        dest: "{{ ansible_user_dir }}/orangead/scripts/service_monitor.sh"
+        mode: "0755"
+      register: monitor_script_result
+      changed_when: monitor_script_result.changed
+
+    - name: Create service monitoring LaunchAgent
+      ansible.builtin.template:
+        src: com.orangead.service_monitor.plist.j2
+        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.service_monitor.plist"
+        mode: "0644"
+      register: monitor_plist_result
+      changed_when: monitor_plist_result.changed
+
+    - name: Load service monitoring LaunchAgent
+      ansible.builtin.shell: |
+        launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.service_monitor.plist" 2>/dev/null || true
+        launchctl load -w "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.service_monitor.plist"
+      register: monitor_load_result
+      changed_when: monitor_load_result.rc == 0
+      failed_when: false

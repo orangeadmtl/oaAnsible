@@ -1,0 +1,104 @@
+#!/bin/bash
+# Health check script for OrangeAd macOS servers
+# Monitors system health and performs corrective actions if needed
+
+LOG_FILE="{{ ansible_user_dir }}/orangead/logs/healthcheck.log"
+THRESHOLD_CPU=90
+THRESHOLD_MEM=90
+THRESHOLD_DISK=90
+
+# Create log directory if it doesn't exist
+mkdir -p "$(dirname "$LOG_FILE")"
+
+log() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"
+}
+
+check_cpu() {
+  local cpu_usage
+  cpu_usage=$(top -l 1 | grep "CPU usage" | awk '{print $3}' | tr -d '%')
+  
+  if (( $(echo "$cpu_usage > $THRESHOLD_CPU" | bc -l) )); then
+    log "WARNING: High CPU usage detected: ${cpu_usage}%"
+    
+    # Get top CPU consuming processes
+    top_processes=$(ps -Ao pid,pcpu,comm -r | head -n 6)
+    log "Top CPU consuming processes:\n$top_processes"
+    
+    return 1
+  fi
+  
+  return 0
+}
+
+check_memory() {
+  local mem_usage
+  mem_usage=$(vm_stat | grep "Page active" | awk '{print $3}' | tr -d '.')
+  local mem_total
+  mem_total=$(sysctl hw.memsize | awk '{print $2}')
+  local mem_active_bytes=$((mem_usage * 4096))
+  local mem_percent=$((mem_active_bytes * 100 / mem_total))
+  
+  if [ "$mem_percent" -gt "$THRESHOLD_MEM" ]; then
+    log "WARNING: High memory usage detected: ${mem_percent}%"
+    
+    # Get top memory consuming processes
+    top_mem_processes=$(ps -Ao pid,pmem,comm -r | head -n 6)
+    log "Top memory consuming processes:\n$top_mem_processes"
+    
+    return 1
+  fi
+  
+  return 0
+}
+
+check_disk() {
+  local disk_usage
+  disk_usage=$(df -h / | tail -n 1 | awk '{print $5}' | tr -d '%')
+  
+  if [ "$disk_usage" -gt "$THRESHOLD_DISK" ]; then
+    log "WARNING: High disk usage detected: ${disk_usage}%"
+    
+    # Get largest directories
+    large_dirs=$(du -h -d 1 / 2>/dev/null | sort -hr | head -n 10)
+    log "Largest directories:\n$large_dirs"
+    
+    return 1
+  fi
+  
+  return 0
+}
+
+check_network() {
+  # Check if we can reach Tailscale
+  if ! ping -c 1 100.100.100.100 &>/dev/null; then
+    log "WARNING: Cannot reach Tailscale network"
+    
+    # Check if tailscaled is running
+    if ! pgrep -x "tailscaled" > /dev/null; then
+      log "Tailscaled is not running. Attempting to restart..."
+      sudo launchctl unload /Library/LaunchDaemons/com.tailscale.tailscaled.plist 2>/dev/null || true
+      sudo launchctl load -w /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+    fi
+    
+    return 1
+  fi
+  
+  return 0
+}
+
+log "Health check started"
+
+# Run all checks
+check_cpu
+check_memory
+check_disk
+check_network
+
+# Check for stale processes
+stale_processes=$(ps aux | awk '$8 ~ /^[DZ]/ {print $2}')
+if [ -n "$stale_processes" ]; then
+  log "WARNING: Found stale processes in D or Z state: $stale_processes"
+fi
+
+log "Health check completed"

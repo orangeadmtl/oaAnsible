@@ -1,0 +1,30 @@
+---
+# Handlers for server optimizations role
+
+- name: Restart watchdog service
+  ansible.builtin.shell: |
+    launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.watchdog.plist" 2>/dev/null || true
+    launchctl load -w "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.watchdog.plist"
+  listen: "restart watchdog"
+  changed_when: false
+
+- name: Restart health check service
+  ansible.builtin.shell: |
+    launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.healthcheck.plist" 2>/dev/null || true
+    launchctl load -w "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.healthcheck.plist"
+  listen: "restart healthcheck"
+  changed_when: false
+
+- name: Restart service monitor
+  ansible.builtin.shell: |
+    launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.service_monitor.plist" 2>/dev/null || true
+    launchctl load -w "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.service_monitor.plist"
+  listen: "restart service monitor"
+  changed_when: false
+
+- name: Apply system resource limits
+  ansible.builtin.shell: |
+    sysctl -p /etc/sysctl.conf
+  become: true
+  listen: "apply resource limits"
+  changed_when: false

@@ -1,0 +1,88 @@
+---
+# System stability enhancements for server-like operation
+# Implements watchdog services and other stability improvements
+
+- name: Configure system stability enhancements
+  block:
+    - name: Create watchdog script directory
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/scripts"
+        state: directory
+        mode: "0755"
+      register: watchdog_dir_result
+      changed_when: watchdog_dir_result.changed
+
+    - name: Create watchdog script for critical services
+      ansible.builtin.template:
+        src: watchdog.sh.j2
+        dest: "{{ ansible_user_dir }}/orangead/scripts/watchdog.sh"
+        mode: "0755"
+      register: watchdog_script_result
+      changed_when: watchdog_script_result.changed
+
+    - name: Create watchdog LaunchAgent
+      ansible.builtin.template:
+        src: com.orangead.watchdog.plist.j2
+        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.watchdog.plist"
+        mode: "0644"
+      register: watchdog_plist_result
+      changed_when: watchdog_plist_result.changed
+
+    - name: Load watchdog LaunchAgent
+      ansible.builtin.shell: |
+        launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.watchdog.plist" 2>/dev/null || true
+        launchctl load -w "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.watchdog.plist"
+      register: watchdog_load_result
+      changed_when: watchdog_load_result.rc == 0
+      failed_when: false
+
+    - name: Create system health check script
+      ansible.builtin.template:
+        src: healthcheck.sh.j2
+        dest: "{{ ansible_user_dir }}/orangead/scripts/healthcheck.sh"
+        mode: "0755"
+      register: healthcheck_script_result
+      changed_when: healthcheck_script_result.changed
+
+    - name: Create health check LaunchAgent
+      ansible.builtin.template:
+        src: com.orangead.healthcheck.plist.j2
+        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.healthcheck.plist"
+        mode: "0644"
+      register: healthcheck_plist_result
+      changed_when: healthcheck_plist_result.changed
+
+    - name: Load health check LaunchAgent
+      ansible.builtin.shell: |
+        launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.healthcheck.plist" 2>/dev/null || true
+        launchctl load -w "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.healthcheck.plist"
+      register: healthcheck_load_result
+      changed_when: healthcheck_load_result.rc == 0
+      failed_when: false
+
+    - name: Increase file descriptor limits
+      ansible.builtin.shell: |
+        sysctl -w kern.maxfiles=65536
+        sysctl -w kern.maxfilesperproc=32768
+      become: true
+      register: sysctl_result
+      changed_when: sysctl_result.rc == 0
+      failed_when: false
+
+    - name: Check if /etc directory exists
+      ansible.builtin.stat:
+        path: /etc
+      register: etc_dir
+      become: true
+
+    - name: Create persistent sysctl configuration
+      ansible.builtin.template:
+        src: sysctl.conf.j2
+        dest: /etc/sysctl.conf
+        owner: root
+        group: wheel
+        mode: "0644"
+      become: true
+      register: sysctl_conf_result
+      changed_when: sysctl_conf_result.changed
+      when: etc_dir.stat.exists

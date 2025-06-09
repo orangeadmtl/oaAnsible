@@ -1,0 +1,67 @@
+#!/bin/bash
+# Service monitoring script for OrangeAd macOS servers
+# Logs service status and sends notifications if services are down
+
+LOG_FILE="{{ ansible_user_dir }}/orangead/logs/service_monitor.log"
+SERVICES=(
+  "com.orangead.macosapi"
+  "com.orangead.tracker"
+  "com.tailscale.tailscaled"
+)
+
+# Create log directory if it doesn't exist
+mkdir -p "$(dirname "$LOG_FILE")"
+
+log() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"
+}
+
+check_service() {
+  local service=$1
+  local service_type=$2  # "agent" or "daemon"
+  local status
+  
+  if [ "$service_type" == "daemon" ]; then
+    status=$(sudo launchctl list | grep "$service" || echo "not_running")
+  else
+    status=$(launchctl list | grep "$service" || echo "not_running")
+  fi
+  
+  if [[ "$status" == "not_running" ]]; then
+    log "WARNING: Service $service is not running"
+    return 1
+  else
+    log "Service $service is running: $status"
+    return 0
+  fi
+}
+
+log "Service monitoring started"
+
+# Check user agents
+check_service "com.orangead.macosapi" "agent"
+check_service "com.orangead.tracker" "agent"
+
+# Check system daemons
+check_service "com.tailscale.tailscaled" "daemon"
+check_service "com.orangead.dailyreboot" "daemon"
+
+# Check processes
+if ! pgrep -f "macos-api" > /dev/null; then
+  log "WARNING: macos-api process not found"
+fi
+
+if ! pgrep -f "oaTracker" > /dev/null; then
+  log "WARNING: oaTracker process not found"
+fi
+
+if ! pgrep -f "tailscaled" > /dev/null; then
+  log "WARNING: tailscaled process not found"
+fi
+
+# Check network connectivity
+if ! ping -c 1 -t 5 100.100.100.100 &>/dev/null; then
+  log "WARNING: Cannot reach Tailscale network"
+fi
+
+log "Service monitoring completed"

@@ -1,0 +1,10 @@
+# System-wide launchd resource limits for OrangeAd macOS servers
+# This file is managed by Ansible - manual changes will be overwritten
+
+# Increase file descriptor limits
+limit maxfiles 65536 65536
+limit maxproc 4096 4096
+
+# Set environment variables for all launchd processes
+setenv LANG en_US.UTF-8
+setenv LC_ALL en_US.UTF-8

@@ -1,0 +1,14 @@
+# System-wide resource limits for OrangeAd macOS servers
+# This file is managed by Ansible - manual changes will be overwritten
+
+# Increase file descriptor limits
+* soft nofile 32768
+* hard nofile 65536
+
+# Increase process limits
+* soft nproc 2048
+* hard nproc 4096
+
+# Increase memory limits
+* soft memlock unlimited
+* hard memlock unlimited

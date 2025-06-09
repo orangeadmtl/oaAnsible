@@ -1,0 +1,137 @@
+---
+# Auto-login configuration for server-like operation
+# Enables automatic login to eliminate manual intervention after reboots
+
+- name: Configure automatic login
+  block:
+    - name: Check current auto-login configuration
+      ansible.builtin.shell: |
+        defaults read /Library/Preferences/com.apple.loginwindow.plist autoLoginUser 2>/dev/null || echo "not_configured"
+      register: autologin_check
+      changed_when: false
+      become: true
+
+    - name: Debug auto-login status
+      ansible.builtin.debug:
+        msg: |
+          Auto-login Debug Info:
+          - Current auto-login user: {{ autologin_check.stdout }}
+          - Target user: '{{ ansible_user }}'
+          - Target user length: {{ ansible_user | length }}
+          - Target user repr: {{ ansible_user | to_json }}
+          - Auto-login enabled in role: {{ macos_enable_auto_login | default(true) }}
+          - Sudo password available: {{ (ansible_become_password is defined and ansible_become_password | length > 0) | ternary('Yes', 'No') }}
+
+    - name: Enable automatic login for ansible_user
+      ansible.builtin.shell: |
+        defaults write /Library/Preferences/com.apple.loginwindow.plist autoLoginUser -string "{{ ansible_user | trim }}"
+      become: true
+      when: 
+        - macos_enable_auto_login | default(true)
+        - autologin_check.stdout == "not_configured" or autologin_check.stdout != (ansible_user | trim)
+      register: autologin_user_result
+      changed_when: autologin_user_result.rc == 0
+
+    - name: Check if user has no password (common in VMs)
+      ansible.builtin.shell: |
+        dscl . -read /Users/{{ ansible_user | trim }} AuthenticationAuthority 2>/dev/null | grep -q "No such key" && echo "no_password" || echo "has_password"
+      register: user_password_check
+      changed_when: false
+      become: true
+
+    - name: Copy kcpassword creation script
+      ansible.builtin.copy:
+        src: create_kcpassword.py
+        dest: /tmp/create_kcpassword.py
+        mode: '0755'
+      when: 
+        - macos_enable_auto_login | default(true)
+        - ansible_become_password is defined and ansible_become_password | length > 0
+        - user_password_check.stdout == "has_password"
+
+    - name: Create kcpassword file for auto-login (bypass keychain)
+      ansible.builtin.shell: |
+        python3 /tmp/create_kcpassword.py "{{ ansible_become_password }}"
+        rm -f /tmp/create_kcpassword.py
+      become: true
+      when: 
+        - macos_enable_auto_login | default(true)
+        - ansible_become_password is defined and ansible_become_password | length > 0
+        - user_password_check.stdout == "has_password"
+      no_log: true # Don't log this command as it contains sensitive info
+      register: autologin_password_result
+      changed_when: autologin_password_result.rc == 0
+
+    - name: Warn about missing password for auto-login
+      ansible.builtin.debug:
+        msg: |
+          WARNING: Auto-login is configured but password could not be stored.
+          The system will still prompt for password at boot.
+          
+          Make sure the host is properly configured in vault_sudo_passwords.
+      when: 
+        - macos_enable_auto_login | default(true)
+        - user_password_check.stdout == "has_password"
+        - (ansible_become_password is not defined or ansible_become_password | length == 0 or autologin_password_result.rc != 0)
+
+    - name: Enable passwordless auto-login (for VMs or users without passwords)
+      ansible.builtin.shell: |
+        defaults write /Library/Preferences/com.apple.loginwindow.plist autoLoginUserScreenLocked -bool false
+        defaults write /Library/Preferences/com.apple.loginwindow.plist DisableScreenLock -bool true
+      become: true
+      when: 
+        - macos_enable_auto_login | default(true)
+        - user_password_check.stdout == "no_password" or (ansible_password is not defined or ansible_password | length == 0)
+      register: passwordless_autologin_result
+      changed_when: passwordless_autologin_result.rc == 0
+
+    - name: Hide user list from login screen
+      ansible.builtin.shell: |
+        defaults write /Library/Preferences/com.apple.loginwindow.plist SHOWFULLNAME -bool true
+      become: true
+      when: macos_enable_auto_login | default(true)
+      register: hide_users_result
+      changed_when: hide_users_result.rc == 0
+
+    - name: Disable guest user login
+      ansible.builtin.shell: |
+        defaults write /Library/Preferences/com.apple.loginwindow.plist GuestEnabled -bool false
+      become: true
+      register: guest_login_result
+      changed_when: guest_login_result.rc == 0
+
+    - name: Disable "Show password hints" button on the login window
+      ansible.builtin.shell: |
+        defaults write /Library/Preferences/com.apple.loginwindow RetriesUntilHint -int 0
+      become: true
+      register: password_hints_result
+      changed_when: password_hints_result.rc == 0
+
+    - name: Disable automatic login if explicitly disabled
+      ansible.builtin.shell: |
+        defaults delete /Library/Preferences/com.apple.loginwindow.plist autoLoginUser
+        defaults delete /Library/Preferences/com.apple.loginwindow.plist autoLoginUserScreenLocked
+        defaults delete /Library/Preferences/com.apple.loginwindow.plist DisableScreenLock
+      become: true
+      when: not (macos_enable_auto_login | default(true))
+      register: disable_autologin_result
+      changed_when: disable_autologin_result.rc == 0
+      failed_when: false # Don't fail if keys don't exist
+
+    - name: Apply login window changes
+      ansible.builtin.shell: |
+        killall cfprefsd 2>/dev/null || true
+      become: true
+      changed_when: false
+      failed_when: false
+
+    - name: Display auto-login configuration summary
+      ansible.builtin.debug:
+        msg: |
+          Auto-login Configuration Summary:
+          - Auto-login enabled: {{ macos_enable_auto_login | default(true) }}
+          - Target user: {{ ansible_user }}
+          - User password status: {{ user_password_check.stdout }}
+          - Configuration applied: {{ autologin_user_result.changed | default(false) or passwordless_autologin_result.changed | default(false) }}
+          - Password file created: {{ autologin_password_result.changed | default(false) }}
+          - Note: Restart required for auto-login changes to take effect

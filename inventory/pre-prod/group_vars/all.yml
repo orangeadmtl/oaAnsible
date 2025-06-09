@@ -1,0 +1,45 @@
+---
+# Runtime versions
+python:
+  version: "3.11.11"
+node:
+  version: "22.11.0"
+
+# Feature toggles
+configure:
+  tailscale: true
+  pyenv: true
+  node: true
+
+# Environment-specific features
+oa_environment:
+  name: "pre-prod"
+  allow_experimental: false
+  allow_server_optimizations: true
+  allow_destructive_operations: false
+  allow_tailscale_changes: true
+
+# System packages
+system:
+  homebrew:
+    packages:
+      - go
+      - git
+      - wget
+      - jq
+      - btop
+      - httpie
+      - curl
+      - telnet
+      - util-linux
+
+# Tracker configuration
+tracker:
+  repository_url: "https://github.com/oa-device/oaTracker.git"
+  default_yolo_source: 0
+  default_model: "yoloe-11s-seg-custom.pt"
+  server_port: 8080
+
+# Dashboard configuration
+dashboard:
+  url: "http://100.79.103.84"

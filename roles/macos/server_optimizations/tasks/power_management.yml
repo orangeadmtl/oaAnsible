@@ -1,0 +1,87 @@
+---
+# Power management configuration for server-like operation
+# Ensures maximum uptime and automatic recovery from power events
+
+- name: Configure power management settings
+  block:
+    - name: Ensure system never sleeps on AC power
+      ansible.builtin.shell: |
+        pmset -c sleep 0
+        pmset -c disksleep 0
+        pmset -c displaysleep 0
+      become: true
+      register: power_settings_result
+      changed_when: power_settings_result.rc == 0
+
+    - name: Enable automatic restart on power failure
+      ansible.builtin.shell: |
+        pmset -a autorestart 1
+      become: true
+      register: autorestart_result
+      changed_when: autorestart_result.rc == 0
+
+    - name: Enable automatic restart after kernel panic
+      ansible.builtin.shell: |
+        systemsetup -setrestartfreeze on
+      become: true
+      register: restart_freeze_result
+      changed_when: "'already set' not in restart_freeze_result.stdout"
+      failed_when: false
+
+    - name: Enable wake for network access
+      ansible.builtin.shell: |
+        pmset -a womp 1
+      become: true
+      register: womp_result
+      changed_when: womp_result.rc == 0
+
+    - name: Disable power button sleep
+      ansible.builtin.shell: |
+        pmset -a powerbutton 0
+      become: true
+      register: powerbutton_result
+      changed_when: powerbutton_result.rc == 0
+      failed_when: false # This might not be supported on all Mac models
+
+    - name: Disable hibernation (speeds up sleep/wake)
+      ansible.builtin.shell: |
+        pmset -a hibernatemode 0
+        pmset -a standby 0
+        pmset -a autopoweroff 0
+      become: true
+      register: hibernation_result
+      changed_when: hibernation_result.rc == 0
+
+    - name: Check if sleepimage file exists and is writable
+      ansible.builtin.stat:
+        path: /private/var/vm/sleepimage
+      register: sleepimage_stat
+      become: true
+
+    - name: Attempt to remove sleepimage file if it exists
+      ansible.builtin.shell: |
+        rm -f /private/var/vm/sleepimage || true
+      become: true
+      register: sleepimage_result
+      changed_when: sleepimage_result.rc == 0
+      failed_when: false
+      when: sleepimage_stat.stat.exists
+
+    - name: Create zero-byte sleepimage file that can't be modified (if possible)
+      ansible.builtin.shell: |
+        touch /private/var/vm/sleepimage 2>/dev/null || true
+        chflags uchg /private/var/vm/sleepimage 2>/dev/null || true
+      become: true
+      register: create_sleepimage_result
+      changed_when: create_sleepimage_result.rc == 0
+      failed_when: false
+
+    - name: Verify power management settings
+      ansible.builtin.shell: |
+        pmset -g
+      register: pmset_verify
+      changed_when: false
+
+    - name: Display power management settings
+      ansible.builtin.debug:
+        msg: "Current power management settings: {{ pmset_verify.stdout_lines }}"

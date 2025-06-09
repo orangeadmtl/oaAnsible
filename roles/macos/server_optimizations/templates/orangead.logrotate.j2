@@ -1,0 +1,28 @@
+# Log rotation configuration for OrangeAd services
+{{ ansible_user_dir }}/orangead/logs/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 {{ ansible_user }} staff
+    sharedscripts
+    postrotate
+        touch {{ ansible_user_dir }}/orangead/logs/rotated_at_$(date +\%Y\%m\%d\%H\%M\%S)
+    endscript
+}
+
+/var/log/orangead/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 root wheel
+    sharedscripts
+    postrotate
+        touch /var/log/orangead/rotated_at_$(date +\%Y\%m\%d\%H\%M\%S)
+    endscript
+}

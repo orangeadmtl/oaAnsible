@@ -1,0 +1,39 @@
+---
+# Default variables for server optimizations role
+
+# Watchdog configuration
+macos_watchdog_check_interval: 300 # seconds
+macos_watchdog_services:
+  - com.orangead.macosapi
+  - com.orangead.tracker
+
+# Health check configuration
+macos_healthcheck_interval: 900 # seconds
+macos_healthcheck_thresholds:
+  cpu: 90 # percentage
+  memory: 90 # percentage
+  disk: 90 # percentage
+
+# Service monitor configuration
+macos_service_monitor_interval: 1800 # seconds
+
+# System resource limits
+macos_system_file_limit: 65536
+macos_process_file_limit: 32768
+macos_max_processes: 4096
+
+# Auto-login configuration
+macos_enable_auto_login: true # Set to false to disable auto-login
+
+# UI minimization options
+macos_disable_dock: false # Set to true to completely hide dock (false = show minimal dock with essential apps)
+macos_disable_dashboard: true
+macos_disable_mission_control: true
+macos_disable_notification_center: true
+macos_disable_animations: true
+macos_disable_desktop_icons: true
+
+# Dock configuration (when macos_disable_dock is false)
+macos_dock_essential_apps:
+  - "/System/Applications/Utilities/Terminal.app"
+  - "/System/Applications/System Settings.app"

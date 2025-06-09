@@ -1,0 +1,115 @@
+---
+# UI minimization tasks for server-like operation
+# Reduces visual elements and UI components for headless/minimal UI operation
+
+- name: Configure minimal UI settings
+  block:
+    - name: Configure minimal dock (when dock hiding is enabled)
+      ansible.builtin.shell: |
+        defaults write com.apple.dock autohide -bool true
+        defaults write com.apple.dock autohide-delay -float 1000
+        defaults write com.apple.dock no-bouncing -bool true
+        defaults write com.apple.dock launchanim -bool false
+        defaults write com.apple.dock static-only -bool true
+        defaults write com.apple.dock showhidden -bool false
+        defaults write com.apple.dock tilesize -int 1
+      register: dock_hidden_result
+      changed_when: dock_hidden_result.rc == 0
+      when: macos_disable_dock | default(true)
+
+    - name: Configure visible minimal dock (when keeping dock visible)
+      ansible.builtin.shell: |
+        defaults write com.apple.dock autohide -bool false
+        defaults write com.apple.dock autohide-delay -float 0
+        defaults write com.apple.dock no-bouncing -bool true
+        defaults write com.apple.dock launchanim -bool false
+        defaults write com.apple.dock static-only -bool false
+        defaults write com.apple.dock showhidden -bool false
+        defaults write com.apple.dock tilesize -int 36
+        defaults write com.apple.dock magnification -bool false
+        defaults write com.apple.dock minimize-to-application -bool true
+        defaults write com.apple.dock show-recents -bool false
+      register: dock_visible_result
+      changed_when: dock_visible_result.rc == 0
+      when: not (macos_disable_dock | default(true))
+
+    - name: Clear existing dock items (prepare for minimal setup)
+      ansible.builtin.shell: |
+        defaults write com.apple.dock persistent-apps -array
+      register: dock_clear_result
+      changed_when: dock_clear_result.rc == 0
+      when: not (macos_disable_dock | default(true))
+
+    - name: Add essential apps to dock
+      ansible.builtin.shell: |
+        defaults write com.apple.dock persistent-apps -array-add '<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>{{ item }}</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>'
+      loop: "{{ macos_dock_essential_apps }}"
+      register: dock_apps_result
+      changed_when: dock_apps_result.rc == 0
+      when: not (macos_disable_dock | default(true))
+
+    - name: Disable Dashboard
+      ansible.builtin.shell: |
+        defaults write com.apple.dashboard mcx-disabled -bool true
+      register: dashboard_result
+      changed_when: dashboard_result.rc == 0
+      when: macos_disable_dashboard | default(true)
+
+    - name: Disable Mission Control
+      ansible.builtin.shell: |
+        defaults write com.apple.dock mcx-expose-disabled -bool true
+      register: mission_control_result
+      changed_when: mission_control_result.rc == 0
+      when: macos_disable_mission_control | default(true)
+
+    - name: Disable Notification Center
+      ansible.builtin.shell: |
+        launchctl unload -w /System/Library/LaunchAgents/com.apple.notificationcenterui.plist 2>/dev/null || true
+      become: true
+      register: notification_center_result
+      changed_when: notification_center_result.rc == 0
+      failed_when: false # Don't fail if already disabled
+      when: macos_disable_notification_center | default(true)
+
+    - name: Disable animations and visual effects
+      ansible.builtin.shell: |
+        defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
+        defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
+        defaults write com.apple.finder DisableAllAnimations -bool true
+        defaults write NSGlobalDomain com.apple.springing.enabled -bool false
+        defaults write NSGlobalDomain com.apple.springing.delay -float 1000
+      register: animations_result
+      changed_when: animations_result.rc == 0
+      when: macos_disable_animations | default(true)
+
+    - name: Disable desktop icons
+      ansible.builtin.shell: |
+        defaults write com.apple.finder CreateDesktop -bool false
+      register: desktop_icons_result
+      changed_when: desktop_icons_result.rc == 0
+      when: macos_disable_desktop_icons | default(true)
+
+    - name: Disable Finder sidebar items
+      ansible.builtin.shell: |
+        defaults write com.apple.sidebarlists systemitems -dict-add ShowEjectables -bool false
+        defaults write com.apple.sidebarlists systemitems -dict-add ShowRemovable -bool false
+        defaults write com.apple.sidebarlists systemitems -dict-add ShowServers -bool false
+        defaults write com.apple.sidebarlists systemitems -dict-add ShowHardDisks -bool false
+      register: sidebar_result
+      changed_when: sidebar_result.rc == 0
+
+    - name: Disable recent items
+      ansible.builtin.shell: |
+        defaults write com.apple.recentitems RecentApplications -dict MaxAmount 0
+        defaults write com.apple.recentitems RecentDocuments -dict MaxAmount 0
+        defaults write com.apple.recentitems RecentServers -dict MaxAmount 0
+      register: recent_items_result
+      changed_when: recent_items_result.rc == 0
+
+    - name: Restart UI processes to apply changes
+      ansible.builtin.shell: |
+        killall Dock
+        killall Finder
+        killall SystemUIServer
+      failed_when: false
+      changed_when: false

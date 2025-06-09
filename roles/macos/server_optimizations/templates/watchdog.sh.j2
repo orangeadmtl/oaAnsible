@@ -1,0 +1,54 @@
+#!/bin/bash
+# Watchdog script for OrangeAd services
+# This script monitors critical services and restarts them if they're down
+
+LOG_FILE="{{ ansible_user_dir }}/orangead/logs/watchdog.log"
+SERVICES_TO_MONITOR=(
+  "com.orangead.macosapi"
+  "com.orangead.tracker"
+)
+
+# Create log directory if it doesn't exist
+mkdir -p "$(dirname "$LOG_FILE")"
+
+log() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"
+}
+
+check_and_restart_service() {
+  local service=$1
+  local service_status
+  
+  # Check if service is running
+  service_status=$(launchctl list | grep "$service" || echo "not_running")
+  
+  if [[ "$service_status" == "not_running" ]]; then
+    log "Service $service is not running. Attempting to restart..."
+    
+    # Try to load the service
+    if [[ -f "$HOME/Library/LaunchAgents/$service.plist" ]]; then
+      launchctl unload "$HOME/Library/LaunchAgents/$service.plist" 2>/dev/null || true
+      launchctl load -w "$HOME/Library/LaunchAgents/$service.plist"
+      log "Restarted $service from user LaunchAgents"
+    else
+      log "ERROR: Could not find plist for $service"
+    fi
+    
+    # Verify service was restarted
+    sleep 5
+    if launchctl list | grep -q "$service"; then
+      log "Service $service successfully restarted"
+    else
+      log "ERROR: Failed to restart $service"
+    fi
+  fi
+}
+
+log "Watchdog service started"
+
+# Monitor each service
+for service in "${SERVICES_TO_MONITOR[@]}"; do
+  check_and_restart_service "$service"
+done
+
+log "Watchdog check completed"

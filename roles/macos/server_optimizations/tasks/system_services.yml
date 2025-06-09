@@ -1,0 +1,114 @@
+---
+# System services optimization for server-like operation
+# Disables unnecessary services and optimizes system resources
+
+- name: Disable Spotlight indexing
+  block:
+    - name: Turn off Spotlight indexing
+      ansible.builtin.shell: |
+        mdutil -i off -a
+      become: true
+      register: spotlight_result
+      changed_when: spotlight_result.rc == 0
+      failed_when: false
+
+    - name: Disable Spotlight menu item
+      ansible.builtin.shell: |
+        defaults write com.apple.Spotlight MenuItemHidden -bool true
+      register: spotlight_menu_result
+      changed_when: spotlight_menu_result.rc == 0
+
+- name: Disable unnecessary services
+  block:
+    - name: Disable Bluetooth
+      ansible.builtin.shell: |
+        defaults write /Library/Preferences/com.apple.Bluetooth ControllerPowerState -int 0
+      become: true
+      register: bluetooth_result
+      changed_when: bluetooth_result.rc == 0
+      failed_when: false
+
+    - name: Disable AirDrop
+      ansible.builtin.shell: |
+        defaults write com.apple.NetworkBrowser DisableAirDrop -bool true
+      register: airdrop_result
+      changed_when: airdrop_result.rc == 0
+
+    - name: Disable Time Machine
+      ansible.builtin.shell: |
+        defaults write com.apple.TimeMachine DoNotOfferNewDisksForBackup -bool true
+      register: timemachine_result
+      changed_when: timemachine_result.rc == 0
+
+    - name: Disable iCloud services
+      ansible.builtin.shell: |
+        defaults write NSGlobalDomain NSDocumentSaveNewDocumentsToCloud -bool false
+      register: icloud_result
+      changed_when: icloud_result.rc == 0
+
+    - name: Disable automatic software updates
+      ansible.builtin.shell: |
+        defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false
+        defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool false
+        defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool false
+        defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool false
+        defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool false
+        defaults write /Library/Preferences/com.apple.commerce AutoUpdateRestartRequired -bool false
+      become: true
+      register: autoupdate_result
+      changed_when: autoupdate_result.rc == 0
+
+    - name: Disable crash reporter
+      ansible.builtin.shell: |
+        defaults write com.apple.CrashReporter DialogType -string "none"
+      register: crashreporter_result
+      changed_when: crashreporter_result.rc == 0
+
+    - name: Disable diagnostics submission
+      ansible.builtin.shell: |
+        defaults write /Library/Application\ Support/CrashReporter/DiagnosticMessagesHistory.plist AutoSubmit -bool false
+        defaults write /Library/Application\ Support/CrashReporter/DiagnosticMessagesHistory.plist ThirdPartyDataSubmit -bool false
+      become: true
+      register: diagnostics_result
+      changed_when: diagnostics_result.rc == 0
+      failed_when: false
+
+    - name: Disable Handoff and Continuity features
+      ansible.builtin.shell: |
+        defaults write com.apple.coreservices.useractivityd ActivityAdvertisingAllowed -bool false
+        defaults write com.apple.coreservices.useractivityd ActivityReceivingAllowed -bool false
+      register: handoff_result
+      changed_when: handoff_result.rc == 0
+      failed_when: false
+
+- name: Configure system resource limits
+  block:
+    - name: Check if /etc directory exists
+      ansible.builtin.stat:
+        path: /etc
+      register: etc_dir
+      become: true
+
+    - name: Create limits.conf file for system-wide resource limits
+      ansible.builtin.template:
+        src: limits.conf.j2
+        dest: /etc/limits.conf
+        owner: root
+        group: wheel
+        mode: "0644"
+      become: true
+      register: limits_result
+      changed_when: limits_result.changed
+      when: etc_dir.stat.exists
+
+    - name: Create launchd.conf for system-wide resource limits
+      ansible.builtin.template:
+        src: launchd.conf.j2
+        dest: /etc/launchd.conf
+        owner: root
+        group: wheel
+        mode: "0644"
+      become: true
+      register: launchd_result
+      changed_when: launchd_result.changed
+      when: etc_dir.stat.exists

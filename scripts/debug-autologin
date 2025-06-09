@@ -1,0 +1,83 @@
+#!/bin/bash
+# Debug script for auto-login configuration
+# Run this on your macOS target to check auto-login status
+
+set -e
+
+echo "=== macOS Auto-Login Debug Script ==="
+echo "Date: $(date)"
+echo "User: $(whoami)"
+echo
+
+echo "--- Auto-Login Configuration ---"
+echo "Current auto-login user:"
+defaults read /Library/Preferences/com.apple.loginwindow.plist autoLoginUser 2>/dev/null || echo "  Not configured"
+
+echo
+echo "Auto-login screen lock disabled:"
+defaults read /Library/Preferences/com.apple.loginwindow.plist autoLoginUserScreenLocked 2>/dev/null || echo "  Not configured"
+
+echo
+echo "Screen lock disabled:"
+defaults read /Library/Preferences/com.apple.loginwindow.plist DisableScreenLock 2>/dev/null || echo "  Not configured"
+
+echo
+echo "--- User Account Information ---"
+echo "Current user: $(whoami)"
+echo "User ID: $(id -u)"
+
+echo
+echo "User authentication authority:"
+dscl . -read /Users/$(whoami) AuthenticationAuthority 2>/dev/null || echo "  No authentication authority (likely no password)"
+
+echo
+echo "--- Login Window Settings ---"
+echo "Show full name (vs user list):"
+defaults read /Library/Preferences/com.apple.loginwindow.plist SHOWFULLNAME 2>/dev/null || echo "  Not configured"
+
+echo
+echo "Guest user enabled:"
+defaults read /Library/Preferences/com.apple.loginwindow.plist GuestEnabled 2>/dev/null || echo "  Not configured"
+
+echo
+echo "Password hints retries:"
+defaults read /Library/Preferences/com.apple.loginwindow RetriesUntilHint 2>/dev/null || echo "  Not configured"
+
+echo
+echo "--- Keychain Auto-Login Password ---"
+echo "Auto-login password in keychain:"
+security find-generic-password -a $(whoami) -s com.apple.loginwindow.secure-autologin 2>/dev/null && echo "  Found" || echo "  Not found"
+
+echo
+echo "--- VM Detection ---"
+echo "System info:"
+system_profiler SPHardwareDataType | grep -E "(Model Name|Model Identifier|Processor|Memory)" || echo "  Could not read system info"
+
+echo
+echo "--- Recommendations ---"
+if defaults read /Library/Preferences/com.apple.loginwindow.plist autoLoginUser >/dev/null 2>&1; then
+    echo "✓ Auto-login user is configured"
+else
+    echo "✗ Auto-login user is NOT configured"
+    echo "  Run: sudo defaults write /Library/Preferences/com.apple.loginwindow.plist autoLoginUser -string \"$(whoami)\""
+fi
+
+if dscl . -read /Users/$(whoami) AuthenticationAuthority 2>/dev/null | grep -q "No such key"; then
+    echo "✓ User appears to have no password (good for VM auto-login)"
+    echo "  Ensure DisableScreenLock and autoLoginUserScreenLocked are set"
+else
+    echo "! User has a password - may need keychain password entry"
+    if ! security find-generic-password -a $(whoami) -s com.apple.loginwindow.secure-autologin >/dev/null 2>&1; then
+        echo "✗ ISSUE FOUND: Auto-login password missing from keychain"
+        echo "  To fix, run this command and enter your password when prompted:"
+        echo "  sudo security add-generic-password -a $(whoami) -s com.apple.loginwindow.secure-autologin -w \"YOUR_PASSWORD\" -U"
+        echo ""
+        echo "  Or if you know your password, run:"
+        echo "  read -s PASSWORD && sudo security add-generic-password -a $(whoami) -s com.apple.loginwindow.secure-autologin -w \"\$PASSWORD\" -U"
+    else
+        echo "✓ Auto-login password found in keychain"
+    fi
+fi
+
+echo
+echo "=== End Debug Script ==="

@@ -1,0 +1,27 @@
+---
+# Main tasks file for server optimizations role
+# This file includes all the optimization modules
+
+- name: Include auto-login configuration
+  ansible.builtin.import_tasks: auto_login.yml
+  tags: ["autologin", "server", "configuration"]
+
+- name: Include UI minimization tasks
+  ansible.builtin.import_tasks: ui_minimization.yml
+  tags: ["ui", "server", "configuration"]
+
+- name: Include system services optimization
+  ansible.builtin.import_tasks: system_services.yml
+  tags: ["services", "server", "configuration"]
+
+- name: Include energy and power management
+  ansible.builtin.import_tasks: power_management.yml
+  tags: ["power", "server", "configuration"]
+
+- name: Include system stability enhancements
+  ansible.builtin.import_tasks: system_stability.yml
+  tags: ["stability", "server", "configuration"]
+
+- name: Include logging and monitoring improvements
+  ansible.builtin.import_tasks: logging.yml
+  tags: ["logging", "server", "configuration"]
