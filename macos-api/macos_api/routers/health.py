@@ -102,6 +102,13 @@ async def health_check():
                 "is_headless": device.get("is_headless", False),
                 "headless_reason": display_info.get("headless_reason", None) if device.get("is_headless", False) else None,
             },
+            "capabilities": {
+                "supports_camera_stream": True,
+                "supports_tracker_restart": True,
+                "supports_reboot": True,
+                "supports_ssh": True,
+                "device_has_camera_support": True,
+            },
             "_cache_info": {
                 "metrics": get_cached_metrics.cache_info(),
                 "display": get_cached_display_info.cache_info(),
