@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Source helper functions and variables
-# Assuming helpers.sh is in the same directory or in a known path
 HELPER_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
 if [ -f "$HELPER_SCRIPT_PATH" ]; then
   # shellcheck source=./helpers.sh
@@ -20,11 +19,10 @@ ensure_ansible_root_dir
 check_ansible_installed # Checks for ansible-playbook
 check_vault_password_file
 
-# Check for yq
+# Check for required commands
+check_ansible_vault_installed
 check_yq_installed
-
-# Use the common function to select a target host
-# The function is now defined in helpers.sh
+check_ssh_installed
 
 # --- Main Script ---
 # Check if arguments are provided for non-interactive mode
@@ -46,56 +44,122 @@ if [ $# -eq 3 ]; then
   log_info "Non-interactive mode: deploying SSH key to $TARGET_HOST_ALIAS ($TARGET_CONNECT_HOST) as $TARGET_CONNECT_USER"
 else
   # Interactive mode: use the common select_target_host function from helpers.sh
-  if ! select_target_host false; then
+  if ! select_target_host true; then
     log_error "Host selection failed. Exiting genSSH."
     exit 1
   fi
 fi
 
-log_info "Preparing to deploy SSH public key to '$TARGET_HOST_ALIAS' in '$TARGET_INVENTORY_PATH'..."
-log_info "This will use the 'vault_ssh_public_key' from your Ansible vault."
-log_info "You might be prompted for the SSH password for '$TARGET_HOST_ALIAS' if this is the first connection."
+# Prepare SSH key deployment
+VAULT_FILE_PATH="$OA_ANSIBLE_GROUP_VARS_DIR/all/vault.yml"
+log_debug "Attempting to view vault file: $VAULT_FILE_PATH"
 
-ANSIBLE_COMMAND=(
-  "ansible-playbook"
-  "main.yml"
-  "-i" "$TARGET_INVENTORY_PATH"
-  "--tags" "ssh"
-  "--limit" "$TARGET_HOST_ALIAS"
-  "--vault-password-file" "$OA_ANSIBLE_VAULT_PASSWORD_FILE"
-)
+# Decrypt the vault and extract the public key and passwords
+DECRYPTED_VAULT_CONTENT=$(ansible-vault view "$VAULT_FILE_PATH" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE")
+if [ $? -ne 0 ]; then
+  log_error "Failed to decrypt vault file: $VAULT_FILE_PATH"
+  exit 1
+fi
+log_debug "Vault file decrypted successfully."
 
-# Add SSH password handling
-if [ -n "$SSH_PASSWORD" ]; then
-  # Non-interactive mode with provided password
-  export ANSIBLE_SSH_PASS="$SSH_PASSWORD"
-  ANSIBLE_COMMAND+=("--extra-vars" "ansible_ssh_pass=$SSH_PASSWORD")
-else
-  # Interactive mode - ask for password
-  ANSIBLE_COMMAND+=("--ask-pass")
+# Extract the public key from the vault
+PUBLIC_KEY_CONTENT=$(echo "$DECRYPTED_VAULT_CONTENT" | yq -r '.vault_ssh_public_key')
+if [ -z "$PUBLIC_KEY_CONTENT" ] || [ "$PUBLIC_KEY_CONTENT" == "null" ]; then
+  log_error "Failed to extract 'vault_ssh_public_key' from vault content."
+  exit 1
+fi
+log_debug "Public key extracted from vault."
+
+# Try to get host-specific password from vault
+HOST_PASSWORD=$(echo "$DECRYPTED_VAULT_CONTENT" | yq -r ".vault_sudo_passwords.$TARGET_HOST_ALIAS")
+if [ "$HOST_PASSWORD" == "null" ]; then
+  HOST_PASSWORD=""
 fi
 
-# Ask for become pass if not using a passwordless sudo setup
-# Check ansible.cfg for become_ask_pass more reliably
-if grep -q -E "^\s*become_ask_pass\s*=\s*(True|true|TRUE|1)\s*$" "$OA_ANSIBLE_ROOT_DIR/ansible.cfg" ||
-  ! grep -q -E "^\s*become_ask_pass\s*=" "$OA_ANSIBLE_ROOT_DIR/ansible.cfg"; then # if not set, defaults to true
-  log_debug "become_ask_pass is likely True or not set to False in ansible.cfg, adding --ask-become-pass"
-  ANSIBLE_COMMAND+=("--ask-become-pass")
+# If no host-specific password, try to get default password
+if [ -z "$HOST_PASSWORD" ]; then
+  log_debug "No host-specific password found for $TARGET_HOST_ALIAS, trying default password"
+  HOST_PASSWORD=$(echo "$DECRYPTED_VAULT_CONTENT" | yq -r '.vault_default_sudo_password')
+  if [ "$HOST_PASSWORD" == "null" ]; then
+    HOST_PASSWORD=""
+  elif [ -n "$HOST_PASSWORD" ]; then
+    log_debug "Using default sudo password from vault"
+  fi
 else
-  log_debug "become_ask_pass is False in ansible.cfg, not adding --ask-become-pass"
+  log_debug "Using host-specific password from vault for $TARGET_HOST_ALIAS"
 fi
 
-log_info "Running command: ${ANSIBLE_COMMAND[*]}"
+# If SSH_PASSWORD was provided via command line, it takes precedence
+if [ -z "$SSH_PASSWORD" ] && [ -n "$HOST_PASSWORD" ] && [ "$HOST_PASSWORD" != "null" ]; then
+  SSH_PASSWORD="$HOST_PASSWORD"
+  log_debug "Using password from vault for authentication"
+fi
 
-# Execute Ansible playbook
-"${ANSIBLE_COMMAND[@]}"
+# Create a temporary file for the public key with .pub extension (required by ssh-copy-id)
+TMP_PUBKEY_DIR=$(mktemp -d "/tmp/genSSH_XXXXXX")
+TMP_PUBKEY_PATH="$TMP_PUBKEY_DIR/id_rsa.pub"
+touch "$TMP_PUBKEY_PATH"
+if [ ! -f "$TMP_PUBKEY_PATH" ]; then
+  log_error "Failed to create temporary file for public key."
+  rm -rf "$TMP_PUBKEY_DIR"
+  exit 1
+fi
+log_debug "Temporary public key file created at $TMP_PUBKEY_PATH"
 
-if [ $? -eq 0 ]; then
-  log_info "SSH public key deployment to '$TARGET_HOST_ALIAS' completed successfully."
-else
-  log_error "SSH public key deployment to '$TARGET_HOST_ALIAS' failed."
-  log_error "Check the Ansible output above for details."
+# Set permissions and write key
+chmod 600 "$TMP_PUBKEY_PATH"
+echo -E "$PUBLIC_KEY_CONTENT" >"$TMP_PUBKEY_PATH"
+if [ $? -ne 0 ]; then
+  log_error "Failed to write public key to temporary file: $TMP_PUBKEY_PATH"
+  rm -f "$TMP_PUBKEY_PATH" # Clean up
   exit 1
 fi
 
+# Set up a trap to ensure the temporary key file and directory are deleted on exit
+trap 'log_debug "Cleaning up temporary files in: $TMP_PUBKEY_DIR"; rm -rf "$TMP_PUBKEY_DIR"' EXIT INT TERM
+
+log_info "Deploying SSH public key to $TARGET_CONNECT_USER@$TARGET_CONNECT_HOST..."
+
+# Create the SSH command
+SSH_OPTS=("-o" "StrictHostKeyChecking=no" "-o" "UserKnownHostsFile=/dev/null")
+if [ -n "$TARGET_CONNECT_PORT" ] && [ "$TARGET_CONNECT_PORT" != "22" ]; then
+  SSH_OPTS+=("-p" "$TARGET_CONNECT_PORT")
+fi
+
+# Prepare the SSH command for key deployment
+if [ -n "$SSH_PASSWORD" ]; then
+  # Use sshpass for non-interactive password authentication
+  if ! command -v sshpass &>/dev/null; then
+    log_error "sshpass command not found. Please install sshpass for non-interactive mode."
+    log_error "On macOS: brew install hudochenkov/sshpass/sshpass"
+    exit 1
+  fi
+  
+  log_debug "Using sshpass for non-interactive authentication"
+  SSH_COMMAND=("sshpass" "-p" "$SSH_PASSWORD" "ssh-copy-id" "-f" "-i" "$TMP_PUBKEY_PATH" "${SSH_OPTS[@]}" "$TARGET_CONNECT_USER@$TARGET_CONNECT_HOST")
+else
+  # Interactive mode - will prompt for password
+  SSH_COMMAND=("ssh-copy-id" "-f" "-i" "$TMP_PUBKEY_PATH" "${SSH_OPTS[@]}" "$TARGET_CONNECT_USER@$TARGET_CONNECT_HOST")
+fi
+
+log_debug "SSH command: ${SSH_COMMAND[*]}"
+
+# Execute the SSH command
+"${SSH_COMMAND[@]}"
+SSH_EXIT_CODE=$?
+
+# Check the result
+if [ $SSH_EXIT_CODE -eq 0 ]; then
+  log_info "SSH public key deployment to '$TARGET_HOST_ALIAS' ($TARGET_CONNECT_HOST) completed successfully."
+else
+  log_error "SSH public key deployment to '$TARGET_HOST_ALIAS' ($TARGET_CONNECT_HOST) failed with exit code $SSH_EXIT_CODE."
+  log_error "Please check the output above for details."
+fi
+
+# Explicitly remove the temp directory and clear the trap
+log_debug "Cleaning up temporary files"
+rm -rf "$TMP_PUBKEY_DIR"
+trap - EXIT INT TERM # Clear the trap
+
 log_debug "genSSH script finished."
+exit $SSH_EXIT_CODE
