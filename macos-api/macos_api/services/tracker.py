@@ -26,11 +26,19 @@ def check_tracker_status() -> Dict[str, str]:
 
         # Get process details if running
         process_info = None
+        tracker_start_time = None
         if tracker_running:
             try:
-                for proc in psutil.process_iter(["pid", "cpu_percent", "memory_percent"]):
+                for proc in psutil.process_iter(["pid", "cpu_percent", "memory_percent", "create_time"]):
                     if "oaTracker" in proc.name():
-                        process_info = {"pid": proc.pid, "cpu_usage": proc.cpu_percent(), "memory_usage": proc.memory_percent()}
+                        create_time = datetime.fromtimestamp(proc.create_time(), timezone.utc)
+                        tracker_start_time = create_time.isoformat()
+                        process_info = {
+                            "pid": proc.pid, 
+                            "cpu_usage": proc.cpu_percent(), 
+                            "memory_usage": proc.memory_percent(),
+                            "start_time": tracker_start_time
+                        }
                         break
             except Exception:
                 pass
@@ -41,6 +49,7 @@ def check_tracker_status() -> Dict[str, str]:
             "display_connected": display_info.get("connected", False),
             "healthy": service_active and tracker_running,
             "process": process_info,
+            "tracker_start_time": tracker_start_time,
         }
     except Exception as e:
         return {"service_status": "unknown", "tracker_status": "unknown", "display_connected": False, "healthy": False, "error": str(e)}
