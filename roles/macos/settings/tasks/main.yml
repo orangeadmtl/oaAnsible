@@ -132,3 +132,4 @@
       notify:
         - Unload existing daily reboot service
         - Load daily reboot service
+  when: oa_environment.allow_destructive_operations | default(true)
