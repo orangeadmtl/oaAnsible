@@ -17,7 +17,7 @@ oa_environment:
   allow_experimental: false
   allow_server_optimizations: true
   allow_destructive_operations: false
-  allow_tailscale_changes: true
+  allow_tailscale_changes: false
 
 # System packages
 system:
