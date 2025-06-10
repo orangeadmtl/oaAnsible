@@ -32,6 +32,7 @@ system:
       - curl
       - telnet
       - util-linux
+      - fish
 
 # Tracker configuration
 tracker:
