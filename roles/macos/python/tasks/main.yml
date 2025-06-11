@@ -35,8 +35,8 @@
         cp -R "{{ ansible_env.HOME }}/.pyenv/versions/"* "$BACKUP_DIR/" 2>/dev/null || true
         echo "Backup completed at: $BACKUP_DIR"
       register: pyenv_backup_result
-      when: 
-        - pyenv_install.stat.exists 
+      when:
+        - pyenv_install.stat.exists
         - not (pyenv_git_check.stat.exists | default(false))
         - pyenv_versions_check.matched | default(0) > 0
       changed_when: pyenv_backup_result.stdout is search('Backup completed')
@@ -235,7 +235,8 @@
       ansible.builtin.set_fact:
         python_global_correct: "{{ pyenv_set_global.changed | default(false) or python_global_correct }}"
         python_executable: "{{ python_execution_recheck.stdout | default(python_execution_check.stdout | default('')) == 'PYTHON_EXECUTABLE' }}"
-        python_stack_ready: "{{ pyenv_ready and python_version_installed and (pyenv_set_global.changed | default(false) or python_global_correct) and (python_execution_recheck.stdout | default(python_execution_check.stdout | default('')) == 'PYTHON_EXECUTABLE') }}"
+        python_stack_ready: "{{ pyenv_ready and python_version_installed and (pyenv_set_global.changed | default(false) or python_global_correct) and (python_execution_recheck.stdout
+          | default(python_execution_check.stdout | default('')) == 'PYTHON_EXECUTABLE') }}"
 
     - name: Display Python stack readiness status
       ansible.builtin.debug:
@@ -247,13 +248,13 @@
           - Python executable: {{ python_executable }}
           - Overall stack ready: {{ python_stack_ready }}
           {% if not python_stack_ready and not python_version_installed %}
-          
+
           Will proceed with Python installation...
           {% elif not python_stack_ready %}
-          
+
           Version exists but configuration needs fixing...
           {% else %}
-          
+
           ✅ Python stack is ready - skipping installation
           {% endif %}
 
@@ -361,7 +362,6 @@
         - python_install_attempt2.rc != 0
         - python_install_attempt3.rc != 0
         - python_install_attempt4.rc != 0
-
 
     # Install uv - modern Python package manager
     - name: Check if uv is installed

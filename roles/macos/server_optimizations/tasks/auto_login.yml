@@ -26,7 +26,7 @@
       ansible.builtin.shell: |
         defaults write /Library/Preferences/com.apple.loginwindow.plist autoLoginUser -string "{{ ansible_user | trim }}"
       become: true
-      when: 
+      when:
         - macos_enable_auto_login | default(true)
         - autologin_check.stdout == "not_configured" or autologin_check.stdout != (ansible_user | trim)
       register: autologin_user_result
@@ -43,8 +43,8 @@
       ansible.builtin.copy:
         src: create_kcpassword.py
         dest: /tmp/create_kcpassword.py
-        mode: '0755'
-      when: 
+        mode: "0755"
+      when:
         - macos_enable_auto_login | default(true)
         - ansible_become_password is defined and ansible_become_password | length > 0
         - user_password_check.stdout == "has_password"
@@ -54,7 +54,7 @@
         python3 /tmp/create_kcpassword.py "{{ ansible_become_password }}"
         rm -f /tmp/create_kcpassword.py
       become: true
-      when: 
+      when:
         - macos_enable_auto_login | default(true)
         - ansible_become_password is defined and ansible_become_password | length > 0
         - user_password_check.stdout == "has_password"
@@ -67,9 +67,9 @@
         msg: |
           WARNING: Auto-login is configured but password could not be stored.
           The system will still prompt for password at boot.
-          
+
           Make sure the host is properly configured in vault_sudo_passwords.
-      when: 
+      when:
         - macos_enable_auto_login | default(true)
         - user_password_check.stdout == "has_password"
         - (ansible_become_password is not defined or ansible_become_password | length == 0 or autologin_password_result.rc != 0)
@@ -79,7 +79,7 @@
         defaults write /Library/Preferences/com.apple.loginwindow.plist autoLoginUserScreenLocked -bool false
         defaults write /Library/Preferences/com.apple.loginwindow.plist DisableScreenLock -bool true
       become: true
-      when: 
+      when:
         - macos_enable_auto_login | default(true)
         - user_password_check.stdout == "no_password" or (ansible_password is not defined or ansible_password | length == 0)
       register: passwordless_autologin_result
