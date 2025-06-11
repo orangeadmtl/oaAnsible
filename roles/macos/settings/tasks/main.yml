@@ -106,6 +106,7 @@
       changed_when: localhostname_result.rc == 0
 
 - name: Configure daily reboot
+  when: oa_environment.allow_destructive_operations | default(true)
   block:
     - name: Ensure log directory exists
       ansible.builtin.file:
@@ -132,4 +133,3 @@
       notify:
         - Unload existing daily reboot service
         - Load daily reboot service
-  when: oa_environment.allow_destructive_operations | default(true)

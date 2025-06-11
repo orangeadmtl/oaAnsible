@@ -24,33 +24,33 @@
 - name: Production safety warning
   ansible.builtin.pause:
     prompt: |
-      ⚠️  WARNING: You are about to run playbook on PRODUCTION environment!
-      
+      WARNING: You are about to run playbook on PRODUCTION environment!
+
       Environment: {{ oa_environment.name }}
       Target hosts: {{ ansible_play_hosts | join(', ') }}
-      
-      This will affect live devices in the field. 
+
+      This will affect live devices in the field.
       Tailscale connectivity issues could require physical access to recover.
-      
+
       Are you absolutely sure you want to continue? (yes/no)
   register: production_confirm
-  when: 
+  when:
     - oa_environment.name == "production"
     - not (skip_safety_checks | default(false))
 
 - name: Abort on production safety check
   ansible.builtin.fail:
     msg: "Production deployment aborted by user"
-  when: 
-    - oa_environment.name == "production" 
+  when:
+    - oa_environment.name == "production"
     - production_confirm is defined
     - production_confirm.user_input | lower != "yes"
 
 - name: Pre-prod safety reminder
   ansible.builtin.debug:
     msg: |
-      ℹ️  INFO: Running on PRE-PRODUCTION environment
-      
+      INFO: Running on PRE-PRODUCTION environment
+
       - This is a real Mac Mini device, not a VM
       - Changes will affect actual hardware
       - Server optimizations are enabled for testing
@@ -60,8 +60,8 @@
 - name: Staging environment notice
   ansible.builtin.debug:
     msg: |
-      🧪 STAGING: Experimental environment
-      
+      STAGING: Experimental environment
+
       - Full experimental features enabled
       - Safe for testing all changes
       - VM environment, easy to reset if needed
@@ -70,19 +70,23 @@
 - name: Production Tailscale warning
   ansible.builtin.debug:
     msg: |
-      🔒 PRODUCTION TAILSCALE BLOCKED
-      
+      PRODUCTION TAILSCALE BLOCKED
+
       Tailscale changes are disabled in production for safety.
       To allow Tailscale changes, run with:
       --extra-vars "oa_environment.allow_tailscale_changes=true"
-      
+
       WARNING: Tailscale failures could cause loss of remote access!
-  when: 
+  when:
     - oa_environment.name == "production"
     - not (oa_environment.allow_tailscale_changes | default(false))
     - "'tailscale' in ansible_run_tags"
 
-- name: Validate Tailscale safety for critical environments  
+- name: Validate Tailscale safety for critical environments
+  when:
+    - oa_environment.allow_tailscale_changes | default(true)
+    - oa_environment.name in ["pre-prod", "production"]
+    - "'tailscale' in ansible_run_tags"
   block:
     - name: Check current Tailscale status
       ansible.builtin.shell: |
@@ -99,17 +103,12 @@
       ansible.builtin.debug:
         msg: |
           🔒 TAILSCALE SAFETY CHECK:
-          
+
           Current status: {{ tailscale_info.BackendState | default('Unknown') }}
-          
+
           CRITICAL: If Tailscale configuration fails, you may lose remote access!
           - Ensure you have alternative access methods (local console, physical access)
           - Consider running with --check first to validate changes
           - Have a rollback plan ready
-          
-          Continue only if you understand these risks.
 
-  when: 
-    - oa_environment.allow_tailscale_changes | default(true)
-    - oa_environment.name in ["pre-prod", "production"]
-    - "'tailscale' in ansible_run_tags"
+          Continue only if you understand these risks.
