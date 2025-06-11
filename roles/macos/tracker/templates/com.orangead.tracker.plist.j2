@@ -6,7 +6,7 @@
     <string>com.orangead.tracker</string>
     <key>ProgramArguments</key>
     <array>
-        <string>{{ ansible_user_dir }}/orangead/tracker/scripts/start.sh</string>
+        <string>{{ ansible_user_dir }}/orangead/tracker/scripts/start_detection.sh</string>
     </array>
     <key>WorkingDirectory</key>
     <string>{{ ansible_user_dir }}/orangead/tracker</string>
@@ -15,9 +15,9 @@
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>{{ ansible_user_dir }}/orangead/tracker/logs/tracker.out.log</string>
+    <string>/var/log/orangead/tracker.txt</string>
     <key>StandardErrorPath</key>
-    <string>{{ ansible_user_dir }}/orangead/tracker/logs/tracker.err.log</string>
+    <string>/var/log/orangead/tracker.txt</string>
     <key>UserName</key>
     <string>{{ ansible_user }}</string>
     <key>EnvironmentVariables</key>

@@ -26,8 +26,19 @@ cat > "$HOME/.zshrc.enhanced" << 'EOL'
 # Path to your oh-my-zsh installation.
 export ZSH="$HOME/.oh-my-zsh"
 
-# Set theme
-ZSH_THEME="robbyrussell"
+# Set theme with customized prompt to show username and hostname
+# Create a custom theme based on robbyrussell that includes username@hostname
+cat > "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/robbyrussell-custom.zsh-theme" << 'THEME_EOL'
+PROMPT="%(?:%{$fg_bold[green]%}%n@%m:%{$fg_bold[red]%}%n@%m) %{$fg[cyan]%}%c%{$reset_color%} $(git_prompt_info)"
+
+ZSH_THEME_GIT_PROMPT_PREFIX="%{$fg_bold[blue]%}git:(%{$fg[red]%}"
+ZSH_THEME_GIT_PROMPT_SUFFIX="%{$reset_color%} "
+ZSH_THEME_GIT_PROMPT_DIRTY="%{$fg[blue]%}) %{$fg[yellow]%}✗"
+ZSH_THEME_GIT_PROMPT_CLEAN="%{$fg[blue]%})"
+THEME_EOL
+
+# Use our custom theme
+ZSH_THEME="robbyrussell-custom"
 
 # Enable plugins
 plugins=(
@@ -41,19 +52,19 @@ plugins=(
 source $ZSH/oh-my-zsh.sh
 
 # Key bindings for better navigation
-bindkey '^[[A' history-substring-search-up
-bindkey '^[[B' history-substring-search-down
-bindkey "^[[H" beginning-of-line      # Home key
-bindkey "^[[F" end-of-line            # End key
-bindkey "^[[3~" delete-char           # Delete key
-bindkey "^[[1;5C" forward-word        # Ctrl+Right
-bindkey "^[[1;5D" backward-word       # Ctrl+Left
+# bindkey '^[[A' history-substring-search-up
+# bindkey '^[[B' history-substring-search-down
+# bindkey "^[[H" beginning-of-line      # Home key
+# bindkey "^[[F" end-of-line            # End key
+# bindkey "^[[3~" delete-char           # Delete key
+# bindkey "^[[1;5C" forward-word        # Ctrl+Right
+# bindkey "^[[1;5D" backward-word       # Ctrl+Left
 
 # Additional key bindings for macOS Terminal
-bindkey "^[^[[C" forward-word         # Alt+Right
-bindkey "^[^[[D" backward-word        # Alt+Left
-bindkey "^[[1~" beginning-of-line     # Home key alternative
-bindkey "^[[4~" end-of-line           # End key alternative
+# bindkey "^[^[[C" forward-word         # Alt+Right
+# bindkey "^[^[[D" backward-word        # Alt+Left
+# bindkey "^[[1~" beginning-of-line     # Home key alternative
+# bindkey "^[[4~" end-of-line           # End key alternative
 
 # Set EDITOR
 export EDITOR='vim'
