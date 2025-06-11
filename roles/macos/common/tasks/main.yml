@@ -1,0 +1,6 @@
+---
+# Main tasks file for common macOS role
+# This role provides common tasks that can be included by other roles
+
+- name: Include user directory creation tasks
+  ansible.builtin.include_tasks: ensure_user_directories.yml
