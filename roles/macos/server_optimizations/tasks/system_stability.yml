@@ -2,6 +2,10 @@
 # System stability enhancements for server-like operation
 # Implements watchdog services and other stability improvements
 
+# Ensure required user directories exist before creating files
+- name: Include user directory creation tasks
+  ansible.builtin.include_tasks: ../../../common/tasks/ensure_user_directories.yml
+
 - name: Configure system stability enhancements
   block:
     - name: Create watchdog script directory

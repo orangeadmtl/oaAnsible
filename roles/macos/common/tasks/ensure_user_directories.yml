@@ -1,0 +1,17 @@
+---
+# Tasks to ensure required user directories exist
+# This file should be included by any role that needs to create files in user directories
+
+- name: Ensure required user directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ ansible_user_dir }}/Library"
+    - "{{ ansible_user_dir }}/Library/LaunchAgents"
+    - "{{ ansible_user_dir }}/Library/Preferences"
+    - "{{ ansible_user_dir }}/Library/Application Support"
+    - "{{ ansible_user_dir }}/.config"
+  register: user_dirs_result
+  changed_when: user_dirs_result.changed
