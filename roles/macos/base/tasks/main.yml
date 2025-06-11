@@ -72,6 +72,11 @@
             export EDITOR=vim
       changed_when: false
 
+# Include zsh enhancement tasks
+- name: Include zsh enhancement tasks
+  ansible.builtin.include_tasks: enhance_zsh.yml
+  tags: ["shell", "zsh", "setup"]
+
 # Configure passwordless sudo for the ansible_user (admin)
 - name: Check existing sudoers entries
   become: true

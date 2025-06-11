@@ -1,0 +1,24 @@
+---
+# Playbook to enhance macOS shell experience
+- name: Enhance macOS Shell Experience
+  hosts: macos
+  gather_facts: true
+  become: false
+  tags: ["shell", "zsh"]
+
+  tasks:
+    - name: Include macOS base role
+      ansible.builtin.include_role:
+        name: macos/base
+        tasks_from: enhance_zsh
+      tags: ["shell", "zsh"]
+
+    - name: Verify zsh enhancement
+      ansible.builtin.shell: |
+        test -d {{ ansible_env.HOME }}/.oh-my-zsh && echo "Oh My Zsh installed" || echo "Oh My Zsh not installed"
+      register: zsh_verify
+      changed_when: false
+
+    - name: Display verification results
+      ansible.builtin.debug:
+        msg: "{{ zsh_verify.stdout }}"
