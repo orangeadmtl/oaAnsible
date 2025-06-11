@@ -348,6 +348,27 @@
     mode: "0644"
   become: true
 
+# Ensure system log directory exists
+- name: Ensure /var/log/orangead directory exists
+  ansible.builtin.file:
+    path: /var/log/orangead
+    state: directory
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: staff
+  become: true
+
+# Create symlink for tracker output
+- name: Create symlink from /var/log/orangead/tracker.txt to output.txt
+  ansible.builtin.file:
+    src: /var/log/orangead/tracker.txt
+    dest: "{{ ansible_user_dir }}/orangead/tracker/output.txt"
+    state: link
+    owner: "{{ ansible_user }}"
+    group: staff
+    force: true
+  become: true
+
 # Setup launchd service
 - name: Ensure LaunchAgents directory exists
   ansible.builtin.file:
@@ -358,7 +379,7 @@
     group: staff
   become: true
 
-- name: Template launchd service file
+- name: Template tracker launchd service file
   ansible.builtin.template:
     src: com.orangead.tracker.plist.j2
     dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist"
@@ -368,13 +389,26 @@
   become: false
   register: launchd_service
 
-- name: Reload tracker service when changed
+- name: Template API launchd service file
+  ansible.builtin.template:
+    src: com.orangead.tracker_api.plist.j2
+    dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.api.plist"
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: "0644"
+  become: false
+  register: launchd_api_service
+
+- name: Reload services when changed
   ansible.builtin.meta: flush_handlers
-  when: launchd_service.changed
+  when: launchd_service.changed or launchd_api_service.changed
   notify:
     - Unload existing launchd service
     - Load launchd service
     - Start launchd service
+    - Unload existing API launchd service
+    - Load API launchd service
+    - Start API launchd service
 
 # Additional verification and troubleshooting tasks
 # Detect server port from config if available

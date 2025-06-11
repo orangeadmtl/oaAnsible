@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.orangead.api</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{ ansible_user_dir }}/orangead/tracker/start_api.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>{{ ansible_user_dir }}/orangead/tracker</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/var/log/orangead/tracker_api.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/orangead/tracker_api.log</string>
+    <key>UserName</key>
+    <string>{{ ansible_user }}</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/opt/util-linux/bin:/opt/homebrew/opt/util-linux/sbin:{{ ansible_user_dir }}/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHONPATH</key>
+        <string>{{ ansible_user_dir }}/orangead/tracker</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+        <key>PYTORCH_ENABLE_MPS_FALLBACK</key>
+        <string>1</string>
+        <key>ACERO_ALIGNMENT_HANDLING</key>
+        <string>ignore</string>
+    </dict>
+</dict>
+</plist>
