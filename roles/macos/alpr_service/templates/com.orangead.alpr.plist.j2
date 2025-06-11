@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{ macos_alpr_service_plist }}</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/docker</string>
+        <string>run</string>
+        <string>--name</string>
+        <string>{{ macos_alpr_container_name }}</string>
+        <string>--restart=unless-stopped</string>
+        <string>-d</string>
+{% if ansible_machine == 'arm64' %}
+        <string>--platform</string>
+        <string>linux/amd64</string>
+{% endif %}
+        <string>-p</string>
+        <string>{{ macos_alpr_host_port }}:{{ macos_alpr_container_port }}</string>
+        <string>-v</string>
+        <string>{{ macos_alpr_license_volume_name }}:/license</string>
+        <string>-e</string>
+        <string>TOKEN={{ vault_alpr_token }}</string>
+        <string>-e</string>
+        <string>LICENSE_KEY={{ vault_alpr_license_key }}</string>
+        <string>{{ macos_alpr_image_name }}</string>
+    </array>
+    
+    <key>RunAtLoad</key>
+    <{{ macos_alpr_run_at_load | lower }}/>
+    
+    <key>KeepAlive</key>
+    <{{ macos_alpr_keep_alive | lower }}/>
+    
+    <key>StandardOutPath</key>
+    <string>{{ ansible_user_dir }}/orangead/alpr/logs/alpr.out.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>{{ ansible_user_dir }}/orangead/alpr/logs/alpr.err.log</string>
+    
+    <key>WorkingDirectory</key>
+    <string>{{ ansible_user_dir }}/orangead/alpr</string>
+    
+    <key>UserName</key>
+    <string>{{ ansible_user }}</string>
+    
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>{{ homebrew_prefix }}/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>{{ ansible_user_dir }}</string>
+    </dict>
+</dict>
+</plist>

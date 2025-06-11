@@ -1,0 +1,524 @@
+---
+# Tasks for deploying OrbStack and ALPR service on macOS with CLI-focused approach
+
+- name: Check CPU architecture
+  ansible.builtin.command: uname -m
+  register: macos_cpu_arch
+  changed_when: false
+
+- name: Check if running in VM
+  ansible.builtin.command: system_profiler SPHardwareDataType
+  register: macos_hardware_check
+  changed_when: false
+
+- name: Set VM detection fact
+  ansible.builtin.set_fact:
+    is_vm_environment: "{{ 'VirtualMac' in macos_hardware_check.stdout or 'VMware' in macos_hardware_check.stdout }}"
+
+- name: Display CPU architecture and VM status
+  ansible.builtin.debug:
+    msg: |
+      CPU Architecture: {{ macos_cpu_arch.stdout }} ({{ 'Apple Silicon' if macos_cpu_arch.stdout == 'arm64' else 'Intel' }})
+      Environment: {{ 'Virtual Machine' if is_vm_environment else 'Physical Hardware' }}
+      {% if is_vm_environment %}
+      WARNING: VM detected - OrbStack may not support nested virtualization
+      {% endif %}
+
+- name: Check if Rosetta is installed (Apple Silicon only)
+  ansible.builtin.command: /usr/bin/pgrep -x oahd
+  register: macos_rosetta_check
+  changed_when: false
+  failed_when: false
+  when: macos_cpu_arch.stdout == 'arm64'
+
+- name: Install Rosetta (Apple Silicon only)
+  ansible.builtin.command: /usr/sbin/softwareupdate --install-rosetta --agree-to-license
+  register: macos_rosetta_install
+  when:
+    - macos_cpu_arch.stdout == 'arm64'
+    - macos_rosetta_check.rc != 0
+  become: true
+
+- name: Display Rosetta installation status (Apple Silicon only)
+  ansible.builtin.debug:
+    msg: "Rosetta {{ 'installed successfully' if macos_rosetta_install.changed | default(false) else 'already installed' }}"
+  when: macos_cpu_arch.stdout == 'arm64'
+
+- name: Check if OrbStack CLI tools are available
+  ansible.builtin.command: which orb
+  register: macos_orbstack_cli_check
+  changed_when: false
+  failed_when: false
+
+- name: Display OrbStack CLI availability
+  ansible.builtin.debug:
+    msg: "OrbStack CLI tools {{ 'are available' if macos_orbstack_cli_check.rc == 0 else 'not found - will be installed via homebrew' }}"
+
+- name: Check if Docker CLI is available
+  ansible.builtin.command: which docker
+  register: macos_docker_cli_check
+  changed_when: false
+  failed_when: false
+
+- name: Display Docker CLI availability
+  ansible.builtin.debug:
+    msg: "Docker CLI {{ 'is available' if macos_docker_cli_check.rc == 0 else 'not found' }}"
+
+- name: Check if orbctl is available
+  ansible.builtin.command: which orbctl
+  register: macos_orbctl_cli_check
+  changed_when: false
+  failed_when: false
+
+- name: Display orbctl availability
+  ansible.builtin.debug:
+    msg: "orbctl CLI {{ 'is available' if macos_orbctl_cli_check.rc == 0 else 'not found' }}"
+
+- name: Initial Docker daemon connectivity check
+  ansible.builtin.command: docker info
+  register: macos_docker_initial_check
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+
+- name: Check if OrbStack helper tools are installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/orbctl
+  register: macos_orbstack_helper_check
+  when: not is_vm_environment
+
+- name: Install OrbStack helper tools if needed (Physical hardware only)
+  ansible.builtin.shell: |
+    # Create helper installation script
+    /Applications/OrbStack.app/Contents/MacOS/OrbStack --install-cli-tools
+  become: true
+  register: macos_orbstack_helper_install
+  when:
+    - not is_vm_environment
+    - not macos_orbstack_helper_check.stat.exists
+  failed_when: false
+
+- name: Ensure OrbStack is started (Physical hardware only)
+  ansible.builtin.shell: |
+    # Start OrbStack app if not running
+    if ! pgrep -f "OrbStack" > /dev/null; then
+      open -g /Applications/OrbStack.app
+      sleep 10
+    fi
+    # Use orb start command as backup
+    /Applications/OrbStack.app/Contents/MacOS/bin/orb start 2>/dev/null || true
+  register: macos_orbstack_start
+  when:
+    - macos_docker_initial_check.rc != 0
+    - not is_vm_environment
+  failed_when: false
+
+- name: Display OrbStack start status
+  ansible.builtin.debug:
+    msg: "OrbStack {{ 'started successfully' if macos_orbstack_start.rc == 0 else 'start failed or was already running' }}"
+  when:
+    - macos_docker_initial_check.rc != 0
+    - not is_vm_environment
+
+- name: Warning for VM environment
+  ansible.builtin.debug:
+    msg: |
+      VM ENVIRONMENT DETECTED
+
+      OrbStack requires hardware virtualization support which is typically not available in VM environments.
+      For VM testing, consider using:
+      1. Docker Desktop (if available)
+      2. Alternative containerization solutions
+      3. Testing on physical hardware
+
+      Skipping OrbStack virtualization setup...
+  when: is_vm_environment
+
+- name: Wait for OrbStack daemon to be ready (Physical hardware only)
+  ansible.builtin.command: docker info
+  register: macos_docker_daemon_check
+  until: macos_docker_daemon_check.rc == 0
+  retries: "{{ macos_orbstack_startup_timeout // macos_orbstack_check_interval }}"
+  delay: "{{ macos_orbstack_check_interval }}"
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+  when: not is_vm_environment
+
+- name: Set Docker daemon check result for VM environments
+  ansible.builtin.set_fact:
+    macos_docker_daemon_check:
+      rc: 1
+      stdout: ""
+      stderr: "VM environment - Docker daemon not available"
+  when: is_vm_environment
+
+- name: Verify Docker daemon connectivity (Physical hardware only)
+  ansible.builtin.fail:
+    msg: "Docker daemon is not accessible after waiting {{ macos_orbstack_startup_timeout }} seconds. Please ensure OrbStack is installed and running."
+  when:
+    - not is_vm_environment
+    - macos_docker_daemon_check.rc != 0
+
+- name: Skip Docker operations in VM environment
+  ansible.builtin.debug:
+    msg: |
+      Skipping Docker operations in VM environment
+
+      The following tasks will be skipped:
+      - Docker functionality test
+      - ALPR image pull
+      - Container deployment
+
+      This playbook has been configured to work on physical hardware with OrbStack.
+  when: is_vm_environment
+
+- name: Get Docker system info (Physical hardware only)
+  ansible.builtin.command: docker system info --format json
+  register: macos_docker_info
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+  when: not is_vm_environment
+
+- name: Display Docker system status (Physical hardware only)
+  ansible.builtin.debug:
+    msg: |
+      Docker System Status:
+      Docker daemon is accessible
+      {% if macos_docker_info.rc == 0 %}{% set docker_info = macos_docker_info.stdout | from_json %}
+      Server Version: {{ docker_info.ServerVersion | default('Unknown') }}
+      Container Runtime: {{ docker_info.DefaultRuntime | default('Unknown') }}
+      Operating System: {{ docker_info.OperatingSystem | default('Unknown') }}
+      {% endif %}
+  when: not is_vm_environment
+
+- name: Test Docker functionality with hello-world (Physical hardware only)
+  ansible.builtin.shell: |
+    # Test Docker with a simple hello-world container (using shell to avoid module conflicts)
+    docker run --rm hello-world
+  register: macos_docker_test
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+  when: not is_vm_environment
+  failed_when: false
+
+- name: Display Docker test results (Physical hardware only)
+  ansible.builtin.debug:
+    msg: "Docker functionality test {{ 'passed' if macos_docker_test is succeeded else 'failed' }}"
+  when: not is_vm_environment
+
+- name: Check for existing ALPR Docker image (Physical hardware only)
+  community.docker.docker_image_info:
+    name: "{{ macos_alpr_image_name }}"
+  register: macos_alpr_image_info
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+  when: not is_vm_environment
+
+- name: Pull ALPR Docker image with platform specification (Physical hardware only)
+  ansible.builtin.shell: |
+    # Pull image with platform specification for ARM64 Macs
+    {% if macos_cpu_arch.stdout == 'arm64' %}
+    docker pull --platform linux/amd64 {{ macos_alpr_image_name }}
+    {% else %}
+    docker pull {{ macos_alpr_image_name }}
+    {% endif %}
+  register: macos_alpr_image_pull
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+  when:
+    - not is_vm_environment
+    - macos_alpr_image_info.images | length == 0
+
+- name: Display image pull status (Physical hardware only)
+  ansible.builtin.debug:
+    msg: "ALPR Docker image {{ 'pulled successfully' if macos_alpr_image_pull.changed | default(false) else 'already present' }}"
+  when: not is_vm_environment
+
+# Configure firewall rules for Plate Recognizer API access
+- name: Configure firewall for Plate Recognizer API access
+  when: not is_vm_environment
+
+  block:
+    - name: Allow outbound connections to api.platerecognizer.com (HTTP)
+      ansible.builtin.command: >
+        /usr/sbin/ipfw add allow tcp from any to {{ item }} 80
+      become: true
+      register: platerecognizer_http_firewall
+      changed_when: platerecognizer_http_firewall.rc == 0
+      failed_when: false # Don't fail if ipfw is not available or other benign errors
+      loop: "{{ macos_alpr_api_platerecognizer_ips }}"
+      when: ansible_distribution_version is version('10.15', '<=')
+
+    - name: Allow outbound connections to api.platerecognizer.com (HTTPS)
+      ansible.builtin.command: >
+        /usr/sbin/ipfw add allow tcp from any to {{ item }} 443
+      become: true
+      register: platerecognizer_https_firewall
+      changed_when: platerecognizer_https_firewall.rc == 0
+      failed_when: false # Don't fail if ipfw is not available or other benign errors
+      loop: "{{ macos_alpr_api_platerecognizer_ips }}"
+      when: ansible_distribution_version is version('10.15', '<=')
+
+    - name: Configure PF firewall rules for Plate Recognizer API (newer macOS)
+      when: ansible_distribution_version is version('11.0', '>=')
+
+      block:
+        - name: Create temporary PF rule file for Plate Recognizer
+          ansible.builtin.copy:
+            dest: /tmp/platerecognizer_pf.conf
+            content: |
+              # Plate Recognizer API access rules
+              {% for ip in macos_alpr_api_platerecognizer_ips %}
+              pass out proto tcp from any to {{ ip }} port {80, 443}
+              {% endfor %}
+            mode: "0644"
+          become: true
+          register: pf_rule_file
+
+        - name: Load PF rules for Plate Recognizer API
+          ansible.builtin.command: pfctl -f /tmp/platerecognizer_pf.conf
+          become: true
+          register: pf_load_result
+          changed_when: pf_load_result.rc == 0
+          failed_when: false # Don't fail if PF is not enabled
+
+        - name: Clean up temporary PF rule file
+          ansible.builtin.file:
+            path: /tmp/platerecognizer_pf.conf
+            state: absent
+          become: true
+    - name: Allow Docker binary through Application Firewall
+      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/local/bin/docker
+      become: true
+      register: docker_firewall_result
+      changed_when: "'already has a rule' not in (docker_firewall_result.stdout | default('') + docker_firewall_result.stderr | default(''))"
+      failed_when: false
+
+    - name: Unblock Docker binary in Application Firewall
+      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /usr/local/bin/docker
+      become: true
+      register: docker_unblock_result
+      changed_when: docker_unblock_result.rc == 0 and "not blocked" not in (docker_unblock_result.stdout | default('') + docker_unblock_result.stderr |
+        default(''))
+      failed_when: false
+
+    - name: Display firewall configuration status
+      ansible.builtin.debug:
+        msg: |
+          Firewall Configuration:
+          - Plate Recognizer API IPs: {{ macos_alpr_api_platerecognizer_ips | join(', ') }}
+          - HTTP/HTTPS access configured
+          - Docker binary allowed through Application Firewall
+- name: Ensure LaunchAgents directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/Library/LaunchAgents"
+    state: directory
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: staff
+  become: true
+
+- name: Ensure ALPR log directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/orangead/alpr/logs"
+    state: directory
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: staff
+  become: true
+
+- name: Create ALPR Docker volume for license data (Physical hardware only)
+  community.docker.docker_volume:
+    name: "{{ macos_alpr_license_volume_name }}"
+    state: present
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+  when: not is_vm_environment
+
+- name: Force stop and cleanup existing ALPR LaunchAgent (Physical hardware only)
+  ansible.builtin.shell: |
+    # Force stop LaunchAgent
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist 2>/dev/null || true
+    # Wait a moment for graceful shutdown
+    sleep 2
+  become: false
+  failed_when: false
+  when: not is_vm_environment
+
+- name: Force stop and remove existing ALPR container (Physical hardware only)
+  ansible.builtin.shell: |
+    # Force stop and remove any existing container
+    docker stop {{ macos_alpr_container_name }} 2>/dev/null || true
+    docker rm -f {{ macos_alpr_container_name }} 2>/dev/null || true
+    # Clean up any orphaned containers with the same image
+    docker ps -a --filter "ancestor={{ macos_alpr_image_name }}" --format "{% raw %}{{.ID}}{% endraw %}" | xargs -r docker rm -f 2>/dev/null || true
+  register: macos_alpr_container_cleanup
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+  when: not is_vm_environment
+
+- name: Create ALPR service LaunchAgent plist (Physical hardware only)
+  ansible.builtin.template:
+    src: com.orangead.alpr.plist.j2
+    dest: "{{ ansible_user_dir }}/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist"
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: "0644"
+  become: false
+  notify: Reload ALPR service
+  register: macos_alpr_plist_created
+  when: not is_vm_environment
+
+- name: Force load ALPR service (Physical hardware only)
+  ansible.builtin.shell: |
+    # Unload first to ensure clean state
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist 2>/dev/null || true
+    sleep 2
+    # Load the service
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist
+    # Give it time to start
+    sleep 5
+  become: false
+  changed_when: true
+  failed_when: false
+  when: not is_vm_environment
+
+- name: Wait for ALPR service to start (Physical hardware only)
+  ansible.builtin.wait_for:
+    port: "{{ macos_alpr_host_port }}"
+    host: localhost
+    delay: 10
+    timeout: 60
+  register: macos_alpr_service_wait
+  failed_when: false
+  when: not is_vm_environment
+
+- name: Check ALPR service status via launchctl (Physical hardware only)
+  ansible.builtin.shell: |
+    set -o pipefail
+    launchctl list | grep {{ macos_alpr_service_plist }} || echo "Service not found"
+  register: macos_alpr_service_status
+  changed_when: false
+  when: not is_vm_environment
+
+- name: Check ALPR container status via Docker CLI (Physical hardware only)
+  ansible.builtin.shell: |
+    # Check if container is running
+    if docker ps --filter "name={{ macos_alpr_container_name }}" --format "{% raw %}{{.Names}}{% endraw %}" | grep -q "{{ macos_alpr_container_name }}"; then
+      echo "Running: $(docker ps --filter 'name={{ macos_alpr_container_name }}' --format '{% raw %}{{.Status}}{% endraw %}')"
+    else
+      echo "Not running"
+      # Check logs for troubleshooting
+      echo "Recent logs:"
+      docker logs {{ macos_alpr_container_name }} 2>/dev/null | tail -5 || echo "No logs available"
+    fi
+  register: macos_alpr_container_status
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+  when: not is_vm_environment
+
+- name: Test ALPR service basic connectivity (Physical hardware only)
+  ansible.builtin.uri:
+    url: "http://localhost:{{ macos_alpr_host_port }}/v1/plate-reader/"
+    method: GET
+    status_code: [200, 405] # 405 Method Not Allowed is expected for GET on this endpoint
+    timeout: 10
+  register: macos_alpr_connectivity_test
+  failed_when: false
+  when:
+    - not is_vm_environment
+    - not macos_alpr_service_wait.failed | default(false)
+
+- name: Final ALPR service health check (Physical hardware only)
+  ansible.builtin.shell: |
+    # Wait a bit more for container to stabilize
+    sleep 10
+    # Check final status
+    echo "=== FINAL HEALTH CHECK ==="
+    echo "LaunchAgent:"
+    launchctl list | grep {{ macos_alpr_service_plist }} || echo "  LaunchAgent not found"
+    echo "Docker Container:"
+    docker ps --filter "name={{ macos_alpr_container_name }}" --format "  {% raw %}{{.Names}}: {{.Status}}{% endraw %}" || echo "  Container not found"
+    echo "Port Check:"
+    if nc -z localhost {{ macos_alpr_host_port }} 2>/dev/null; then
+      echo "  Port {{ macos_alpr_host_port }}: OPEN"
+    else
+      echo "  Port {{ macos_alpr_host_port }}: CLOSED"
+    fi
+    echo "Recent Container Logs:"
+    docker logs {{ macos_alpr_container_name }} 2>/dev/null | tail -3 || echo "  No logs available"
+  register: macos_alpr_final_check
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+  when: not is_vm_environment
+
+- name: Display ALPR service deployment status (Physical hardware)
+  ansible.builtin.debug:
+    msg: |
+      === ALPR Service Deployment Status ===
+      LaunchAgent Status: {{ 'Running' if macos_alpr_service_status.stdout and macos_alpr_service_plist in macos_alpr_service_status.stdout else 'Not running' }}
+      Docker Container: {{ macos_alpr_container_status.stdout_lines[0] if macos_alpr_container_status.stdout_lines | length > 0 else 'Not found' }}
+      Port {{ macos_alpr_host_port }}: {{ 'Accessible' if not macos_alpr_service_wait.failed | default(false) else 'Not accessible' }}
+      {% if macos_alpr_connectivity_test.status is defined %}
+      HTTP Test: {{ 'Success' if macos_alpr_connectivity_test.status in [200, 405] else 'Failed' }}
+      {% endif %}
+      Container: {{ macos_alpr_container_name }}
+      Image: {{ macos_alpr_image_name }}
+
+      Final Health Check:
+      {{ macos_alpr_final_check.stdout | default('Health check failed') }}
+  when: not is_vm_environment
+
+- name: Display VM environment summary
+  ansible.builtin.debug:
+    msg: |
+      === ALPR Service Deployment Summary (VM Environment) ===
+
+      Rosetta: {{ 'Installed' if macos_rosetta_check.rc == 0 else 'Not installed' }}
+      OrbStack: {{ 'Available via homebrew' if macos_orbstack_cli_check.rc == 0 else 'Not available' }}
+      Docker: Skipped (VM environment limitation)
+      ALPR Service: Skipped (requires Docker)
+
+      Environment Type: Virtual Machine ({{ macos_hardware_check.stdout | regex_search('Model Identifier: (.+)') | regex_replace('Model Identifier: ', '') | trim }})
+
+      For actual ALPR deployment, please run this playbook on physical Mac hardware.
+  when: is_vm_environment
+
+- name: Display ALPR service management commands
+  ansible.builtin.debug:
+    msg: |
+      === ALPR Service Management (CLI Commands) ===
+
+      Service Management:
+      - Start:    launchctl load -w ~/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist
+      - Stop:     launchctl unload ~/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist
+      - Status:   launchctl list | grep {{ macos_alpr_service_plist }}
+
+      Docker Management:
+      - Container Status:  docker ps --filter "name={{ macos_alpr_container_name }}"
+      - Container Logs:    docker logs {{ macos_alpr_container_name }}
+      - Stop Container:    docker stop {{ macos_alpr_container_name }}
+      - Remove Container:  docker rm {{ macos_alpr_container_name }}
+
+      OrbStack Management:
+      - Check Status:      orb status
+      - System Info:       docker system info
+      - orbctl Commands:   orbctl --help
+
+      Testing:
+      curl -F "upload=@/path/to/image.jpg" \
+           -F regions='ca' \
+           -F mmc=true \
+           -F 'config={"mode":"fast", "detection_mode":"vehicle"}' \
+           http://localhost:{{ macos_alpr_host_port }}/v1/plate-reader/

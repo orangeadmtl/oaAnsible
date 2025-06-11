@@ -76,6 +76,10 @@
     - role: macos/tracker
       tags: ["tracker", "services"]
 
+    - role: macos/alpr_service # Docker and ALPR service deployment
+      tags: ["alpr", "docker", "services"]
+      when: oa_environment.deploy_alpr_service | default(false)
+
     - role: macos/security # Firewall rules, including for tailscaled - AFTER API/Tracker for camera permissions
       tags: ["security", "configuration"]
 

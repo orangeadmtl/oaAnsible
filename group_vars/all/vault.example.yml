@@ -37,3 +37,7 @@ vault_default_sudo_password: "default_password"
 # Tracker secrets
 vault_tracker_access_key: "tracker-access-key"
 vault_tracker_secret_key: "tracker-secret-key"
+
+# ALPR service secrets
+vault_alpr_token: "platerecognizer-api-token"
+vault_alpr_license_key: "platerecognizer-license-key"

@@ -18,6 +18,7 @@ oa_environment:
   allow_server_optimizations: true
   allow_destructive_operations: true
   allow_tailscale_changes: true
+  deploy_alpr_service: true
 
 # System packages
 system:
@@ -33,6 +34,7 @@ system:
       - telnet
       - util-linux
       - fish
+      - orbstack
 
 # Tracker configuration
 tracker:

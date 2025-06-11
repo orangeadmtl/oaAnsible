@@ -1,0 +1,45 @@
+---
+# Handlers for ALPR service
+
+- name: Reload ALPR service
+  ansible.builtin.shell: |
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist || true
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist
+  become: false
+  register: macos_alpr_service_reload
+  changed_when: true
+
+- name: Start ALPR service
+  ansible.builtin.command: |
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist
+  become: false
+  register: macos_alpr_service_start
+  changed_when: true
+  failed_when: false
+
+- name: Stop ALPR service
+  ansible.builtin.command: |
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist
+  become: false
+  register: macos_alpr_service_stop
+  changed_when: true
+  failed_when: false
+
+- name: Restart ALPR container
+  ansible.builtin.shell: |
+    docker stop {{ macos_alpr_container_name }} || true
+    docker rm {{ macos_alpr_container_name }} || true
+    launchctl kickstart -k gui/$(id -u {{ ansible_user }})/{{ macos_alpr_service_plist }}
+  become: false
+  register: macos_alpr_container_restart
+  changed_when: true
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+
+- name: Check OrbStack daemon status
+  ansible.builtin.command: docker info
+  register: macos_orbstack_status_check
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"

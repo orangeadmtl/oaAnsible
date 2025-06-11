@@ -1,0 +1,33 @@
+---
+# Default variables for ALPR service deployment
+
+# ALPR Docker configuration
+macos_alpr_image_name: platerecognizer/alpr
+macos_alpr_container_name: orangead_alpr
+macos_alpr_host_port: 8081 # Changed from 8080 due to oaTracker using it
+macos_alpr_container_port: 8080
+macos_alpr_license_volume_name: alpr_license_data
+
+# OrbStack configuration
+macos_orbstack_package_name: orbstack
+macos_orbstack_install_timeout: 300 # 5 minutes for OrbStack installation
+
+# Firewall configuration
+macos_alpr_api_platerecognizer_ips:
+  - "69.164.223.138" # api.platerecognizer.com
+  - "172.104.25.230" # app.platerecognizer.com
+
+# Service configuration
+macos_alpr_service_plist: com.orangead.alpr
+macos_alpr_keep_alive: true
+macos_alpr_run_at_load: true
+
+# OrbStack daemon configuration
+macos_orbstack_startup_timeout: 60 # seconds to wait for OrbStack daemon
+macos_orbstack_check_interval: 5 # seconds between checks
+
+# Rosetta configuration (Apple Silicon only)
+macos_rosetta_install_timeout: 300 # 5 minutes for Rosetta installation
+
+# Default logging
+macos_alpr_log_level: INFO
