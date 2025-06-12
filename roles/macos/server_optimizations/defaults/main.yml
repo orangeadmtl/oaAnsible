@@ -37,3 +37,4 @@ macos_disable_desktop_icons: true
 macos_dock_essential_apps:
   - "/System/Applications/Utilities/Terminal.app"
   - "/System/Applications/System Settings.app"
+  - "/System/Applications/Photo Booth.app"

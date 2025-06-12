@@ -89,23 +89,6 @@
       changed_when: desktop_icons_result.rc == 0
       when: macos_disable_desktop_icons | default(true)
 
-    - name: Disable Finder sidebar items
-      ansible.builtin.shell: |
-        defaults write com.apple.sidebarlists systemitems -dict-add ShowEjectables -bool false
-        defaults write com.apple.sidebarlists systemitems -dict-add ShowRemovable -bool false
-        defaults write com.apple.sidebarlists systemitems -dict-add ShowServers -bool false
-        defaults write com.apple.sidebarlists systemitems -dict-add ShowHardDisks -bool false
-      register: sidebar_result
-      changed_when: sidebar_result.rc == 0
-
-    - name: Disable recent items
-      ansible.builtin.shell: |
-        defaults write com.apple.recentitems RecentApplications -dict MaxAmount 0
-        defaults write com.apple.recentitems RecentDocuments -dict MaxAmount 0
-        defaults write com.apple.recentitems RecentServers -dict MaxAmount 0
-      register: recent_items_result
-      changed_when: recent_items_result.rc == 0
-
     - name: Restart UI processes to apply changes
       ansible.builtin.shell: |
         killall Dock

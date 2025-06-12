@@ -34,6 +34,7 @@
 
     - name: Check if user has no password (common in VMs)
       ansible.builtin.shell: |
+        set -o pipefail
         dscl . -read /Users/{{ ansible_user | trim }} AuthenticationAuthority 2>/dev/null | grep -q "No such key" && echo "no_password" || echo "has_password"
       register: user_password_check
       changed_when: false
@@ -84,14 +85,6 @@
         - user_password_check.stdout == "no_password" or (ansible_password is not defined or ansible_password | length == 0)
       register: passwordless_autologin_result
       changed_when: passwordless_autologin_result.rc == 0
-
-    - name: Hide user list from login screen
-      ansible.builtin.shell: |
-        defaults write /Library/Preferences/com.apple.loginwindow.plist SHOWFULLNAME -bool true
-      become: true
-      when: macos_enable_auto_login | default(true)
-      register: hide_users_result
-      changed_when: hide_users_result.rc == 0
 
     - name: Disable guest user login
       ansible.builtin.shell: |

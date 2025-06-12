@@ -20,14 +20,6 @@
 
 - name: Disable unnecessary services
   block:
-    - name: Disable Bluetooth
-      ansible.builtin.shell: |
-        defaults write /Library/Preferences/com.apple.Bluetooth ControllerPowerState -int 0
-      become: true
-      register: bluetooth_result
-      changed_when: bluetooth_result.rc == 0
-      failed_when: false
-
     - name: Disable AirDrop
       ansible.builtin.shell: |
         defaults write com.apple.NetworkBrowser DisableAirDrop -bool true
