@@ -133,6 +133,19 @@
   changed_when: false
   register: pip_install_result
 
+# Fix ownership of any files created with wrong permissions during pip install
+- name: Fix ownership of virtual environment and cache directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: "{{ ansible_user }}"
+    group: staff
+    recurse: true
+  loop:
+    - "{{ ansible_user_dir }}/orangead/macos-api/.venv"
+    - "{{ ansible_user_dir }}/orangead/macos-api"
+  become: true
+  failed_when: false
+
 - name: Copy OpenCV verification script
   ansible.builtin.copy:
     src: verify_opencv.py
