@@ -15,7 +15,7 @@ configure:
 oa_environment:
   name: "pre-prod"
   allow_experimental: false
-  allow_server_optimizations: true
+  allow_server_optimizations: false
   allow_destructive_operations: false
   allow_tailscale_changes: false
   deploy_alpr_service: true
