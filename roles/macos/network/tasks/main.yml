@@ -88,6 +88,6 @@
         path: /etc/hosts
         marker: "# {mark} ORANGEAD DATABASE OVERRIDE"
         block: |
-          100.111.177.82 detectiondb.orangead.ca  # Force Tailscale routing
+          100.66.164.99 detectiondb.orangead.ca  # Force Tailscale routing
         create: yes
         mode: "0644"
