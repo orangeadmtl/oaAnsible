@@ -38,6 +38,8 @@
     - macos_cpu_arch.stdout == 'arm64'
     - macos_rosetta_check.rc != 0
   become: true
+  changed_when: false
+  failed_when: false
 
 - name: Display Rosetta installation status (Apple Silicon only)
   ansible.builtin.debug:
@@ -87,6 +89,8 @@
     path: /usr/local/bin/orbctl
   register: macos_orbstack_helper_check
   when: not is_vm_environment
+  changed_when: false
+  failed_when: false
 
 - name: Install OrbStack helper tools if needed (Physical hardware only)
   ansible.builtin.shell: |
@@ -97,6 +101,7 @@
   when:
     - not is_vm_environment
     - not macos_orbstack_helper_check.stat.exists
+  changed_when: false
   failed_when: false
 
 - name: Ensure OrbStack is started (Physical hardware only)
@@ -112,6 +117,7 @@
   when:
     - macos_docker_initial_check.rc != 0
     - not is_vm_environment
+  changed_when: false
   failed_when: false
 
 - name: Display OrbStack start status
@@ -120,6 +126,8 @@
   when:
     - macos_docker_initial_check.rc != 0
     - not is_vm_environment
+  changed_when: false
+  failed_when: false
 
 - name: Warning for VM environment
   ansible.builtin.debug:
@@ -195,6 +203,8 @@
       Operating System: {{ docker_info.OperatingSystem | default('Unknown') }}
       {% endif %}
   when: not is_vm_environment
+  changed_when: false
+  failed_when: false
 
 - name: Test Docker functionality with hello-world (Physical hardware only)
   ansible.builtin.shell: |
@@ -204,17 +214,21 @@
   environment:
     PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
   when: not is_vm_environment
+  changed_when: false
   failed_when: false
 
 - name: Display Docker test results (Physical hardware only)
   ansible.builtin.debug:
     msg: "Docker functionality test {{ 'passed' if macos_docker_test is succeeded else 'failed' }}"
   when: not is_vm_environment
+  changed_when: false
+  failed_when: false
 
 - name: Check for existing ALPR Docker image (Physical hardware only)
   community.docker.docker_image_info:
     name: "{{ macos_alpr_image_name }}"
   register: macos_alpr_image_info
+  changed_when: false
   failed_when: false
   environment:
     PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
@@ -234,6 +248,8 @@
   when:
     - not is_vm_environment
     - macos_alpr_image_info.images | length == 0
+  changed_when: false
+  failed_when: false
 
 - name: Display image pull status (Physical hardware only)
   ansible.builtin.debug:
@@ -332,6 +348,8 @@
     owner: "{{ ansible_user }}"
     group: staff
   become: true
+  changed_when: false
+  failed_when: false
 
 - name: Create ALPR Docker volume for license data (Physical hardware only)
   community.docker.docker_volume:
@@ -340,25 +358,31 @@
   environment:
     PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
   when: not is_vm_environment
+  changed_when: false
+  failed_when: false
 
 - name: Force stop and cleanup existing ALPR LaunchAgent (Physical hardware only)
   ansible.builtin.shell: |
+    set -o pipefail
     # Force stop LaunchAgent
     launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist 2>/dev/null || true
     # Wait a moment for graceful shutdown
     sleep 2
   become: false
+  changed_when: false
   failed_when: false
   when: not is_vm_environment
 
 - name: Force stop and remove existing ALPR container (Physical hardware only)
   ansible.builtin.shell: |
+    set -o pipefail
     # Force stop and remove any existing container
     docker stop {{ macos_alpr_container_name }} 2>/dev/null || true
     docker rm -f {{ macos_alpr_container_name }} 2>/dev/null || true
     # Clean up any orphaned containers with the same image
     docker ps -a --filter "ancestor={{ macos_alpr_image_name }}" --format "{% raw %}{{.ID}}{% endraw %}" | xargs -r docker rm -f 2>/dev/null || true
   register: macos_alpr_container_cleanup
+  changed_when: false
   failed_when: false
   environment:
     PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
@@ -374,10 +398,13 @@
   become: false
   notify: Reload ALPR service
   register: macos_alpr_plist_created
+  changed_when: false
+  failed_when: false
   when: not is_vm_environment
 
 - name: Force load ALPR service (Physical hardware only)
   ansible.builtin.shell: |
+    set -o pipefail
     # Unload first to ensure clean state
     launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist 2>/dev/null || true
     sleep 2
@@ -410,6 +437,7 @@
 
 - name: Check ALPR container status via Docker CLI (Physical hardware only)
   ansible.builtin.shell: |
+    set -o pipefail
     # Check if container is running
     if docker ps --filter "name={{ macos_alpr_container_name }}" --format "{% raw %}{{.Names}}{% endraw %}" | grep -q "{{ macos_alpr_container_name }}"; then
       echo "Running: $(docker ps --filter 'name={{ macos_alpr_container_name }}' --format '{% raw %}{{.Status}}{% endraw %}')"
@@ -440,6 +468,7 @@
 
 - name: Final ALPR service health check (Physical hardware only)
   ansible.builtin.shell: |
+    set -o pipefail
     # Wait a bit more for container to stabilize
     sleep 10
     # Check final status

@@ -274,6 +274,7 @@
         $PYENV_ROOT/bin/pyenv install {{ macos_python.version }}
       when: not python_version_installed
       register: python_install_attempt1
+      changed_when: false
       failed_when: false
       async: 600
       poll: 30
