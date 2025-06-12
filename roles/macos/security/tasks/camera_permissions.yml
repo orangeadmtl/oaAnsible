@@ -77,8 +77,8 @@
     api_python: "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3"
     tracker_python: "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python3"
     python_execs:
-      real_api: "/Users/{{ ansible_user }}/.pyenv/versions/3.11.11/bin/python3.11"
-      real_tracker: "/Users/{{ ansible_user }}/.pyenv/versions/3.11.11/bin/python3.11"
+      real_api: "{{ ansible_user_dir }}/.pyenv/versions/{{ python.version }}/bin/python3.{{ python.version.split('.')[0] }}.{{ python.version.split('.')[1] }}"
+      real_tracker: "{{ ansible_user_dir }}/.pyenv/versions/{{ python.version }}/bin/python3.{{ python.version.split('.')[0] }}.{{ python.version.split('.')[1] }}"
 
 # Show Python executable paths
 - name: Show Python executable paths
@@ -101,6 +101,10 @@
         type: 1 # Executable path
       - name: "{{ setsid_path.stdout }}"
         type: 1 # Executable path (dynamically found)
+      - name: "/usr/bin/nohup"
+        type: 1 # Executable path (for new oaTracker execution chain)
+      - name: "/bin/bash"
+        type: 1 # Executable path (shell that may execute tracker scripts)
       - name: "/usr/local/bin/tailscaled"
         type: 1 # Executable path
       - name: "{{ ansible_user_dir }}/go/bin/tailscaled"
@@ -142,6 +146,14 @@
   ansible.builtin.set_fact:
     setsid_access_status: "{% if camera_status.setsid_access | int > 0 %}Granted{% else %}Not granted{% endif %}"
 
+- name: Set nohup access status
+  ansible.builtin.set_fact:
+    nohup_access_status: "{% if camera_status.nohup_access | int > 0 %}Granted{% else %}Not granted{% endif %}"
+
+- name: Set bash access status
+  ansible.builtin.set_fact:
+    bash_access_status: "{% if camera_status.bash_access | int > 0 %}Granted{% else %}Not granted{% endif %}"
+
 - name: Set Tailscale access status
   ansible.builtin.set_fact:
     tailscale_access_status: "{% if camera_status.tailscale_access | int > 0 %}Granted{% else %}Not granted{% endif %}"
@@ -173,6 +185,8 @@
       - API Python: {{ api_access_status }}
       - Tracker Python: {{ tracker_access_status }}
       - setsid ({{ setsid_path.stdout }}): {{ setsid_access_status }}
+      - nohup (/usr/bin/nohup): {{ nohup_access_status }}
+      - bash (/bin/bash): {{ bash_access_status }}
       - Tailscale: {{ tailscale_access_status }}
       - Terminal: {{ terminal_access_status }}
       - SSH: {{ ssh_access_status }}
@@ -195,6 +209,14 @@
   ansible.builtin.set_fact:
     setsid_access_missing: "{% if camera_status.setsid_access | int == 0 %}true{% else %}false{% endif %}"
 
+- name: Check if nohup access is missing
+  ansible.builtin.set_fact:
+    nohup_access_missing: "{% if camera_status.nohup_access | int == 0 %}true{% else %}false{% endif %}"
+
+- name: Check if bash access is missing
+  ansible.builtin.set_fact:
+    bash_access_missing: "{% if camera_status.bash_access | int == 0 %}true{% else %}false{% endif %}"
+
 - name: Check if Tailscale access is missing
   ansible.builtin.set_fact:
     tailscale_access_missing: "{% if camera_status.tailscale_access | int == 0 %}true{% else %}false{% endif %}"
@@ -209,8 +231,27 @@
 
 - name: Check if camera permissions need to be granted
   ansible.builtin.set_fact:
-    need_camera_permissions: "{{ api_access_missing == 'true' or tracker_access_missing == 'true' or setsid_access_missing == 'true' or tailscale_access_missing ==
-      'true' or terminal_access_missing == 'true' or ssh_access_missing == 'true' }}"
+    need_camera_permissions: "{{ api_access_missing == 'true' or tracker_access_missing == 'true' or setsid_access_missing == 'true' or nohup_access_missing == 'true'
+      or bash_access_missing == 'true' or tailscale_access_missing == 'true' or terminal_access_missing == 'true' or ssh_access_missing == 'true' }}"
+
+# Grant Full Disk Access first (required for TCC database access)
+- name: Create script to grant Full Disk Access
+  ansible.builtin.template:
+    src: grant_full_disk_access.sh.j2
+    dest: /tmp/grant_full_disk_access.sh
+    mode: "0755"
+  changed_when: true
+
+- name: Run script to grant Full Disk Access
+  ansible.builtin.command: /tmp/grant_full_disk_access.sh
+  register: grant_fda_result
+  changed_when: true
+  failed_when: false
+
+- name: Display Full Disk Access grant results
+  ansible.builtin.debug:
+    msg: "{{ grant_fda_result.stdout_lines }}"
+  when: grant_fda_result is defined
 
 # Always create and run the grant script to ensure permissions are set correctly
 # This is needed because the check might not accurately detect if the TCC database needs initialization
@@ -230,18 +271,35 @@
 - name: Display camera permission grant results
   ansible.builtin.debug:
     msg: "{{ grant_camera_result.stdout_lines }}"
-  when: need_camera_permissions
+  when: grant_camera_result is defined
 
-- name: Display grant camera result
+- name: Display grant camera result (debug)
   ansible.builtin.debug:
-    msg: "{{ grant_camera_result.stdout_lines }}"
-  when: need_camera_permissions and grant_camera_result is defined
+    msg: |
+      Grant camera result available: {{ grant_camera_result is defined }}
+      Need camera permissions: {{ need_camera_permissions }}
+      Grant camera result: {{ grant_camera_result.stdout_lines if grant_camera_result is defined else 'Not available' }}
 
 # Verify camera access
 - name: Check if camera permissions are granted
   ansible.builtin.set_fact:
-    camera_permissions_granted: "{{ api_access_status == 'Granted' and tracker_access_status == 'Granted' and setsid_access_status == 'Granted' and tailscale_access_status
-      == 'Granted' and terminal_access_status == 'Granted' and ssh_access_status == 'Granted' }}"
+    camera_permissions_granted: "{{ api_access_status == 'Granted' and tracker_access_status == 'Granted' and setsid_access_status == 'Granted' and nohup_access_status
+      == 'Granted' and bash_access_status == 'Granted' and tailscale_access_status == 'Granted' and terminal_access_status == 'Granted' and ssh_access_status == 'Granted'
+      }}"
+
+- name: Debug camera permissions granted status
+  ansible.builtin.debug:
+    msg: |
+      Camera permissions granted status: {{ camera_permissions_granted }}
+      Individual statuses:
+      - API: {{ api_access_status }}
+      - Tracker: {{ tracker_access_status }}
+      - setsid: {{ setsid_access_status }}
+      - nohup: {{ nohup_access_status }}
+      - bash: {{ bash_access_status }}
+      - Tailscale: {{ tailscale_access_status }}
+      - Terminal: {{ terminal_access_status }}
+      - SSH: {{ ssh_access_status }}
 
 - name: Create script to verify camera access
   ansible.builtin.template:
@@ -249,18 +307,16 @@
     dest: /tmp/verify_camera_access.sh
     mode: "0755"
   changed_when: true
-  when: camera_permissions_granted
 
 - name: Run script to verify camera access
   ansible.builtin.command: /tmp/verify_camera_access.sh
   register: verify_camera_result
   changed_when: false
-  when: camera_permissions_granted
 
 - name: Display verify camera result
   ansible.builtin.debug:
     msg: "{{ verify_camera_result.stdout_lines }}"
-  when: camera_permissions_granted and verify_camera_result is defined
+  when: verify_camera_result is defined
 
 # Verify camera permissions after granting
 - name: Create script to verify camera permissions
