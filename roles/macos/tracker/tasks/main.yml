@@ -231,10 +231,28 @@
     - "{{ ansible_user_dir }}/orangead/tracker/data"
   become: true
 
-# Make sure start.sh script is executable
+# Make sure scripts are executable
 - name: Ensure start.sh script is executable
   ansible.builtin.file:
     path: "{{ ansible_user_dir }}/orangead/tracker/scripts/start.sh"
+    state: file
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: staff
+  become: true
+
+- name: Ensure start_api.sh script is executable
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/orangead/tracker/start_api.sh"
+    state: file
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: staff
+  become: true
+
+- name: Ensure start_detection.sh script is executable
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/orangead/tracker/start_detection.sh"
     state: file
     mode: "0755"
     owner: "{{ ansible_user }}"
@@ -310,6 +328,19 @@
   environment:
     PATH: "/opt/homebrew/bin:/opt/homebrew/sbin:{{ ansible_user_dir }}/.local/bin:{{ ansible_env.PATH }}"
 
+# Fix ownership of any files created with wrong permissions during setup
+- name: Fix ownership of virtual environment and cache directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: "{{ ansible_user }}"
+    group: staff
+    recurse: true
+  loop:
+    - "{{ ansible_user_dir }}/orangead/tracker/.venv"
+    - "{{ ansible_user_dir }}/orangead/tracker"
+  become: true
+  failed_when: false
+
 - name: Display setup script output
   ansible.builtin.debug:
     msg: "{{ setup_result.stdout_lines }}"
@@ -358,16 +389,50 @@
     group: staff
   become: true
 
-# Create symlink for tracker output
-- name: Create symlink from /var/log/orangead/tracker.txt to output.txt
+# Clean up any existing broken symlinks first
+- name: Remove any existing output.txt symlink/file
   ansible.builtin.file:
-    src: /var/log/orangead/tracker.txt
-    dest: "{{ ansible_user_dir }}/orangead/tracker/output.txt"
+    path: "{{ ansible_user_dir }}/orangead/tracker/output.txt"
+    state: absent
+  become: true
+
+- name: Remove any existing nohup.out file
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/orangead/tracker/nohup.out"
+    state: absent
+  become: true
+
+- name: Remove any existing centralized log symlinks
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/log/orangead/tracker.txt
+    - /var/log/orangead/tracker.log
+  become: true
+
+# Create centralized log symlink to output.txt (with timestamps)
+- name: Create symlink from /var/log/orangead/tracker.log to output.txt
+  ansible.builtin.file:
+    src: "{{ ansible_user_dir }}/orangead/tracker/output.txt"
+    dest: /var/log/orangead/tracker.log
     state: link
-    owner: "{{ ansible_user }}"
-    group: staff
+    follow: false
     force: true
   become: true
+
+# Cleanup old incorrectly named plist files
+- name: Stop and unload old API service (com.orangead.api)
+  ansible.builtin.command: launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.api.plist
+  become: false
+  failed_when: false
+  changed_when: false
+
+- name: Remove old incorrectly named API plist file
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.api.plist"
+    state: absent
+  become: false
 
 # Setup launchd service
 - name: Ensure LaunchAgents directory exists
@@ -392,20 +457,26 @@
 - name: Template API launchd service file
   ansible.builtin.template:
     src: com.orangead.tracker_api.plist.j2
-    dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.api.plist"
+    dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker_api.plist"
     owner: "{{ ansible_user }}"
     group: staff
     mode: "0644"
   become: false
   register: launchd_api_service
+  when: macos_deploy_tracker_api | default(true)
 
-- name: Reload services when changed
+- name: Reload tracker service when changed
   ansible.builtin.meta: flush_handlers
-  when: launchd_service.changed or launchd_api_service.changed
+  when: launchd_service.changed
   notify:
     - Unload existing launchd service
     - Load launchd service
     - Start launchd service
+
+- name: Reload API service when changed
+  ansible.builtin.meta: flush_handlers
+  when: launchd_api_service.changed and macos_deploy_tracker_api | default(true)
+  notify:
     - Unload existing API launchd service
     - Load API launchd service
     - Start API launchd service

@@ -6,7 +6,9 @@
     <string>com.orangead.tracker</string>
     <key>ProgramArguments</key>
     <array>
-        <string>{{ ansible_user_dir }}/orangead/tracker/scripts/start_detection.sh</string>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>exec {{ ansible_user_dir }}/orangead/tracker/scripts/start.sh 2>&1 | while IFS= read -r line; do echo "$(date '+%Y-%m-%d %H:%M:%S'): $line"; done | tee -a {{ ansible_user_dir }}/orangead/tracker/output.txt</string>
     </array>
     <key>WorkingDirectory</key>
     <string>{{ ansible_user_dir }}/orangead/tracker</string>
@@ -14,10 +16,6 @@
     <true/>
     <key>KeepAlive</key>
     <true/>
-    <key>StandardOutPath</key>
-    <string>/var/log/orangead/tracker.txt</string>
-    <key>StandardErrorPath</key>
-    <string>/var/log/orangead/tracker.txt</string>
     <key>UserName</key>
     <string>{{ ansible_user }}</string>
     <key>EnvironmentVariables</key>
