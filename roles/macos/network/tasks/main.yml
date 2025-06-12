@@ -71,3 +71,23 @@
         dest: "{{ ansible_env.HOME }}/.dns_backup_dhcp"
         mode: "0600"
       when: macos_configure.tailscale | bool and dhcp_dns_servers_list | length > 0
+
+- name: Configure Database DNS Override
+  become: true
+  tags: ["dns", "network", "database"]
+  block:
+    - name: Backup original /etc/hosts
+      ansible.builtin.copy:
+        src: /etc/hosts
+        dest: /etc/hosts.backup
+        backup: yes
+        mode: "0644"
+      
+    - name: Override detectiondb.orangead.ca with Tailscale IP
+      ansible.builtin.blockinfile:
+        path: /etc/hosts
+        marker: "# {mark} ORANGEAD DATABASE OVERRIDE"
+        block: |
+          100.111.177.82 detectiondb.orangead.ca  # Force Tailscale routing
+        create: yes
+        mode: "0644"

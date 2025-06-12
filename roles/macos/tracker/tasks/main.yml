@@ -79,6 +79,7 @@
     mode: "0755"
   become: true
 
+
 # Check if tracker directory exists and is not empty
 - name: Check if tracker directory exists
   ansible.builtin.stat:
@@ -124,14 +125,28 @@
   become_user: "{{ ansible_user }}"
   failed_when: false
 
-# Backup and clean non-empty directory that is not a git repository
+# Backup and clean non-empty directory that is not a git repository (preserve logs)
 - name: Backup and clean non-empty directory that is not a git repository
   ansible.builtin.shell: |
     set -o pipefail
     BACKUP_DIR="{{ ansible_user_dir }}/orangead/tracker_backup_$(date +%Y%m%d_%H%M%S)"
     echo "Backing up existing files to $BACKUP_DIR"
     mkdir -p "$BACKUP_DIR"
+    # Copy everything to backup
     cp -R "{{ ansible_user_dir }}/orangead/tracker/"* "$BACKUP_DIR/" 2>/dev/null || true
+    # Save logs, output.txt, and database before cleanup
+    if [ -d "{{ ansible_user_dir }}/orangead/tracker/logs" ]; then
+      mkdir -p /tmp/tracker_logs_preserve
+      cp -R "{{ ansible_user_dir }}/orangead/tracker/logs/"* /tmp/tracker_logs_preserve/ 2>/dev/null || true
+    fi
+    if [ -f "{{ ansible_user_dir }}/orangead/tracker/output.txt" ]; then
+      cp "{{ ansible_user_dir }}/orangead/tracker/output.txt" /tmp/tracker_output_preserve.txt 2>/dev/null || true
+    fi
+    if [ -d "{{ ansible_user_dir }}/orangead/tracker/data" ]; then
+      mkdir -p /tmp/tracker_data_preserve
+      cp -R "{{ ansible_user_dir }}/orangead/tracker/data/"* /tmp/tracker_data_preserve/ 2>/dev/null || true
+    fi
+    # Clean directory
     rm -rf "{{ ansible_user_dir }}/orangead/tracker"
     mkdir -p "{{ ansible_user_dir }}/orangead/tracker"
   become: true
@@ -210,6 +225,36 @@
     msg: "{{ 'Repository updated: ' + git_update_result.after if git_update_result.changed else 'Repository already at latest version' }}"
   when: git_update_result is defined and git_update_result.changed is defined
 
+# Restore preserved logs after git operations
+- name: Restore preserved logs and output.txt
+  ansible.builtin.shell: |
+    set -o pipefail
+    # Restore logs if they were preserved
+    if [ -d /tmp/tracker_logs_preserve ]; then
+      mkdir -p "{{ ansible_user_dir }}/orangead/tracker/logs"
+      cp -R /tmp/tracker_logs_preserve/* "{{ ansible_user_dir }}/orangead/tracker/logs/" 2>/dev/null || true
+      rm -rf /tmp/tracker_logs_preserve
+      echo "Restored preserved logs"
+    fi
+    # Restore output.txt if it was preserved
+    if [ -f /tmp/tracker_output_preserve.txt ]; then
+      cp /tmp/tracker_output_preserve.txt "{{ ansible_user_dir }}/orangead/tracker/output.txt" 2>/dev/null || true
+      rm -f /tmp/tracker_output_preserve.txt
+      echo "Restored preserved output.txt"
+    fi
+    # Restore data directory if it was preserved
+    if [ -d /tmp/tracker_data_preserve ]; then
+      mkdir -p "{{ ansible_user_dir }}/orangead/tracker/data"
+      cp -R /tmp/tracker_data_preserve/* "{{ ansible_user_dir }}/orangead/tracker/data/" 2>/dev/null || true
+      rm -rf /tmp/tracker_data_preserve
+      echo "Restored preserved data directory"
+    fi
+  register: restore_result
+  changed_when: restore_result.stdout is search('Restored preserved')
+  become: true
+  become_user: "{{ ansible_user }}"
+  when: backup_result is defined and backup_result.changed
+
 # Set proper ownership
 - name: Set proper ownership for tracker files
   ansible.builtin.file:
@@ -240,6 +285,7 @@
     owner: "{{ ansible_user }}"
     group: staff
   become: true
+
 
 - name: Ensure start_api.sh script is executable
   ansible.builtin.file:
