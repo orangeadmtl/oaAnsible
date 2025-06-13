@@ -109,11 +109,11 @@ alias ping='ping -c 5'
 alias ports='netstat -tulanp'
 
 # Tailscale aliases (if available)
-if command -v tailscale > /dev/null; then
-    alias ts='tailscale'
-    alias tss='tailscale status'
-    alias tsf='tailscale funnel'
-fi
+# if command -v tailscale > /dev/null; then
+#     alias ts='tailscale'
+#     alias tss='tailscale status'
+#     alias tsf='tailscale funnel'
+# fi
 
 # Add common paths to PATH if they exist
 if [ -d "/usr/local/bin" ]; then
