@@ -39,6 +39,7 @@ system:
 # Tracker configuration
 tracker:
   repository_url: "https://github.com/oa-device/oaTracker.git"
+  git_version: "main"
   default_yolo_source: 0
   default_model: "yolo12s.pt"
   server_port: 8080
