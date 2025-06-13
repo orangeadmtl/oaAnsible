@@ -225,9 +225,9 @@
   failed_when: false
 
 - name: Check for existing ALPR Docker image (Physical hardware only)
-  community.docker.docker_image_info:
-    name: "{{ macos_alpr_image_name }}"
-  register: macos_alpr_image_info
+  ansible.builtin.shell: |
+    docker images | grep -q "{{ macos_alpr_image_name | regex_escape }}" || echo "image_not_found"
+  register: macos_alpr_image_check
   changed_when: false
   failed_when: false
   environment:
@@ -236,7 +236,6 @@
 
 - name: Pull ALPR Docker image with platform specification (Physical hardware only)
   ansible.builtin.shell: |
-    # Pull image with platform specification for ARM64 Macs
     {% if macos_cpu_arch.stdout == 'arm64' %}
     docker pull --platform linux/amd64 {{ macos_alpr_image_name }}
     {% else %}
@@ -247,7 +246,8 @@
     PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
   when:
     - not is_vm_environment
-    - macos_alpr_image_info.images | length == 0
+    - macos_alpr_image_check.stdout is defined
+    - macos_alpr_image_check.stdout | trim == "image_not_found"
   changed_when: false
   failed_when: false
 
