@@ -72,9 +72,11 @@
 
     - role: macos/api
       tags: ["api", "services"]
+      when: "'macos/api' not in (skip_roles | default([]))"
 
     - role: macos/tracker
       tags: ["tracker", "services"]
+      when: "'macos/tracker' not in (skip_roles | default([]))"
 
     - role: macos/alpr_service # Docker and ALPR service deployment
       tags: ["alpr", "docker", "services"]
