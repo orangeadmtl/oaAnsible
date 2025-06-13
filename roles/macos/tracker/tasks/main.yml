@@ -189,15 +189,59 @@
   become: true
   become_user: "{{ ansible_user }}"
 
+# Merge global and device-specific tracker configuration  
+- name: Load global tracker config from group_vars
+  ansible.builtin.include_vars:
+    file: "{{ inventory_dir }}/group_vars/all.yml"
+    name: global_vars
+
+- name: Validate global tracker config exists
+  ansible.builtin.fail:
+    msg: "Global tracker configuration not found in group_vars/all.yml"
+  when: global_vars.tracker is not defined
+
+- name: Set global tracker config
+  ansible.builtin.set_fact:
+    global_tracker_config: "{{ global_vars.tracker }}"
+
+- name: Get device-specific tracker config
+  ansible.builtin.set_fact:
+    device_tracker_config: "{{ tracker | default({}) }}"
+
+- name: Merge global and device-specific tracker configs
+  ansible.builtin.set_fact:
+    merged_tracker_config: "{{ global_tracker_config | combine(device_tracker_config, recursive=True) }}"
+
+- name: Debug merged tracker configuration
+  ansible.builtin.debug:
+    msg: "Merged tracker config: {{ merged_tracker_config }}"
+
+# Determine final git version with proper priority: commit > branch > default
+- name: Set final git version (prioritize specific commit over branch)
+  ansible.builtin.set_fact:
+    final_git_version: >-
+      {%- if merged_tracker_config.git_version is defined and merged_tracker_config.git_version != global_tracker_config.git_version -%}
+        {{ merged_tracker_config.git_version }}
+      {%- elif tracker_git_branch is defined -%}
+        {{ tracker_git_branch }}
+      {%- else -%}
+        {{ merged_tracker_config.git_version }}
+      {%- endif -%}
+
+# Debug git version being used  
+- name: Display git version being used for tracker
+  ansible.builtin.debug:
+    msg: "Using git version: {{ final_git_version }} (priority: device-commit > device-branch > global-default)"
+
 # Clone the tracker repository if it doesn't exist or was cleaned
 - name: Clone oaTracker repository
   ansible.builtin.git:
-    repo: "{{ tracker.repository_url }}"
+    repo: "{{ merged_tracker_config.repository_url }}"
     dest: "{{ ansible_user_dir }}/orangead/tracker"
     clone: true
     update: true
     force: false
-    version: "{{ tracker.git_version | default('main') }}"
+    version: "{{ final_git_version }}"
   become: true
   become_user: "{{ ansible_user }}"
   when: git_repo_status.stdout == "not_git_repo" or dir_content_status.stdout == "directory_empty_or_missing"
@@ -209,11 +253,11 @@
 # Update the tracker repository if it already exists
 - name: Update oaTracker repository
   ansible.builtin.git:
-    repo: "{{ tracker.repository_url }}"
+    repo: "{{ merged_tracker_config.repository_url }}"
     dest: "{{ ansible_user_dir }}/orangead/tracker"
     update: true
     force: false
-    version: "{{ tracker.git_version | default('main') }}"
+    version: "{{ final_git_version }}"
   become: true
   become_user: "{{ ansible_user }}"
   when: git_repo_status.stdout == "is_git_repo"
@@ -434,11 +478,18 @@
   become: true
 
 # Clean up any existing broken symlinks first
-- name: Remove any existing output.txt symlink/file
+- name: Check if output.txt is a symlink
+  ansible.builtin.stat:
+    path: "{{ ansible_user_dir }}/orangead/tracker/output.txt"
+  register: output_txt_stat
+  become: true
+
+- name: Remove output.txt only if it's a symlink
   ansible.builtin.file:
     path: "{{ ansible_user_dir }}/orangead/tracker/output.txt"
     state: absent
   become: true
+  when: output_txt_stat.stat.exists and output_txt_stat.stat.islnk
 
 - name: Remove any existing nohup.out file
   ansible.builtin.file:

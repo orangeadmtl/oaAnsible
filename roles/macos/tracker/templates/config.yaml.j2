@@ -1,4 +1,4 @@
-default_yolo_source: {{ tracker.default_yolo_source | default(0) }}
+default_yolo_source: {{ merged_tracker_config.default_yolo_source }}
 cam_id: {{ cam_id | default('macos-' + inventory_hostname) }}
 cors:
   allowed_headers:
@@ -27,7 +27,7 @@ counters:
         - 100
       - - 0
         - 100
-default_model: {{ tracker.default_model | default('yoloe-11s-seg-custom.pt') }}
-default_server_port: {{ tracker.server_port | default(8080) }}
+default_model: {{ merged_tracker_config.default_model }}
+default_server_port: {{ merged_tracker_config.server_port }}
 access_key: {{ vault_tracker_access_key }}
 secret_key: {{ vault_tracker_secret_key }}

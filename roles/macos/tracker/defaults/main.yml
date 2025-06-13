@@ -4,3 +4,6 @@
 
 # Deploy tracker API alongside tracker (simple and efficient approach)
 macos_deploy_tracker_api: true
+
+# Git branch configuration - can be overridden per device
+tracker_git_branch: "{{ tracker.git_version | default('main') }}"
