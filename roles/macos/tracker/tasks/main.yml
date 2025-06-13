@@ -79,7 +79,6 @@
     mode: "0755"
   become: true
 
-
 # Check if tracker directory exists and is not empty
 - name: Check if tracker directory exists
   ansible.builtin.stat:
@@ -285,7 +284,6 @@
     owner: "{{ ansible_user }}"
     group: staff
   become: true
-
 
 - name: Ensure start_api.sh script is executable
   ansible.builtin.file:

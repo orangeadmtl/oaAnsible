@@ -80,14 +80,14 @@
       ansible.builtin.copy:
         src: /etc/hosts
         dest: /etc/hosts.backup
-        backup: yes
+        backup: true
         mode: "0644"
-      
+
     - name: Override detectiondb.orangead.ca with Tailscale IP
       ansible.builtin.blockinfile:
         path: /etc/hosts
         marker: "# {mark} ORANGEAD DATABASE OVERRIDE"
         block: |
           100.66.164.99 detectiondb.orangead.ca  # Force Tailscale routing
-        create: yes
+        create: true
         mode: "0644"
