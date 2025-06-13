@@ -1,0 +1,13 @@
+---
+# Ubuntu security role handlers
+
+- name: Restart ssh
+  ansible.builtin.systemd:
+    name: ssh
+    state: restarted
+  become: true
+
+- name: Enable ufw
+  ufw:
+    state: enabled
+  become: true

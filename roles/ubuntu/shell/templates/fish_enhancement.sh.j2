@@ -1,0 +1,178 @@
+#!/bin/bash
+# fish_enhancement.sh
+# This script enhances the fish shell experience with theming and aliases
+
+set -e
+
+USER_HOME="/home/{{ ansible_user }}"
+FISH_CONFIG_DIR="$USER_HOME/.config/fish"
+
+# Create fish config if it doesn't exist
+mkdir -p "$FISH_CONFIG_DIR/functions"
+
+# Create custom fish configuration
+cat > "$FISH_CONFIG_DIR/config.fish" << 'EOL'
+# Fish shell configuration for {{ ansible_user }}@{{ inventory_hostname }}
+
+# Set custom prompt function
+function fish_prompt
+    set_color green
+    echo -n (whoami)
+    set_color normal
+    echo -n "@"
+    set_color blue
+    echo -n (hostname)
+    set_color normal
+    echo -n ":"
+    set_color cyan
+    echo -n (prompt_pwd)
+    set_color normal
+    
+    # Add git status if in git repo
+    if git rev-parse --git-dir > /dev/null 2>&1
+        set_color yellow
+        echo -n " ("
+        set_color red
+        echo -n (git branch --show-current 2>/dev/null || echo "detached")
+        
+        # Show git status
+        if not git diff-index --quiet HEAD -- 2>/dev/null
+            set_color yellow
+            echo -n " ✗"
+        end
+        
+        set_color yellow
+        echo -n ")"
+    end
+    
+    set_color normal
+    echo -n " \$ "
+end
+
+# Directory listing aliases using lsd
+alias ls='lsd --group-dirs first'
+alias l='ls -lah'
+alias la='ls -A'
+alias ll='ls -alhF'
+alias lsa='ls -lah'
+alias lt='lsd --tree'
+
+# Additional useful aliases
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias grep='grep --color=auto'
+alias df='df -h'
+alias du='du -h'
+alias free='free -h'
+alias ps='ps aux'
+alias top='htop'
+
+# Git aliases
+alias g='git'
+alias gs='git status'
+alias ga='git add'
+alias gc='git commit'
+alias gp='git push'
+alias gl='git log --oneline'
+alias gd='git diff'
+
+# System aliases
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+alias update='sudo apt update && sudo apt upgrade'
+alias install='sudo apt install'
+alias search='apt search'
+
+# Network aliases
+alias ping='ping -c 5'
+alias ports='netstat -tulanp'
+
+# Set environment variables
+set -gx EDITOR vim
+set -gx LANG en_US.UTF-8
+
+# Add common paths to PATH if they exist
+if test -d /usr/local/bin
+    fish_add_path /usr/local/bin
+end
+
+if test -d "$HOME/.local/bin"
+    fish_add_path "$HOME/.local/bin"
+end
+
+if test -d "$HOME/bin"
+    fish_add_path "$HOME/bin"
+end
+
+# Tailscale tab completion
+if command -v tailscale > /dev/null
+    tailscale completion fish | source
+end
+
+# Enable syntax highlighting and autosuggestions
+set -g fish_color_command blue
+set -g fish_color_param cyan
+set -g fish_color_redirection yellow
+set -g fish_color_comment red
+set -g fish_color_error red --bold
+set -g fish_color_escape green
+set -g fish_color_operator yellow
+set -g fish_color_end magenta
+set -g fish_color_quote green
+set -g fish_color_autosuggestion brblack
+set -g fish_color_user green
+set -g fish_color_host blue
+set -g fish_color_valid_path --underline
+set -g fish_color_cwd cyan
+set -g fish_color_cwd_root red
+
+# History settings
+set -g fish_history_max 10000
+
+# Welcome message
+function fish_greeting
+    set_color green
+    echo "Welcome to Fish Shell on {{ inventory_hostname }}!"
+    set_color normal
+    echo "Enhanced shell with custom aliases and theming."
+    echo "Type 'alias' to see available shortcuts."
+end
+
+EOL
+
+# Create a custom fish function for better ls integration
+cat > "$FISH_CONFIG_DIR/functions/ls.fish" << 'EOL'
+function ls --description 'List contents of directory using lsd'
+    if command -v lsd > /dev/null
+        command lsd --group-dirs first $argv
+    else
+        command ls --color=auto $argv
+    end
+end
+EOL
+
+# Create a function for the tree command using lsd
+cat > "$FISH_CONFIG_DIR/functions/tree.fish" << 'EOL'
+function tree --description 'Display directory tree using lsd'
+    if command -v lsd > /dev/null
+        command lsd --tree $argv
+    else
+        echo "lsd not available, using basic find"
+        find . -type d | sed -e "s/[^-][^\/]*\//  |/g" -e "s/|\([^ ]\)/|-\1/"
+    end
+end
+EOL
+
+# Create a function for quick directory navigation
+cat > "$FISH_CONFIG_DIR/functions/mkcd.fish" << 'EOL'
+function mkcd --description 'Create directory and navigate to it'
+    mkdir -p $argv[1] && cd $argv[1]
+end
+EOL
+
+echo "Fish shell configuration enhanced successfully!"
+echo "Configuration created at: $FISH_CONFIG_DIR/config.fish"
+echo "Custom functions created for ls, tree, and mkcd"
+echo "Aliases configured for directory listing with lsd"

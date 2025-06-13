@@ -1,0 +1,16 @@
+---
+# Ubuntu Tailscale role defaults
+
+# Tailscale configuration
+tailscale_auth_key: "{{ vault_tailscale_auth_key }}"
+tailscale_hostname: "{{ inventory_hostname }}"
+tailscale_tags:
+  - "tag:oa-server"
+  - "tag:oa-ubuntu"
+tailscale_enable_ssh: true
+tailscale_advertise_routes:
+  - "192.168.1.0/24"
+
+# Tailscale package repository
+tailscale_apt_key_url: "https://pkgs.tailscale.com/stable/ubuntu/jammy.noarmor.gpg"
+tailscale_apt_repo: "deb https://pkgs.tailscale.com/stable/ubuntu jammy main"

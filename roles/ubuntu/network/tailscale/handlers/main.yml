@@ -1,0 +1,9 @@
+---
+# Ubuntu Tailscale role handlers
+
+- name: Verify tailscale connection
+  ansible.builtin.command: tailscale status
+  register: tailscale_status
+  become: true
+  failed_when: tailscale_status.rc != 0
+  changed_when: false

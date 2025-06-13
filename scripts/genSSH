@@ -1,5 +1,18 @@
 #!/bin/bash
 
+# SSH Key Deployment Script
+# Deploys SSH public keys to macOS and Ubuntu servers
+#
+# Usage:
+#   Interactive mode: ./genSSH
+#   Non-interactive: ./genSSH <ip> <user> [password]
+#
+# Examples:
+#   ./genSSH 192.168.1.247 kai
+#   ./genSSH 192.168.1.100 ubuntu mypassword
+#
+# Supports both macOS and Ubuntu server groups in inventory
+
 # Source helper functions and variables
 HELPER_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
 if [ -f "$HELPER_SCRIPT_PATH" ]; then
@@ -34,14 +47,31 @@ if [ $# -eq 3 ]; then
   
   # Determine inventory and host alias based on IP
   TARGET_INVENTORY_PATH="$OA_ANSIBLE_INVENTORY_DIR/staging/hosts.yml"
-  # Find the host alias for this IP
-  TARGET_HOST_ALIAS=$(yq e ".all.children.macos.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$TARGET_INVENTORY_PATH")
-  if [ -z "$TARGET_HOST_ALIAS" ] || [ "$TARGET_HOST_ALIAS" == "null" ]; then
+  # Find the host alias for this IP across all host groups
+  TARGET_HOST_ALIAS=""
+  
+  # Search in macos group
+  MACOS_HOST=$(yq e ".all.children.macos.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$TARGET_INVENTORY_PATH")
+  if [ -n "$MACOS_HOST" ] && [ "$MACOS_HOST" != "null" ]; then
+    TARGET_HOST_ALIAS="$MACOS_HOST"
+    TARGET_HOST_GROUP="macos"
+  fi
+  
+  # Search in ubuntu_servers group if not found in macos
+  if [ -z "$TARGET_HOST_ALIAS" ]; then
+    UBUNTU_HOST=$(yq e ".all.children.ubuntu_servers.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$TARGET_INVENTORY_PATH")
+    if [ -n "$UBUNTU_HOST" ] && [ "$UBUNTU_HOST" != "null" ]; then
+      TARGET_HOST_ALIAS="$UBUNTU_HOST"
+      TARGET_HOST_GROUP="ubuntu_servers"
+    fi
+  fi
+  
+  if [ -z "$TARGET_HOST_ALIAS" ]; then
     log_error "No host found with IP $TARGET_CONNECT_HOST in staging inventory"
     exit 1
   fi
   
-  log_info "Non-interactive mode: deploying SSH key to $TARGET_HOST_ALIAS ($TARGET_CONNECT_HOST) as $TARGET_CONNECT_USER"
+  log_info "Non-interactive mode: deploying SSH key to $TARGET_HOST_ALIAS ($TARGET_CONNECT_HOST) as $TARGET_CONNECT_USER [group: $TARGET_HOST_GROUP]"
 else
   # Interactive mode: use the common select_target_host function from helpers.sh
   if ! select_target_host true; then
@@ -70,20 +100,36 @@ if [ -z "$PUBLIC_KEY_CONTENT" ] || [ "$PUBLIC_KEY_CONTENT" == "null" ]; then
 fi
 log_debug "Public key extracted from vault."
 
-# Try to get host-specific password from vault
+# Try to get host-specific password from vault first
 HOST_PASSWORD=$(echo "$DECRYPTED_VAULT_CONTENT" | yq -r ".vault_sudo_passwords.$TARGET_HOST_ALIAS")
 if [ "$HOST_PASSWORD" == "null" ]; then
   HOST_PASSWORD=""
 fi
 
-# If no host-specific password, try to get default password
+# If no host-specific password, try group-specific or default passwords
 if [ -z "$HOST_PASSWORD" ]; then
-  log_debug "No host-specific password found for $TARGET_HOST_ALIAS, trying default password"
-  HOST_PASSWORD=$(echo "$DECRYPTED_VAULT_CONTENT" | yq -r '.vault_default_sudo_password')
-  if [ "$HOST_PASSWORD" == "null" ]; then
-    HOST_PASSWORD=""
-  elif [ -n "$HOST_PASSWORD" ]; then
-    log_debug "Using default sudo password from vault"
+  log_debug "No host-specific password found for $TARGET_HOST_ALIAS"
+  
+  # For Ubuntu servers, try the Ubuntu-specific password first
+  if [ "${TARGET_HOST_GROUP:-}" == "ubuntu_servers" ]; then
+    log_debug "Trying Ubuntu server password from vault"
+    HOST_PASSWORD=$(echo "$DECRYPTED_VAULT_CONTENT" | yq -r '.vault_ubuntu_sudo_password')
+    if [ "$HOST_PASSWORD" != "null" ] && [ -n "$HOST_PASSWORD" ]; then
+      log_debug "Using Ubuntu server password from vault"
+    else
+      HOST_PASSWORD=""
+    fi
+  fi
+  
+  # If still no password, try default password
+  if [ -z "$HOST_PASSWORD" ]; then
+    log_debug "Trying default sudo password from vault"
+    HOST_PASSWORD=$(echo "$DECRYPTED_VAULT_CONTENT" | yq -r '.vault_default_sudo_password')
+    if [ "$HOST_PASSWORD" == "null" ]; then
+      HOST_PASSWORD=""
+    elif [ -n "$HOST_PASSWORD" ]; then
+      log_debug "Using default sudo password from vault"
+    fi
   fi
 else
   log_debug "Using host-specific password from vault for $TARGET_HOST_ALIAS"

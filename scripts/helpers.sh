@@ -175,23 +175,45 @@ select_target_host() {
     fi
   done
 
-  # List hosts from selected inventory
+  # List hosts from selected inventory - check both macOS and Ubuntu groups
   log_debug "Fetching hosts from $selected_inventory_path"
-  # Portable way to read lines into an array
+  
+  # Get hosts from macOS group
   while IFS= read -r line; do
-    host_aliases+=("$line")
+    if [ -n "$line" ]; then
+      host_aliases+=("$line [macOS]")
+    fi
   done < <(yq e '.all.children.macos.hosts | keys | .[]' "$selected_inventory_path" 2>/dev/null)
+  
+  # Get hosts from ubuntu_servers group
+  while IFS= read -r line; do
+    if [ -n "$line" ]; then
+      host_aliases+=("$line [Ubuntu]")
+    fi
+  done < <(yq e '.all.children.ubuntu_servers.hosts | keys | .[]' "$selected_inventory_path" 2>/dev/null)
 
   if [ ${#host_aliases[@]} -eq 0 ]; then
-    log_error "No hosts found in the '.all.children.macos.hosts' group of $selected_inventory_path, or error parsing inventory."
+    log_error "No hosts found in any supported groups of $selected_inventory_path, or error parsing inventory."
     return 1
   fi
 
   log_info "Please select a target host from '$selected_inventory_name':"
   select host_choice in "${host_aliases[@]}"; do
     if [[ -n "$host_choice" ]]; then
-      selected_host_alias="$host_choice"
-      log_info "Selected host: $selected_host_alias"
+      # Extract hostname and group from the display format "hostname [group]"
+      if [[ "$host_choice" =~ ^(.+)\ \[(macOS|Ubuntu)\]$ ]]; then
+        selected_host_alias="${BASH_REMATCH[1]}"
+        TARGET_HOST_GROUP_DISPLAY="${BASH_REMATCH[2]}"
+        case "$TARGET_HOST_GROUP_DISPLAY" in
+          "macOS") TARGET_HOST_GROUP="macos" ;;
+          "Ubuntu") TARGET_HOST_GROUP="ubuntu_servers" ;;
+        esac
+        log_info "Selected host: $selected_host_alias [$TARGET_HOST_GROUP_DISPLAY]"
+      else
+        selected_host_alias="$host_choice"
+        TARGET_HOST_GROUP="macos"  # fallback for backward compatibility
+        log_info "Selected host: $selected_host_alias"
+      fi
       break
     else
       log_warn "Invalid selection. Please try again."
@@ -207,24 +229,25 @@ select_target_host() {
   
   # Optionally extract connection details (for SSH)
   if [ "$extract_connection_details" = true ]; then
-    # Get ansible_host and ansible_user for the selected host alias
-    TARGET_CONNECT_HOST=$(yq e ".all.children.macos.hosts.\"$selected_host_alias\".ansible_host" "$selected_inventory_path")
-    TARGET_CONNECT_USER=$(yq e ".all.children.macos.hosts.\"$selected_host_alias\".ansible_user" "$selected_inventory_path")
+    # Get ansible_host and ansible_user for the selected host alias from the correct group
+    TARGET_CONNECT_HOST=$(yq e ".all.children.${TARGET_HOST_GROUP}.hosts.\"$selected_host_alias\".ansible_host" "$selected_inventory_path")
+    TARGET_CONNECT_USER=$(yq e ".all.children.${TARGET_HOST_GROUP}.hosts.\"$selected_host_alias\".ansible_user" "$selected_inventory_path")
     # Query for ansible_port, default to 22 if not found
-    TARGET_CONNECT_PORT=$(yq e ".all.children.macos.hosts.\"$selected_host_alias\".ansible_port // 22" "$selected_inventory_path")
+    TARGET_CONNECT_PORT=$(yq e ".all.children.${TARGET_HOST_GROUP}.hosts.\"$selected_host_alias\".ansible_port // 22" "$selected_inventory_path")
 
     if [ -z "$TARGET_CONNECT_HOST" ] || [ "$TARGET_CONNECT_HOST" == "null" ]; then
-      log_error "Could not determine 'ansible_host' for '$selected_host_alias' in $selected_inventory_path."
+      log_error "Could not determine 'ansible_host' for '$selected_host_alias' in group '$TARGET_HOST_GROUP' from $selected_inventory_path."
       return 1
     fi
     if [ -z "$TARGET_CONNECT_USER" ] || [ "$TARGET_CONNECT_USER" == "null" ]; then
-      log_error "Could not determine 'ansible_user' for '$selected_host_alias' in $selected_inventory_path."
+      log_error "Could not determine 'ansible_user' for '$selected_host_alias' in group '$TARGET_HOST_GROUP' from $selected_inventory_path."
       return 1
     fi
 
     log_debug "Target connection host: $TARGET_CONNECT_HOST"
     log_debug "Target connection user: $TARGET_CONNECT_USER"
     log_debug "Target connection port: $TARGET_CONNECT_PORT"
+    log_debug "Target host group: $TARGET_HOST_GROUP"
   fi
   
   return 0

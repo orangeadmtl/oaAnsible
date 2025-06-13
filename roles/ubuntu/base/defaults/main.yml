@@ -1,0 +1,24 @@
+---
+# Ubuntu base role defaults
+
+# User configuration
+ansible_user: "{{ vault_ubuntu_ansible_user | default('admin') }}"
+
+# System packages to install
+base_packages:
+  - curl
+  - wget
+  - git
+  - htop
+  - vim
+  - unzip
+  - software-properties-common
+  - apt-transport-https
+  - ca-certificates
+  - gnupg
+  - lsb-release
+
+# System configuration
+timezone: "America/Los_Angeles"
+update_cache: true
+upgrade_system: false

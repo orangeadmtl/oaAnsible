@@ -1,0 +1,97 @@
+---
+# Ubuntu security configuration tasks with intelligent checks
+
+- name: Check current security configuration
+  block:
+    - name: Check if sudoers file exists for ansible user
+      ansible.builtin.stat:
+        path: "/etc/sudoers.d/{{ ansible_user }}"
+      register: sudoers_file
+
+    - name: Check SSH configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: ssh_config_content
+
+    - name: Check UFW status
+      ansible.builtin.command: ufw status
+      register: ufw_status
+      failed_when: false
+      changed_when: false
+      become: true
+
+    - name: Parse SSH configuration
+      ansible.builtin.set_fact:
+        ssh_config: "{{ ssh_config_content.content | b64decode }}"
+
+    - name: Set security skip flags
+      ansible.builtin.set_fact:
+        skip_sudoers: "{{ sudoers_file.stat.exists }}"
+        skip_ssh_config: "{{ 
+          'PasswordAuthentication no' in ssh_config and 
+          'PubkeyAuthentication yes' in ssh_config and
+          'AuthorizedKeysFile .ssh/authorized_keys' in ssh_config
+        }}"
+        skip_firewall: "{{ 'Status: active' in ufw_status.stdout }}"
+
+- name: Display security configuration status
+  ansible.builtin.debug:
+    msg: |
+      Security Configuration Status:
+      - Sudoers file: {{ 'Already configured' if skip_sudoers else 'Needs creation' }}
+      - SSH hardening: {{ 'Already configured' if skip_ssh_config else 'Needs configuration' }}
+      - Firewall (UFW): {{ 'Already active' if skip_firewall else 'Needs activation' }}
+
+- name: Create sudoers file for ansible user
+  ansible.builtin.template:
+    src: sudoers.j2
+    dest: "/etc/sudoers.d/{{ ansible_user }}"
+    owner: root
+    group: root
+    mode: '0440'
+    validate: 'visudo -cf %s'
+  become: true
+  when: not skip_sudoers
+
+- name: Ensure SSH directory exists for ansible user
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/.ssh"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0700'
+  become: true
+
+- name: Configure SSH for passwordless authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  become: true
+  loop:
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+    - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication yes' }
+    - { regexp: '^#?AuthorizedKeysFile', line: 'AuthorizedKeysFile .ssh/authorized_keys' }
+  notify: Restart ssh
+  when: not skip_ssh_config
+
+- name: Configure firewall (ufw) basic rules
+  ansible.builtin.ufw:
+    rule: "{{ item.rule }}"
+    port: "{{ item.port }}"
+    proto: "{{ item.proto | default('tcp') }}"
+  become: true
+  loop:
+    - { rule: 'allow', port: '22' }
+    - { rule: 'allow', port: '41641', proto: 'udp' }  # Tailscale
+  notify: Enable ufw
+  when: not skip_firewall
+
+- name: Display security configuration results
+  ansible.builtin.debug:
+    msg: |
+      Security Configuration Completed:
+      - Sudoers: {{ 'Verified' if skip_sudoers else 'Configured passwordless sudo for ' + ansible_user }}
+      - SSH: {{ 'Verified' if skip_ssh_config else 'Hardened (key-only authentication)' }}
+      - Firewall: {{ 'Verified active' if skip_firewall else 'Activated with SSH and Tailscale rules' }}

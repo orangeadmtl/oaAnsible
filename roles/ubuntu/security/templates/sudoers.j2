@@ -1,0 +1,8 @@
+# Sudoers file for {{ ansible_user }}
+# This file is managed by Ansible - do not edit manually
+
+{% if sudo_nopasswd %}
+{{ ansible_user }} ALL=(ALL) NOPASSWD:ALL
+{% else %}
+{{ ansible_user }} ALL=(ALL:ALL) ALL
+{% endif %}

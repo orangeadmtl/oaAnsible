@@ -1,0 +1,146 @@
+---
+# Ubuntu shell enhancement tasks - Zsh with intelligent checks
+
+- name: Check current shell configuration
+  block:
+    - name: Get current shell for ansible user
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ ansible_user }}"
+      register: user_shell_info
+
+    - name: Check if zsh is installed
+      ansible.builtin.command: which zsh
+      register: zsh_installed
+      failed_when: false
+      changed_when: false
+
+    - name: Check if Oh My Zsh is installed
+      ansible.builtin.stat:
+        path: "/home/{{ ansible_user }}/.oh-my-zsh"
+      register: oh_my_zsh_dir
+
+    - name: Check if lsd is installed
+      ansible.builtin.command: which lsd
+      register: lsd_installed
+      failed_when: false
+      changed_when: false
+
+    - name: Check zsh configuration file
+      ansible.builtin.stat:
+        path: "/home/{{ ansible_user }}/.zshrc"
+      register: zshrc_file
+
+    - name: Check if zshrc contains our aliases
+      ansible.builtin.shell: |
+        if [ -f "/home/{{ ansible_user }}/.zshrc" ]; then
+          grep -q "alias ls='lsd --group-dirs first'" "/home/{{ ansible_user }}/.zshrc"
+        else
+          exit 1
+        fi
+      register: zsh_aliases_check
+      failed_when: false
+      changed_when: false
+      become_user: "{{ ansible_user }}"
+
+    - name: Set shell enhancement skip flags
+      ansible.builtin.set_fact:
+        current_shell: "{{ user_shell_info.ansible_facts.getent_passwd[ansible_user][5] }}"
+        skip_zsh_install: "{{ zsh_installed.rc == 0 }}"
+        skip_lsd_install: "{{ lsd_installed.rc == 0 }}"
+        skip_oh_my_zsh: "{{ oh_my_zsh_dir.stat.exists }}"
+        skip_shell_change: "{{ user_shell_info.ansible_facts.getent_passwd[ansible_user][6] == '/usr/bin/zsh' }}"
+        skip_zsh_config: "{{ zshrc_file.stat.exists and zsh_aliases_check.rc == 0 }}"
+
+- name: Display shell configuration status
+  ansible.builtin.debug:
+    msg: |
+      Shell Enhancement Status:
+      - Current shell: {{ current_shell.split('/')[-1] | default('unknown') }}
+      - Zsh installed: {{ 'Yes' if skip_zsh_install else 'No' }}
+      - Oh My Zsh: {{ 'Already installed' if skip_oh_my_zsh else 'Needs installation' }}
+      - lsd (modern ls): {{ 'Already installed' if skip_lsd_install else 'Needs installation' }}
+      - Zsh as default: {{ 'Already set' if skip_shell_change else 'Needs configuration' }}
+      - Custom aliases: {{ 'Already configured' if skip_zsh_config else 'Needs setup' }}
+
+- name: Install zsh shell and dependencies
+  ansible.builtin.apt:
+    name:
+      - zsh
+      - curl
+      - git
+      - software-properties-common
+    state: present
+    update_cache: true
+  become: true
+  when: not skip_zsh_install
+
+- name: Install lsd (modern ls replacement)
+  when: not skip_lsd_install
+  block:
+    - name: Download lsd package
+      ansible.builtin.get_url:
+        url: "https://github.com/lsd-rs/lsd/releases/download/v1.1.5/lsd_1.1.5_amd64.deb"
+        dest: "/tmp/lsd.deb"
+        mode: '0644'
+      become: true
+
+    - name: Install lsd package
+      ansible.builtin.apt:
+        deb: "/tmp/lsd.deb"
+        state: present
+      become: true
+
+    - name: Clean up lsd download
+      ansible.builtin.file:
+        path: "/tmp/lsd.deb"
+        state: absent
+      become: true
+
+- name: Configure zsh enhancement
+  when: not (skip_oh_my_zsh and skip_zsh_config)
+  block:
+    - name: Copy zsh enhancement script
+      ansible.builtin.template:
+        src: zsh_enhancement.sh.j2
+        dest: "/home/{{ ansible_user }}/zsh_enhancement.sh"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+
+    - name: Execute zsh enhancement script
+      ansible.builtin.shell: |
+        /home/{{ ansible_user }}/zsh_enhancement.sh
+      become_user: "{{ ansible_user }}"
+      register: zsh_enhancement
+      changed_when: zsh_enhancement.stdout is search('enhanced successfully')
+
+    - name: Display enhancement results
+      ansible.builtin.debug:
+        msg: "{{ zsh_enhancement.stdout_lines }}"
+      when: zsh_enhancement.stdout_lines is defined
+
+    - name: Clean up enhancement script
+      ansible.builtin.file:
+        path: "/home/{{ ansible_user }}/zsh_enhancement.sh"
+        state: absent
+
+- name: Set zsh as default shell for ansible user
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    shell: /usr/bin/zsh
+  become: true
+  when: not skip_shell_change
+
+- name: Display shell enhancement results
+  ansible.builtin.debug:
+    msg: |
+      Shell Enhancement Completed:
+      - Zsh: {{ 'Verified' if skip_zsh_install else 'Installed with Oh My Zsh framework' }}
+      - Default shell: {{ 'Already zsh' if skip_shell_change else 'Changed to zsh for ' + ansible_user }}
+      - Modern ls (lsd): {{ 'Verified' if skip_lsd_install else 'Installed with custom aliases' }}
+      - Custom aliases: {{ 'Verified' if skip_zsh_config else 'Configured (ls, l, la, ll, lsa, lt)' }}
+      - Theme: {{ 'Verified' if skip_zsh_config else 'Set to custom theme with username@hostname display' }}
+      - Features: {{ 'Verified' if skip_zsh_config else 'Added syntax highlighting, autosuggestions, bash compatibility' }}
+      
+      Note: All bash scripts (like camera-proxy/deploy.sh) remain fully compatible!

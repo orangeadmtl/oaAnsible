@@ -1,0 +1,94 @@
+---
+# Ubuntu base configuration tasks with intelligent checks
+
+- name: Check current system state
+  block:
+    - name: Check if base packages are already installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Get current timezone
+      ansible.builtin.command: timedatectl show --property=Timezone --value
+      register: current_timezone
+      changed_when: false
+
+    - name: Check ansible user configuration
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ ansible_user }}"
+      register: user_info
+      failed_when: false
+
+    - name: Set skip flags based on current state
+      ansible.builtin.set_fact:
+        skip_packages: "{{ base_packages | difference(ansible_facts.packages.keys()) | length == 0 }}"
+        skip_timezone: "{{ current_timezone.stdout == timezone }}"
+        skip_user_setup: "{{ user_info.found and user_info.ansible_facts.getent_passwd[ansible_user][5] == '/home/' + ansible_user }}"
+
+- name: Display base configuration status
+  ansible.builtin.debug:
+    msg: |
+      Base Configuration Status:
+      - Packages: {{ 'Already installed' if skip_packages else 'Need installation' }}
+      - Timezone: {{ 'Already set to ' + timezone if skip_timezone else 'Need to set to ' + timezone }}
+      - User setup: {{ 'Already configured' if skip_user_setup else 'Need configuration' }}
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+  when: 
+    - update_cache | default(true) | bool
+    - not (skip_packages and skip_timezone and skip_user_setup)
+
+- name: Upgrade system packages
+  ansible.builtin.apt:
+    upgrade: dist
+  become: true
+  when: upgrade_system | default(false) | bool
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ base_packages }}"
+    state: present
+  become: true
+  when: not skip_packages
+
+- name: Set timezone
+  ansible.builtin.timezone:
+    name: "{{ timezone }}"
+  become: true
+  when: not skip_timezone
+
+- name: Configure ansible user
+  when: not skip_user_setup
+  block:
+    - name: Ensure ansible user exists
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        shell: /bin/bash
+        create_home: true
+        groups: sudo
+        append: true
+      become: true
+
+    - name: Create ansible user home directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+      become: true
+      loop:
+        - "/home/{{ ansible_user }}/.ssh"
+        - "/home/{{ ansible_user }}/orangead"
+
+- name: Display base configuration results
+  ansible.builtin.debug:
+    msg: |
+      Base Configuration Completed:
+      - {{ base_packages | length }} essential packages {{ 'verified' if skip_packages else 'installed' }}
+      - Timezone {{ 'verified' if skip_timezone else 'set to ' + timezone }}
+      - User {{ ansible_user }} {{ 'verified' if skip_user_setup else 'configured with sudo access' }}

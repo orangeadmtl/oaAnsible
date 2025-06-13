@@ -1,0 +1,144 @@
+---
+# Ubuntu Tailscale installation and configuration with intelligent checks
+
+- name: Check current Tailscale configuration
+  block:
+    - name: Check if Tailscale is installed
+      ansible.builtin.command: which tailscale
+      register: tailscale_installed
+      failed_when: false
+      changed_when: false
+
+    - name: Check if tailscaled service is running
+      ansible.builtin.systemd:
+        name: tailscaled
+      register: tailscaled_service
+      failed_when: false
+
+    - name: Check Tailscale authentication status
+      ansible.builtin.command: tailscale status --json
+      register: tailscale_status_check
+      failed_when: false
+      changed_when: false
+      become: true
+
+    - name: Parse Tailscale status and check authentication
+      ansible.builtin.set_fact:
+        tailscale_json: "{{ tailscale_status_check.stdout | from_json if tailscale_status_check.rc == 0 else {} }}"
+        skip_install: "{{ tailscale_installed.rc == 0 }}"
+        skip_service: "{{ tailscaled_service.status is defined and tailscaled_service.status.ActiveState == 'active' }}"
+
+    - name: Set authentication and routing status
+      ansible.builtin.set_fact:
+        tailscale_authenticated: "{{ tailscale_json.BackendState == 'Running' if tailscale_json else false }}"
+        skip_auth: "{{ tailscale_json.BackendState == 'Running' if tailscale_json else false }}"
+        current_hostname: "{{ tailscale_json.Self.HostName if tailscale_json.Self is defined else 'unknown' }}"
+        current_tags: "{{ tailscale_json.Self.Tags if tailscale_json.Self is defined else [] }}"
+
+    - name: Check IP forwarding status
+      ansible.builtin.command: sysctl net.ipv4.ip_forward
+      register: ip_forward_status
+      changed_when: false
+
+    - name: Set routing skip flag
+      ansible.builtin.set_fact:
+        skip_routing: "{{ 'net.ipv4.ip_forward = 1' in ip_forward_status.stdout }}"
+
+- name: Display Tailscale configuration status
+  ansible.builtin.debug:
+    msg: |
+      Tailscale Configuration Status:
+      - Installation: {{ 'Already installed' if skip_install else 'Needs installation' }}
+      - Service: {{ 'Running' if skip_service else 'Needs start/enable' }}
+      - Authentication: {{ 'Connected as ' + current_hostname if tailscale_authenticated else 'Needs authentication' }}
+      - Current tags: {{ current_tags | join(', ') if current_tags else 'None' }}
+      - Target tags: {{ tailscale_tags | join(', ') }}
+      - IP forwarding: {{ 'Enabled' if skip_routing else 'Needs enable' }}
+      - Subnet routes: {{ tailscale_advertise_routes | join(', ') if tailscale_advertise_routes else 'None' }}
+
+- name: Install Tailscale
+  when: not skip_install
+  block:
+    - name: Add Tailscale signing key
+      ansible.builtin.apt_key:
+        url: "{{ tailscale_apt_key_url }}"
+        state: present
+      become: true
+
+    - name: Add Tailscale repository
+      ansible.builtin.apt_repository:
+        repo: "{{ tailscale_apt_repo }}"
+        state: present
+        update_cache: true
+      become: true
+
+    - name: Install Tailscale
+      ansible.builtin.apt:
+        name: tailscale
+        state: present
+      become: true
+
+- name: Configure Tailscale service
+  when: not skip_service
+  block:
+    - name: Enable and start tailscaled service
+      ansible.builtin.systemd:
+        name: tailscaled
+        enabled: true
+        state: started
+      become: true
+
+- name: Authenticate Tailscale
+  when: not skip_auth
+  block:
+    - name: Connect to Tailscale network
+      ansible.builtin.command: >
+        tailscale up
+        --auth-key="{{ tailscale_auth_key }}"
+        --hostname="{{ tailscale_hostname }}"
+        --advertise-tags="{{ tailscale_tags | join(',') }}"
+        {% if tailscale_enable_ssh %}--ssh{% endif %}
+        {% if tailscale_advertise_routes %}--advertise-routes="{{ tailscale_advertise_routes | join(',') }}"{% endif %}
+        --accept-routes
+      become: true
+      notify: verify tailscale connection
+
+- name: Configure subnet routing
+  when: not skip_routing and tailscale_advertise_routes | length > 0
+  block:
+    - name: Enable IP forwarding for subnet routing
+      ansible.builtin.sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        state: present
+        reload: true
+      become: true
+
+    - name: Enable IPv6 forwarding for subnet routing
+      ansible.builtin.sysctl:
+        name: net.ipv6.conf.all.forwarding
+        value: '1'
+        state: present
+        reload: true
+      become: true
+
+- name: Verify final Tailscale status
+  ansible.builtin.command: tailscale status
+  register: final_tailscale_status
+  become: true
+  changed_when: false
+  failed_when: false
+
+- name: Display Tailscale configuration results
+  ansible.builtin.debug:
+    msg: |
+      Tailscale Configuration Completed:
+      - Installation: {{ 'Verified' if skip_install else 'Installed successfully' }}
+      - Service: {{ 'Already running' if skip_service else 'Started and enabled' }}
+      - Authentication: {{ 'Already connected' if skip_auth else 'Connected with hostname: ' + tailscale_hostname }}
+      - Tags: {{ 'Already set' if skip_auth else 'Applied: ' + tailscale_tags | join(', ') }}
+      - SSH access: {{ 'Enabled via Tailscale' if tailscale_enable_ssh else 'Disabled' }}
+      - Subnet routing: {{ 'Already configured' if skip_routing else 'Enabled for: ' + tailscale_advertise_routes | join(', ') }}
+      
+      Final Status:
+      {{ final_tailscale_status.stdout_lines | join('\n      ') if final_tailscale_status.stdout_lines else 'Status check failed' }}

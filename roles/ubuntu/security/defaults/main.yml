@@ -1,0 +1,6 @@
+---
+# Ubuntu security role defaults
+
+# Sudo configuration
+ansible_user: "{{ vault_ubuntu_ansible_user | default('admin') }}"
+sudo_nopasswd: true
