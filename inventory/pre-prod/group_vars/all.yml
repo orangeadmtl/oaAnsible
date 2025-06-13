@@ -35,6 +35,7 @@ system:
       - util-linux
       - fish
       - orbstack
+      - lsd
 
 # Tracker configuration
 tracker:

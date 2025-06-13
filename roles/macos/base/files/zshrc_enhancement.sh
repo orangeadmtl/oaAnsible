@@ -72,6 +72,14 @@ export EDITOR='vim'
 # Set language
 export LANG=en_US.UTF-8
 
+# Your custom directory listing aliases using lsd
+alias ls='lsd --group-dirs first'
+alias l='ls -lah'
+alias la='ls -A'
+alias ll='ls -alhF'
+alias lsa='ls -lah'
+alias lt='lsd --tree'
+
 # Preserve existing PATH configuration
 EOL
 
