@@ -1,21 +1,22 @@
+import json
 import os
 import re
-import json
-import time
 import subprocess
-from pathlib import Path
+import time
 from datetime import datetime, timezone
-from typing import Dict, Optional, List
+from pathlib import Path
+from typing import Dict, List, Optional
+
 from ..core.config import PYTHON_CMD, TRACKER_ROOT
 from ..services.utils import run_command
 
 
 def get_display_info() -> Dict:
     """Get display configuration and status for macOS.
-    
+
     This function uses multiple methods to detect displays and determine
     if the Mac is headless, providing detailed information about connected displays.
-    
+
     Returns:
         Dict with display information including headless status
     """
@@ -27,83 +28,93 @@ def get_display_info() -> Dict:
         "vendor": "unknown",
         "model": "unknown",
         "displays": [],
-        "detection_method": "none"
+        "detection_method": "none",
     }
-    
+
     # Method 1: Use system_profiler (most reliable but slower)
     try:
         cmd = ["system_profiler", "SPDisplaysDataType", "-json"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=5)
-        
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=False, timeout=5
+        )
+
         if result.returncode == 0 and result.stdout:
             try:
                 data = json.loads(result.stdout)
                 displays_data = data.get("SPDisplaysDataType", [])
-                
+
                 # Check if we have actual display devices (not just graphics cards)
                 real_displays = []
                 for display in displays_data:
                     # Skip entries that are just graphics cards without displays
                     if "spdisplays_resolution" in display:
                         real_displays.append(display)
-                
+
                 if real_displays:
                     display_info["connected"] = True
                     display_info["is_headless"] = False
                     display_info["detection_method"] = "system_profiler"
-                    
+
                     # Process each display
                     displays = []
                     for display in real_displays:
                         display_details = {}
-                        
+
                         # Extract resolution
                         resolution = display.get("spdisplays_resolution", "unknown")
                         if isinstance(resolution, str) and "x" in resolution:
                             display_details["resolution"] = resolution
-                        
+
                         # Extract refresh rate
                         refresh_rate = display.get("spdisplays_refresh", "unknown")
                         if refresh_rate:
                             display_details["refresh_rate"] = refresh_rate
-                            
+
                         # Extract vendor/model
                         vendor = display.get("spdisplays_vendor", "unknown")
                         if vendor:
                             display_details["vendor"] = vendor
-                            
+
                         model = display.get("spdisplays_device_name", "unknown")
                         if model:
                             display_details["model"] = model
-                        
+
                         # Extract connection type
-                        connection = display.get("spdisplays_connection_type", "unknown")
+                        connection = display.get(
+                            "spdisplays_connection_type", "unknown"
+                        )
                         if connection:
                             display_details["connection"] = connection
-                            
+
                         # Add to displays list
                         displays.append(display_details)
-                    
+
                     display_info["displays"] = displays
-                    
+
                     # Set primary display info if available
                     if displays:
                         primary = displays[0]  # Assume first display is primary
-                        display_info["resolution"] = primary.get("resolution", "unknown")
-                        display_info["refresh_rate"] = primary.get("refresh_rate", "unknown")
+                        display_info["resolution"] = primary.get(
+                            "resolution", "unknown"
+                        )
+                        display_info["refresh_rate"] = primary.get(
+                            "refresh_rate", "unknown"
+                        )
                         display_info["vendor"] = primary.get("vendor", "unknown")
                         display_info["model"] = primary.get("model", "unknown")
             except json.JSONDecodeError:
                 pass
     except Exception as e:
         print(f"Error getting display info via system_profiler: {e}")
-    
+
     # Method 2: If still headless, try using ioreg as a backup method
     if display_info["is_headless"]:
         try:
             cmd = ["ioreg", "-l", "-d", "2", "-c", "IODisplay"]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=3)
-            
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=3
+            )
+
             if result.returncode == 0 and "IODisplayConnect" in result.stdout:
                 # IODisplayConnect presence indicates a display is connected
                 display_info["connected"] = True
@@ -111,7 +122,7 @@ def get_display_info() -> Dict:
                 display_info["detection_method"] = "ioreg"
         except Exception as e:
             print(f"Error getting display info via ioreg: {e}")
-    
+
     # Method 3: Try CGDisplayBounds via Python script as a last resort
     if display_info["is_headless"]:
         try:
@@ -167,16 +178,22 @@ try:
 except Exception as e:
     print(json.dumps({"success": False, "error": str(e)}))
 """
-            
+
             # Write script to temporary file
             temp_script = Path("/tmp/check_displays.py")
             temp_script.write_text(script_content)
             temp_script.chmod(0o755)
-            
+
             # Execute script
-            result = subprocess.run([str(temp_script)], capture_output=True, text=True, check=False, timeout=3)
+            result = subprocess.run(
+                [str(temp_script)],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=3,
+            )
             temp_script.unlink(missing_ok=True)
-            
+
             if result.returncode == 0 and result.stdout:
                 try:
                     data = json.loads(result.stdout)
@@ -184,22 +201,27 @@ except Exception as e:
                         display_info["connected"] = True
                         display_info["is_headless"] = False
                         display_info["detection_method"] = "coregraphics"
-                        
+
                         # Add display information
                         cg_displays = []
                         for display in data.get("displays", []):
                             bounds = display.get("bounds", {})
-                            if bounds.get("width", 0) > 0 and bounds.get("height", 0) > 0:
-                                cg_displays.append({
-                                    "resolution": f"{bounds.get('width')}x{bounds.get('height')}",
-                                    "id": display.get("id"),
-                                    "bounds": bounds
-                                })
-                        
+                            if (
+                                bounds.get("width", 0) > 0
+                                and bounds.get("height", 0) > 0
+                            ):
+                                cg_displays.append(
+                                    {
+                                        "resolution": f"{bounds.get('width')}x{bounds.get('height')}",
+                                        "id": display.get("id"),
+                                        "bounds": bounds,
+                                    }
+                                )
+
                         # If we have display info from CoreGraphics but not from system_profiler
                         if cg_displays and not display_info["displays"]:
                             display_info["displays"] = cg_displays
-                            
+
                             # Set primary display resolution if available
                             if cg_displays:
                                 primary = cg_displays[0]
@@ -209,8 +231,8 @@ except Exception as e:
                     pass
         except Exception as e:
             print(f"Error getting display info via CoreGraphics: {e}")
-    
+
     # Final headless determination
     display_info["is_headless"] = not display_info["connected"]
-    
+
     return display_info

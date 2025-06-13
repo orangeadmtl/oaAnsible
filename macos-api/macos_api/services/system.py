@@ -1,10 +1,12 @@
-import psutil
+import os
 import platform
 import re
-import os
 import subprocess
-from typing import Dict
 from datetime import datetime, timezone
+from typing import Dict
+
+import psutil
+
 from ..core.config import LAUNCHCTL_CMD, PS_CMD, TRACKER_ROOT
 from ..services.utils import run_command
 
@@ -32,7 +34,12 @@ def get_system_metrics() -> Dict:
         }
 
         disk = psutil.disk_usage("/")
-        disk_metrics = {"total": disk.total, "free": disk.free, "percent": disk.percent, "used": disk.used}
+        disk_metrics = {
+            "total": disk.total,
+            "free": disk.free,
+            "percent": disk.percent,
+            "used": disk.used,
+        }
 
         # Add disk I/O metrics
         try:
@@ -49,14 +56,21 @@ def get_system_metrics() -> Dict:
 
         # Add network metrics
         try:
-            network_metrics = {"interfaces": {}, "connections": len(psutil.net_connections())}
+            network_metrics = {
+                "interfaces": {},
+                "connections": len(psutil.net_connections()),
+            }
 
             # Get network interface stats
             net_if_stats = psutil.net_if_stats()
             net_io_counters = psutil.net_io_counters(pernic=True)
 
             for iface, stats in net_if_stats.items():
-                interface_metrics = {"up": stats.isup, "speed": stats.speed, "mtu": stats.mtu}
+                interface_metrics = {
+                    "up": stats.isup,
+                    "speed": stats.speed,
+                    "mtu": stats.mtu,
+                }
 
                 # Add IO metrics if available
                 if iface in net_io_counters:
@@ -76,31 +90,49 @@ def get_system_metrics() -> Dict:
         except Exception:
             network_metrics = {}
 
-        return {"cpu": cpu_metrics, "memory": memory_metrics, "disk": disk_metrics, "network": network_metrics, "boot_time": psutil.boot_time()}
+        return {
+            "cpu": cpu_metrics,
+            "memory": memory_metrics,
+            "disk": disk_metrics,
+            "network": network_metrics,
+            "boot_time": psutil.boot_time(),
+        }
     except Exception as e:
         return {
-            "cpu": {"percent": psutil.cpu_percent(interval=1), "cores": psutil.cpu_count()},
+            "cpu": {
+                "percent": psutil.cpu_percent(interval=1),
+                "cores": psutil.cpu_count(),
+            },
             "memory": {
                 "total": psutil.virtual_memory().total,
                 "available": psutil.virtual_memory().available,
                 "percent": psutil.virtual_memory().percent,
             },
-            "disk": {"total": psutil.disk_usage("/").total, "free": psutil.disk_usage("/").free, "percent": psutil.disk_usage("/").percent},
+            "disk": {
+                "total": psutil.disk_usage("/").total,
+                "free": psutil.disk_usage("/").free,
+                "percent": psutil.disk_usage("/").percent,
+            },
             "error": str(e),
         }
 
 
 def get_service_info(service_name: str) -> Dict:
     """Get detailed information about a launchd service."""
-    info = {"status": "unknown", "pid": "unknown", "activestate": "unknown", "substate": "unknown"}
+    info = {
+        "status": "unknown",
+        "pid": "unknown",
+        "activestate": "unknown",
+        "substate": "unknown",
+    }
 
     try:
         # Check if service is running using launchctl
         cmd = [LAUNCHCTL_CMD, "list"]
         output = run_command(cmd)
-        
+
         # Parse the output to find the service
-        for line in output.split('\n'):
+        for line in output.split("\n"):
             if service_name in line:
                 parts = line.split()
                 if len(parts) >= 2:
@@ -115,13 +147,13 @@ def get_service_info(service_name: str) -> Dict:
                         info["activestate"] = "inactive"
                         info["substate"] = "dead"
                     break
-        
+
         # If service wasn't found in the list, it's not loaded
         if info["status"] == "unknown":
             info["status"] = "inactive"
             info["activestate"] = "inactive"
             info["substate"] = "dead"
-            
+
     except Exception:
         pass
 
@@ -135,26 +167,26 @@ def get_device_info() -> Dict[str, str]:
     # Extract series and number from hostname (e.g., 'mac0001', 'labatt0002')
     series_match = re.match(r"^([a-z]+)(\d+)$", hostname)
     series = series_match.group(1).upper() if series_match else "UNKNOWN"
-    
+
     # Check if the system has a display
     is_headless = False
     try:
         # Try to get display info using system_profiler
         display_cmd = ["system_profiler", "SPDisplaysDataType"]
         display_output = run_command(display_cmd)
-        
+
         # If no displays are found or output is empty, consider it headless
         if not display_output or "No Display Found" in display_output:
             is_headless = True
     except Exception:
         # If command fails, assume it might be headless
         is_headless = True
-    
+
     return {
-        "type": "Mac", 
-        "series": series, 
+        "type": "Mac",
+        "series": series,
         "hostname": hostname,
-        "is_headless": is_headless
+        "is_headless": is_headless,
     }
 
 
@@ -173,22 +205,30 @@ def get_version_info() -> Dict:
         # Get macOS version using platform.mac_ver() - more reliable than parsing sw_vers
         mac_ver = platform.mac_ver()
         if mac_ver and mac_ver[0]:
-            system_info["macos_version"] = mac_ver[0]  # Release version (e.g., "13.4.1")
+            system_info["macos_version"] = mac_ver[
+                0
+            ]  # Release version (e.g., "13.4.1")
             if mac_ver[2]:
-                system_info["machine_type"] = mac_ver[2]  # Machine type (e.g., "x86_64" or "arm64")
+                system_info["machine_type"] = mac_ver[
+                    2
+                ]  # Machine type (e.g., "x86_64" or "arm64")
 
         # Get additional version details using sw_vers for completeness
         try:
             product_name = run_command(["sw_vers", "-productName"]).strip()
             product_version = run_command(["sw_vers", "-productVersion"]).strip()
             build_version = run_command(["sw_vers", "-buildVersion"]).strip()
-            
+
             if product_name:
                 system_info["product_name"] = product_name  # Usually "macOS"
             if product_version:
-                system_info["macos_version"] = product_version  # Ensure we have this even if mac_ver failed
+                system_info["macos_version"] = (
+                    product_version  # Ensure we have this even if mac_ver failed
+                )
             if build_version:
-                system_info["build_version"] = build_version  # Build number (e.g., "22F82")
+                system_info["build_version"] = (
+                    build_version  # Build number (e.g., "22F82")
+                )
         except Exception as e:
             system_info["sw_vers_error"] = str(e)
 
@@ -197,16 +237,18 @@ def get_version_info() -> Dict:
             boot_timestamp = psutil.boot_time()
             current_timestamp = datetime.now(timezone.utc).timestamp()
             uptime_seconds = int(current_timestamp - boot_timestamp)
-            
+
             # Format uptime in a human-readable format
             days, remainder = divmod(uptime_seconds, 86400)
             hours, remainder = divmod(remainder, 3600)
             minutes, seconds = divmod(remainder, 60)
-            
+
             system_info["uptime"] = {
                 "seconds": uptime_seconds,
                 "formatted": f"{days}d {hours}h {minutes}m {seconds}s",
-                "boot_time": datetime.fromtimestamp(boot_timestamp, timezone.utc).isoformat()
+                "boot_time": datetime.fromtimestamp(
+                    boot_timestamp, timezone.utc
+                ).isoformat(),
             }
         except Exception as e:
             system_info["uptime_error"] = str(e)
@@ -215,7 +257,9 @@ def get_version_info() -> Dict:
         hostname = system_info["hostname"].lower()
         series_match = re.match(r"^([a-zA-Z]+)", hostname)
         if series_match:
-            system_info["series"] = series_match.group(1).upper()  # Standardize to uppercase
+            system_info["series"] = series_match.group(
+                1
+            ).upper()  # Standardize to uppercase
             system_info["device_id"] = hostname  # Include full device ID
 
         # Get tracker version if available
@@ -229,9 +273,9 @@ def get_version_info() -> Dict:
             # Check both possible locations for Tailscale
             tailscale_paths = [
                 "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
-                "/usr/local/bin/tailscale"
+                "/usr/local/bin/tailscale",
             ]
-            
+
             for path in tailscale_paths:
                 if os.path.exists(path):
                     tailscale_version_output = run_command([path, "version"]).strip()
@@ -240,7 +284,7 @@ def get_version_info() -> Dict:
                         version_number = tailscale_version_output.split("\n")[0].strip()
                         system_info["tailscale_version"] = version_number
                         break
-            
+
             if "tailscale_version" not in system_info:
                 system_info["tailscale_version"] = None
         except Exception as e:

@@ -3,13 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from macos_api.core.config import APP_VERSION, TAILSCALE_SUBNET
 from macos_api.middleware import TailscaleSubnetMiddleware
-from macos_api.routers import health, camera, actions, tracker
+from macos_api.routers import actions, camera, health, tracker
 
 # Initialize FastAPI app
-app = FastAPI(
-    title="macOS Health Check API",
-    version=APP_VERSION
-)
+app = FastAPI(title="macOS Health Check API", version=APP_VERSION)
 
 # Configure CORS
 app.add_middleware(
@@ -31,6 +28,7 @@ app.include_router(camera.router, tags=["camera"])
 app.include_router(actions.router, tags=["actions"])
 app.include_router(tracker.router, tags=["tracker"])
 
+
 @app.get("/")
 async def root():
     """Root endpoint with API information."""
@@ -44,17 +42,17 @@ async def root():
             "camera": {
                 "list": "/cameras",
                 "status": "/cameras/status",
-                "stream": "/cameras/{camera_id}/stream"
+                "stream": "/cameras/{camera_id}/stream",
             },
             "actions": {
                 "reboot": "/actions/reboot",
-                "restart_tracker": "/actions/restart-tracker"
+                "restart_tracker": "/actions/restart-tracker",
             },
             "tracker": {
                 "stats": "/tracker/stats",
                 "status": "/tracker/status",
                 "stream": "/tracker/stream",
-                "mjpeg": "/tracker/mjpeg"
-            }
-        }
+                "mjpeg": "/tracker/mjpeg",
+            },
+        },
     }

@@ -23,6 +23,7 @@ PS_CMD = "/bin/ps"
 READLINK_CMD = "/usr/bin/readlink"
 PYTHON_CMD = "/usr/bin/python3"
 
+
 # Command finder utility
 def find_command(command_name):
     possible_paths = [
@@ -30,15 +31,16 @@ def find_command(command_name):
         f"/usr/local/bin/{command_name}",
         f"/opt/homebrew/bin/{command_name}",
         f"/bin/{command_name}",
-        f"/sbin/{command_name}"
+        f"/sbin/{command_name}",
     ]
-    
+
     for path in possible_paths:
         if os.path.exists(path) and os.access(path, os.X_OK):
             return path
-    
+
     # If not found, return the default path and let the error handling in the code deal with it
     return f"/usr/bin/{command_name}"
+
 
 # Cache settings
 CACHE_TTL = 5  # Cache TTL in seconds
@@ -50,13 +52,10 @@ HEALTH_SCORE_WEIGHTS = {
     "disk": 0.2,
     "tracker": 0.2,  # Changed from "player" to "tracker"
     "display": 0.15,
-    "network": 0.05
+    "network": 0.05,
 }
 
-HEALTH_SCORE_THRESHOLDS = {
-    "critical": 50,
-    "warning": 80
-}
+HEALTH_SCORE_THRESHOLDS = {"critical": 50, "warning": 80}
 
 # Screenshot settings
 SCREENSHOT_MAX_HISTORY = 50  # Maximum number of screenshot files to keep

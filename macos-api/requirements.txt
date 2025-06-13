@@ -9,3 +9,15 @@ websocket-client
 httpx
 numpy<2.0.0
 opencv-python-headless
+
+# Development dependencies (install in shared oaPangaea/.venv)
+# Formatting tools (auto-fix code style)
+black>=24.0.0          # Code formatter
+isort>=5.12.0          # Import sorter
+
+# Linting tools (check code quality)  
+flake8>=6.0.0          # Style checker
+mypy>=1.0.0            # Type checker
+
+# Type stubs
+types-psutil           # Type stubs for psutil

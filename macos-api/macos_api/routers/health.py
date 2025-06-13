@@ -1,16 +1,17 @@
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
+import platform
 from datetime import datetime, timezone
 from typing import Dict
-import platform
 
-from ..services.system import get_system_metrics, get_device_info, get_version_info
-from ..services.tracker import check_tracker_status, get_deployment_info
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
+
+from ..core.config import APP_VERSION, CACHE_TTL
+from ..models.schemas import ErrorResponse, HealthResponse
 from ..services.display import get_display_info
 from ..services.health import calculate_health_score, get_health_summary
+from ..services.system import get_device_info, get_system_metrics, get_version_info
+from ..services.tracker import check_tracker_status, get_deployment_info
 from ..services.utils import cache_with_ttl
-from ..core.config import CACHE_TTL, APP_VERSION
-from ..models.schemas import HealthResponse, ErrorResponse
 
 router = APIRouter()
 
@@ -51,7 +52,9 @@ async def health_check():
         # Determine overall status
         status = "online"
         if not tracker["healthy"]:
-            status = "maintenance" if tracker["service_status"] == "active" else "offline"
+            status = (
+                "maintenance" if tracker["service_status"] == "active" else "offline"
+            )
 
         # Get macOS version info for system details
         version_info = get_version_info()
@@ -100,7 +103,11 @@ async def health_check():
                 "main_display": display_info.get("main_display", {}),
                 "all_displays": display_info.get("displays", []),
                 "is_headless": device.get("is_headless", False),
-                "headless_reason": display_info.get("headless_reason", None) if device.get("is_headless", False) else None,
+                "headless_reason": (
+                    display_info.get("headless_reason", None)
+                    if device.get("is_headless", False)
+                    else None
+                ),
             },
             "capabilities": {
                 "supports_camera_stream": True,
@@ -119,7 +126,12 @@ async def health_check():
         now = datetime.now(timezone.utc)
         return JSONResponse(
             status_code=500,
-            content=ErrorResponse(status="error", timestamp=now.isoformat(), timestamp_epoch=int(now.timestamp()), error=str(e)).dict(),
+            content=ErrorResponse(
+                status="error",
+                timestamp=now.isoformat(),
+                timestamp_epoch=int(now.timestamp()),
+                error=str(e),
+            ).dict(),
         )
 
 

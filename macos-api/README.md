@@ -11,6 +11,34 @@ This API provides system health, metrics, screenshots, and status information fo
 - Health scoring and recommendations
 - oaTracker status monitoring
 
+## Development
+
+### Code Formatting & Linting
+
+This project uses Black, isort, flake8, and mypy for code quality. Install dependencies in the shared oaPangaea virtual environment:
+
+```bash
+# From oaPangaea root
+source .venv/bin/activate
+pip install -r oaAnsible/macos-api/requirements.txt
+```
+
+#### Format Code (auto-fix style issues)
+```bash
+# From oaAnsible/macos-api/
+./format.sh        # Formats code with black & isort, then runs linting
+```
+
+#### Check Code Style (CI-friendly, no modifications)
+```bash
+# From oaAnsible/macos-api/
+./check.sh         # Only checks, reports issues without fixing
+```
+
+**Key Difference:**
+- `./format.sh` - **Formats** (modifies files) then **lints** (checks)
+- `./check.sh` - **Only checks** (read-only, good for CI)
+
 ## Installation
 
 The API is deployed via Ansible using the `macos_api` role. It runs as a launchd service.
