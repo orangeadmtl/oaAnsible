@@ -15,7 +15,7 @@ configure:
 oa_environment:
   name: "staging"
   allow_experimental: true
-  allow_server_optimizations: false
+  allow_server_optimizations: true
   allow_destructive_operations: true
   allow_tailscale_changes: true
   deploy_alpr_service: true
