@@ -4,12 +4,24 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from pydantic import BaseModel, Field
 
 
+class TemperatureMetrics(BaseModel):
+    timestamp: str
+    cpu_temperature: Optional[float] = None
+    thermal_state: Dict
+    thermal_health: str = "unknown"
+    thermal_issues: Optional[List[str]] = None
+    temperature_unit: str = "celsius"
+    method: str = "cpu_usage_estimation"
+    capabilities: Dict[str, bool]
+
+
 class SystemMetrics(BaseModel):
     cpu: Dict
     memory: Dict
     disk: Dict
     network: Optional[Dict] = None
     boot_time: Optional[float] = None
+    temperature: Optional[TemperatureMetrics] = None
 
 
 class TrackerStatus(BaseModel):

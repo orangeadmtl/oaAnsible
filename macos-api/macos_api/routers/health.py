@@ -10,6 +10,7 @@ from ..models.schemas import ErrorResponse, HealthResponse
 from ..services.display import get_display_info
 from ..services.health import calculate_health_score, get_health_summary
 from ..services.system import get_device_info, get_system_metrics, get_version_info
+from ..services.temperature import get_temperature_metrics
 from ..services.tracker import check_tracker_status, get_deployment_info
 from ..services.utils import cache_with_ttl
 
@@ -146,3 +147,26 @@ async def health_summary():
         return get_health_summary(metrics, tracker, display_info)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/temperature")
+async def temperature_metrics():
+    """Get detailed temperature metrics for the macOS device."""
+    try:
+        temperature_data = get_temperature_metrics()
+        return {
+            "status": "success",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "data": temperature_data
+        }
+    except Exception as e:
+        now = datetime.now(timezone.utc)
+        return JSONResponse(
+            status_code=500,
+            content=ErrorResponse(
+                status="error",
+                timestamp=now.isoformat(),
+                timestamp_epoch=int(now.timestamp()),
+                error=str(e),
+            ).dict(),
+        )

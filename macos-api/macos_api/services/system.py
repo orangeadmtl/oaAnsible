@@ -9,6 +9,7 @@ import psutil
 
 from ..core.config import LAUNCHCTL_CMD, PS_CMD, TRACKER_ROOT
 from ..services.utils import run_command
+from ..services.temperature import get_temperature_metrics
 
 
 def get_system_metrics() -> Dict:
@@ -90,12 +91,23 @@ def get_system_metrics() -> Dict:
         except Exception:
             network_metrics = {}
 
+        # Get temperature metrics
+        try:
+            temperature_metrics = get_temperature_metrics()
+        except Exception as e:
+            temperature_metrics = {
+                "timestamp": datetime.now().isoformat(),
+                "thermal_health": "unknown",
+                "error": str(e)
+            }
+
         return {
             "cpu": cpu_metrics,
             "memory": memory_metrics,
             "disk": disk_metrics,
             "network": network_metrics,
             "boot_time": psutil.boot_time(),
+            "temperature": temperature_metrics,
         }
     except Exception as e:
         return {

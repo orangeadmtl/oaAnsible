@@ -155,6 +155,15 @@
     group: staff
   become: true
 
+- name: Ensure smctemp binary is executable
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/orangead/macos-api/macos_api/bin/smctemp"
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: staff
+  become: true
+  failed_when: false  # Don't fail if binary doesn't exist
+
 - name: Verify OpenCV installation
   ansible.builtin.shell: |
     set -o pipefail
