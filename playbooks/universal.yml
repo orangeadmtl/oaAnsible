@@ -1,0 +1,138 @@
+---
+# Universal Entry Point Playbook with Advanced Component Framework
+# Routes to appropriate platform-specific playbooks based on detection
+- name: Universal OrangeAd Device Configuration
+  hosts: all
+  gather_facts: false
+  vars:
+    # Default execution mode - can be overridden
+    execution_mode: "full" # Options: full, components, base, network, dry-run, check, diff, force
+    # Components to deploy (when execution_mode is "components")
+    selected_components: [] # e.g., ["macos-api", "tracker", "alpr"]
+    # Platform override (leave empty for auto-detection)
+    force_platform: ""
+    # Skip platform verification
+    skip_platform_check: false
+    # Advanced execution options
+    verbose_mode: false
+    force_deployment: false
+
+  pre_tasks:
+    - name: Display universal playbook banner
+      ansible.builtin.debug:
+        msg: |
+          🚀 OrangeAd Universal Orchestration System
+          ==========================================
+
+          Execution Parameters:
+          - Mode: {{ execution_mode | upper }}
+          - Components: {{ selected_components | default(['N/A']) | join(', ') }}
+          - Platform: {{ force_platform | default('Auto-detect') }}
+          - Targets: {{ ansible_play_hosts | join(', ') }}
+          - Verbose: {{ verbose_mode }}
+
+          Advanced Component Framework: ENABLED ✅
+
+    - name: Import platform detection
+      ansible.builtin.include_tasks: ../tasks/platform-detection.yml
+      when: force_platform == ""
+
+    - name: Set forced platform
+      ansible.builtin.set_fact:
+        detected_platform: "{{ force_platform }}"
+      when: force_platform != ""
+
+    - name: Initialize execution modes
+      ansible.builtin.include_tasks: ../tasks/execution-modes.yml
+      tags: ["always"]
+
+  tasks:
+    - name: Execute macOS full configuration
+      ansible.builtin.include_tasks: ../tasks/deploy-components.yml
+      vars:
+        target_platform: "macos"
+        components_to_deploy: ["base-system", "python", "network-stack", "macos-api", "macos-tracker"]
+      when:
+        - execution_mode == "full"
+        - detected_platform == "macos"
+
+    - name: Execute Ubuntu full configuration
+      ansible.builtin.include_tasks: ../tasks/deploy-components.yml
+      vars:
+        target_platform: "ubuntu"
+        components_to_deploy: ["base-system", "network-stack", "ubuntu-docker"]
+      when:
+        - execution_mode == "full"
+        - detected_platform == "ubuntu"
+
+    - name: Execute OrangePi full configuration
+      ansible.builtin.include_tasks: ../tasks/deploy-components.yml
+      vars:
+        target_platform: "orangepi"
+        components_to_deploy: ["base-system", "python", "network-stack", "opi-player"]
+      when:
+        - execution_mode == "full"
+        - detected_platform == "orangepi"
+
+    - name: Advanced component-specific deployment
+      when: execution_mode == "components"
+
+      block:
+        - name: Validate component selection
+          ansible.builtin.fail:
+            msg: |
+              ❌ No components selected for deployment.
+
+              Available components:
+              - macOS: macos-api, macos-tracker, alpr
+              - Ubuntu: ubuntu-docker, base-system
+              - OrangePi: opi-player
+              - Universal: python, node, network-stack
+
+              Usage: --extra-vars 'selected_components=["macos-api","tracker"]'
+          when: selected_components | length == 0
+
+        - name: Initialize component framework
+          ansible.builtin.include_tasks: ../tasks/component-framework.yml
+          tags: ["always"]
+
+        - name: Validate component compatibility
+          ansible.builtin.include_tasks: ../tasks/component-compatibility.yml
+          tags: ["always"]
+
+        - name: Execute component deployment
+          ansible.builtin.include_tasks: ../tasks/deploy-components.yml
+          vars:
+            target_platform: "{{ detected_platform }}"
+            components_to_deploy: "{{ final_component_order }}"
+          when:
+            - component_deployment_plan.validation_passed
+            - component_compatibility.passed
+            - deployment_execution.confirmed
+            - not deployment_execution.dry_run
+            - not deployment_execution.check_mode
+    - name: Route to base system configuration
+      ansible.builtin.include_tasks: ../tasks/deploy-components.yml
+      vars:
+        target_platform: "{{ detected_platform }}"
+        components_to_deploy: ["base-system"]
+      when: execution_mode == "base"
+
+    - name: Route to network configuration
+      ansible.builtin.include_tasks: ../tasks/deploy-components.yml
+      vars:
+        target_platform: "{{ detected_platform }}"
+        components_to_deploy: ["network-stack"]
+      when: execution_mode == "network"
+
+  post_tasks:
+    - name: Display completion summary
+      ansible.builtin.debug:
+        msg: |
+          Universal Playbook Completed Successfully!
+          - Platform: {{ detected_platform }}
+          - Mode: {{ execution_mode }}
+          {% if execution_mode == "components" %}
+          - Components Deployed: {{ selected_components | join(', ') }}
+          {% endif %}
+          - Target: {{ inventory_hostname }}
