@@ -1,0 +1,287 @@
+---
+# Idempotency Patterns and Best Practices
+# Reusable patterns for improving task efficiency and idempotency
+
+# Pattern 1: State-Aware File Operations
+- name: "Pattern: State-aware file copy with validation"
+  vars:
+    pattern_name: "state_aware_file_copy"
+    pattern_description: "Copy files only when source differs from destination"
+  block:
+    # Example usage (replace with actual parameters)
+    - name: Check if destination file exists and get checksum
+      ansible.builtin.stat:
+        path: "{{ dest_path }}"
+        checksum_algorithm: sha256
+      register: dest_file_check
+
+    - name: Get source file checksum
+      ansible.builtin.stat:
+        path: "{{ src_path }}"
+        checksum_algorithm: sha256
+      register: src_file_check
+
+    - name: Copy file only if different or missing
+      ansible.builtin.copy:
+        src: "{{ src_path }}"
+        dest: "{{ dest_path }}"
+        mode: "{{ file_mode | default('0644') }}"
+        backup: "{{ create_backup | default(false) }}"
+      when: >
+        not dest_file_check.stat.exists or dest_file_check.stat.checksum != src_file_check.stat.checksum
+      register: file_copy_result
+
+# Pattern 2: Smart Package Installation
+- name: "Pattern: Smart package installation with state checking"
+  vars:
+    pattern_name: "smart_package_install"
+    pattern_description: "Install packages only if not present or outdated"
+  block:
+    # Homebrew example
+    - name: Check installed Homebrew packages
+      ansible.builtin.shell: |
+        brew list --formula | grep -E "^({{ packages | join('|') }})$" || true
+      register: installed_packages
+      changed_when: false
+      when: platform_state.is_macos
+
+    - name: Install missing Homebrew packages
+      community.general.homebrew:
+        name: "{{ missing_packages }}"
+        state: present
+        update_homebrew: false
+      vars:
+        missing_packages: "{{ packages | difference(installed_packages.stdout_lines | default([])) }}"
+      when:
+        - platform_state.is_macos
+        - missing_packages | length > 0
+
+# Pattern 3: Service State Management
+- name: "Pattern: Intelligent service management"
+  vars:
+    pattern_name: "smart_service_management"
+    pattern_description: "Manage services based on current state and configuration"
+  block:
+    # macOS LaunchAgent example
+    - name: Check LaunchAgent current state
+      ansible.builtin.shell: |
+        launchctl print gui/$(id -u)/{{ service_name }} 2>/dev/null | grep -E "(state|pid)" || echo "not_loaded"
+      register: service_current_state
+      changed_when: false
+
+    - name: Parse service state
+      ansible.builtin.set_fact:
+        service_loaded: "{{ 'state = ' in service_current_state.stdout }}"
+        service_running: "{{ 'state = running' in service_current_state.stdout }}"
+
+    - name: Load service if not loaded
+      ansible.builtin.command: launchctl load -w {{ plist_path }}
+      when: not service_loaded
+      register: service_load_result
+
+    - name: Start service if loaded but not running
+      ansible.builtin.command: launchctl kickstart -k gui/$(id -u)/{{ service_name }}
+      when: service_loaded and not service_running and service_needs_restart | default(false)
+      register: service_start_result
+
+# Pattern 4: Configuration Drift Detection
+- name: "Pattern: Configuration drift detection and correction"
+  vars:
+    pattern_name: "config_drift_detection"
+    pattern_description: "Detect and correct configuration drift"
+  block:
+    - name: Generate expected configuration checksum
+      ansible.builtin.set_fact:
+        expected_config_hash: "{{ config_content | hash('sha256') }}"
+
+    - name: Get current configuration checksum
+      ansible.builtin.stat:
+        path: "{{ config_file_path }}"
+        checksum_algorithm: sha256
+      register: current_config_stat
+
+    - name: Detect configuration drift
+      ansible.builtin.set_fact:
+        config_drift_detected: >
+          {{
+            not current_config_stat.stat.exists or
+            current_config_stat.stat.checksum != expected_config_hash
+          }}
+
+    - name: Update configuration if drift detected
+      ansible.builtin.copy:
+        content: "{{ config_content }}"
+        dest: "{{ config_file_path }}"
+        mode: "{{ config_mode | default('0644') }}"
+        backup: true
+      when: config_drift_detected
+      notify: "{{ config_change_handler | default([]) }}"
+
+# Pattern 5: Dependency Chain Validation
+- name: "Pattern: Validate dependency chain before execution"
+  vars:
+    pattern_name: "dependency_validation"
+    pattern_description: "Ensure all dependencies are met before proceeding"
+  block:
+    - name: Validate dependencies
+      ansible.builtin.assert:
+        that:
+          - "{{ item.condition }}"
+        fail_msg: "{{ item.message }}"
+        quiet: true
+      loop: "{{ dependencies | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+# Pattern 6: Atomic Operations with Rollback
+- name: "Pattern: Atomic operations with automatic rollback"
+  vars:
+    pattern_name: "atomic_operations"
+    pattern_description: "Perform operations atomically with rollback capability"
+  block:
+    - name: Create backup before operation
+      ansible.builtin.copy:
+        src: "{{ target_file }}"
+        dest: "{{ target_file }}.backup.{{ ansible_date_time.epoch }}"
+        remote_src: true
+      when: create_backup | default(true)
+      register: backup_created
+
+    - name: Perform atomic operation
+      ansible.builtin.template:
+        src: "{{ template_src }}"
+        dest: "{{ target_file }}"
+        mode: "{{ file_mode | default('0644') }}"
+      register: operation_result
+
+    - name: Validate operation result
+      ansible.builtin.command: "{{ validation_command }}"
+      register: validation_result
+      failed_when: validation_result.rc != 0
+      when: validation_command is defined
+
+    - name: Rollback on failure
+      ansible.builtin.copy:
+        src: "{{ backup_created.dest }}"
+        dest: "{{ target_file }}"
+        remote_src: true
+      when:
+        - validation_result is defined and validation_result.failed
+        - backup_created.changed
+      register: rollback_result
+
+    - name: Clean up backup on success
+      ansible.builtin.file:
+        path: "{{ backup_created.dest }}"
+        state: absent
+      when:
+        - backup_created.changed
+        - validation_result is not defined or not validation_result.failed
+
+# Pattern 7: Smart Git Repository Management
+- name: "Pattern: Efficient git repository operations"
+  vars:
+    pattern_name: "smart_git_operations"
+    pattern_description: "Git operations with change detection and optimization"
+  block:
+    - name: Check if repository exists and is valid
+      ansible.builtin.stat:
+        path: "{{ repo_dest }}/.git"
+      register: git_repo_check
+
+    - name: Get current repository state
+      ansible.builtin.command: git -C {{ repo_dest }} rev-parse HEAD
+      register: current_commit
+      changed_when: false
+      failed_when: false
+      when: git_repo_check.stat.exists
+
+    - name: Get remote repository latest commit
+      ansible.builtin.command: git ls-remote {{ repo_url }} {{ repo_version | default('HEAD') }}
+      register: remote_commit
+      changed_when: false
+      failed_when: false
+
+    - name: Clone or update repository only if needed
+      ansible.builtin.git:
+        repo: "{{ repo_url }}"
+        dest: "{{ repo_dest }}"
+        version: "{{ repo_version | default('HEAD') }}"
+        update: true
+        force: "{{ force_update | default(false) }}"
+      when: >
+        not git_repo_check.stat.exists or current_commit.stdout != (remote_commit.stdout.split('\t')[0] if remote_commit.stdout else '')
+      register: git_operation_result
+
+# Pattern 8: Performance-Optimized Fact Gathering
+- name: "Pattern: Optimized fact gathering for performance"
+  vars:
+    pattern_name: "optimized_fact_gathering"
+    pattern_description: "Gather only necessary facts to improve performance"
+  block:
+    - name: Gather minimal facts for performance
+      ansible.builtin.setup:
+        gather_subset:
+          - "!all"
+          - "!any"
+          - "{{ required_fact_subsets | default(['network', 'hardware']) }}"
+        filter: "{{ fact_filter | default('ansible_*') }}"
+      when: gather_minimal_facts | default(false)
+
+# Pattern 9: Conditional Task Execution
+- name: "Pattern: Smart conditional execution"
+  vars:
+    pattern_name: "conditional_execution"
+    pattern_description: "Execute tasks based on comprehensive state analysis"
+  block:
+    - name: Execute task block conditionally
+      when: >
+        {{
+          (execution_conditions | default([])) | map('bool') | list | all and
+          not (skip_conditions | default([])) | map('bool') | list | any
+        }}
+      block:
+        - name: Conditional task execution placeholder
+          ansible.builtin.debug:
+            msg: "Executing conditional task block"
+
+# Pattern 10: Resource Optimization
+- name: "Pattern: Resource usage optimization"
+  vars:
+    pattern_name: "resource_optimization"
+    pattern_description: "Optimize resource usage during operations"
+  block:
+    - name: Set resource limits for operations
+      ansible.builtin.set_fact:
+        operation_limits:
+          max_parallel: "{{ ansible_processor_vcpus // 2 }}"
+          memory_limit: "{{ (ansible_memtotal_mb * 0.8) | int }}MB"
+          timeout: "{{ operation_timeout | default(300) }}"
+
+    - name: Execute resource-intensive operation with limits
+      ansible.builtin.shell: |
+        {{ resource_command }}
+      async: "{{ operation_limits.timeout }}"
+      poll: "{{ poll_interval | default(10) }}"
+      when: resource_command is defined
+
+# Usage Examples and Guidelines
+- name: Display idempotency patterns usage
+  ansible.builtin.debug:
+    msg: |
+      🔄 Idempotency Patterns Available:
+
+      1. State-Aware File Operations - Copy files only when changed
+      2. Smart Package Installation - Install only missing packages
+      3. Service State Management - Manage services based on current state
+      4. Configuration Drift Detection - Detect and correct configuration changes
+      5. Dependency Chain Validation - Ensure prerequisites are met
+      6. Atomic Operations - Operations with rollback capability
+      7. Smart Git Operations - Efficient repository management
+      8. Optimized Fact Gathering - Performance-focused fact collection
+      9. Conditional Execution - Smart task execution logic
+      10. Resource Optimization - Efficient resource usage
+
+      💡 Use these patterns in your roles for better idempotency and performance!
+  run_once: true
+  tags: ["never", "patterns_help"]

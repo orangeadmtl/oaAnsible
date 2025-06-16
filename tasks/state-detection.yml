@@ -1,0 +1,371 @@
+---
+# Comprehensive State Detection Framework
+# Provides reusable state checking patterns for improved idempotency
+
+- name: Detect system state and set base facts
+  ansible.builtin.setup:
+    gather_subset:
+      - "!all"
+      - "!any"
+      - "network"
+      - "hardware"
+      - "virtual"
+      - "facter"
+  tags: ["always", "state"]
+
+- name: Detect platform capabilities
+  ansible.builtin.set_fact:
+    platform_state:
+      os_family: "{{ ansible_os_family }}"
+      distribution: "{{ ansible_distribution }}"
+      version: "{{ ansible_distribution_version }}"
+      architecture: "{{ ansible_architecture }}"
+      is_macos: "{{ ansible_distribution == 'MacOSX' }}"
+      is_ubuntu: "{{ ansible_distribution == 'Ubuntu' }}"
+      is_embedded: "{{ ansible_architecture in ['aarch64', 'armv7l', 'arm64'] and ansible_distribution in ['Debian', 'Ubuntu'] }}"
+      package_manager: "{{ 'homebrew' if ansible_distribution == 'MacOSX' else 'apt' if ansible_distribution == 'Ubuntu' else 'unknown' }}"
+      service_manager: "{{ 'launchd' if ansible_distribution == 'MacOSX' else 'systemd' if ansible_distribution == 'Ubuntu' else 'unknown' }}"
+  tags: ["always", "state"]
+
+# Homebrew State Detection (macOS)
+- name: Check Homebrew installation state
+  when: platform_state.is_macos
+  tags: ["state", "homebrew"]
+  block:
+    - name: Check if Homebrew is installed
+      ansible.builtin.stat:
+        path: /opt/homebrew/bin/brew
+      register: homebrew_arm_check
+
+    - name: Check if Homebrew is installed (Intel)
+      ansible.builtin.stat:
+        path: /usr/local/bin/brew
+      register: homebrew_intel_check
+
+    - name: Get Homebrew version if installed
+      ansible.builtin.command:
+        cmd: "{{ '/opt/homebrew/bin/brew' if homebrew_arm_check.stat.exists else '/usr/local/bin/brew' if homebrew_intel_check.stat.exists else 'false' }} --version"
+      register: homebrew_version_check
+      changed_when: false
+      failed_when: false
+      when: homebrew_arm_check.stat.exists or homebrew_intel_check.stat.exists
+
+    - name: Set Homebrew state facts
+      ansible.builtin.set_fact:
+        homebrew_state:
+          installed: "{{ homebrew_arm_check.stat.exists or homebrew_intel_check.stat.exists }}"
+          path: "{{ '/opt/homebrew/bin/brew' if homebrew_arm_check.stat.exists else '/usr/local/bin/brew' if homebrew_intel_check.stat.exists else '' }}"
+          version: "{{ homebrew_version_check.stdout_lines[0] if homebrew_version_check.rc == 0 else 'unknown' }}"
+          working: "{{ homebrew_version_check.rc == 0 if homebrew_version_check is defined else false }}"
+
+# Python Environment State Detection
+- name: Check Python environment state
+  tags: ["state", "python"]
+  block:
+    - name: Check if pyenv is installed
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/.pyenv/bin/pyenv"
+      register: pyenv_binary_check
+
+    - name: Check pyenv git repository state
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/.pyenv/.git"
+      register: pyenv_git_check
+      when: pyenv_binary_check.stat.exists
+
+    - name: Get pyenv version if installed
+      ansible.builtin.shell: |
+        export PYENV_ROOT="{{ ansible_user_dir }}/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        {{ ansible_user_dir }}/.pyenv/bin/pyenv --version 2>/dev/null || echo "error"
+      register: pyenv_version_check
+      changed_when: false
+      failed_when: false
+      when: pyenv_binary_check.stat.exists
+
+    - name: Get installed Python versions
+      ansible.builtin.shell: |
+        export PYENV_ROOT="{{ ansible_user_dir }}/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        {{ ansible_user_dir }}/.pyenv/bin/pyenv versions --bare 2>/dev/null || echo ""
+      register: pyenv_versions_check
+      changed_when: false
+      failed_when: false
+      when: pyenv_binary_check.stat.exists and pyenv_git_check.stat.exists | default(false)
+
+    - name: Get current global Python version
+      ansible.builtin.shell: |
+        export PYENV_ROOT="{{ ansible_user_dir }}/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        eval "$({{ ansible_user_dir }}/.pyenv/bin/pyenv init -)"
+        {{ ansible_user_dir }}/.pyenv/bin/pyenv global 2>/dev/null || echo "none"
+      register: pyenv_global_check
+      changed_when: false
+      failed_when: false
+      when: pyenv_binary_check.stat.exists and pyenv_git_check.stat.exists | default(false)
+
+    - name: Check if target Python version is available
+      ansible.builtin.set_fact:
+        target_python_installed: "{{ (runtime.python.version | default(python.version | default('3.11.11'))) in (pyenv_versions_check.stdout_lines | default([]))
+          }}"
+      when: pyenv_versions_check is defined
+
+    - name: Check if uv is installed
+      ansible.builtin.command: which uv
+      register: uv_check
+      changed_when: false
+      failed_when: false
+
+    - name: Set Python environment state facts
+      ansible.builtin.set_fact:
+        python_state:
+          pyenv_installed: "{{ pyenv_binary_check.stat.exists | default(false) }}"
+          pyenv_valid: "{{ pyenv_binary_check.stat.exists and pyenv_git_check.stat.exists | default(false) }}"
+          pyenv_working: "{{ pyenv_version_check.rc == 0 if pyenv_version_check is defined else false }}"
+          pyenv_version: "{{ pyenv_version_check.stdout if pyenv_version_check.rc == 0 else 'unknown' }}"
+          installed_versions: "{{ pyenv_versions_check.stdout_lines | default([]) }}"
+          global_version: "{{ pyenv_global_check.stdout | default('none') }}"
+          target_version: "{{ runtime.python.version | default(python.version | default('3.11.11')) }}"
+          target_installed: "{{ target_python_installed | default(false) }}"
+          target_is_global: "{{ pyenv_global_check.stdout | default('none') == (runtime.python.version | default(python.version | default('3.11.11'))) }}"
+          uv_installed: "{{ uv_check.rc == 0 }}"
+          ready: "{{ pyenv_binary_check.stat.exists and pyenv_git_check.stat.exists | default(false) and target_python_installed | default(false) and pyenv_global_check.stdout
+            | default('none') == (runtime.python.version | default(python.version | default('3.11.11'))) }}"
+
+# Node.js Environment State Detection
+- name: Check Node.js environment state
+  tags: ["state", "node"]
+  block:
+    - name: Check if nvm is installed
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/.nvm/nvm.sh"
+      register: nvm_check
+
+    - name: Get installed Node versions
+      ansible.builtin.shell: |
+        export NVM_DIR="{{ ansible_user_dir }}/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        nvm list --no-colors 2>/dev/null | grep -E 'v[0-9]' | sed 's/[^v0-9.]//g' || echo ""
+      register: nvm_versions_check
+      changed_when: false
+      failed_when: false
+      when: nvm_check.stat.exists
+
+    - name: Get current Node version
+      ansible.builtin.shell: |
+        export NVM_DIR="{{ ansible_user_dir }}/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        node --version 2>/dev/null || echo "none"
+      register: node_version_check
+      changed_when: false
+      failed_when: false
+
+    - name: Check if bun is installed
+      ansible.builtin.command: which bun
+      register: bun_check
+      changed_when: false
+      failed_when: false
+
+    - name: Set Node.js environment state facts
+      ansible.builtin.set_fact:
+        node_state:
+          nvm_installed: "{{ nvm_check.stat.exists | default(false) }}"
+          installed_versions: "{{ nvm_versions_check.stdout_lines | default([]) }}"
+          current_version: "{{ node_version_check.stdout | default('none') }}"
+          target_version: "v{{ runtime.node.version | default(node.version | default('22.11.0')) }}"
+          target_installed: "{{ ('v' + (runtime.node.version | default(node.version | default('22.11.0')))) in (nvm_versions_check.stdout_lines | default([])) }}"
+          bun_installed: "{{ bun_check.rc == 0 }}"
+          ready: "{{ nvm_check.stat.exists and ('v' + (runtime.node.version | default(node.version | default('22.11.0')))) in (nvm_versions_check.stdout_lines | default([]))
+            }}"
+
+# Service State Detection (macOS)
+- name: Check macOS services state
+  when: platform_state.is_macos
+  tags: ["state", "services", "macos"]
+  block:
+    - name: Check LaunchAgent status for OrangeAd services
+      ansible.builtin.shell: |
+        launchctl print gui/$(id -u)/com.orangead.{{ item }} 2>/dev/null | grep -E "(state|pid)" || echo "not_loaded"
+      register: launchagent_status
+      changed_when: false
+      failed_when: false
+      loop:
+        - macosapi
+        - tracker
+        - alpr
+
+    - name: Check LaunchDaemon status for system services
+      ansible.builtin.shell: |
+        sudo launchctl print system/com.orangead.{{ item }} 2>/dev/null | grep -E "(state|pid)" || echo "not_loaded"
+      register: launchdaemon_status
+      changed_when: false
+      failed_when: false
+      loop:
+        - dailyreboot
+      become: true
+
+    - name: Set macOS services state facts
+      ansible.builtin.set_fact:
+        macos_services_state:
+          user_agents:
+            macosapi: "{{ 'running' if 'state = running' in launchagent_status.results[0].stdout else 'stopped' if 'state = ' in launchagent_status.results[0].stdout
+              else 'not_loaded' }}"
+            tracker: "{{ 'running' if 'state = running' in launchagent_status.results[1].stdout else 'stopped' if 'state = ' in launchagent_status.results[1].stdout
+              else 'not_loaded' }}"
+            alpr: "{{ 'running' if 'state = running' in launchagent_status.results[2].stdout else 'stopped' if 'state = ' in launchagent_status.results[2].stdout
+              else 'not_loaded' }}"
+          system_daemons:
+            dailyreboot: "{{ 'loaded' if 'state = ' in launchdaemon_status.results[0].stdout else 'not_loaded' }}"
+
+# Tailscale State Detection
+- name: Check Tailscale state
+  tags: ["state", "tailscale"]
+  block:
+    - name: Check if Tailscale is installed
+      ansible.builtin.command: which tailscale
+      register: tailscale_binary_check
+      changed_when: false
+      failed_when: false
+
+    - name: Get Tailscale status
+      ansible.builtin.command: tailscale status --json
+      register: tailscale_status_check
+      changed_when: false
+      failed_when: false
+      when: tailscale_binary_check.rc == 0
+
+    - name: Parse Tailscale status
+      ansible.builtin.set_fact:
+        tailscale_status_data: "{{ tailscale_status_check.stdout | from_json }}"
+      when: tailscale_status_check.rc == 0
+
+    - name: Set Tailscale state facts
+      ansible.builtin.set_fact:
+        tailscale_state:
+          installed: "{{ tailscale_binary_check.rc == 0 }}"
+          running: "{{ tailscale_status_check.rc == 0 if tailscale_status_check is defined else false }}"
+          online: "{{ tailscale_status_data.BackendState == 'Running' if tailscale_status_data is defined else false }}"
+          hostname: "{{ tailscale_status_data.Self.HostName if tailscale_status_data is defined and tailscale_status_data.Self is defined else 'unknown' }}"
+          ip: "{{ tailscale_status_data.Self.TailscaleIPs[0] if tailscale_status_data is defined and tailscale_status_data.Self is defined and tailscale_status_data.Self.TailscaleIPs
+            else 'unknown' }}"
+          tags: "{{ tailscale_status_data.Self.Tags if tailscale_status_data is defined and tailscale_status_data.Self is defined else [] }}"
+
+# Component Installation State Detection
+- name: Check component installation states
+  when: platform_state.is_macos
+  tags: ["state", "components"]
+  block:
+    - name: Check macOS API installation
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/orangead/macos-api/main.py"
+      register: macos_api_check
+      when: platform_state.is_macos
+
+    - name: Check oaTracker installation
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/orangead/tracker"
+      register: tracker_check
+      when: platform_state.is_macos
+
+    - name: Check ALPR installation
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/orangead/alpr"
+      register: alpr_check
+      when: platform_state.is_macos
+
+    - name: Set component installation state facts
+      ansible.builtin.set_fact:
+        components_state:
+          macos_api:
+            installed: "{{ macos_api_check.stat.exists | default(false) }}"
+            path: "{{ ansible_user_dir }}/orangead/macos-api"
+          tracker:
+            installed: "{{ tracker_check.stat.exists | default(false) }}"
+            path: "{{ ansible_user_dir }}/orangead/tracker"
+          alpr:
+            installed: "{{ alpr_check.stat.exists | default(false) }}"
+            path: "{{ ansible_user_dir }}/orangead/alpr"
+
+# Configuration Files State Detection
+- name: Check configuration files state
+  tags: ["state", "config"]
+  block:
+    - name: Check shell configuration files
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/{{ item }}"
+      register: shell_configs_check
+      loop:
+        - .zshrc
+        - .bash_profile
+        - .bashrc
+
+    - name: Set configuration files state facts
+      ansible.builtin.set_fact:
+        config_files_state:
+          zshrc_exists: "{{ shell_configs_check.results[0].stat.exists }}"
+          bash_profile_exists: "{{ shell_configs_check.results[1].stat.exists }}"
+          bashrc_exists: "{{ shell_configs_check.results[2].stat.exists }}"
+
+# Display comprehensive state summary
+- name: Display comprehensive system state
+  ansible.builtin.debug:
+    msg: |
+      🔍 System State Detection Summary:
+
+      📱 Platform:
+        - OS: {{ platform_state.distribution }} {{ platform_state.version }}
+        - Architecture: {{ platform_state.architecture }}
+        - Package Manager: {{ platform_state.package_manager }}
+        - Service Manager: {{ platform_state.service_manager }}
+
+      {% if platform_state.is_macos %}
+      🍺 Homebrew:
+        - Installed: {{ homebrew_state.installed }}
+        - Working: {{ homebrew_state.working }}
+        - Path: {{ homebrew_state.path }}
+      {% endif %}
+
+      🐍 Python Environment:
+        - Pyenv: {{ python_state.pyenv_installed }} (valid: {{ python_state.pyenv_valid }})
+        - Target {{ python_state.target_version }}: {{ python_state.target_installed }}
+        - Global: {{ python_state.global_version }}
+        - UV: {{ python_state.uv_installed }}
+        - Ready: {{ python_state.ready }}
+
+      📦 Node.js Environment:
+        - NVM: {{ node_state.nvm_installed }}
+        - Target {{ node_state.target_version }}: {{ node_state.target_installed }}
+        - Bun: {{ node_state.bun_installed }}
+        - Ready: {{ node_state.ready }}
+
+      🌐 Tailscale:
+        - Installed: {{ tailscale_state.installed }}
+        - Online: {{ tailscale_state.online }}
+        - Hostname: {{ tailscale_state.hostname }}
+
+      {% if platform_state.is_macos %}
+      🔧 Components:
+        - macOS API: {{ components_state.macos_api.installed }}
+        - Tracker: {{ components_state.tracker.installed }}
+        - ALPR: {{ components_state.alpr.installed }}
+
+      ⚙️ Services:
+        - macOS API: {{ macos_services_state.user_agents.macosapi }}
+        - Tracker: {{ macos_services_state.user_agents.tracker }}
+        - ALPR: {{ macos_services_state.user_agents.alpr }}
+        - Daily Reboot: {{ macos_services_state.system_daemons.dailyreboot }}
+      {% endif %}
+  when: inventory_hostname == ansible_play_hosts[0] # Only show on first host
+  tags: ["state"]
+
+# Set global readiness facts for use by other tasks
+- name: Set global system readiness facts
+  ansible.builtin.set_fact:
+    system_ready:
+      python: "{{ python_state.ready }}"
+      node: "{{ node_state.ready }}"
+      homebrew: "{{ homebrew_state.working if platform_state.is_macos else true }}"
+      tailscale: "{{ tailscale_state.online }}"
+      base_system: "{{ (homebrew_state.working if platform_state.is_macos else true) and (config_files_state.zshrc_exists or config_files_state.bash_profile_exists)
+        }}"
+  tags: ["always", "state"]
