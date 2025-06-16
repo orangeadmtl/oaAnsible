@@ -1,0 +1,104 @@
+---
+# Complete macOS Configuration Playbook
+# Deploys full OrangeAd stack on macOS devices
+- name: Configure macOS for OrangeAd - Full Stack
+  hosts: all
+  gather_facts: false
+  tags: ["macos", "full"]
+  pre_tasks:
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Debug connection info
+      ansible.builtin.debug:
+        msg: |
+          Connection Details:
+          - Host: {{ ansible_host }}
+          - User: {{ ansible_user }}
+          - Python: {{ ansible_python.executable }}
+
+    - name: Verify target is macOS
+      ansible.builtin.fail:
+        msg: "This playbook only supports macOS"
+      when: ansible_distribution != "MacOSX"
+
+    - name: Map homebrew packages from group_vars to role variables
+      ansible.builtin.set_fact:
+        homebrew_installed_packages: "{{ system.homebrew.packages }}"
+      when: system is defined and system.homebrew is defined and system.homebrew.packages is defined
+      tags: ["homebrew", "setup"]
+
+    - name: Ensure system requirements are met
+      ansible.builtin.import_tasks: tasks/pre_checks.yml
+      tags: ["always"]
+
+    - name: Environment safety checks
+      ansible.builtin.import_tasks: tasks/environment_checks.yml
+      tags: ["always"]
+
+  roles:
+    - role: elliotweiser.osx-command-line-tools
+      become: true
+      tags: ["cli", "setup"]
+
+    - role: geerlingguy.mac.homebrew
+      tags: ["homebrew", "setup"]
+
+    - role: macos/base
+      tags: ["setup", "configuration"]
+
+    - role: macos/ssh
+      tags: ["ssh", "security", "setup"]
+
+    - role: macos/settings
+      tags: ["settings", "configuration"]
+
+    - role: macos/server_optimizations # Server-like optimizations for minimal UI and maximum uptime
+      tags: ["server", "configuration", "optimization"]
+      when: oa_environment.allow_server_optimizations | default(false)
+
+    - role: macos/network # General network settings, DNS
+      tags: ["network", "dns"]
+
+    - role: macos/network/tailscale # Installs tailscale binaries and deploys plist
+      tags: ["tailscale", "network"]
+      when: oa_environment.allow_tailscale_changes | default(false)
+
+    - role: macos/python
+      tags: ["python", "dev"]
+      # Python is required for all environments (API and tracker need it)
+
+    - role: macos/node
+      tags: ["node", "dev"]
+      # Node is required for all environments
+
+    - role: macos/api
+      tags: ["api", "services"]
+      when: "'macos/api' not in (skip_roles | default([]))"
+
+    - role: macos/tracker
+      tags: ["tracker", "services"]
+      when: "'macos/tracker' not in (skip_roles | default([]))"
+
+    - role: macos/alpr_service # Docker and ALPR service deployment
+      tags: ["alpr", "docker", "services"]
+      when: oa_environment.deploy_alpr_service | default(false)
+
+    - role: macos/security # Firewall rules, including for tailscaled - AFTER API/Tracker for camera permissions
+      tags: ["security", "configuration"]
+
+  post_tasks:
+    - name: Verify installation
+      ansible.builtin.import_tasks: tasks/verify.yml
+      tags: ["verify"]
+
+    - name: Restart and verify services
+      ansible.builtin.import_tasks: tasks/restart_services.yml
+      tags: ["services", "restart", "verify"]
+
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: |
+          Installation completed successfully!
+          Please restart your terminal to apply all changes.
+      tags: ["always"]

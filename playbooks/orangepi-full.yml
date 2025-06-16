@@ -1,0 +1,105 @@
+---
+# Complete OrangePi Configuration Playbook
+# Deploys full OrangeAd embedded stack on OrangePi devices
+# NOTE: This is a placeholder - will be fully implemented in Phase 5
+
+- name: Configure OrangePi for OrangeAd - Full Embedded Stack
+  hosts: all
+  gather_facts: false
+  tags: ["orangepi", "full", "embedded"]
+  pre_tasks:
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Debug connection info
+      ansible.builtin.debug:
+        msg: |
+          OrangePi Device Configuration:
+          - Host: {{ ansible_host }}
+          - User: {{ ansible_user }}
+          - Python: {{ ansible_python.executable }}
+          - Distribution: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          - Architecture: {{ ansible_architecture }}
+          - Board: {{ ansible_board_name | default('Unknown') }}
+
+    - name: Verify target is ARM-based Linux
+      ansible.builtin.fail:
+        msg: "This playbook requires ARM-based Linux (Debian/Ubuntu)"
+      when:
+        - ansible_distribution not in ["Debian", "Ubuntu"]
+        - ansible_architecture not in ["aarch64", "armv7l", "arm64"]
+
+    - name: Display implementation status
+      ansible.builtin.debug:
+        msg: |
+          OrangePi Full Stack Implementation Status:
+          - Phase 5 Target: Complete OrangePi embedded support
+          - Current: Placeholder with basic structure
+          - Integration: Will work with existing opi-setup project
+          - Components: opi-setup API, system optimization, GPIO
+
+    - name: Environment safety checks
+      ansible.builtin.import_tasks: ../tasks/environment_checks.yml
+      tags: ["always"]
+
+  # Placeholder roles for Phase 5 implementation
+  tasks:
+    - name: Placeholder for OrangePi base configuration
+      ansible.builtin.debug:
+        msg: |
+          OrangePi base configuration would include:
+          - System optimization for embedded hardware
+          - GPIO and hardware-specific setup
+          - Power management configuration
+          - Display configuration management
+
+    - name: Placeholder for opi-setup deployment
+      ansible.builtin.debug:
+        msg: |
+          opi-setup service deployment would include:
+          - FastAPI service installation and configuration
+          - Python virtual environment with required packages
+          - Systemd service configuration
+          - Health monitoring endpoints
+          - Screenshot capture capabilities
+
+    - name: Placeholder for OrangePi network configuration
+      ansible.builtin.debug:
+        msg: |
+          OrangePi network configuration would include:
+          - Tailscale installation and configuration
+          - Network optimization for embedded device
+          - WiFi and Ethernet management
+          - Firewall configuration
+
+    - name: Placeholder for OrangePi optimization
+      ansible.builtin.debug:
+        msg: |
+          OrangePi system optimization would include:
+          - Boot time optimization
+          - Memory and CPU tuning
+          - Storage optimization
+          - Thermal management
+          - Watchdog configuration
+
+    - name: Display Phase 5 implementation plan
+      ansible.builtin.debug:
+        msg: |
+          OrangePi Full Stack - Phase 5 Implementation Plan:
+          1. Create roles/orangepi/ directory structure
+          2. Implement orangepi/base role for system optimization
+          3. Implement orangepi/opi_setup role for API deployment
+          4. Implement orangepi/network role for connectivity
+          5. Implement orangepi/optimization role for performance
+          6. Integration testing with real OrangePi 5B devices
+          7. Documentation and deployment guides
+
+  post_tasks:
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: |
+          OrangePi Placeholder Configuration Completed!
+          - Platform detected and validated
+          - Ready for Phase 5 implementation
+          - Will integrate with existing opi-setup project
+          - Target: Full embedded device management

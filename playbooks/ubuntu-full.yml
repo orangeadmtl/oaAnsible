@@ -1,0 +1,83 @@
+---
+# Complete Ubuntu Configuration Playbook
+# Deploys full OrangeAd server stack on Ubuntu devices
+# NOTE: This is a placeholder - will be fully implemented in Phase 5
+
+- name: Configure Ubuntu for OrangeAd - Full Server Stack
+  hosts: all
+  gather_facts: false
+  tags: ["ubuntu", "full", "server"]
+  pre_tasks:
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Debug connection info
+      ansible.builtin.debug:
+        msg: |
+          Ubuntu Server Configuration:
+          - Host: {{ ansible_host }}
+          - User: {{ ansible_user }}
+          - Python: {{ ansible_python.executable }}
+          - Distribution: {{ ansible_distribution }} {{ ansible_distribution_version }}
+
+    - name: Verify target is Ubuntu
+      ansible.builtin.fail:
+        msg: "This playbook only supports Ubuntu"
+      when: ansible_distribution != "Ubuntu"
+
+    - name: Display implementation status
+      ansible.builtin.debug:
+        msg: |
+          Ubuntu Full Stack Implementation Status:
+          - Phase 5 Target: Complete Ubuntu server support
+          - Current: Basic roles available
+          - Components: Base system, Tailscale, security
+
+    - name: Environment safety checks
+      ansible.builtin.import_tasks: ../tasks/environment_checks.yml
+      tags: ["always"]
+
+  roles:
+    # Currently available Ubuntu roles
+    - role: ubuntu/base
+      tags: ["base", "setup"]
+
+    - role: ubuntu/security
+      tags: ["security", "setup"]
+
+    - role: ubuntu/network/tailscale
+      tags: ["tailscale", "network"]
+      when: oa_environment.allow_tailscale_changes | default(false)
+
+    # Placeholder for future roles (Phase 5)
+    # - role: ubuntu/docker
+    # - role: ubuntu/monitoring
+    # - role: ubuntu/server_optimization
+
+  tasks:
+    - name: Display future implementation plan
+      ansible.builtin.debug:
+        msg: |
+          Ubuntu Full Stack - Phase 5 Implementation Plan:
+          1. Enhanced ubuntu/base role with server optimizations
+          2. Docker deployment and container management
+          3. System monitoring and logging
+          4. Server-specific security hardening
+          5. Integration with oaDashboard server components
+          6. Automated backup and maintenance scripts
+
+  post_tasks:
+    - name: Verify basic Ubuntu installation
+      ansible.builtin.import_tasks: ../tasks/verify.yml
+      tags: ["verify"]
+      vars:
+        verify_scope: "ubuntu_basic"
+
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: |
+          Ubuntu Basic Configuration Completed!
+          - Base system configured
+          - Security settings applied
+          - Tailscale configured (if enabled)
+          - Ready for Phase 5 enhancements
