@@ -1,0 +1,60 @@
+---
+# macOS API Component Configuration
+# Settings specific to the macOS API service deployment
+
+component:
+  name: "macos-api"
+  description: "FastAPI service for macOS device management"
+  platforms: ["macos"]
+  dependencies: ["python", "base"]
+# Service configuration
+ansible.builtin.service:
+  name: "com.orangead.macosapi"
+  port: 9090
+  bind_address: "127.0.0.1"
+  workers: 1
+
+# Deployment settings
+deployment:
+  path: "{{ ansible_user_dir }}/orangead/macos-api"
+  venv_path: "{{ ansible_user_dir }}/orangead/macos-api/.venv"
+  logs_path: "{{ ansible_user_dir }}/orangead/macos-api/logs"
+  config_path: "{{ ansible_user_dir }}/orangead/macos-api/config"
+
+# Python requirements
+python:
+  version: "{{ runtime.python.version }}"
+  requirements_file: "requirements.txt"
+  packages:
+    - "fastapi"
+    - "uvicorn"
+    - "pydantic"
+    - "psutil"
+    - "opencv-python-headless"
+    - "httpx"
+
+# LaunchAgent configuration
+launchd:
+  plist_name: "com.orangead.macosapi.plist"
+  plist_path: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist"
+  working_directory: "{{ ansible_user_dir }}/orangead/macos-api"
+  environment_variables:
+    PYTHONPATH: "{{ ansible_user_dir }}/orangead/macos-api"
+
+# Health check configuration
+health:
+  endpoint: "/health"
+  timeout: 30
+  retries: 3
+
+# Security settings
+security:
+  tailscale_subnet_middleware: true
+  api_key_required: false
+  allowed_hosts: ["localhost", "127.0.0.1"]
+# Logging configuration
+logging:
+  level: "INFO"
+  rotation: "1 week"
+  retention: "4 weeks"
+  max_size: "10MB"

@@ -1,0 +1,85 @@
+---
+# Tracker Component Configuration
+# Settings specific to the oaTracker service deployment
+
+component:
+  name: "tracker"
+  description: "AI-powered object tracking service"
+  platforms: ["macos"]
+  dependencies: ["python", "base", "camera_permissions"]
+# Service configuration
+ansible.builtin.service:
+  name: "com.orangead.tracker"
+  port: 8080
+  bind_address: "127.0.0.1"
+
+# Deployment settings
+deployment:
+  path: "{{ ansible_user_dir }}/orangead/tracker"
+  venv_path: "{{ ansible_user_dir }}/orangead/tracker/.venv"
+  logs_path: "{{ ansible_user_dir }}/orangead/tracker/logs"
+  config_path: "{{ ansible_user_dir }}/orangead/tracker/config.yaml"
+  models_path: "{{ ansible_user_dir }}/orangead/tracker/models"
+
+# Repository settings
+repository:
+  url: "{{ tracker.repository_url }}"
+  version: "{{ tracker.git_version | default('main') }}"
+
+# Python requirements
+python:
+  version: "{{ runtime.python.version }}"
+  requirements_type: "pyproject.toml" # Modern Python project
+  packages:
+    - "ultralytics"
+    - "fastapi"
+    - "uvicorn"
+    - "opencv-python"
+    - "torch"
+    - "torchvision"
+    - "pillow"
+    - "numpy"
+
+# Camera configuration
+camera:
+  default_source: "{{ tracker.default_yolo_source | default(0) }}"
+  resolution: "1280x720"
+  fps: 30
+
+# AI Model configuration
+model:
+  default: "{{ tracker.default_model | default('yolo12s.pt') }}"
+  auto_download: true
+  confidence_threshold: 0.5
+
+# LaunchAgent configuration
+launchd:
+  plist_name: "com.orangead.tracker.plist"
+  plist_path: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist"
+  working_directory: "{{ ansible_user_dir }}/orangead/tracker"
+  environment_variables:
+    PYTHONPATH: "{{ ansible_user_dir }}/orangead/tracker"
+
+# Health check configuration
+health:
+  endpoint: "/api/stats"
+  timeout: 30
+  retries: 3
+
+# Security settings
+security:
+  camera_permissions_required: true
+  api_key_required: false
+  allowed_hosts: ["localhost", "127.0.0.1"]
+# Performance settings
+performance:
+  gpu_acceleration: "auto" # auto, cuda, mps, cpu
+  max_memory_mb: 2048
+  thread_count: "auto"
+
+# Logging configuration
+logging:
+  level: "INFO"
+  rotation: "1 day"
+  retention: "7 days"
+  max_size: "50MB"

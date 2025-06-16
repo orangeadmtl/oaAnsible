@@ -1,0 +1,127 @@
+---
+# OrangePi Platform-Specific Configuration
+# Default settings for all OrangePi embedded devices
+
+platform:
+  name: "orangepi"
+  type: "embedded"
+  capabilities:
+    - "systemd"
+    - "apt"
+    - "gpio"
+    - "embedded"
+    - "opi-setup"
+    - "display"
+
+# Hardware-specific settings
+hardware:
+  board: "orangepi5b" # Default, can be overridden
+  architecture: "aarch64"
+  memory_mb: 8192 # Default for OrangePi 5B
+
+# Runtime versions for OrangePi (lighter versions for embedded)
+runtime:
+  python:
+    version: "3.11.11"
+    manager: "apt" # Use system Python for embedded
+  node:
+    version: "20.11.0" # LTS version for stability
+    manager: "nvm"
+
+# OrangePi-specific package management
+system:
+  package_manager: "apt"
+  packages:
+    - curl
+    - wget
+    - git
+    - jq
+    - htop
+    - vim
+    - unzip
+    - build-essential
+    # Embedded-specific packages
+    - i2c-tools
+    - gpio
+    - python3-pip
+    - python3-venv
+    - ffmpeg
+    - v4l-utils
+
+# Service management
+services:
+  type: "systemd"
+  user_services_path: "{{ ansible_user_dir }}/.config/systemd/user"
+  system_services_path: "/etc/systemd/system"
+
+# OrangePi-specific paths
+paths:
+  user_applications: "{{ ansible_user_dir }}/applications"
+  orangead_base: "{{ ansible_user_dir }}/orangead"
+  logs_base: "{{ ansible_user_dir }}/orangead/logs"
+  opi_setup_path: "{{ ansible_user_dir }}/orangead/opi-setup"
+
+# Default component configuration
+components:
+  opi_setup:
+    enabled: true
+    port: 9090
+    path: "{{ ansible_user_dir }}/orangead/opi-setup"
+    api_key_required: true
+
+  display:
+    enabled: true
+    default_resolution: "1920x1080"
+    default_refresh: "60"
+
+  gpio:
+    enabled: true
+
+  camera:
+    enabled: false # Requires specific hardware
+    device: "/dev/video0"
+
+# Embedded optimization
+optimization:
+  boot:
+    fast_boot: true
+    reduce_services: true
+
+  memory:
+    swap_enabled: false # Avoid swap on SD card
+    zram_enabled: true
+
+  storage:
+    log_rotation: true
+    tmp_in_ram: true
+
+  power:
+    cpu_governor: "ondemand"
+
+# Security settings for embedded device
+security:
+  firewall:
+    enabled: true
+    tool: "ufw"
+    strict_mode: true
+
+  ssh:
+    port: 22
+    password_auth: false
+    key_only: true
+
+  updates:
+    auto_security: true
+    auto_reboot: false
+
+# Display configuration
+display:
+  config_file: "/boot/display.conf"
+  available_resolutions:
+    - "1920x1080"
+    - "1366x768"
+    - "1280x720"
+  available_refresh_rates:
+    - "60"
+    - "50"
+    - "30"

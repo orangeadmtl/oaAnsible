@@ -1,0 +1,96 @@
+---
+# Ubuntu Platform-Specific Configuration
+# Default settings for all Ubuntu server devices
+
+platform:
+  name: "ubuntu"
+  type: "server"
+  capabilities:
+    - "systemd"
+    - "apt"
+    - "docker"
+    - "server"
+    - "monitoring"
+
+# Runtime versions for Ubuntu
+runtime:
+  python:
+    version: "3.11.11"
+    manager: "pyenv"
+  node:
+    version: "22.11.0"
+    manager: "nvm"
+
+# Ubuntu-specific package management
+system:
+  package_manager: "apt"
+  packages:
+    - curl
+    - wget
+    - git
+    - jq
+    - htop
+    - tmux
+    - vim
+    - unzip
+    - build-essential
+    - software-properties-common
+    # Server-specific packages
+    - ufw
+    - fail2ban
+    - logrotate
+    - rsync
+
+# Service management
+services:
+  type: "systemd"
+  user_services_path: "{{ ansible_user_dir }}/.config/systemd/user"
+  system_services_path: "/etc/systemd/system"
+
+# Ubuntu-specific paths
+paths:
+  user_applications: "{{ ansible_user_dir }}/Applications"
+  orangead_base: "{{ ansible_user_dir }}/orangead"
+  logs_base: "/var/log/orangead"
+  config_base: "/etc/orangead"
+
+# Default component configuration for server
+components:
+  docker:
+    enabled: true
+    compose_version: "latest"
+
+  monitoring:
+    enabled: true
+    tools: ["htop", "iotop", "nethogs"]
+  backup:
+    enabled: false # Will be implemented in Phase 5
+
+  web_server:
+    enabled: false # For future oaDashboard hosting
+
+# Security settings
+security:
+  firewall:
+    enabled: true
+    tool: "ufw"
+
+  ssh:
+    port: 22
+    password_auth: false
+    key_only: true
+
+  fail2ban:
+    enabled: true
+
+# Server optimization
+optimization:
+  swap:
+    enabled: true
+    size: "2G"
+
+  kernel:
+    optimize_for_server: true
+
+  networking:
+    tcp_optimization: true

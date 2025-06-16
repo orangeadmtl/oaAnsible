@@ -1,0 +1,84 @@
+---
+# macOS Platform-Specific Configuration
+# Default settings for all macOS devices
+
+platform:
+  name: "macos"
+  type: "desktop"
+  capabilities:
+    - "gui"
+    - "launchd"
+    - "homebrew"
+    - "macos-api"
+    - "tracker"
+    - "alpr"
+    - "camera"
+
+# Runtime versions for macOS
+runtime:
+  python:
+    version: "3.11.11"
+    manager: "pyenv"
+  node:
+    version: "22.11.0"
+    manager: "nvm"
+
+# macOS-specific package management
+system:
+  package_manager: "homebrew"
+  homebrew:
+    packages:
+      - go
+      - git
+      - wget
+      - jq
+      - btop
+      - httpie
+      - curl
+      - telnet
+      - util-linux
+      - fish
+      - lsd
+      # macOS-specific packages
+      - mas
+      - mackup
+      - rectangle
+
+# Service management
+services:
+  type: "launchd"
+  user_agents_path: "{{ ansible_user_dir }}/Library/LaunchAgents"
+  system_daemons_path: "/Library/LaunchDaemons"
+
+# macOS-specific paths
+paths:
+  user_applications: "{{ ansible_user_dir }}/Applications"
+  orangead_base: "{{ ansible_user_dir }}/orangead"
+  logs_base: "{{ ansible_user_dir }}/orangead/logs"
+
+# Default component configuration
+components:
+  macos_api:
+    enabled: true
+    port: 9090
+    path: "{{ ansible_user_dir }}/orangead/macos-api"
+
+  tracker:
+    enabled: true
+    port: 8080
+    path: "{{ ansible_user_dir }}/orangead/tracker"
+    default_model: "yolo12s.pt"
+
+  alpr:
+    enabled: false # Requires explicit enablement
+    path: "{{ ansible_user_dir }}/orangead/alpr"
+
+# Security settings
+security:
+  firewall:
+    enabled: true
+    allow_signed_app: true
+
+  privacy:
+    camera_permissions_required: true
+    full_disk_access_required: false

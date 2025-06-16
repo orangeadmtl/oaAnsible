@@ -1,0 +1,84 @@
+---
+# ALPR Component Configuration
+# Settings specific to the ALPR (Automatic License Plate Recognition) service
+
+component:
+  name: "alpr"
+  description: "Automatic License Plate Recognition service"
+  platforms: ["macos"]
+  dependencies: ["docker", "base"]
+  experimental: true
+
+# Service configuration
+ansible.builtin.service:
+  name: "com.orangead.alpr"
+  port: 8081
+  bind_address: "127.0.0.1"
+
+# Deployment settings
+deployment:
+  path: "{{ ansible_user_dir }}/orangead/alpr"
+  logs_path: "{{ ansible_user_dir }}/orangead/alpr/logs"
+  config_path: "{{ ansible_user_dir }}/orangead/alpr/config"
+  data_path: "{{ ansible_user_dir }}/orangead/alpr/data"
+
+# Docker configuration
+docker:
+  enabled: true
+  image: "openalpr/openalpr:latest"
+  container_name: "orangead-alpr"
+  volumes:
+    - "{{ ansible_user_dir }}/orangead/alpr/data:/data"
+    - "{{ ansible_user_dir }}/orangead/alpr/config:/etc/openalpr"
+  ports:
+    - "127.0.0.1:8081:8080"
+  environment:
+    - "ALPR_COUNTRY=us"
+    - "ALPR_PATTERN=us"
+
+# ALPR engine configuration
+alpr:
+  country: "us"
+  region: "us"
+  pattern: "us"
+  confidence_threshold: 80
+  max_plate_width: 120
+  max_plate_height: 120
+
+# LaunchAgent configuration
+launchd:
+  plist_name: "com.orangead.alpr.plist"
+  plist_path: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.alpr.plist"
+  working_directory: "{{ ansible_user_dir }}/orangead/alpr"
+
+# Health check configuration
+health:
+  endpoint: "/health"
+  timeout: 60 # Docker startup can be slow
+  retries: 5
+
+# Security settings
+security:
+  api_key_required: false
+  allowed_hosts: ["localhost", "127.0.0.1"]
+  docker_security: true
+
+# Performance settings
+performance:
+  max_memory_mb: 1024
+  cpu_limit: "1.0"
+
+# Feature flags
+features:
+  web_interface: true
+  api_enabled: true
+  batch_processing: false
+  real_time_processing: true
+
+# Logging configuration
+logging:
+  level: "INFO"
+  rotation: "1 week"
+  retention: "2 weeks"
+  max_size: "25MB"
+  docker_logs: true
