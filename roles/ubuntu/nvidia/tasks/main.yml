@@ -34,10 +34,7 @@
 
     - name: Set NVIDIA skip flags
       ansible.builtin.set_fact:
-        skip_nvidia_install: "{{ 
-          nvidia_gpu_check.rc != 0 or 
-          nvidia_status.stdout == 'working' 
-        }}"
+        skip_nvidia_install: "{{ nvidia_gpu_check.rc != 0 or nvidia_status.stdout == 'working' }}"
         has_nvidia_gpu: "{{ nvidia_gpu_check.rc == 0 }}"
         nvidia_working: "{{ nvidia_status.stdout == 'working' }}"
         has_version_mismatch: "{{ nvidia_status.stdout == 'mismatch' }}"
@@ -48,12 +45,12 @@
     msg: |
       NVIDIA Driver Status:
       - GPU Present: {{ 'Yes (' + nvidia_gpu_check.stdout_lines[0] + ')' if has_nvidia_gpu else 'No NVIDIA GPU detected' }}
-      - Driver Status: {{ 
+      - Driver Status: {{
         'Working correctly' if nvidia_working else
         'Version mismatch detected' if has_version_mismatch else
         'Not installed or not working'
       }}
-      - Action Needed: {{ 
+      - Action Needed: {{
         'None - already working' if skip_nvidia_install else
         'Fix version mismatch' if needs_driver_fix else
         'Install NVIDIA drivers' if has_nvidia_gpu else
@@ -140,29 +137,29 @@
       ansible.builtin.debug:
         msg: |
           NVIDIA driver installation completed!
-          
+
           ⚠️  REBOOT REQUIRED ⚠️
           Please reboot the system to load the new NVIDIA drivers:
           sudo reboot
-          
+
           After reboot, verify with: nvidia-smi
       when: reboot_required.stat.exists or driver_install.changed
 
 - name: Display NVIDIA configuration results
   ansible.builtin.debug:
-    msg: |
+    msg: |-
       NVIDIA Driver Configuration Completed:
-      {{ 
+      {{
         '- Status: Already working correctly' if nvidia_working else
         '- Status: Version mismatch fixed, reboot required' if has_version_mismatch else
         '- Status: Fresh drivers installed, reboot required' if has_nvidia_gpu else
         '- Status: No GPU detected, skipped installation'
       }}
-      {{ 
+      {{
         '- GPUs: ' + nvidia_gpu_check.stdout_lines | join(', ') if has_nvidia_gpu else
         '- No NVIDIA hardware detected'
       }}
-      {{ 
+      {{
         '- Drivers: Recommended driver installed' if has_nvidia_gpu and not nvidia_working else
         '- Drivers: Already configured' if nvidia_working else
         ''

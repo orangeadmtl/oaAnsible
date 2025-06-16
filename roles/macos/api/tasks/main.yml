@@ -162,7 +162,7 @@
     owner: "{{ ansible_user }}"
     group: staff
   become: true
-  failed_when: false  # Don't fail if binary doesn't exist
+  failed_when: false # Don't fail if binary doesn't exist
 
 - name: Verify OpenCV installation
   ansible.builtin.shell: |

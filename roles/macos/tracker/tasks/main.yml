@@ -189,10 +189,10 @@
   become: true
   become_user: "{{ ansible_user }}"
 
-# Merge global and device-specific tracker configuration  
+# Merge global and device-specific tracker configuration
 - name: Load global tracker config from group_vars
   ansible.builtin.include_vars:
-    file: "{{ inventory_dir }}/group_vars/all.yml"
+    ansible.builtin.file: "{{ inventory_dir }}/group_vars/all.yml"
     name: global_vars
 
 - name: Validate global tracker config exists
@@ -228,7 +228,7 @@
         {{ merged_tracker_config.git_version }}
       {%- endif -%}
 
-# Debug git version being used  
+# Debug git version being used
 - name: Display git version being used for tracker
   ansible.builtin.debug:
     msg: "Using git version: {{ final_git_version }} (priority: device-commit > device-branch > global-default)"

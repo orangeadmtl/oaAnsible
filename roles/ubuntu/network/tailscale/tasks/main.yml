@@ -109,7 +109,7 @@
     - name: Enable IP forwarding for subnet routing
       ansible.builtin.sysctl:
         name: net.ipv4.ip_forward
-        value: '1'
+        value: "1"
         state: present
         reload: true
       become: true
@@ -117,7 +117,7 @@
     - name: Enable IPv6 forwarding for subnet routing
       ansible.builtin.sysctl:
         name: net.ipv6.conf.all.forwarding
-        value: '1'
+        value: "1"
         state: present
         reload: true
       become: true
@@ -131,7 +131,7 @@
 
 - name: Display Tailscale configuration results
   ansible.builtin.debug:
-    msg: |
+    msg: |-
       Tailscale Configuration Completed:
       - Installation: {{ 'Verified' if skip_install else 'Installed successfully' }}
       - Service: {{ 'Already running' if skip_service else 'Started and enabled' }}
@@ -139,6 +139,6 @@
       - Tags: {{ 'Already set' if skip_auth else 'Applied: ' + tailscale_tags | join(', ') }}
       - SSH access: {{ 'Enabled via Tailscale' if tailscale_enable_ssh else 'Disabled' }}
       - Subnet routing: {{ 'Already configured' if skip_routing else 'Enabled for: ' + tailscale_advertise_routes | join(', ') }}
-      
+
       Final Status:
       {{ final_tailscale_status.stdout_lines | join('\n      ') if final_tailscale_status.stdout_lines else 'Status check failed' }}

@@ -1,0 +1,296 @@
+---
+# Enhanced macOS API Deployment with Improved Idempotency
+# Uses state detection and idempotency patterns for efficient deployment
+
+- name: Import state detection for macOS API
+  ansible.builtin.include_tasks: ../../../tasks/state-detection.yml
+  tags: ["always"]
+
+- name: Deploy macOS API service
+  when: platform_state.is_macos
+  block:
+    # Early exit if component is already properly deployed
+    - name: Check macOS API deployment status
+      ansible.builtin.stat:
+        path: "{{ components_state.macos_api.path }}/main.py"
+      register: api_main_check
+
+    - name: Check virtual environment status
+      ansible.builtin.stat:
+        path: "{{ components_state.macos_api.path }}/.venv/bin/python"
+      register: api_venv_check
+
+    - name: Check if service is running correctly
+      ansible.builtin.shell: |
+        launchctl print gui/$(id -u)/com.orangead.macosapi 2>/dev/null | grep -E "(state|pid)" || echo "not_loaded"
+      register: api_service_check
+      changed_when: false
+      failed_when: false
+
+    - name: Determine if deployment is needed
+      ansible.builtin.set_fact:
+        api_deployment_needed: >
+          {{
+            not api_main_check.stat.exists or
+            not api_venv_check.stat.exists or
+            not python_state.ready or
+            'state = running' not in api_service_check.stdout
+          }}
+
+    - name: Skip deployment - macOS API already configured
+      ansible.builtin.debug:
+        msg: |
+          ✅ macOS API is already properly deployed:
+          - Main application: {{ api_main_check.stat.exists }}
+          - Virtual environment: {{ api_venv_check.stat.exists }}
+          - Python environment: {{ python_state.ready }}
+          - Service running: {{ 'state = running' in api_service_check.stdout }}
+          Skipping deployment tasks.
+      when: not api_deployment_needed
+
+    # Proceed with deployment only if needed
+    - name: Deploy macOS API components
+      when: api_deployment_needed
+      block:
+        # Ensure dependencies are ready
+        - name: Validate deployment dependencies
+          ansible.builtin.assert:
+            that:
+              - python_state.ready
+              - python_state.target_installed
+              - python_state.uv_installed or uv_available | default(false)
+            fail_msg: |
+              Dependencies not ready for macOS API deployment:
+              - Python ready: {{ python_state.ready }}
+              - Target Python installed: {{ python_state.target_installed }}
+              - UV available: {{ python_state.uv_installed or uv_available | default(false) }}
+            quiet: true
+
+        # Create directory structure with proper permissions
+        - name: Create macOS API directory structure
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: directory
+            mode: "0755"
+            owner: "{{ ansible_user }}"
+            group: "{{ ansible_user_group | default('staff') }}"
+          loop:
+            - "{{ ansible_user_dir }}/orangead"
+            - "{{ components_state.macos_api.path }}"
+            - "{{ components_state.macos_api.path }}/logs"
+            - "{{ components_state.macos_api.path }}/config"
+          become: true
+
+        # Smart file synchronization (only copy changed files)
+        - name: Get source directory checksum
+          ansible.builtin.find:
+            paths: "{{ playbook_dir }}/macos-api"
+            recurse: true
+            excludes:
+              - ".venv"
+              - "__pycache__"
+              - "*.pyc"
+              - ".git*"
+              - "logs/*"
+          register: source_files
+
+        - name: Calculate source content hash
+          ansible.builtin.set_fact:
+            source_content_hash: "{{ source_files.files | map(attribute='path') | sort | join('') | hash('sha256') }}"
+
+        - name: Check existing deployment hash
+          ansible.builtin.slurp:
+            src: "{{ components_state.macos_api.path }}/.deployment_hash"
+          register: existing_hash
+          failed_when: false
+
+        - name: Determine if file sync is needed
+          ansible.builtin.set_fact:
+            files_sync_needed: >
+              {{
+                not existing_hash.content is defined or
+                (existing_hash.content | b64decode | trim) != source_content_hash
+              }}
+
+        - name: Sync macOS API files (only if changed)
+          ansible.posix.synchronize:
+            src: "{{ playbook_dir }}/macos-api/"
+            dest: "{{ components_state.macos_api.path }}/"
+            delete: false
+            checksum: true
+            rsync_opts:
+              - "--exclude=.venv"
+              - "--exclude=__pycache__"
+              - "--exclude=*.pyc"
+              - "--exclude=.git*"
+              - "--exclude=logs/*"
+              - "--exclude=.deployment_hash"
+          become: true
+          become_user: "{{ ansible_user }}"
+          when: files_sync_needed
+          register: files_synced
+
+        - name: Update deployment hash
+          ansible.builtin.copy:
+            content: "{{ source_content_hash }}"
+            dest: "{{ components_state.macos_api.path }}/.deployment_hash"
+            mode: "0644"
+          become: true
+          become_user: "{{ ansible_user }}"
+          when: files_synced.changed | default(false)
+
+        # Smart virtual environment management
+        - name: Check if virtual environment needs update
+          block:
+            - name: Check requirements file hash
+              ansible.builtin.stat:
+                path: "{{ components_state.macos_api.path }}/requirements.txt"
+                checksum_algorithm: sha256
+              register: requirements_stat
+
+            - name: Check existing venv requirements hash
+              ansible.builtin.slurp:
+                src: "{{ components_state.macos_api.path }}/.venv/.requirements_hash"
+              register: venv_requirements_hash
+              failed_when: false
+
+            - name: Determine if venv rebuild is needed
+              ansible.builtin.set_fact:
+                venv_rebuild_needed: >
+                  {{
+                    not api_venv_check.stat.exists or
+                    not venv_requirements_hash.content is defined or
+                    (venv_requirements_hash.content | b64decode | trim) != requirements_stat.stat.checksum
+                  }}
+
+        - name: Manage Python virtual environment
+          when: venv_rebuild_needed
+          block:
+            - name: Remove existing virtual environment
+              ansible.builtin.file:
+                path: "{{ components_state.macos_api.path }}/.venv"
+                state: absent
+              become: true
+              become_user: "{{ ansible_user }}"
+
+            - name: Create virtual environment with UV
+              ansible.builtin.shell: |
+                export PYENV_ROOT="{{ ansible_user_dir }}/.pyenv"
+                export PATH="$PYENV_ROOT/bin:$HOME/.cargo/bin:$PATH"
+                eval "$(pyenv init -)"
+
+                cd "{{ components_state.macos_api.path }}"
+                uv venv .venv --python {{ python_state.target_version }}
+              become: true
+              become_user: "{{ ansible_user }}"
+              register: venv_created
+
+            - name: Install Python dependencies with UV
+              ansible.builtin.shell: |
+                export PYENV_ROOT="{{ ansible_user_dir }}/.pyenv"
+                export PATH="$PYENV_ROOT/bin:$HOME/.cargo/bin:$PATH"
+                eval "$(pyenv init -)"
+
+                cd "{{ components_state.macos_api.path }}"
+                source .venv/bin/activate
+                uv pip install -r requirements.txt
+              become: true
+              become_user: "{{ ansible_user }}"
+              register: deps_installed
+
+            - name: Verify critical dependencies
+              ansible.builtin.shell: |
+                cd "{{ components_state.macos_api.path }}"
+                source .venv/bin/activate
+                python -c "
+                import fastapi, uvicorn, pydantic, psutil
+                print('✅ All critical dependencies available')
+                "
+              become: true
+              become_user: "{{ ansible_user }}"
+              register: deps_verification
+
+            - name: Save requirements hash
+              ansible.builtin.copy:
+                content: "{{ requirements_stat.stat.checksum }}"
+                dest: "{{ components_state.macos_api.path }}/.venv/.requirements_hash"
+                mode: "0644"
+              become: true
+              become_user: "{{ ansible_user }}"
+
+        # Smart LaunchAgent configuration
+        - name: Configure LaunchAgent service
+          block:
+            - name: Generate LaunchAgent configuration
+              ansible.builtin.template:
+                src: com.orangead.macosapi.plist.j2
+                dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist"
+                mode: "0644"
+                backup: true
+              become: true
+              become_user: "{{ ansible_user }}"
+              register: plist_updated
+
+            - name: Check if service needs restart
+              ansible.builtin.set_fact:
+                service_restart_needed: >
+                  {{
+                    plist_updated.changed or
+                    venv_rebuild_needed or
+                    files_synced.changed | default(false) or
+                    'state = running' not in api_service_check.stdout
+                  }}
+
+            - name: Restart macOS API service if needed
+              when: service_restart_needed
+              block:
+                - name: Stop existing service
+                  ansible.builtin.command: launchctl unload -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
+                  become: true
+                  become_user: "{{ ansible_user }}"
+                  failed_when: false
+
+                - name: Load and start service
+                  ansible.builtin.command: launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
+                  become: true
+                  become_user: "{{ ansible_user }}"
+                  register: service_loaded
+
+                - name: Wait for service to start
+                  ansible.builtin.wait_for:
+                    port: 9090
+                    host: "127.0.0.1"
+                    timeout: 30
+                    delay: 2
+                  register: service_ready
+
+        # Final verification
+        - name: Verify macOS API deployment
+          ansible.builtin.uri:
+            url: "http://127.0.0.1:9090/health"
+            method: GET
+            timeout: 10
+          register: api_health_check
+          retries: 3
+          delay: 5
+          until: api_health_check.status == 200
+
+        - name: Display deployment summary
+          ansible.builtin.debug:
+            msg: |
+              🍎 macOS API Deployment Complete:
+              - Files synced: {{ files_synced.changed | default(false) }}
+              - Virtual environment: {{ 'rebuilt' if venv_rebuild_needed else 'existing' }}
+              - Service: {{ 'restarted' if service_restart_needed else 'running' }}
+              - Health check: {{ 'passed' if api_health_check.status == 200 else 'failed' }}
+              - API URL: http://127.0.0.1:9090
+              - Logs: {{ components_state.macos_api.path }}/logs/
+
+# Set completion facts for dependent tasks
+- name: Set macOS API deployment facts
+  ansible.builtin.set_fact:
+    macos_api_deployed: true
+    macos_api_port: 9090
+    macos_api_path: "{{ components_state.macos_api.path }}"
+    macos_api_service_name: "com.orangead.macosapi"
+  tags: ["always"]

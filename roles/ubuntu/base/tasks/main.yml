@@ -38,7 +38,7 @@
     update_cache: true
     cache_valid_time: 3600
   become: true
-  when: 
+  when:
     - update_cache | default(true) | bool
     - not (skip_packages and skip_timezone and skip_user_setup)
 
@@ -79,7 +79,7 @@
         state: directory
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
-        mode: '0755'
+        mode: "0755"
       become: true
       loop:
         - "/home/{{ ansible_user }}/.ssh"
@@ -87,7 +87,7 @@
 
 - name: Display base configuration results
   ansible.builtin.debug:
-    msg: |
+    msg: |-
       Base Configuration Completed:
       - {{ base_packages | length }} essential packages {{ 'verified' if skip_packages else 'installed' }}
       - Timezone {{ 'verified' if skip_timezone else 'set to ' + timezone }}

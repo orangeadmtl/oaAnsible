@@ -27,11 +27,8 @@
     - name: Set security skip flags
       ansible.builtin.set_fact:
         skip_sudoers: "{{ sudoers_file.stat.exists }}"
-        skip_ssh_config: "{{ 
-          'PasswordAuthentication no' in ssh_config and 
-          'PubkeyAuthentication yes' in ssh_config and
-          'AuthorizedKeysFile .ssh/authorized_keys' in ssh_config
-        }}"
+        skip_ssh_config: "{{ 'PasswordAuthentication no' in ssh_config and 'PubkeyAuthentication yes' in ssh_config and 'AuthorizedKeysFile .ssh/authorized_keys'
+          in ssh_config }}"
         skip_firewall: "{{ 'Status: active' in ufw_status.stdout }}"
 
 - name: Display security configuration status
@@ -48,8 +45,8 @@
     dest: "/etc/sudoers.d/{{ ansible_user }}"
     owner: root
     group: root
-    mode: '0440'
-    validate: 'visudo -cf %s'
+    mode: "0440"
+    validate: "visudo -cf %s"
   become: true
   when: not skip_sudoers
 
@@ -59,7 +56,7 @@
     state: directory
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
-    mode: '0700'
+    mode: "0700"
   become: true
 
 - name: Configure SSH for passwordless authentication
@@ -70,9 +67,9 @@
     state: present
   become: true
   loop:
-    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
-    - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication yes' }
-    - { regexp: '^#?AuthorizedKeysFile', line: 'AuthorizedKeysFile .ssh/authorized_keys' }
+    - { regexp: "^#?PasswordAuthentication", line: "PasswordAuthentication no" }
+    - { regexp: "^#?PubkeyAuthentication", line: "PubkeyAuthentication yes" }
+    - { regexp: "^#?AuthorizedKeysFile", line: "AuthorizedKeysFile .ssh/authorized_keys" }
   notify: Restart ssh
   when: not skip_ssh_config
 
@@ -83,14 +80,14 @@
     proto: "{{ item.proto | default('tcp') }}"
   become: true
   loop:
-    - { rule: 'allow', port: '22' }
-    - { rule: 'allow', port: '41641', proto: 'udp' }  # Tailscale
+    - { rule: "allow", port: "22" }
+    - { rule: "allow", port: "41641", proto: "udp" } # Tailscale
   notify: Enable ufw
   when: not skip_firewall
 
 - name: Display security configuration results
   ansible.builtin.debug:
-    msg: |
+    msg: |-
       Security Configuration Completed:
       - Sudoers: {{ 'Verified' if skip_sudoers else 'Configured passwordless sudo for ' + ansible_user }}
       - SSH: {{ 'Verified' if skip_ssh_config else 'Hardened (key-only authentication)' }}
