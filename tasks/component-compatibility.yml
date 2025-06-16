@@ -1,0 +1,218 @@
+---
+# Component Compatibility Matrix and Validation
+# Advanced compatibility checking beyond simple conflicts
+
+- name: Define compatibility matrix
+  ansible.builtin.set_fact:
+    compatibility_matrix:
+      # Platform-specific compatibility rules
+      platform_requirements:
+        macos:
+          minimum_version: "12.0"
+          required_features: ["homebrew", "launchd"]
+          optional_features: ["xcode_tools", "camera_access"]
+        ubuntu:
+          minimum_version: "20.04"
+          required_features: ["systemd", "apt"]
+          optional_features: ["docker", "snap"]
+        orangepi:
+          minimum_version: "22.04" # Ubuntu base
+          required_features: ["systemd", "gpio_access"]
+          optional_features: ["camera_module", "display_output"]
+      # Resource requirements matrix
+      resource_requirements:
+        macos-api:
+          min_memory_mb: 512
+          min_disk_mb: 1024
+          cpu_cores: 1
+          network_ports: [9090]
+        macos-tracker:
+          min_memory_mb: 2048
+          min_disk_mb: 5120 # AI models need space
+          cpu_cores: 2
+          network_ports: [8080]
+          requires_gpu: false
+          requires_camera: true
+
+        alpr:
+          min_memory_mb: 1536
+          min_disk_mb: 3072
+          cpu_cores: 2
+          network_ports: [8081]
+          requires_gpu: false
+          requires_camera: true
+
+        ubuntu-docker:
+          min_memory_mb: 1024
+          min_disk_mb: 10240 # Docker images
+          cpu_cores: 1
+          network_ports: []
+        opi-player:
+          min_memory_mb: 1024
+          min_disk_mb: 2048
+          cpu_cores: 1
+          network_ports: [9090]
+          requires_display: true
+
+      # Version compatibility matrix
+      version_compatibility:
+        python:
+          "3.11": ["macos-api", "macos-tracker", "alpr", "opi-player"]
+          "3.12": ["macos-api", "macos-tracker", "alpr", "opi-player"]
+          "3.13": ["macos-api"] # Limited compatibility for newer Python
+
+        node:
+          "18": ["base-system"]
+          "20": ["base-system"]
+          "22": ["base-system"]
+      # Runtime compatibility rules
+      runtime_conflicts:
+        - components: ["macos-tracker", "alpr"]
+          reason: "Both require exclusive camera access"
+          severity: "error"
+
+        - components: ["ubuntu-docker", "macos-api"]
+          reason: "Different platform requirements"
+          severity: "error"
+
+        - components: ["opi-player", "macos-tracker"]
+          reason: "Different platform architectures"
+          severity: "error"
+
+      # Service port conflicts
+      port_conflicts:
+        9090: ["macos-api", "opi-player"]
+        8080: ["macos-tracker"]
+        8081: ["alpr"]
+
+- name: Perform advanced compatibility validation
+  when: dependency_resolution.resolved_components is defined
+  block:
+    - name: Initialize compatibility results
+      ansible.builtin.set_fact:
+        compatibility_results:
+          passed: true
+          warnings: []
+          errors: []
+          resource_analysis: {}
+
+    # Check platform compatibility
+    - name: Validate platform requirements
+      ansible.builtin.set_fact:
+        compatibility_results: "{{ compatibility_results | combine({'errors': compatibility_results.errors + ['Platform ' + detected_platform + ' not supported by
+          component ' + item]}) }}"
+      loop: "{{ dependency_resolution.resolved_components }}"
+      when:
+        - component_framework.available_components[item].platform != 'universal'
+        - component_framework.available_components[item].platform != detected_platform
+
+    # Check resource requirements
+    - name: Calculate total resource requirements
+      ansible.builtin.set_fact:
+        total_resources:
+          memory_mb: 0
+          disk_mb: 0
+          cpu_cores: 0
+          ports_needed: []
+
+    - name: Sum resource requirements
+      ansible.builtin.set_fact:
+        total_resources: "{{ total_resources | combine({'memory_mb': total_resources.memory_mb + (compatibility_matrix.resource_requirements[item].min_memory_mb |
+          default(0)), 'disk_mb': total_resources.disk_mb + (compatibility_matrix.resource_requirements[item].min_disk_mb | default(0)), 'cpu_cores': [total_resources.cpu_cores,
+          compatibility_matrix.resource_requirements[item].cpu_cores | default(1)] | max, 'ports_needed': total_resources.ports_needed + (compatibility_matrix.resource_requirements[item].network_ports
+          | default([]))}) }}"
+      loop: "{{ dependency_resolution.resolved_components }}"
+      when: item in compatibility_matrix.resource_requirements
+
+    # Check for port conflicts
+    - name: Detect port conflicts
+      ansible.builtin.set_fact:
+        port_conflict_components: []
+
+    - name: Find components using same ports
+      ansible.builtin.set_fact:
+        port_conflict_components: "{{ port_conflict_components + [{'port': item.key, 'components': item.value | intersect(dependency_resolution.resolved_components)}]
+          }}"
+      loop: "{{ compatibility_matrix.port_conflicts | dict2items }}"
+      when: (item.value | intersect(dependency_resolution.resolved_components)) | length > 1
+
+    - name: Add port conflict errors
+      ansible.builtin.set_fact:
+        compatibility_results: "{{ compatibility_results | combine({'errors': compatibility_results.errors + ['Port conflict on ' + item.port | string + ': ' + item.components
+          | join(', ')]}) }}"
+      loop: "{{ port_conflict_components }}"
+      when: port_conflict_components | length > 0
+
+    # Check runtime conflicts
+    - name: Check for runtime conflicts
+      ansible.builtin.set_fact:
+        compatibility_results: "{{ compatibility_results | combine({'errors': compatibility_results.errors + [item.reason + ': ' + (item.components | intersect(dependency_resolution.resolved_components)
+          | join(', '))]}) }}"
+      loop: "{{ compatibility_matrix.runtime_conflicts }}"
+      when:
+        - item.severity == 'error'
+        - (item.components | intersect(dependency_resolution.resolved_components)) | length > 1
+
+    - name: Add runtime warnings
+      ansible.builtin.set_fact:
+        compatibility_results: "{{ compatibility_results | combine({'warnings': compatibility_results.warnings + [item.reason + ': ' + (item.components | intersect(dependency_resolution.resolved_components)
+          | join(', '))]}) }}"
+      loop: "{{ compatibility_matrix.runtime_conflicts }}"
+      when:
+        - item.severity == 'warning'
+        - (item.components | intersect(dependency_resolution.resolved_components)) | length > 1
+
+    # Set overall compatibility status
+    - name: Determine overall compatibility
+      ansible.builtin.set_fact:
+        compatibility_results: "{{ compatibility_results | combine({'passed': compatibility_results.errors | length == 0, 'resource_analysis': total_resources}) }}"
+
+- name: Display compatibility analysis
+  ansible.builtin.debug:
+    msg: |
+      🔍 Component Compatibility Analysis:
+
+      Status: {{ '✅ PASSED' if compatibility_results.passed else '❌ FAILED' }}
+
+      Resource Requirements:
+      - Memory: {{ compatibility_results.resource_analysis.memory_mb }}MB
+      - Disk: {{ compatibility_results.resource_analysis.disk_mb }}MB
+      - CPU Cores: {{ compatibility_results.resource_analysis.cpu_cores }}
+      - Network Ports: {{ compatibility_results.resource_analysis.ports_needed | unique | sort | join(', ') }}
+
+      {% if compatibility_results.errors | length > 0 %}
+      ❌ Errors ({{ compatibility_results.errors | length }}):
+      {% for error in compatibility_results.errors %}
+      - {{ error }}
+      {% endfor %}
+      {% endif %}
+
+      {% if compatibility_results.warnings | length > 0 %}
+      ⚠️  Warnings ({{ compatibility_results.warnings | length }}):
+      {% for warning in compatibility_results.warnings %}
+      - {{ warning }}
+      {% endfor %}
+      {% endif %}
+  when: compatibility_results is defined
+
+- name: Fail on compatibility errors
+  ansible.builtin.fail:
+    msg: |
+      💥 Component compatibility validation failed!
+
+      Please resolve the errors listed above before proceeding.
+      Consider reviewing your component selection or platform configuration.
+  when:
+    - compatibility_results is defined
+    - not compatibility_results.passed
+    - execution_mode | default('normal') != 'dry-run'
+
+- name: Set compatibility facts
+  ansible.builtin.set_fact:
+    component_compatibility:
+      validated: true
+      passed: "{{ compatibility_results.passed | default(false) }}"
+      total_resources: "{{ compatibility_results.resource_analysis | default({}) }}"
+      errors: "{{ compatibility_results.errors | default([]) }}"
+      warnings: "{{ compatibility_results.warnings | default([]) }}"
+  tags: ["always"]

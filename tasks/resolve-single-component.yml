@@ -1,0 +1,45 @@
+---
+# Single Component Dependency Resolution
+# Recursively resolves dependencies for a single component
+
+- name: Check if component already resolved
+  ansible.builtin.set_fact:
+    component_already_resolved: "{{ component_to_resolve in dependency_resolution.resolved_components }}"
+
+- name: Process component dependencies
+  when: not component_already_resolved
+  block:
+    - name: Check for circular dependency
+      ansible.builtin.fail:
+        msg: |
+          🔄 Circular dependency detected!
+          Processing stack: {{ dependency_resolution.processing_stack | join(' → ') }}
+          Attempting to add: {{ component_to_resolve }}
+
+          This indicates a circular dependency in your component configuration.
+          Please review the component requirements and remove the circular reference.
+      when: component_to_resolve in dependency_resolution.processing_stack
+
+    - name: Add component to processing stack
+      ansible.builtin.set_fact:
+        dependency_resolution: "{{ dependency_resolution | combine({'processing_stack': dependency_resolution.processing_stack + [component_to_resolve]}) }}"
+
+    - name: Get component definition
+      ansible.builtin.set_fact:
+        current_component: "{{ component_framework.available_components[component_to_resolve] }}"
+
+    - name: Resolve component dependencies recursively
+      ansible.builtin.include_tasks: resolve-single-component.yml
+      loop: "{{ current_component.requires }}"
+      loop_control:
+        loop_var: component_to_resolve
+      when: current_component.requires | length > 0
+
+    - name: Add component to resolved list
+      ansible.builtin.set_fact:
+        dependency_resolution: "{{ dependency_resolution | combine({'resolved_components': dependency_resolution.resolved_components + [component_to_resolve]}) }}"
+      when: component_to_resolve not in dependency_resolution.resolved_components
+
+    - name: Remove component from processing stack
+      ansible.builtin.set_fact:
+        dependency_resolution: "{{ dependency_resolution | combine({'processing_stack': dependency_resolution.processing_stack[:-1]}) }}"

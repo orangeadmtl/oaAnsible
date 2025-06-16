@@ -1,0 +1,242 @@
+---
+# Advanced Component Selection Framework
+# Provides intelligent component dependency resolution, conflict detection, and health checking
+
+- name: Initialize component framework variables
+  ansible.builtin.set_fact:
+    component_framework:
+      available_components:
+        # macOS Components
+        macos-api:
+          platform: "macos"
+          requires: ["python", "base-system"]
+          conflicts: []
+          provides: ["api-service", "health-monitoring"]
+          health_port: 9090
+          health_endpoint: "/health"
+          category: "service"
+          priority: 100
+
+        macos-tracker:
+          platform: "macos"
+          requires: ["python", "base-system", "macos-api"]
+          conflicts: []
+          provides: ["tracking-service", "mjpeg-stream"]
+          health_port: 8080
+          health_endpoint: "/api/stats"
+          category: "service"
+          priority: 90
+
+        alpr:
+          platform: "macos"
+          requires: ["python", "base-system"]
+          conflicts: ["macos-tracker"]
+          provides: ["plate-recognition"]
+          health_port: 8081
+          health_endpoint: "/health"
+          category: "service"
+          priority: 80
+
+        # Universal Components
+        base-system:
+          platform: "universal"
+          requires: []
+          conflicts: []
+          provides: ["system-foundation"]
+          category: "foundation"
+          priority: 200
+
+        python:
+          platform: "universal"
+          requires: ["base-system"]
+          conflicts: []
+          provides: ["python-runtime"]
+          category: "runtime"
+          priority: 180
+
+        node:
+          platform: "universal"
+          requires: ["base-system"]
+          conflicts: []
+          provides: ["node-runtime"]
+          category: "runtime"
+          priority: 160
+
+        network-stack:
+          platform: "universal"
+          requires: ["base-system"]
+          conflicts: []
+          provides: ["tailscale", "dns-config"]
+          category: "infrastructure"
+          priority: 150
+
+        # Ubuntu Components
+        ubuntu-docker:
+          platform: "ubuntu"
+          requires: ["base-system"]
+          conflicts: []
+          provides: ["container-runtime"]
+          category: "runtime"
+          priority: 140
+
+        # OrangePi Components
+        opi-player:
+          platform: "orangepi"
+          requires: ["base-system", "python"]
+          conflicts: []
+          provides: ["media-player", "display-service"]
+          health_port: 9090
+          health_endpoint: "/health"
+          category: "service"
+          priority: 120
+
+- name: Validate selected components
+  when: selected_components is defined and selected_components | length > 0
+  block:
+    - name: Check component existence
+      ansible.builtin.set_fact:
+        validation_results:
+          invalid_components: []
+          platform_conflicts: []
+          dependency_issues: []
+          circular_dependencies: []
+          conflict_issues: []
+
+    # Validate component existence
+    - name: Find invalid components
+      ansible.builtin.set_fact:
+        validation_results: "{{ validation_results | combine({'invalid_components': validation_results.invalid_components + [item]}) }}"
+      loop: "{{ selected_components }}"
+      when: item not in component_framework.available_components.keys()
+
+    # Check platform compatibility
+    - name: Check platform compatibility
+      ansible.builtin.set_fact:
+        validation_results: "{{ validation_results | combine({'platform_conflicts': validation_results.platform_conflicts + [{'component': item, 'required_platform':
+          component_framework.available_components[item].platform, 'current_platform': detected_platform | default('unknown')}]}) }}"
+      loop: "{{ selected_components }}"
+      when:
+        - item in component_framework.available_components.keys()
+        - component_framework.available_components[item].platform != 'universal'
+        - component_framework.available_components[item].platform != (detected_platform | default('unknown'))
+
+    # Fail if validation errors found
+    - name: Report validation failures
+      ansible.builtin.fail:
+        msg: |
+          ❌ Component validation failed:
+
+          Invalid components: {{ validation_results.invalid_components | join(', ') if validation_results.invalid_components else 'None' }}
+          Platform conflicts: {{ validation_results.platform_conflicts | length }} found
+          {% for conflict in validation_results.platform_conflicts %}
+          - {{ conflict.component }}: requires {{ conflict.required_platform }}, current: {{ conflict.current_platform }}
+          {% endfor %}
+
+          Available components: {{ component_framework.available_components.keys() | list | join(', ') }}
+      when:
+        - validation_results.invalid_components | length > 0 or validation_results.platform_conflicts | length > 0
+
+- name: Resolve component dependencies
+  when: selected_components is defined and selected_components | length > 0
+  block:
+    - name: Initialize dependency resolution
+      ansible.builtin.set_fact:
+        dependency_resolution:
+          resolved_components: []
+          processing_stack: []
+          resolution_order: []
+
+    - name: Build complete dependency tree
+      ansible.builtin.include_tasks: resolve-single-component.yml
+      loop: "{{ selected_components }}"
+      loop_control:
+        loop_var: component_to_resolve
+
+    - name: Sort components by priority and dependencies
+      ansible.builtin.set_fact:
+        final_component_order: "{{ dependency_resolution.resolved_components | map('extract', component_framework.available_components) | list | sort(attribute='priority',
+          reverse=true) | map(attribute='component_name') | list }}"
+
+    - name: Display resolved component order
+      ansible.builtin.debug:
+        msg: |
+          🔧 Component Resolution Complete:
+          Selected: {{ selected_components | join(', ') }}
+          Resolved: {{ dependency_resolution.resolved_components | join(', ') }}
+          Execution Order: {{ final_component_order | join(' → ') }}
+
+- name: Detect component conflicts
+  when: selected_components is defined and selected_components | length > 0
+  block:
+    - name: Check for direct conflicts
+      ansible.builtin.set_fact:
+        conflict_matrix: []
+
+    - name: Build conflict detection matrix
+      ansible.builtin.set_fact:
+        conflict_matrix: "{{ conflict_matrix + [{'component1': item[0], 'component2': item[1]}] }}"
+      loop: "{{ dependency_resolution.resolved_components | product(dependency_resolution.resolved_components) | list }}"
+      when:
+        - item[0] != item[1]
+        - item[1] in component_framework.available_components[item[0]].conflicts
+
+    - name: Report component conflicts
+      ansible.builtin.fail:
+        msg: |
+          ⚠️  Component conflicts detected:
+          {% for conflict in conflict_matrix %}
+          - {{ conflict.component1 }} conflicts with {{ conflict.component2 }}
+          {% endfor %}
+
+          Please review your component selection and remove conflicting components.
+      when: conflict_matrix | length > 0
+
+- name: Perform component health checks
+  when:
+    - selected_components is defined
+    - selected_components | length > 0
+    - execution_mode != 'dry-run'
+  block:
+    - name: Initialize health check results
+      ansible.builtin.set_fact:
+        health_check_results: {}
+
+    - name: Check component health status
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ component_framework.available_components[item].health_port }}{{ component_framework.available_components[item].health_endpoint }}"
+        method: GET
+        timeout: 5
+        status_code: [200, 404, -1] # Accept connection refused as "not running"
+      register: health_response
+      loop: "{{ dependency_resolution.resolved_components }}"
+      when: component_framework.available_components[item].health_port is defined
+      failed_when: false
+      changed_when: false
+
+    - name: Process health check results
+      ansible.builtin.set_fact:
+        health_check_results: "{{ health_check_results | combine({item.item: {'status': 'healthy' if item.status == 200 else ('unhealthy' if item.status > 0 else
+          'stopped'), 'response_time': item.elapsed if item.elapsed is defined else 0, 'port': component_framework.available_components[item.item].health_port}})
+          }}"
+      loop: "{{ health_response.results }}"
+      when: item.item is defined
+
+    - name: Display component health summary
+      ansible.builtin.debug:
+        msg: |
+          🏥 Component Health Summary:
+          {% for component, health in health_check_results.items() %}
+          - {{ component }}: {{ health.status }} ({{ health.response_time }}s on port {{ health.port }})
+          {% endfor %}
+
+- name: Set component framework facts
+  ansible.builtin.set_fact:
+    component_deployment_plan:
+      selected: "{{ selected_components | default([]) }}"
+      resolved: "{{ dependency_resolution.resolved_components | default([]) }}"
+      execution_order: "{{ final_component_order | default([]) }}"
+      health_status: "{{ health_check_results | default({}) }}"
+      conflicts_detected: "{{ conflict_matrix | default([]) | length > 0 }}"
+      validation_passed: "{{ validation_results.invalid_components | default([]) | length == 0 and validation_results.platform_conflicts | default([]) | length ==
+        0 }}"
+  tags: ["always"]
