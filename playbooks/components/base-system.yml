@@ -1,0 +1,85 @@
+---
+# Base System Configuration Playbook
+# Configures basic system requirements across platforms
+- name: Configure Base System
+  hosts: all
+  gather_facts: false
+  tags: ["base", "system"]
+  pre_tasks:
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Display base system deployment info
+      ansible.builtin.debug:
+        msg: |
+          Base System Configuration:
+          - Platform: {{ ansible_distribution }}
+          - Host: {{ ansible_host }}
+          - User: {{ ansible_user }}
+
+    - name: Environment safety checks
+      ansible.builtin.import_tasks: ../tasks/environment_checks.yml
+      tags: ["always"]
+
+  tasks:
+    - name: Configure macOS base system
+      block:
+        - name: Install Xcode Command Line Tools
+          ansible.builtin.include_role:
+            name: elliotweiser.osx-command-line-tools
+          become: true
+
+        - name: Configure Homebrew
+          ansible.builtin.include_role:
+            name: geerlingguy.mac.homebrew
+
+        - name: Configure macOS base
+          ansible.builtin.include_role:
+            name: macos/base
+
+        - name: Configure SSH
+          ansible.builtin.include_role:
+            name: macos/ssh
+
+        - name: Configure basic settings
+          ansible.builtin.include_role:
+            name: macos/settings
+      when: ansible_distribution == "MacOSX"
+      tags: ["macos"]
+
+    - name: Configure Ubuntu base system
+      block:
+        - name: Configure Ubuntu base
+          ansible.builtin.include_role:
+            name: ubuntu/base
+
+        - name: Configure Ubuntu security
+          ansible.builtin.include_role:
+            name: ubuntu/security
+      when: ansible_distribution == "Ubuntu"
+      tags: ["ubuntu"]
+
+    - name: Configure OrangePi base system
+      block:
+        - name: Display OrangePi configuration
+          ansible.builtin.debug:
+            msg: "OrangePi base configuration will be implemented in Phase 5"
+      when:
+        - ansible_distribution in ["Debian", "Ubuntu"]
+        - ansible_architecture in ["aarch64", "armv7l", "arm64"]
+      tags: ["orangepi"]
+
+  post_tasks:
+    - name: Verify base system configuration
+      ansible.builtin.import_tasks: ../tasks/verify.yml
+      tags: ["verify"]
+      vars:
+        verify_scope: "base_system"
+
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: |
+          Base System Configuration Completed!
+          - Platform: {{ ansible_distribution }}
+          - Essential tools and configurations installed
+          - Ready for additional component deployment

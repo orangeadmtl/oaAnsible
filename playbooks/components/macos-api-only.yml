@@ -1,0 +1,79 @@
+---
+# macOS API Only Deployment Playbook
+# Deploys only the macOS API component with minimal dependencies
+- name: Deploy macOS API Only
+  hosts: all
+  gather_facts: false
+  tags: ["macos-api", "components"]
+  pre_tasks:
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Verify target is macOS
+      ansible.builtin.fail:
+        msg: "This playbook only supports macOS"
+      when: ansible_distribution != "MacOSX"
+
+    - name: Display deployment info
+      ansible.builtin.debug:
+        msg: |
+          macOS API Only Deployment:
+          - Host: {{ ansible_host }}
+          - User: {{ ansible_user }}
+          - Target: macOS API service only
+
+    - name: Environment safety checks
+      ansible.builtin.import_tasks: ../tasks/environment_checks.yml
+      tags: ["always"]
+
+  roles:
+    # Essential dependencies for macOS API
+    - role: macos/base
+      tags: ["setup", "base"]
+      vars:
+        minimal_base: true # Skip non-essential base configurations
+
+    - role: macos/python
+      tags: ["python", "dependencies"]
+      # Python is required for macOS API
+
+    - role: macos/network
+      tags: ["network"]
+      vars:
+        minimal_network: true # Basic network only, skip advanced configs
+
+    - role: macos/network/tailscale
+      tags: ["tailscale", "network"]
+      when: oa_environment.allow_tailscale_changes | default(false)
+
+    - role: macos/api
+      tags: ["api", "main"]
+      # Main macOS API deployment
+
+    - role: macos/security
+      tags: ["security"]
+      vars:
+        security_scope: "api_only" # Only security configs needed for API
+
+  post_tasks:
+    - name: Verify macOS API installation
+      ansible.builtin.import_tasks: ../tasks/verify.yml
+      tags: ["verify"]
+      vars:
+        verify_scope: "macos_api"
+
+    - name: Start macOS API service
+      ansible.builtin.shell: |
+        launchctl load -w "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist"
+      become: false
+      register: api_start_result
+      failed_when: false
+
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: |
+          macOS API Deployment Completed!
+          - Service: com.orangead.macosapi
+          - Port: 9090
+          - Status: Check with 'launchctl list | grep orangead'
+          - Logs: {{ ansible_user_dir }}/orangead/macos-api/logs/

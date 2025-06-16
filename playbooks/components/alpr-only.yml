@@ -1,0 +1,93 @@
+---
+# ALPR Service Only Deployment Playbook
+# Deploys only the ALPR (Automatic License Plate Recognition) service
+- name: Deploy ALPR Service Only
+  hosts: all
+  gather_facts: false
+  tags: ["alpr", "components"]
+  pre_tasks:
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Verify target is macOS
+      ansible.builtin.fail:
+        msg: "This playbook only supports macOS"
+      when: ansible_distribution != "MacOSX"
+
+    - name: Display deployment info
+      ansible.builtin.debug:
+        msg: |
+          ALPR Service Only Deployment:
+          - Host: {{ ansible_host }}
+          - User: {{ ansible_user }}
+          - Target: ALPR service with Docker
+
+    - name: Environment safety checks
+      ansible.builtin.import_tasks: ../tasks/environment_checks.yml
+      tags: ["always"]
+
+    - name: Check ALPR deployment flag
+      ansible.builtin.fail:
+        msg: "ALPR deployment not enabled. Set oa_environment.deploy_alpr_service to true"
+      when: not (oa_environment.deploy_alpr_service | default(false))
+
+  roles:
+    # Essential dependencies for ALPR
+    - role: macos/base
+      tags: ["setup", "base"]
+      vars:
+        minimal_base: true
+
+    - role: macos/network
+      tags: ["network"]
+      vars:
+        minimal_network: true
+
+    - role: macos/network/tailscale
+      tags: ["tailscale", "network"]
+      when: oa_environment.allow_tailscale_changes | default(false)
+
+    # Docker is required for ALPR service
+    - role: geerlingguy.mac.docker
+      tags: ["docker", "dependencies"]
+      vars:
+        docker_users:
+          - "{{ ansible_user }}"
+
+    - role: macos/alpr_service
+      tags: ["alpr", "main"]
+      # Main ALPR service deployment
+
+    - role: macos/security
+      tags: ["security"]
+      vars:
+        security_scope: "alpr_only"
+
+  post_tasks:
+    - name: Verify ALPR installation
+      ansible.builtin.import_tasks: ../tasks/verify.yml
+      tags: ["verify"]
+      vars:
+        verify_scope: "alpr"
+
+    - name: Start ALPR service
+      ansible.builtin.shell: |
+        launchctl load -w "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.alpr.plist"
+      become: false
+      register: alpr_start_result
+      failed_when: false
+
+    - name: Check Docker status
+      ansible.builtin.command: docker info
+      register: docker_status
+      failed_when: false
+      become: false
+
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: |
+          ALPR Service Deployment Completed!
+          - Service: com.orangead.alpr
+          - Docker Status: {{ 'Running' if docker_status.rc == 0 else 'Check Docker installation' }}
+          - Status: Check with 'launchctl list | grep orangead'
+          - Logs: {{ ansible_user_dir }}/orangead/alpr/logs/
