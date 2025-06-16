@@ -9,7 +9,7 @@
   become: false
   vars_files:
     - ../group_vars/all/vault.yml
-  
+
   pre_tasks:
     - name: Display onboarding start banner
       ansible.builtin.debug:
@@ -20,25 +20,25 @@
           Target: {{ inventory_hostname }} ({{ ansible_host }})
           User: {{ ansible_user }}
           OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
-          
+
           This playbook will intelligently configure only what's needed:
           ✓ Base system configuration
           ✓ Security hardening (sudo, SSH, firewall)
           ✓ Shell enhancement (zsh with bash compatibility)
           ✓ NVIDIA drivers (if GPU detected)
           ✓ Tailscale VPN with subnet routing
-          
+
           Already-configured components will be skipped automatically.
           ═══════════════════════════════════════════════════════════
 
     - name: Verify connection to target
       ansible.builtin.ping:
-      
+
     - name: Gather comprehensive system information
       ansible.builtin.setup:
         gather_subset:
           - "all"
-    
+
     - name: Verify Ubuntu distribution
       ansible.builtin.assert:
         that:
@@ -95,27 +95,27 @@
           ═══════════════════════════════════════════════════════════
           🎉 Ubuntu Server Onboarding Completed Successfully!
           ═══════════════════════════════════════════════════════════
-          
+
           Server: {{ inventory_hostname }} ({{ ansible_host }})
-          
+
           🔧 Configuration Summary:
           ├─ Base System: Essential packages and user setup
           ├─ Security: Passwordless sudo, SSH hardening, firewall
           ├─ Shell: Zsh with Oh My Zsh (bash-compatible)
           ├─ NVIDIA: {{ 'Drivers configured' if ansible_lspci is search('NVIDIA') else 'No GPU detected' }}
           └─ Tailscale: VPN with subnet routing (192.168.1.0/24)
-          
+
           🔗 Access Information:
           • SSH: ssh {{ ansible_user }}@{{ ansible_host }}
           • Tailscale: Connected with tags [tag:oa-server, tag:oa-ubuntu]
           • Shell: Enhanced zsh with your custom aliases
-          
+
           📝 Your Custom Aliases Available:
           • ls, l, la, ll, lsa → Modern directory listing with lsd
           • lt → Tree view with lsd --tree
           • All bash scripts remain fully compatible!
-          
+
           {{ '⚠️  REBOOT REQUIRED for NVIDIA drivers' if reboot_required.stat.exists else '✅ No reboot required' }}
-          
+
           🚀 Ready for OrangeAd infrastructure operations!
           ═══════════════════════════════════════════════════════════
