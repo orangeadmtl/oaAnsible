@@ -1,0 +1,262 @@
+#!/bin/bash
+
+# Performance Measurement Script for oaAnsible
+# Measures deployment times and efficiency improvements
+
+# Source helper functions and variables
+HELPER_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
+if [ -f "$HELPER_SCRIPT_PATH" ]; then
+  # shellcheck source=./helpers.sh
+  source "$HELPER_SCRIPT_PATH"
+else
+  echo "ERROR: helpers.sh not found at $HELPER_SCRIPT_PATH"
+  exit 1
+fi
+
+# Set script-specific log level
+SCRIPT_LOG_LEVEL=$_LOG_LEVEL_INFO
+export SCRIPT_LOG_LEVEL
+
+# Performance measurement configuration
+PERFORMANCE_LOG="$OA_ANSIBLE_LOG_DIR/performance_$(date +%Y%m%d_%H%M%S).log"
+METRICS_JSON="$OA_ANSIBLE_LOG_DIR/metrics_$(date +%Y%m%d_%H%M%S).json"
+
+# Usage function
+usage() {
+  cat << EOF
+Usage: $0 <environment> <test_type> [options]
+
+ENVIRONMENTS:
+  staging       - Use staging inventory
+  production    - Use production inventory  
+  preprod       - Use pre-production inventory
+
+TEST_TYPES:
+  baseline      - Measure current implementation performance
+  improved      - Measure improved implementation performance
+  component     - Measure component-specific deployment
+  comparison    - Run both baseline and improved for comparison
+
+COMPONENT OPTIONS (for component test):
+  macos-api     - Test macOS API deployment only
+  tracker       - Test tracker deployment only
+  base          - Test base system deployment
+  network       - Test network configuration
+
+EXAMPLES:
+  $0 staging baseline                    # Measure current full deployment
+  $0 staging improved                    # Measure improved full deployment
+  $0 staging component macos-api         # Measure component deployment
+  $0 staging comparison                  # Compare baseline vs improved
+
+EOF
+}
+
+# Check arguments
+if [ $# -lt 2 ]; then
+  log_error "Invalid number of arguments"
+  usage
+  exit 1
+fi
+
+ENVIRONMENT=$1
+TEST_TYPE=$2
+COMPONENT=${3:-""}
+
+log_info "Starting performance measurement: $TEST_TYPE on $ENVIRONMENT"
+
+ensure_ansible_root_dir
+
+# Validate environment
+case $ENVIRONMENT in
+  staging|production|preprod)
+    INVENTORY_FILE="$OA_ANSIBLE_INVENTORY_DIR/$ENVIRONMENT/hosts.yml"
+    if [ ! -f "$INVENTORY_FILE" ]; then
+      log_error "Inventory file not found: $INVENTORY_FILE"
+      exit 1
+    fi
+    ;;
+  *)
+    log_error "Invalid environment: $ENVIRONMENT"
+    exit 1
+    ;;
+esac
+
+# Create performance log directory
+mkdir -p "$OA_ANSIBLE_LOG_DIR"
+
+# Performance measurement functions
+measure_deployment() {
+  local test_name=$1
+  local playbook=$2
+  local extra_args=$3
+  
+  log_info "Measuring deployment: $test_name"
+  
+  local start_time=$(date +%s.%N)
+  local start_timestamp=$(date -Iseconds)
+  
+  # Run the deployment with timing
+  log_info "Executing: $playbook with args: $extra_args"
+  
+  ANSIBLE_CONFIG=ansible.cfg /usr/bin/time -p ansible-playbook \
+    "$playbook" \
+    -i "$INVENTORY_FILE" \
+    $extra_args \
+    2>&1 | tee -a "$PERFORMANCE_LOG"
+  
+  local exit_code=${PIPESTATUS[0]}
+  local end_time=$(date +%s.%N)
+  local end_timestamp=$(date -Iseconds)
+  local duration=$(echo "$end_time - $start_time" | bc)
+  
+  # Parse time output
+  local real_time=$(tail -3 "$PERFORMANCE_LOG" | grep "real" | awk '{print $2}' || echo "0")
+  local user_time=$(tail -3 "$PERFORMANCE_LOG" | grep "user" | awk '{print $2}' || echo "0")
+  local sys_time=$(tail -3 "$PERFORMANCE_LOG" | grep "sys" | awk '{print $2}' || echo "0")
+  
+  # Count tasks and changes
+  local task_count=$(grep -c "TASK \[" "$PERFORMANCE_LOG" || echo "0")
+  local changed_count=$(grep -c "changed:" "$PERFORMANCE_LOG" || echo "0")
+  local ok_count=$(grep -c "ok:" "$PERFORMANCE_LOG" || echo "0")
+  local skipped_count=$(grep -c "skipped:" "$PERFORMANCE_LOG" || echo "0")
+  local failed_count=$(grep -c "failed:" "$PERFORMANCE_LOG" || echo "0")
+  
+  # Calculate efficiency metrics
+  local efficiency_ratio=$(echo "scale=2; $ok_count / ($task_count + 1)" | bc)
+  local change_ratio=$(echo "scale=2; $changed_count / ($task_count + 1)" | bc)
+  
+  # Create JSON metrics
+  cat << EOF >> "$METRICS_JSON"
+{
+  "test_name": "$test_name",
+  "environment": "$ENVIRONMENT",
+  "timestamp": "$start_timestamp",
+  "duration": {
+    "total_seconds": $duration,
+    "real_time": "$real_time",
+    "user_time": "$user_time",
+    "sys_time": "$sys_time"
+  },
+  "tasks": {
+    "total": $task_count,
+    "changed": $changed_count,
+    "ok": $ok_count,
+    "skipped": $skipped_count,
+    "failed": $failed_count
+  },
+  "metrics": {
+    "efficiency_ratio": $efficiency_ratio,
+    "change_ratio": $change_ratio,
+    "exit_code": $exit_code
+  },
+  "playbook": "$playbook",
+  "extra_args": "$extra_args"
+}
+EOF
+  
+  log_info "Performance measurement complete for $test_name:"
+  log_info "  Duration: ${duration}s"
+  log_info "  Tasks: $task_count (changed: $changed_count, ok: $ok_count)"
+  log_info "  Efficiency: $efficiency_ratio"
+  log_info "  Exit code: $exit_code"
+  
+  return $exit_code
+}
+
+# Load SSH key for testing
+log_info "Loading SSH key for performance testing..."
+check_vault_password_file
+check_ansible_installed
+
+VAULT_YML_FILE="$OA_ANSIBLE_GROUP_VARS_DIR/all/vault.yml"
+
+if ! ssh-add -l >/dev/null 2>&1; then
+  log_info "Starting ssh-agent..."
+  eval "$(ssh-agent -s)" >/dev/null
+fi
+
+ansible-vault view "$VAULT_YML_FILE" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" |
+  yq -re '.vault_ssh_private_key // ""' |
+  ssh-add - >/dev/null 2>&1 || log_warn "Could not load SSH key from vault"
+
+# Initialize metrics file
+echo "[" > "$METRICS_JSON"
+
+# Execute performance tests based on type
+case $TEST_TYPE in
+  baseline)
+    log_info "Running baseline performance test..."
+    measure_deployment "baseline_full" "main.yml" ""
+    ;;
+    
+  improved)
+    log_info "Running improved performance test..."
+    measure_deployment "improved_full" "playbooks/universal.yml" "--extra-vars 'execution_mode=full'"
+    ;;
+    
+  component)
+    if [ -z "$COMPONENT" ]; then
+      log_error "Component type required for component test"
+      usage
+      exit 1
+    fi
+    log_info "Running component performance test for: $COMPONENT"
+    measure_deployment "component_$COMPONENT" "playbooks/universal.yml" "--extra-vars 'execution_mode=components selected_components=[\"$COMPONENT\"]'"
+    ;;
+    
+  comparison)
+    log_info "Running comparison performance test..."
+    
+    log_info "=== BASELINE MEASUREMENT ==="
+    measure_deployment "comparison_baseline" "main.yml" ""
+    baseline_exit=$?
+    
+    echo "," >> "$METRICS_JSON"
+    
+    log_info "=== IMPROVED MEASUREMENT ==="
+    measure_deployment "comparison_improved" "playbooks/universal.yml" "--extra-vars 'execution_mode=full'"
+    improved_exit=$?
+    
+    # Generate comparison report
+    log_info "=== PERFORMANCE COMPARISON ==="
+    if [ -f "$METRICS_JSON" ]; then
+      echo "Detailed metrics saved to: $METRICS_JSON"
+      
+      # Extract key metrics for comparison
+      baseline_duration=$(jq -r '.[0].duration.total_seconds' "$METRICS_JSON" 2>/dev/null || echo "N/A")
+      improved_duration=$(jq -r '.[1].duration.total_seconds' "$METRICS_JSON" 2>/dev/null || echo "N/A")
+      
+      if [ "$baseline_duration" != "N/A" ] && [ "$improved_duration" != "N/A" ]; then
+        improvement=$(echo "scale=2; ($baseline_duration - $improved_duration) / $baseline_duration * 100" | bc)
+        log_info "Performance improvement: ${improvement}%"
+        log_info "Baseline duration: ${baseline_duration}s"
+        log_info "Improved duration: ${improved_duration}s"
+      fi
+    fi
+    ;;
+    
+  *)
+    log_error "Invalid test type: $TEST_TYPE"
+    usage
+    exit 1
+    ;;
+esac
+
+# Close JSON array
+echo "]" >> "$METRICS_JSON"
+
+# Generate summary report
+log_info "Performance measurement completed"
+log_info "Logs: $PERFORMANCE_LOG"
+log_info "Metrics: $METRICS_JSON"
+
+# Display summary if jq is available
+if command -v jq >/dev/null 2>&1 && [ -f "$METRICS_JSON" ]; then
+  echo ""
+  echo "📊 Performance Summary:"
+  jq -r '.[] | "\(.test_name): \(.duration.total_seconds)s (\(.tasks.total) tasks, \(.tasks.changed) changed)"' "$METRICS_JSON"
+fi
+
+log_debug "measure-performance script finished"
+exit 0

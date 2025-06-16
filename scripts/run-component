@@ -1,0 +1,237 @@
+#!/bin/bash
+
+# Component-specific deployment script
+# Usage: ./run-component <environment> <component1> [component2] [component3] ...
+# Example: ./run-component staging macos-api tracker
+# Example: ./run-component production alpr
+
+# Source helper functions and variables
+HELPER_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
+if [ -f "$HELPER_SCRIPT_PATH" ]; then
+  # shellcheck source=./helpers.sh
+  source "$HELPER_SCRIPT_PATH"
+else
+  echo "ERROR: helpers.sh not found at $HELPER_SCRIPT_PATH"
+  exit 1
+fi
+
+# Set script-specific log level
+SCRIPT_LOG_LEVEL=$_LOG_LEVEL_INFO
+export SCRIPT_LOG_LEVEL
+
+# Usage function
+usage() {
+  cat << EOF
+🚀 OrangeAd Component Deployment Script (Advanced Framework)
+===========================================================
+
+Usage: $0 <environment> <component1> [component2] [component3] ... [options]
+
+ENVIRONMENTS:
+  staging       - Use staging inventory
+  production    - Use production inventory  
+  preprod       - Use pre-production inventory
+
+COMPONENTS (Platform-aware with dependency resolution):
+  macOS:
+    macos-api     - Deploy macOS API service (requires: python, base-system)
+    macos-tracker - Deploy oaTracker service (requires: python, base-system, macos-api)
+    alpr          - Deploy ALPR service (requires: python, base-system) [conflicts with tracker]
+
+  Universal:
+    base-system   - Deploy foundation system configuration
+    python        - Deploy Python runtime environment (requires: base-system)
+    node          - Deploy Node.js runtime environment (requires: base-system)
+    network-stack - Deploy network stack including Tailscale (requires: base-system)
+
+  Ubuntu:
+    ubuntu-docker - Deploy Docker environment (requires: base-system)
+
+  OrangePi:
+    opi-player    - Deploy media player service (requires: base-system, python)
+
+EXECUTION MODES (add to components):
+  --dry-run     - Show what would be deployed without making changes
+  --check       - Validate configuration and show potential changes
+  --diff        - Show detailed differences for all changes
+  --force       - Skip safety checks and confirmations
+  --verbose     - Enable verbose output
+
+ADVANCED FEATURES:
+  ✅ Automatic dependency resolution
+  ✅ Conflict detection and prevention
+  ✅ Component compatibility validation
+  ✅ Resource requirement analysis
+  ✅ Health checking and status reporting
+  ✅ Rollback capabilities
+
+EXAMPLES:
+  # Basic component deployment
+  $0 staging macos-api
+  $0 production macos-api macos-tracker
+  
+  # Dependency resolution (python and base-system added automatically)
+  $0 staging macos-tracker  # Deploys: base-system → python → macos-api → macos-tracker
+  
+  # Dry-run mode
+  $0 staging macos-api --dry-run
+  
+  # Check mode with verbose output
+  $0 staging macos-tracker --check --verbose
+  
+  # Force deployment (skip confirmations)
+  $0 production macos-api --force
+
+EOF
+}
+
+# Check arguments
+if [ $# -lt 2 ]; then
+  log_error "Invalid number of arguments"
+  usage
+  exit 1
+fi
+
+ENVIRONMENT=$1
+shift
+COMPONENTS=("$@")
+
+log_debug "run-component script started for environment: $ENVIRONMENT"
+log_debug "Components to deploy: ${COMPONENTS[*]}"
+
+ensure_ansible_root_dir
+
+# Validate environment
+case $ENVIRONMENT in
+  staging|production|preprod)
+    INVENTORY_FILE="$OA_ANSIBLE_INVENTORY_DIR/$ENVIRONMENT/hosts.yml"
+    if [ ! -f "$INVENTORY_FILE" ]; then
+      log_error "Inventory file not found: $INVENTORY_FILE"
+      exit 1
+    fi
+    ;;
+  *)
+    log_error "Invalid environment: $ENVIRONMENT"
+    log_error "Valid environments: staging, production, preprod"
+    exit 1
+    ;;
+esac
+
+# Separate components from execution mode options
+EXECUTION_MODE_OPTIONS=""
+FILTERED_COMPONENTS=()
+
+for arg in "${COMPONENTS[@]}"; do
+  case $arg in
+    --dry-run)
+      EXECUTION_MODE_OPTIONS="$EXECUTION_MODE_OPTIONS execution_mode=dry-run"
+      ;;
+    --check)
+      EXECUTION_MODE_OPTIONS="$EXECUTION_MODE_OPTIONS execution_mode=check"
+      ;;
+    --diff)
+      EXECUTION_MODE_OPTIONS="$EXECUTION_MODE_OPTIONS execution_mode=diff"
+      ;;
+    --force)
+      EXECUTION_MODE_OPTIONS="$EXECUTION_MODE_OPTIONS force_deployment=true"
+      ;;
+    --verbose)
+      EXECUTION_MODE_OPTIONS="$EXECUTION_MODE_OPTIONS verbose_mode=true"
+      ;;
+    *)
+      FILTERED_COMPONENTS+=("$arg")
+      ;;
+  esac
+done
+
+COMPONENTS=("${FILTERED_COMPONENTS[@]}")
+
+# Enhanced component validation (framework will validate at runtime)
+VALID_COMPONENTS=(
+  "macos-api" "macos-tracker" "alpr" 
+  "base-system" "python" "node" "network-stack"
+  "ubuntu-docker" "opi-player"
+)
+
+log_info "🔍 Validating selected components..."
+for component in "${COMPONENTS[@]}"; do
+  if [[ ! " ${VALID_COMPONENTS[*]} " =~ " $component " ]]; then
+    log_warn "Component '$component' not in known list (will be validated by framework)"
+  else
+    log_debug "✓ Component '$component' recognized"
+  fi
+done
+
+# --- SSH Agent Key Loading ---
+log_info "Checking and loading SSH key into agent for component deployment..."
+check_vault_password_file
+check_yq_installed
+check_ansible_vault_installed
+check_ansible_installed
+
+# Load SSH key from vault
+VAULT_YML_FILE="$OA_ANSIBLE_GROUP_VARS_DIR/all/vault.yml"
+
+if ! ssh-add -l >/dev/null 2>&1; then
+  log_info "ssh-agent not running or no keys loaded. Starting agent..."
+  eval "$(ssh-agent -s)" >/dev/null
+fi
+
+log_info "Loading SSH key from vault..."
+if ansible-vault view "$VAULT_YML_FILE" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" |
+  yq -re '.vault_ssh_private_key // ""' |
+  ssh-add - >/dev/null 2>&1; then
+  log_info "SSH key successfully loaded."
+else
+  if ssh-add -l >/dev/null 2>&1; then
+    log_warn "Could not add key from vault, but keys are present in agent."
+  else
+    log_error "Failed to load SSH key and no keys in agent. SSH authentication may fail."
+  fi
+fi
+
+# --- Advanced Component Deployment ---
+log_info "🚀 Starting advanced component deployment..."
+log_info "Environment: $ENVIRONMENT"
+log_info "Components: ${COMPONENTS[*]}"
+if [ -n "$EXECUTION_MODE_OPTIONS" ]; then
+  log_info "Execution options: $EXECUTION_MODE_OPTIONS"
+fi
+
+# Convert components array to JSON format for Ansible
+COMPONENTS_JSON=$(printf '%s\n' "${COMPONENTS[@]}" | jq -R . | jq -s .)
+
+log_info "📦 Executing universal playbook with advanced component framework..."
+
+# Build execution command with extra variables
+EXTRA_VARS="execution_mode=components selected_components=$COMPONENTS_JSON"
+if [ -n "$EXECUTION_MODE_OPTIONS" ]; then
+  EXTRA_VARS="$EXTRA_VARS $EXECUTION_MODE_OPTIONS"
+fi
+
+# Execute the universal playbook with component mode and advanced framework
+ANSIBLE_CONFIG=ansible.cfg ansible-playbook \
+  playbooks/universal.yml \
+  -i "$INVENTORY_FILE" \
+  --extra-vars "$EXTRA_VARS" \
+  --tags "components" \
+  "$@"
+
+PLAYBOOK_EXIT_CODE=$?
+
+if [ $PLAYBOOK_EXIT_CODE -eq 0 ]; then
+  log_info "✅ Advanced component deployment completed successfully!"
+  log_info "📦 Deployed components: ${COMPONENTS[*]}"
+  log_info "🎯 Environment: $ENVIRONMENT"
+  if [[ "$EXECUTION_MODE_OPTIONS" == *"dry-run"* ]]; then
+    log_info "📋 Dry-run completed - no changes were made"
+  elif [[ "$EXECUTION_MODE_OPTIONS" == *"check"* ]]; then
+    log_info "🔍 Check mode completed - validation passed"
+  fi
+else
+  log_error "❌ Component deployment failed with exit code $PLAYBOOK_EXIT_CODE"
+  log_error "💡 Try running with --dry-run first to validate the configuration"
+fi
+
+log_debug "run-component script finished."
+exit $PLAYBOOK_EXIT_CODE

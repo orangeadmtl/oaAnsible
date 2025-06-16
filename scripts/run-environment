@@ -1,0 +1,190 @@
+#!/bin/bash
+
+# Environment-specific deployment script with mode selection
+# Usage: ./run-environment <environment> [mode] [options]
+# Example: ./run-environment staging full
+# Example: ./run-environment production base
+# Example: ./run-environment staging components macos-api tracker
+
+# Source helper functions and variables
+HELPER_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
+if [ -f "$HELPER_SCRIPT_PATH" ]; then
+  # shellcheck source=./helpers.sh
+  source "$HELPER_SCRIPT_PATH"
+else
+  echo "ERROR: helpers.sh not found at $HELPER_SCRIPT_PATH"
+  exit 1
+fi
+
+# Set script-specific log level
+SCRIPT_LOG_LEVEL=$_LOG_LEVEL_INFO
+export SCRIPT_LOG_LEVEL
+
+# Usage function
+usage() {
+  cat << EOF
+Usage: $0 <environment> [mode] [components...]
+
+ENVIRONMENTS:
+  staging       - Use staging inventory
+  production    - Use production inventory  
+  preprod       - Use pre-production inventory
+
+MODES:
+  full          - Full platform deployment (default)
+  base          - Base system configuration only
+  network       - Network stack configuration only
+  components    - Deploy specific components (requires component list)
+
+COMPONENT EXAMPLES (when mode is 'components'):
+  macos-api tracker alpr
+  base network security
+  
+EXAMPLES:
+  $0 staging                           # Full deployment on staging
+  $0 production base                   # Base system only on production
+  $0 staging network                   # Network stack only on staging
+  $0 staging components macos-api      # Deploy macos-api only
+  $0 production components base network security  # Deploy multiple components
+
+EOF
+}
+
+# Check arguments
+if [ $# -lt 1 ]; then
+  log_error "Invalid number of arguments"
+  usage
+  exit 1
+fi
+
+ENVIRONMENT=$1
+MODE=${2:-full}
+shift 2 # Remove environment and mode from arguments
+COMPONENTS=("$@")
+
+log_debug "run-environment script started"
+log_debug "Environment: $ENVIRONMENT, Mode: $MODE"
+if [ ${#COMPONENTS[@]} -gt 0 ]; then
+  log_debug "Components: ${COMPONENTS[*]}"
+fi
+
+ensure_ansible_root_dir
+
+# Validate environment
+case $ENVIRONMENT in
+  staging|production|preprod)
+    INVENTORY_FILE="$OA_ANSIBLE_INVENTORY_DIR/$ENVIRONMENT/hosts.yml"
+    if [ ! -f "$INVENTORY_FILE" ]; then
+      log_error "Inventory file not found: $INVENTORY_FILE"
+      exit 1
+    fi
+    ;;
+  *)
+    log_error "Invalid environment: $ENVIRONMENT"
+    log_error "Valid environments: staging, production, preprod"
+    exit 1
+    ;;
+esac
+
+# Validate mode
+case $MODE in
+  full|base|network)
+    log_info "Deployment mode: $MODE"
+    ;;
+  components)
+    if [ ${#COMPONENTS[@]} -eq 0 ]; then
+      log_error "Components mode requires at least one component to be specified"
+      usage
+      exit 1
+    fi
+    log_info "Components mode with: ${COMPONENTS[*]}"
+    ;;
+  *)
+    log_error "Invalid mode: $MODE"
+    log_error "Valid modes: full, base, network, components"
+    exit 1
+    ;;
+esac
+
+# --- SSH Agent Key Loading ---
+log_info "Checking and loading SSH key into agent for environment deployment..."
+check_vault_password_file
+check_yq_installed
+check_ansible_vault_installed
+check_ansible_installed
+
+# Load SSH key from vault
+VAULT_YML_FILE="$OA_ANSIBLE_GROUP_VARS_DIR/all/vault.yml"
+
+if ! ssh-add -l >/dev/null 2>&1; then
+  log_info "ssh-agent not running or no keys loaded. Starting agent..."
+  eval "$(ssh-agent -s)" >/dev/null
+fi
+
+log_info "Loading SSH key from vault..."
+if ansible-vault view "$VAULT_YML_FILE" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" |
+  yq -re '.vault_ssh_private_key // ""' |
+  ssh-add - >/dev/null 2>&1; then
+  log_info "SSH key successfully loaded."
+else
+  if ssh-add -l >/dev/null 2>&1; then
+    log_warn "Could not add key from vault, but keys are present in agent."
+  else
+    log_error "Failed to load SSH key and no keys in agent. SSH authentication may fail."
+  fi
+fi
+
+# --- Environment Deployment ---
+log_info "Starting environment deployment..."
+log_info "Environment: $ENVIRONMENT"
+log_info "Mode: $MODE"
+
+# Prepare execution parameters
+case $MODE in
+  full)
+    PLAYBOOK="playbooks/universal.yml"
+    EXTRA_VARS="execution_mode=full"
+    ;;
+  base)
+    PLAYBOOK="playbooks/universal.yml"
+    EXTRA_VARS="execution_mode=base"
+    ;;
+  network)
+    PLAYBOOK="playbooks/universal.yml"
+    EXTRA_VARS="execution_mode=network"
+    ;;
+  components)
+    PLAYBOOK="playbooks/universal.yml"
+    COMPONENTS_JSON=$(printf '%s\n' "${COMPONENTS[@]}" | jq -R . | jq -s .)
+    EXTRA_VARS="execution_mode=components selected_components=$COMPONENTS_JSON"
+    ;;
+esac
+
+log_info "Executing deployment with playbook: $PLAYBOOK"
+log_debug "Extra vars: $EXTRA_VARS"
+
+# Execute the deployment
+ANSIBLE_CONFIG=ansible.cfg ansible-playbook \
+  "$PLAYBOOK" \
+  -i "$INVENTORY_FILE" \
+  --extra-vars "$EXTRA_VARS" \
+  "$@"
+
+PLAYBOOK_EXIT_CODE=$?
+
+if [ $PLAYBOOK_EXIT_CODE -eq 0 ]; then
+  log_info "Environment deployment completed successfully."
+  case $MODE in
+    components)
+      log_info "Deployed components: ${COMPONENTS[*]}"
+      ;;
+    *)
+      log_info "Deployment mode: $MODE"
+      ;;
+  esac
+else
+  log_error "Environment deployment failed with exit code $PLAYBOOK_EXIT_CODE."
+fi
+
+log_debug "run-environment script finished."
+exit $PLAYBOOK_EXIT_CODE

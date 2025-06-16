@@ -1,0 +1,184 @@
+#!/bin/bash
+
+# Platform-specific full deployment script
+# Usage: ./run-platform <environment> <platform>
+# Example: ./run-platform staging macos
+# Example: ./run-platform production ubuntu
+
+# Source helper functions and variables
+HELPER_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
+if [ -f "$HELPER_SCRIPT_PATH" ]; then
+  # shellcheck source=./helpers.sh
+  source "$HELPER_SCRIPT_PATH"
+else
+  echo "ERROR: helpers.sh not found at $HELPER_SCRIPT_PATH"
+  exit 1
+fi
+
+# Set script-specific log level
+SCRIPT_LOG_LEVEL=$_LOG_LEVEL_INFO
+export SCRIPT_LOG_LEVEL
+
+# Usage function
+usage() {
+  cat << EOF
+Usage: $0 <environment> <platform>
+
+ENVIRONMENTS:
+  staging       - Use staging inventory
+  production    - Use production inventory  
+  preprod       - Use pre-production inventory
+
+PLATFORMS:
+  macos         - Force macOS full deployment
+  ubuntu        - Force Ubuntu full deployment
+  orangepi      - Force OrangePi full deployment
+  auto          - Auto-detect platform (default)
+
+EXAMPLES:
+  $0 staging macos        # Force macOS deployment on staging
+  $0 production auto      # Auto-detect platform for production
+  $0 staging ubuntu       # Force Ubuntu deployment on staging
+
+EOF
+}
+
+# Check arguments
+if [ $# -lt 1 ]; then
+  log_error "Invalid number of arguments"
+  usage
+  exit 1
+fi
+
+ENVIRONMENT=$1
+PLATFORM=${2:-auto}
+
+log_debug "run-platform script started for environment: $ENVIRONMENT, platform: $PLATFORM"
+
+ensure_ansible_root_dir
+
+# Validate environment
+case $ENVIRONMENT in
+  staging|production|preprod)
+    INVENTORY_FILE="$OA_ANSIBLE_INVENTORY_DIR/$ENVIRONMENT/hosts.yml"
+    if [ ! -f "$INVENTORY_FILE" ]; then
+      log_error "Inventory file not found: $INVENTORY_FILE"
+      exit 1
+    fi
+    ;;
+  *)
+    log_error "Invalid environment: $ENVIRONMENT"
+    log_error "Valid environments: staging, production, preprod"
+    exit 1
+    ;;
+esac
+
+# Validate platform
+case $PLATFORM in
+  macos|ubuntu|orangepi|auto)
+    log_info "Platform: $PLATFORM"
+    ;;
+  *)
+    log_error "Invalid platform: $PLATFORM"
+    log_error "Valid platforms: macos, ubuntu, orangepi, auto"
+    exit 1
+    ;;
+esac
+
+# --- SSH Agent Key Loading ---
+log_info "Checking and loading SSH key into agent for platform deployment..."
+check_vault_password_file
+check_yq_installed
+check_ansible_vault_installed
+check_ansible_installed
+
+# Load SSH key from vault
+VAULT_YML_FILE="$OA_ANSIBLE_GROUP_VARS_DIR/all/vault.yml"
+
+if ! ssh-add -l >/dev/null 2>&1; then
+  log_info "ssh-agent not running or no keys loaded. Starting agent..."
+  eval "$(ssh-agent -s)" >/dev/null
+fi
+
+log_info "Loading SSH key from vault..."
+if ansible-vault view "$VAULT_YML_FILE" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" |
+  yq -re '.vault_ssh_private_key // ""' |
+  ssh-add - >/dev/null 2>&1; then
+  log_info "SSH key successfully loaded."
+else
+  if ssh-add -l >/dev/null 2>&1; then
+    log_warn "Could not add key from vault, but keys are present in agent."
+  else
+    log_error "Failed to load SSH key and no keys in agent. SSH authentication may fail."
+  fi
+fi
+
+# --- Platform Deployment ---
+log_info "Starting platform deployment..."
+log_info "Environment: $ENVIRONMENT"
+log_info "Platform: $PLATFORM"
+
+# Determine playbook and extra vars
+if [ "$PLATFORM" = "auto" ]; then
+  PLAYBOOK="playbooks/universal.yml"
+  EXTRA_VARS="execution_mode=full"
+  log_info "Using universal playbook with auto-detection"
+else
+  case $PLATFORM in
+    macos)
+      PLAYBOOK="playbooks/macos-full.yml"
+      EXTRA_VARS=""
+      ;;
+    ubuntu)
+      PLAYBOOK="playbooks/ubuntu-full.yml"
+      EXTRA_VARS=""
+      ;;
+    orangepi)
+      PLAYBOOK="playbooks/orangepi-full.yml"
+      EXTRA_VARS=""
+      ;;
+  esac
+  log_info "Using platform-specific playbook: $PLAYBOOK"
+fi
+
+# Check if playbook exists
+if [ ! -f "$PLAYBOOK" ]; then
+  log_error "Playbook not found: $PLAYBOOK"
+  
+  if [ "$PLATFORM" = "ubuntu" ] || [ "$PLATFORM" = "orangepi" ]; then
+    log_error "Note: Ubuntu and OrangePi full playbooks will be implemented in Phase 5"
+    log_info "Using universal playbook as fallback..."
+    PLAYBOOK="playbooks/universal.yml"
+    EXTRA_VARS="execution_mode=full force_platform=$PLATFORM"
+  else
+    exit 1
+  fi
+fi
+
+log_info "Executing platform deployment..."
+
+# Execute the appropriate playbook
+if [ -n "$EXTRA_VARS" ]; then
+  ANSIBLE_CONFIG=ansible.cfg ansible-playbook \
+    "$PLAYBOOK" \
+    -i "$INVENTORY_FILE" \
+    --extra-vars "$EXTRA_VARS" \
+    "$@"
+else
+  ANSIBLE_CONFIG=ansible.cfg ansible-playbook \
+    "$PLAYBOOK" \
+    -i "$INVENTORY_FILE" \
+    "$@"
+fi
+
+PLAYBOOK_EXIT_CODE=$?
+
+if [ $PLAYBOOK_EXIT_CODE -eq 0 ]; then
+  log_info "Platform deployment completed successfully."
+  log_info "Environment: $ENVIRONMENT, Platform: $PLATFORM"
+else
+  log_error "Platform deployment failed with exit code $PLAYBOOK_EXIT_CODE."
+fi
+
+log_debug "run-platform script finished."
+exit $PLAYBOOK_EXIT_CODE

@@ -1,0 +1,145 @@
+#!/bin/bash
+
+# Demo script for the oaAnsible Server API
+# Shows server capabilities and usage examples
+
+# Source helper functions and variables
+HELPER_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
+if [ -f "$HELPER_SCRIPT_PATH" ]; then
+  # shellcheck source=./helpers.sh
+  source "$HELPER_SCRIPT_PATH"
+else
+  echo "ERROR: helpers.sh not found at $HELPER_SCRIPT_PATH"
+  exit 1
+fi
+
+# Set script-specific log level
+SCRIPT_LOG_LEVEL=$_LOG_LEVEL_INFO
+export SCRIPT_LOG_LEVEL
+
+cat << 'EOF'
+🚀 OrangeAd Ansible Server API Demo
+===================================
+
+This demo showcases the server API capabilities implemented in Phase 4:
+
+✅ Server Integration Features:
+   - REST API for remote deployment management
+   - Job queuing and status tracking system
+   - Authentication and authorization
+   - Real-time execution monitoring
+   - Integration with advanced component framework
+
+🎯 Available Demo Scenarios:
+
+1. SERVER STARTUP
+   Command: ./run-server --dev
+   Shows: Start the API server in development mode
+
+2. HEALTH CHECK
+   Command: curl http://localhost:8001/api/health
+   Shows: Server health status and component readiness
+
+3. LIST ENVIRONMENTS
+   Command: curl http://localhost:8001/api/environments
+   Shows: Available deployment environments (staging, production, preprod)
+
+4. LIST COMPONENTS  
+   Command: curl http://localhost:8001/api/components
+   Shows: Available components organized by platform
+
+5. DEPLOY COMPONENTS (requires auth token)
+   Command: curl -X POST http://localhost:8001/api/deploy/components \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"environment":"staging","components":["macos-api"],"execution_mode":"dry-run"}'
+   Shows: Deploy components with job tracking
+
+6. JOB MANAGEMENT
+   Commands:
+   - curl http://localhost:8001/api/jobs                    # List jobs
+   - curl http://localhost:8001/api/jobs/JOB_ID             # Get job details
+   - curl http://localhost:8001/api/jobs/JOB_ID/logs        # Get job logs
+   - curl -X DELETE http://localhost:8001/api/jobs/JOB_ID   # Cancel job
+
+7. CLIENT LIBRARY USAGE (Python)
+   Example:
+   ```python
+   from server.client import create_client
+   
+   async with create_client("http://localhost:8001", token) as client:
+       # Health check
+       health = await client.health_check()
+       
+       # Deploy components
+       job = await client.deploy_components("staging", ["macos-api"])
+       
+       # Wait for completion
+       result = await client.wait_for_job(job["job_id"])
+   ```
+
+📋 Server API Endpoints:
+
+Authentication Required:
+• POST /api/deploy/components        - Deploy selected components
+• GET  /api/jobs                     - List deployment jobs
+• GET  /api/jobs/{job_id}           - Get job details
+• GET  /api/jobs/{job_id}/logs      - Get job logs
+• DELETE /api/jobs/{job_id}         - Cancel job
+
+Public Endpoints:
+• GET  /api/health                  - Server health check
+• GET  /api/environments            - List environments
+• GET  /api/components             - List components
+• GET  /api/docs                   - API documentation
+
+🔧 Server Components:
+
+• server/api/deployment_api.py      - Main FastAPI application
+• server/jobs/job_manager.py        - Job queuing and tracking
+• server/auth/auth_manager.py       - Authentication management
+• server/utils/ansible_executor.py  - Ansible execution engine
+• server/config/server_config.py    - Configuration management
+• server/client/oaansible_client.py - Client library
+• scripts/run-server               - Server launcher script
+
+🏗️  Integration Benefits:
+
+1. REMOTE EXECUTION: Deploy from oaDashboard without SSH access
+2. JOB TRACKING: Monitor deployment progress and status
+3. AUTHENTICATION: Secure API access with token validation
+4. SCALABILITY: Queue multiple deployments efficiently
+5. MONITORING: Real-time logs and execution status
+6. CLIENT LIBRARY: Easy integration with Python applications
+
+📚 Usage Examples:
+
+# Start the server
+./scripts/run-server --dev
+
+# Test health endpoint
+curl -s http://localhost:8001/api/health | jq .
+
+# Get available components
+curl -s http://localhost:8001/api/components | jq .
+
+# Create test token (for demo purposes)
+export TEST_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+
+# Deploy with dry-run
+curl -X POST http://localhost:8001/api/deploy/components \
+  -H "Authorization: Bearer $TEST_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "environment": "staging",
+    "components": ["macos-api"],
+    "execution_mode": "dry-run"
+  }' | jq .
+
+EOF
+
+log_info "Demo information displayed above"
+log_info "Start with: ./scripts/run-server --dev"
+log_info "API docs will be available at: http://localhost:8001/api/docs"
+
+exit 0
