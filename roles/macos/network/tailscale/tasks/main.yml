@@ -379,7 +379,7 @@
 - name: Notice Tailscale hostname mismatch detected
   ansible.builtin.debug:
     msg: |
-      🔄 Tailscale hostname mismatch detected: {{ current_ts_hostname }} → {{ inventory_hostname }}
+      Tailscale hostname mismatch detected: {{ current_ts_hostname }} → {{ inventory_hostname }}
       Current Tailscale registration: {{ current_ts_hostname }}
       Target hostname: {{ inventory_hostname }}
       Environment: {{ target_env | default('unknown') }}
@@ -412,7 +412,7 @@
     - name: Detect cross-Tailnet authentication issue
       ansible.builtin.debug:
         msg: |
-          🔄 Cross-Tailnet scenario detected for {{ inventory_hostname }}
+          Cross-Tailnet scenario detected for {{ inventory_hostname }}
           This device appears to be registered on a different Tailnet.
           Will perform logout and re-authentication to join the correct Tailnet.
           Previous hostname: {{ current_ts_hostname | default('Unknown') }}
@@ -458,7 +458,7 @@
     - name: Display cross-Tailnet completion notice
       ansible.builtin.debug:
         msg: |
-          ✅ Cross-Tailnet migration completed for {{ inventory_hostname }}
+          Cross-Tailnet migration completed for {{ inventory_hostname }}
           The device has been moved to the correct Tailnet.
           New Tailscale hostname: {{ inventory_hostname }}
 
@@ -483,7 +483,7 @@
 - name: Display hostname change completion notice
   ansible.builtin.debug:
     msg: |
-      ✅ Tailscale hostname update completed for {{ inventory_hostname }}
+      Tailscale hostname update completed for {{ inventory_hostname }}
       Previous Tailscale hostname: {{ current_ts_hostname }}
       New Tailscale hostname: {{ inventory_hostname }}
       Method: {{ 'Force re-authentication' if target_env != 'production' else 'Safe update' }}

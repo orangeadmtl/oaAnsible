@@ -15,7 +15,7 @@
     - name: Skip Python installation - already configured
       ansible.builtin.debug:
         msg: |
-          ✅ Python environment is ready:
+          Python environment is ready:
           - Pyenv {{ python_state.pyenv_version }} installed and working
           - Python {{ python_state.target_version }} installed and set as global
           - UV package manager available
@@ -210,10 +210,10 @@
     - name: Display Python environment status
       ansible.builtin.debug:
         msg: |
-          🐍 Python Environment Configuration Complete:
+          Python Environment Configuration Complete:
           {{ python_verification.stdout }}
 
-          ✅ Status: Ready for component deployment
+          Status: Ready for component deployment
       when: python_verification.rc == 0
 
 # Set completion facts for dependent roles

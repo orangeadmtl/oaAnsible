@@ -40,7 +40,7 @@
     - name: Skip deployment - macOS API already configured
       ansible.builtin.debug:
         msg: |
-          ✅ macOS API is already properly deployed:
+          macOS API is already properly deployed:
           - Main application: {{ api_main_check.stat.exists }}
           - Virtual environment: {{ api_venv_check.stat.exists }}
           - Python environment: {{ python_state.ready }}
@@ -204,7 +204,7 @@
                 source .venv/bin/activate
                 python -c "
                 import fastapi, uvicorn, pydantic, psutil
-                print('✅ All critical dependencies available')
+                print('  All critical dependencies available')
                 "
               become: true
               become_user: "{{ ansible_user }}"

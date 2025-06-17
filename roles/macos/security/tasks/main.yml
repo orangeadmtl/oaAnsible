@@ -142,6 +142,7 @@
         msg: "Password policy result: {{ pwpolicy_result.stdout | default('Command may require interactive authentication or no change made') }}"
       when: pwpolicy_result is defined
 
-# Include camera permissions tasks
+# Include camera permissions tasks (skip for ALPR-only deployments)
 - name: Include camera permissions tasks
   ansible.builtin.include_tasks: camera_permissions.yml
+  when: security_scope | default('full') != 'alpr_camera'
