@@ -269,7 +269,7 @@
 - name: Display idempotency patterns usage
   ansible.builtin.debug:
     msg: |
-      🔄 Idempotency Patterns Available:
+      Idempotency Patterns Available:
 
       1. State-Aware File Operations - Copy files only when changed
       2. Smart Package Installation - Install only missing packages
@@ -282,6 +282,6 @@
       9. Conditional Execution - Smart task execution logic
       10. Resource Optimization - Efficient resource usage
 
-      💡 Use these patterns in your roles for better idempotency and performance!
+      Use these patterns in your roles for better idempotency and performance!
   run_once: true
   tags: ["never", "patterns_help"]

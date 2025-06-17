@@ -6,24 +6,23 @@
   ansible.builtin.set_fact:
     execution_config:
       mode: "{{ execution_mode | default('normal') }}"
-      dry_run: "{{ execution_mode == 'dry-run' or ansible_check_mode | default(false) }}"
-      check_mode: "{{ execution_mode == 'check' or ansible_check_mode | default(false) }}"
-      diff_mode: "{{ execution_mode == 'diff' or ansible_diff_mode | default(false) }}"
+      dry_run: "{{ execution_mode == 'dry-run' or dry_run_mode | default(false) or ansible_check_mode | default(false) }}"
+      check_mode: "{{ execution_mode == 'check' or check_mode | default(false) or ansible_check_mode | default(false) }}"
+      diff_mode: "{{ execution_mode == 'diff' or diff_mode | default(false) or ansible_diff_mode | default(false) }}"
       force_mode: "{{ execution_mode == 'force' or force_deployment | default(false) }}"
       verbose: "{{ verbose_mode | default(false) }}"
+  tags: ["always"]
 
-      # Safety checks configuration
-      safety_checks:
-        require_confirmation: "{{ not (execution_config.force_mode | default(false)) }}"
-        validate_prerequisites: true
-        check_disk_space: true
-        verify_network_connectivity: true
-        backup_configurations: "{{ execution_config.mode != 'dry-run' }}"
+- name: Initialize safety checks configuration
+  ansible.builtin.set_fact:
+    execution_config: "{{ execution_config | combine({'safety_checks': {'require_confirmation': not (execution_config.force_mode | default(false)), 'validate_prerequisites':
+      true, 'check_disk_space': true, 'verify_network_connectivity': true, 'backup_configurations': execution_config.mode != 'dry-run'}}) }}"
+  tags: ["always"]
 
 - name: Display execution mode banner
   ansible.builtin.debug:
     msg: |
-      🚀 Execution Mode: {{ execution_config.mode | upper }}
+      Execution Mode: {{ execution_config.mode | upper }}
 
       Configuration:
       - Dry Run: {{ execution_config.dry_run }}
@@ -33,17 +32,18 @@
       - Safety Checks: {{ execution_config.safety_checks.require_confirmation }}
 
       {% if execution_config.dry_run %}
-      📋 DRY RUN MODE: No changes will be made to the system
+      DRY RUN MODE: No changes will be made to the system
       {% endif %}
       {% if execution_config.check_mode %}
-      🔍 CHECK MODE: Validating configuration and showing potential changes
+      CHECK MODE: Validating configuration and showing potential changes
       {% endif %}
       {% if execution_config.diff_mode %}
-      📊 DIFF MODE: Showing detailed differences for all changes
+      DIFF MODE: Showing detailed differences for all changes
       {% endif %}
       {% if execution_config.force_mode %}
-      ⚠️  FORCE MODE: Safety checks disabled - proceed with caution!
+      WARNING: FORCE MODE: Safety checks disabled - proceed with caution!
       {% endif %}
+  tags: ["always"]
 
 - name: Perform pre-execution safety checks
   when: execution_config.safety_checks.validate_prerequisites
@@ -61,7 +61,7 @@
         that:
           - available_disk_gb.stdout | int >= 5
         fail_msg: |
-          ❌ Insufficient disk space!
+          ERROR: Insufficient disk space!
           Available: {{ available_disk_gb.stdout }}GB
           Required: 5GB minimum
 
@@ -88,7 +88,7 @@
     - name: Report connectivity issues
       ansible.builtin.debug:
         msg: |
-          ⚠️  Network connectivity warning:
+          WARNING: Network connectivity warning:
           Some required services may not be reachable.
           Deployment may fail if packages cannot be downloaded.
       when:
@@ -117,7 +117,7 @@
     - name: Display execution plan
       ansible.builtin.debug:
         msg: |
-          📋 EXECUTION PLAN
+          EXECUTION PLAN
 
           Components: {{ execution_plan.components_to_deploy | length }}
           Estimated Duration: {{ execution_plan.estimated_duration }}
@@ -146,7 +146,7 @@
       ansible.builtin.pause:
         prompt: |2
 
-          ⚠️  DEPLOYMENT CONFIRMATION REQUIRED
+          WARNING: DEPLOYMENT CONFIRMATION REQUIRED
 
           You are about to deploy {{ final_component_order | default([]) | length }} components:
           {{ final_component_order | default([]) | join(', ') }}
@@ -164,7 +164,7 @@
     - name: Validate confirmation
       ansible.builtin.fail:
         msg: |
-          ❌ Deployment cancelled by user.
+          ERROR: Deployment cancelled by user.
           To skip confirmation, use --extra-vars "execution_mode=force"
       when: deployment_confirmation.user_input | lower != 'yes'
 
@@ -202,7 +202,7 @@
     - name: Display backup information
       ansible.builtin.debug:
         msg: |
-          💾 Configuration Backup Created:
+          Configuration Backup Created:
           Path: {{ deployment_backup.path }}
           Timestamp: {{ ansible_date_time.iso8601 }}
 
@@ -227,7 +227,7 @@
 - name: Skip deployment in dry-run mode
   ansible.builtin.debug:
     msg: |
-      🏁 DRY RUN COMPLETE
+      DRY RUN COMPLETE
 
       No changes were made to the system.
       Review the execution plan above and run without dry-run mode to apply changes.
@@ -238,7 +238,7 @@
 - name: Skip deployment in check mode
   ansible.builtin.debug:
     msg: |
-      ✅ CHECK MODE COMPLETE
+      CHECK MODE COMPLETE
 
       Configuration validation passed.
       Review the potential changes above and run in normal mode to apply.

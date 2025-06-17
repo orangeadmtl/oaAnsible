@@ -170,27 +170,27 @@
 - name: Display compatibility analysis
   ansible.builtin.debug:
     msg: |
-      🔍 Component Compatibility Analysis:
+      Component Compatibility Analysis:
 
-      Status: {{ '✅ PASSED' if compatibility_results.passed else '❌ FAILED' }}
+      Status: {{ '  PASSED' if compatibility_results.passed else 'ERROR: FAILED' }}
 
       Resource Requirements:
-      - Memory: {{ compatibility_results.resource_analysis.memory_mb }}MB
-      - Disk: {{ compatibility_results.resource_analysis.disk_mb }}MB
-      - CPU Cores: {{ compatibility_results.resource_analysis.cpu_cores }}
-      - Network Ports: {{ compatibility_results.resource_analysis.ports_needed | unique | sort | join(', ') }}
+        - Memory: {{ compatibility_results.resource_analysis.memory_mb }}MB
+        - Disk: {{ compatibility_results.resource_analysis.disk_mb }}MB
+        - CPU Cores: {{ compatibility_results.resource_analysis.cpu_cores }}
+        - Network Ports: {{ compatibility_results.resource_analysis.ports_needed | unique | sort | join(', ') }}
 
       {% if compatibility_results.errors | length > 0 %}
-      ❌ Errors ({{ compatibility_results.errors | length }}):
+      Errors ({{ compatibility_results.errors | length }}):
       {% for error in compatibility_results.errors %}
-      - {{ error }}
+        - {{ error }}
       {% endfor %}
       {% endif %}
 
       {% if compatibility_results.warnings | length > 0 %}
-      ⚠️  Warnings ({{ compatibility_results.warnings | length }}):
+      Warnings ({{ compatibility_results.warnings | length }}):
       {% for warning in compatibility_results.warnings %}
-      - {{ warning }}
+        - {{ warning }}
       {% endfor %}
       {% endif %}
   when: compatibility_results is defined

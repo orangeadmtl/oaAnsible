@@ -102,7 +102,7 @@
     - name: Warn about Tailscale connectivity risks
       ansible.builtin.debug:
         msg: |
-          🔒 TAILSCALE SAFETY CHECK:
+          TAILSCALE SAFETY CHECK:
 
           Current status: {{ tailscale_info.BackendState | default('Unknown') }}
 

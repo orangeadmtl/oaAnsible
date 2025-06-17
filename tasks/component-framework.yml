@@ -29,13 +29,15 @@
 
         alpr:
           platform: "macos"
-          requires: ["python", "base-system"]
-          conflicts: ["macos-tracker"]
-          provides: ["plate-recognition"]
+          requires: ["python", "base-system", "docker"]
+          conflicts: []
+          provides: ["plate-recognition", "vehicle-detection"]
           health_port: 8081
-          health_endpoint: "/health"
+          health_endpoint: "/v1/plate-reader/"
           category: "service"
           priority: 80
+          experimental: true
+          multi_service: true # Deploys both Docker service and Python monitor
 
         # Universal Components
         base-system:
@@ -61,6 +63,14 @@
           provides: ["node-runtime"]
           category: "runtime"
           priority: 160
+
+        docker:
+          platform: "macos"
+          requires: ["base-system"]
+          conflicts: []
+          provides: ["container-runtime", "orbstack"]
+          category: "runtime"
+          priority: 140
 
         network-stack:
           platform: "universal"
@@ -124,7 +134,7 @@
     - name: Report validation failures
       ansible.builtin.fail:
         msg: |
-          ❌ Component validation failed:
+          ERROR: Component validation failed:
 
           Invalid components: {{ validation_results.invalid_components | join(', ') if validation_results.invalid_components else 'None' }}
           Platform conflicts: {{ validation_results.platform_conflicts | length }} found
@@ -160,7 +170,7 @@
     - name: Display resolved component order
       ansible.builtin.debug:
         msg: |
-          🔧 Component Resolution Complete:
+          Component Resolution Complete:
           Selected: {{ selected_components | join(', ') }}
           Resolved: {{ dependency_resolution.resolved_components | join(', ') }}
           Execution Order: {{ final_component_order | join(' → ') }}
@@ -183,7 +193,7 @@
     - name: Report component conflicts
       ansible.builtin.fail:
         msg: |
-          ⚠️  Component conflicts detected:
+          WARNING: Component conflicts detected:
           {% for conflict in conflict_matrix %}
           - {{ conflict.component1 }} conflicts with {{ conflict.component2 }}
           {% endfor %}
@@ -224,7 +234,7 @@
     - name: Display component health summary
       ansible.builtin.debug:
         msg: |
-          🏥 Component Health Summary:
+          Component Health Summary:
           {% for component, health in health_check_results.items() %}
           - {{ component }}: {{ health.status }} ({{ health.response_time }}s on port {{ health.port }})
           {% endfor %}

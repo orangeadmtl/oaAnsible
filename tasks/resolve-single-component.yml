@@ -12,7 +12,7 @@
     - name: Check for circular dependency
       ansible.builtin.fail:
         msg: |
-          🔄 Circular dependency detected!
+          Circular dependency detected!
           Processing stack: {{ dependency_resolution.processing_stack | join(' → ') }}
           Attempting to add: {{ component_to_resolve }}
 
