@@ -418,6 +418,81 @@ get_python_executable() {
     fi
 }
 
+# SSH Key Management Functions
+# Load SSH private key from Ansible Vault into ssh-agent
+load_ssh_key_from_vault() {
+    local context="${1:-deployment}"
+    
+    log_info "Checking and loading SSH key into agent for $context..."
+    
+    # Ensure ssh-agent is running for this script's execution context
+    # Using >/dev/null to suppress the agent's output unless debugging
+    if ! ssh-add -l >/dev/null 2>&1; then # Check if agent has any keys / is reachable
+        log_info "ssh-agent not running or no keys loaded. Starting agent..."
+        eval "$(ssh-agent -s)" >/dev/null
+        if [ $? -ne 0 ]; then
+            log_error "Failed to start ssh-agent. Please start it manually."
+            exit 1
+        fi
+    fi
+    
+    # Variables from helpers.sh
+    local vault_yml_file="$OA_ANSIBLE_GROUP_VARS_DIR/all/vault.yml"
+    
+    # Check for required dependencies
+    check_vault_password_file
+    check_yq_installed
+    check_ansible_vault_installed
+    
+    log_info "Loading SSH private key from vault..."
+    if ansible-vault view "$vault_yml_file" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" |
+        yq -re '.vault_ssh_private_key // ""' |
+        ssh-add - >/dev/null 2>&1; then
+        log_info "SSH key successfully loaded into ssh-agent."
+    else
+        if ssh-add -l >/dev/null 2>&1; then
+            log_warn "Could not add vault key (may already be loaded, or requires passphrase). An identity is present in the agent."
+        else
+            log_error "Failed to add SSH key from vault to ssh-agent AND no keys are present in the agent."
+            log_error "Make sure 'vault_ssh_private_key' exists in '$vault_yml_file' and is a valid private key."
+            log_error "SSH authentication for Ansible may fail."
+            return 1
+        fi
+    fi
+    
+    return 0
+}
+
+# Enhanced deployment function with SSH key loading
+run_ansible_playbook_with_ssh() {
+    local playbook="$1"
+    local inventory="$2"
+    local context="${3:-deployment}"
+    shift 3  # Remove first 3 arguments, rest are passed to ansible-playbook
+    
+    # Load SSH key from vault
+    if ! load_ssh_key_from_vault "$context"; then
+        log_error "SSH key loading failed. Deployment may not work properly."
+        # Continue anyway in case there are other keys available
+    fi
+    
+    # Load vault variables and export sudo passwords as environment variables
+    eval "$(ansible-vault view group_vars/all/vault.yml --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" | yq e '.vault_sudo_passwords | to_entries | .[] | "export ANSIBLE_BECOME_PASSWORD_" + .key | sub("-", "_") + "=" + .value' -)"
+    export ANSIBLE_BECOME_PASSWORD_DEFAULT=$(ansible-vault view group_vars/all/vault.yml --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" | yq e '.vault_default_sudo_password' -)
+    
+    # Ensure we're in the correct directory
+    ensure_ansible_root_dir
+    
+    log_info "Running Ansible playbook: $playbook"
+    log_info "Inventory: $inventory"
+    log_info "Context: $context"
+    
+    # Run the playbook with all remaining arguments
+    ANSIBLE_CONFIG=ansible.cfg ansible-playbook "$playbook" -i "$inventory" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" "$@"
+    
+    return $?
+}
+
 # Example of setting a different log level for a specific script:
 # At the top of your script, after sourcing helpers.sh:
 # SCRIPT_LOG_LEVEL=$_LOG_LEVEL_DEBUG # To see debug messages for this script

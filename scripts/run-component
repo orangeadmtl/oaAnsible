@@ -117,12 +117,22 @@ case $ENVIRONMENT in
     ;;
 esac
 
-# Separate components from execution mode options
+# Separate components from execution mode options and ansible flags
 EXECUTION_MODE_OPTIONS=""
 FILTERED_COMPONENTS=()
+ANSIBLE_FLAGS=()
+SKIP_NEXT=false
 
-for arg in "${COMPONENTS[@]}"; do
+for i in "${!COMPONENTS[@]}"; do
+  arg="${COMPONENTS[$i]}"
+  
+  if [ "$SKIP_NEXT" = true ]; then
+    SKIP_NEXT=false
+    continue
+  fi
+  
   case $arg in
+    # Execution mode options (handled by universal playbook)
     --dry-run)
       EXECUTION_MODE_OPTIONS="$EXECUTION_MODE_OPTIONS execution_mode=dry-run"
       ;;
@@ -138,6 +148,21 @@ for arg in "${COMPONENTS[@]}"; do
     --verbose)
       EXECUTION_MODE_OPTIONS="$EXECUTION_MODE_OPTIONS verbose_mode=true"
       ;;
+    # Ansible flags that take no arguments
+    -v|-vv|-vvv|-vvvv|-vvvvv|-vvvvvv|--version|--list-hosts|--list-tasks|--list-tags|--syntax-check|--check|--diff|-C|-D|-k|-K|-b|--become|--flush-cache|--force-handlers|--step)
+      ANSIBLE_FLAGS+=("$arg")
+      ;;
+    # Ansible flags that take arguments
+    -i|--inventory|--inventory-file|-l|--limit|-e|--extra-vars|-t|--tags|--skip-tags|-f|--forks|-u|--user|--private-key|--key-file|-c|--connection|-T|--timeout|--become-method|--become-user|--vault-id|--vault-password-file|--vault-pass-file|--start-at-task)
+      ANSIBLE_FLAGS+=("$arg")
+      # Add the next argument as well
+      next_idx=$((i + 1))
+      if [ $next_idx -lt ${#COMPONENTS[@]} ]; then
+        ANSIBLE_FLAGS+=("${COMPONENTS[$next_idx]}")
+        SKIP_NEXT=true
+      fi
+      ;;
+    # Everything else is treated as a component
     *)
       FILTERED_COMPONENTS+=("$arg")
       ;;
@@ -204,9 +229,15 @@ COMPONENTS_JSON=$(printf '%s\n' "${COMPONENTS[@]}" | jq -R . | jq -s .)
 log_info "📦 Executing universal playbook with advanced component framework..."
 
 # Build execution command with extra variables
+# Always use components mode, but add dry-run, check, etc. as separate flags
 EXTRA_VARS="execution_mode=components selected_components=$COMPONENTS_JSON"
 if [ -n "$EXECUTION_MODE_OPTIONS" ]; then
+  # Keep execution_mode=components but add the additional options
   EXTRA_VARS="$EXTRA_VARS $EXECUTION_MODE_OPTIONS"
+  # Fix execution_mode if it was overridden by dry-run/check
+  EXTRA_VARS=$(echo "$EXTRA_VARS" | sed 's/execution_mode=dry-run/execution_mode=components dry_run_mode=true/')
+  EXTRA_VARS=$(echo "$EXTRA_VARS" | sed 's/execution_mode=check/execution_mode=components check_mode=true/')
+  EXTRA_VARS=$(echo "$EXTRA_VARS" | sed 's/execution_mode=diff/execution_mode=components diff_mode=true/')
 fi
 
 # Execute the universal playbook with component mode and advanced framework
@@ -215,7 +246,7 @@ ANSIBLE_CONFIG=ansible.cfg ansible-playbook \
   -i "$INVENTORY_FILE" \
   --extra-vars "$EXTRA_VARS" \
   --tags "components" \
-  "$@"
+  "${ANSIBLE_FLAGS[@]}"
 
 PLAYBOOK_EXIT_CODE=$?
 

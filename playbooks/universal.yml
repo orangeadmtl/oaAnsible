@@ -21,7 +21,7 @@
     - name: Display universal playbook banner
       ansible.builtin.debug:
         msg: |
-          🚀 OrangeAd Universal Orchestration System
+          OrangeAd Universal Orchestration System
           ==========================================
 
           Execution Parameters:
@@ -31,7 +31,7 @@
           - Targets: {{ ansible_play_hosts | join(', ') }}
           - Verbose: {{ verbose_mode }}
 
-          Advanced Component Framework: ENABLED ✅
+          Advanced Component Framework: ENABLED
 
     - name: Import platform detection
       ansible.builtin.include_tasks: ../tasks/platform-detection.yml
@@ -81,7 +81,7 @@
         - name: Validate component selection
           ansible.builtin.fail:
             msg: |
-              ❌ No components selected for deployment.
+              ERROR: No components selected for deployment.
 
               Available components:
               - macOS: macos-api, macos-tracker, alpr

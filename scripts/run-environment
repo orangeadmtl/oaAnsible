@@ -60,7 +60,42 @@ fi
 ENVIRONMENT=$1
 MODE=${2:-full}
 shift 2 # Remove environment and mode from arguments
-COMPONENTS=("$@")
+
+# Separate components from ansible flags
+REMAINING_ARGS=("$@")
+COMPONENTS=()
+ANSIBLE_FLAGS=()
+SKIP_NEXT=false
+
+for i in "${!REMAINING_ARGS[@]}"; do
+  arg="${REMAINING_ARGS[$i]}"
+  
+  if [ "$SKIP_NEXT" = true ]; then
+    SKIP_NEXT=false
+    continue
+  fi
+  
+  case $arg in
+    # Ansible flags that take no arguments
+    -v|-vv|-vvv|-vvvv|-vvvvv|-vvvvvv|--version|--list-hosts|--list-tasks|--list-tags|--syntax-check|--check|--diff|-C|-D|-k|-K|-b|--become|--flush-cache|--force-handlers|--step)
+      ANSIBLE_FLAGS+=("$arg")
+      ;;
+    # Ansible flags that take arguments
+    -i|--inventory|--inventory-file|-l|--limit|-e|--extra-vars|-t|--tags|--skip-tags|-f|--forks|-u|--user|--private-key|--key-file|-c|--connection|-T|--timeout|--become-method|--become-user|--vault-id|--vault-password-file|--vault-pass-file|--start-at-task)
+      ANSIBLE_FLAGS+=("$arg")
+      # Add the next argument as well
+      next_idx=$((i + 1))
+      if [ $next_idx -lt ${#REMAINING_ARGS[@]} ]; then
+        ANSIBLE_FLAGS+=("${REMAINING_ARGS[$next_idx]}")
+        SKIP_NEXT=true
+      fi
+      ;;
+    # Everything else is treated as a component
+    *)
+      COMPONENTS+=("$arg")
+      ;;
+  esac
+done
 
 log_debug "run-environment script started"
 log_debug "Environment: $ENVIRONMENT, Mode: $MODE"
@@ -168,7 +203,7 @@ ANSIBLE_CONFIG=ansible.cfg ansible-playbook \
   "$PLAYBOOK" \
   -i "$INVENTORY_FILE" \
   --extra-vars "$EXTRA_VARS" \
-  "$@"
+  "${ANSIBLE_FLAGS[@]}"
 
 PLAYBOOK_EXIT_CODE=$?
 
