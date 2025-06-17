@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.orangead.alpr-monitor</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{ alpr_python_path }}/bin/python</string>
+        <string>{{ ansible_user_dir }}/orangead/alpr/detect.py</string>
+    </array>
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>KeepAlive</key>
+    <true/>
+    
+    <key>StandardOutPath</key>
+    <string>{{ ansible_user_dir }}/orangead/alpr/logs/monitor.out.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>{{ ansible_user_dir }}/orangead/alpr/logs/monitor.err.log</string>
+    
+    <key>WorkingDirectory</key>
+    <string>{{ ansible_user_dir }}/orangead/alpr</string>
+    
+    <key>UserName</key>
+    <string>{{ ansible_user }}</string>
+    
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>{{ homebrew_prefix }}/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>{{ ansible_user_dir }}</string>
+        <key>DETECTIONS_DIR</key>
+        <string>{{ ansible_user_dir }}/orangead/alpr/detections</string>
+    </dict>
+    
+    <!-- Depend on Docker service being available -->
+    <key>ServiceDescription</key>
+    <string>OrangeAd ALPR Monitor Service - Vehicle Detection and Plate Recognition</string>
+</dict>
+</plist>

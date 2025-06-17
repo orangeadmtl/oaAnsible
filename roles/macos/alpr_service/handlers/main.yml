@@ -43,3 +43,11 @@
   failed_when: false
   environment:
     PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+
+- name: Reload ALPR monitor service
+  ansible.builtin.shell: |
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.alpr-monitor.plist 2>/dev/null || true
+    sleep 2
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.alpr-monitor.plist
+  become: false
+  failed_when: false

@@ -1,0 +1,248 @@
+#!/bin/bash
+
+# OrangeAd ALPR Deployment Script
+# Deploys the complete ALPR stack (PlateRecognizer Docker + Python Monitor) to macOS targets
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OAANSIBLE_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Source helpers
+source "$SCRIPT_DIR/helpers.sh"
+
+# Script configuration
+COMPONENT="alpr"
+PLAYBOOK="$OAANSIBLE_ROOT/playbooks/components/alpr-only.yml"
+DEFAULT_INVENTORY="$OAANSIBLE_ROOT/inventory/staging/hosts.yml"
+
+# Parse command line arguments
+INVENTORY="$DEFAULT_INVENTORY"
+EXTRA_VARS=""
+DRY_RUN=false
+VERBOSE=""
+TARGET=""
+ENVIRONMENT="staging"
+
+show_usage() {
+    cat << EOF
+Usage: $0 [OPTIONS] [TARGET]
+
+Deploy ALPR stack (PlateRecognizer Docker + Python Monitor) to macOS targets.
+
+OPTIONS:
+    -i, --inventory FILE    Inventory file (default: staging)
+    -e, --extra-vars VARS   Extra variables (key=value,key2=value2)
+    -n, --dry-run          Run in check mode (no changes)
+    -v, --verbose          Verbose output
+    -p, --production       Use production inventory
+    -s, --staging          Use staging inventory (default)
+    --pre-prod             Use pre-production inventory
+    -h, --help             Show this help
+
+TARGET:
+    Host or group to deploy to (optional, deploys to all if not specified)
+
+EXAMPLES:
+    # Deploy to all staging hosts
+    $0
+
+    # Deploy to specific host
+    $0 mac-mini-01
+
+    # Dry run on production
+    $0 --production --dry-run
+
+    # Deploy with custom variables
+    $0 -e "alpr_camera_id=1,alpr_region=us"
+
+PREREQUISITES:
+    - Valid PlateRecognizer API credentials in vault
+    - Target macOS system with camera access
+    - OrbStack installed for Docker support
+
+ALPR STACK COMPONENTS:
+    1. PlateRecognizer Docker Service (port 8081)
+    2. Python ALPR Monitor (YOLO + OpenCV)
+    3. Camera permissions and security setup
+    4. LaunchAgent services for auto-start
+
+POST-DEPLOYMENT:
+    - Services auto-start via LaunchAgents
+    - Check status: launchctl list | grep orangead
+    - View logs: ~/orangead/alpr/logs/
+    - Test API: curl -F "upload=@image.jpg" http://localhost:8081/v1/plate-reader/
+
+EOF
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -i|--inventory)
+            INVENTORY="$2"
+            shift 2
+            ;;
+        -e|--extra-vars)
+            EXTRA_VARS="$2"
+            shift 2
+            ;;
+        -n|--dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        -v|--verbose)
+            VERBOSE="-vvv"
+            shift
+            ;;
+        -p|--production)
+            INVENTORY="$OAANSIBLE_ROOT/inventory/production/hosts.yml"
+            ENVIRONMENT="production"
+            shift
+            ;;
+        -s|--staging)
+            INVENTORY="$OAANSIBLE_ROOT/inventory/staging/hosts.yml"
+            ENVIRONMENT="staging"
+            shift
+            ;;
+        --pre-prod)
+            INVENTORY="$OAANSIBLE_ROOT/inventory/pre-prod/hosts.yml"
+            ENVIRONMENT="pre-prod"
+            shift
+            ;;
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        -*)
+            echo "ERROR: Unknown option $1" >&2
+            show_usage
+            exit 1
+            ;;
+        *)
+            TARGET="$1"
+            shift
+            ;;
+    esac
+done
+
+# Validate prerequisites
+echo "🔍 Validating ALPR deployment prerequisites..."
+
+# Check if ALPR role files exist
+ALPR_ROLE_FILES="$OAANSIBLE_ROOT/roles/macos/alpr_service/files"
+if [[ ! -d "$ALPR_ROLE_FILES" ]]; then
+    echo "❌ ERROR: ALPR role files directory not found: $ALPR_ROLE_FILES" >&2
+    exit 1
+fi
+
+# Check required ALPR files
+required_files=("detect.py" "requirements.txt")
+for file in "${required_files[@]}"; do
+    if [[ ! -f "$ALPR_ROLE_FILES/$file" ]]; then
+        echo "❌ ERROR: Required ALPR file not found: $ALPR_ROLE_FILES/$file" >&2
+        exit 1
+    fi
+done
+
+# Check inventory file
+if [[ ! -f "$INVENTORY" ]]; then
+    echo "❌ ERROR: Inventory file not found: $INVENTORY" >&2
+    exit 1
+fi
+
+# Check vault password file
+if [[ ! -f "$OAANSIBLE_ROOT/vault_password_file" ]]; then
+    echo "❌ ERROR: Vault password file not found. ALPR requires API credentials." >&2
+    echo "   Create: $OAANSIBLE_ROOT/vault_password_file" >&2
+    exit 1
+fi
+
+echo "✅ Prerequisites validated"
+echo ""
+
+# Build extra arguments for ansible-playbook
+ANSIBLE_ARGS=()
+
+# Add target limit if specified
+if [[ -n "$TARGET" ]]; then
+    ANSIBLE_ARGS+=("--limit" "$TARGET")
+fi
+
+# Add extra vars if specified
+if [[ -n "$EXTRA_VARS" ]]; then
+    ANSIBLE_ARGS+=("--extra-vars" "$EXTRA_VARS")
+fi
+
+# Add execution mode options
+if [[ "$DRY_RUN" == "true" ]]; then
+    ANSIBLE_ARGS+=("--check" "--diff")
+fi
+
+if [[ -n "$VERBOSE" ]]; then
+    ANSIBLE_ARGS+=("$VERBOSE")
+fi
+
+# Display deployment info
+echo "🎥 ALPR Stack Deployment"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Environment:     $ENVIRONMENT"
+echo "Inventory:       $INVENTORY"
+echo "Target:          ${TARGET:-"all hosts"}"
+echo "ALPR Role:       $ALPR_ROLE_FILES"
+echo "Mode:            $([ "$DRY_RUN" == "true" ] && echo "DRY RUN" || echo "DEPLOY")"
+echo ""
+echo "Components:"
+echo "  • PlateRecognizer Docker Service"
+echo "  • Python ALPR Monitor (YOLO + OpenCV)"
+echo "  • Camera permissions setup"
+echo "  • LaunchAgent services"
+echo ""
+
+# Production safety check
+if [[ "$ENVIRONMENT" == "production" && "$DRY_RUN" != "true" ]]; then
+    echo "⚠️  PRODUCTION DEPLOYMENT DETECTED"
+    echo "   This will deploy ALPR services to production systems."
+    echo ""
+    read -p "   Continue with production deployment? (yes/no): " confirm
+    if [[ "$confirm" != "yes" ]]; then
+        echo "Deployment cancelled."
+        exit 0
+    fi
+    echo ""
+fi
+
+# Execute deployment
+echo "🚀 Starting ALPR deployment..."
+echo ""
+
+if ! run_ansible_playbook_with_ssh "$PLAYBOOK" "$INVENTORY" "ALPR deployment" "${ANSIBLE_ARGS[@]}"; then
+    echo ""
+    echo "❌ ALPR deployment failed!"
+    echo ""
+    echo "Troubleshooting steps:"
+    echo "1. Check vault credentials contain: vault_alpr_token, vault_alpr_license_key"
+    echo "2. Verify target host has camera access permissions"
+    echo "3. Ensure OrbStack/Docker is available on target"
+    echo "4. Check logs in ~/orangead/alpr/logs/ on target host"
+    echo "5. Run with --dry-run to test configuration"
+    exit 1
+fi
+
+echo ""
+echo "✅ ALPR Stack Deployment Completed!"
+echo ""
+echo "Next steps:"
+echo "• SSH to target host and verify services:"
+echo "  launchctl list | grep orangead"
+echo ""
+echo "• Check Docker container:"
+echo "  docker ps | grep orangead_alpr"
+echo ""
+echo "• Test ALPR API:"
+echo "  curl -F \"upload=@image.jpg\" -F regions='ca' -F mmc=true \\"
+echo "       http://localhost:8081/v1/plate-reader/"
+echo ""
+echo "• Monitor real-time detection:"
+echo "  tail -f ~/orangead/alpr/logs/monitor.out.log"
+echo ""

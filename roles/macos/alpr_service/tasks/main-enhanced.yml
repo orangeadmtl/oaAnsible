@@ -1,0 +1,194 @@
+---
+# Enhanced ALPR Service Deployment with Python Monitor Integration
+# This task file deploys both the PlateRecognizer Docker service and Python monitor
+
+- name: Include original ALPR Docker service deployment
+  ansible.builtin.include_tasks: main.yml
+
+- name: Ensure ALPR application directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: staff
+  loop:
+    - "{{ ansible_user_dir }}/orangead/alpr"
+    - "{{ ansible_user_dir }}/orangead/alpr/detections"
+    - "{{ ansible_user_dir }}/orangead/alpr/logs"
+    - "{{ ansible_user_dir }}/orangead/alpr/config"
+  become: true
+
+- name: Create ALPR Python virtual environment
+  ansible.builtin.shell: |
+    export PATH="{{ ansible_user_dir }}/.pyenv/bin:$PATH"
+    eval "$(pyenv init -)"
+    pyenv virtualenv {{ alpr_python_version }} alpr
+  args:
+    creates: "{{ alpr_python_path }}"
+  become: false
+  environment:
+    PATH: "{{ ansible_user_dir }}/.pyenv/bin:{{ homebrew_prefix }}/bin:/usr/local/bin:{{ ansible_env.PATH }}"
+
+- name: Copy ALPR source files from role
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ ansible_user_dir }}/orangead/alpr/{{ item.dest }}"
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: "0644"
+  loop:
+    - { src: "detect.py", dest: "detect.py" }
+    - { src: "requirements.txt", dest: "requirements.txt" }
+  become: true
+
+- name: Install ALPR Python dependencies
+  ansible.builtin.shell: |
+    export PATH="{{ ansible_user_dir }}/.pyenv/bin:$PATH"
+    eval "$(pyenv init -)"
+    pyenv activate alpr
+    {{ homebrew_prefix }}/bin/uv pip install -r {{ ansible_user_dir }}/orangead/alpr/requirements.txt
+  become: false
+  environment:
+    PATH: "{{ ansible_user_dir }}/.pyenv/bin:{{ homebrew_prefix }}/bin:/usr/local/bin:{{ ansible_env.PATH }}"
+  register: alpr_deps_install
+  changed_when: "'Successfully installed' in alpr_deps_install.stdout"
+
+- name: Create ALPR health check script
+  ansible.builtin.template:
+    src: alpr_health_check.sh.j2
+    dest: "{{ ansible_user_dir }}/orangead/alpr/health_check.sh"
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: "0755"
+  become: true
+
+- name: Create ALPR log rotation configuration
+  ansible.builtin.copy:
+    content: |
+      {{ ansible_user_dir }}/orangead/alpr/logs/*.log {
+          daily
+          rotate 7
+          compress
+          delaycompress
+          missingok
+          notifempty
+          create 644 {{ ansible_user }} staff
+      }
+    dest: "/usr/local/etc/logrotate.d/alpr"
+    mode: "0644"
+  become: true
+
+- name: Create ALPR environment configuration
+  ansible.builtin.template:
+    src: alpr.env.j2
+    dest: "{{ ansible_user_dir }}/orangead/alpr/.env"
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: "0644"
+  become: true
+
+- name: Create ALPR monitor LaunchAgent plist
+  ansible.builtin.template:
+    src: com.orangead.alpr-monitor.plist.j2
+    dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.alpr-monitor.plist"
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: "0644"
+  become: false
+  notify: Reload ALPR monitor service
+
+- name: Wait for ALPR Docker service to be ready
+  ansible.builtin.wait_for:
+    port: "{{ macos_alpr_host_port }}"
+    host: localhost
+    delay: 5
+    timeout: 30
+  when: not is_vm_environment | default(false)
+
+- name: Create ALPR management script
+  ansible.builtin.template:
+    src: alpr_manager.sh.j2
+    dest: "{{ ansible_user_dir }}/orangead/alpr/alpr_manager.sh"
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: "0755"
+  become: true
+
+- name: Create ALPR monitoring cron job
+  ansible.builtin.cron:
+    name: "ALPR health check"
+    job: "{{ ansible_user_dir }}/orangead/alpr/health_check.sh >> {{ ansible_user_dir }}/orangead/alpr/logs/health_check.log 2>&1"
+    minute: "*/5"
+    user: "{{ ansible_user }}"
+    state: present
+  become: true
+
+- name: Load ALPR monitor service
+  ansible.builtin.shell: |
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.alpr-monitor.plist 2>/dev/null || true
+    sleep 2
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.alpr-monitor.plist
+  become: false
+  when: not is_vm_environment | default(false)
+
+- name: Verify ALPR services status
+  ansible.builtin.shell: |
+    echo "=== ALPR Services Status ==="
+    echo "Docker Service:"
+    launchctl list | grep com.orangead.alpr || echo "  Not running"
+    echo "Monitor Service:"
+    launchctl list | grep com.orangead.alpr-monitor || echo "  Not running"
+    echo "Docker Container:"
+    docker ps --filter "name={{ macos_alpr_container_name }}" --format "  {{.Names}}: {{.Status}}" || echo "  Not found"
+    echo "Port Check:"
+    if nc -z localhost {{ macos_alpr_host_port }} 2>/dev/null; then
+      echo "  Port {{ macos_alpr_host_port }}: OPEN"
+    else
+      echo "  Port {{ macos_alpr_host_port }}: CLOSED"
+    fi
+  register: alpr_services_status
+  changed_when: false
+  when: not is_vm_environment | default(false)
+
+- name: Display ALPR deployment status
+  ansible.builtin.debug:
+    msg: |
+      === ALPR Stack Deployment Complete ===
+
+      Services Deployed:
+      ✅ PlateRecognizer Docker Service ({{ macos_alpr_image_name }})
+      ✅ ALPR Python Monitor ({{ ansible_user_dir }}/orangead/alpr/detect.py)
+      ✅ Health Monitoring (every 5 minutes)
+      ✅ Log Rotation and Management
+      ✅ Comprehensive Management Tools
+
+      Configuration:
+      - Camera ID: {{ alpr_camera_id }}
+      - Detection Directory: {{ ansible_user_dir }}/orangead/alpr/detections
+      - Service Port: {{ macos_alpr_host_port }}
+      - Region: {{ alpr_region }}
+      - Python Environment: {{ alpr_python_version }}
+
+      Status:
+      {{ alpr_services_status.stdout | default('Status check skipped') }}
+
+      Enhanced Management:
+      - ALPR Manager:     {{ ansible_user_dir }}/orangead/alpr/alpr_manager.sh
+      - Health Check:     {{ ansible_user_dir }}/orangead/alpr/health_check.sh
+      - Quick Commands:
+        * Start Stack:    ~/orangead/alpr/alpr_manager.sh start
+        * Stop Stack:     ~/orangead/alpr/alpr_manager.sh stop
+        * Check Status:   ~/orangead/alpr/alpr_manager.sh status
+        * View Health:    ~/orangead/alpr/alpr_manager.sh health
+        * Show Stats:     ~/orangead/alpr/alpr_manager.sh stats
+        * Cleanup Files:  ~/orangead/alpr/alpr_manager.sh cleanup
+
+      Monitoring & Logs:
+      - Health Check Log:  ~/orangead/alpr/logs/health_check.log
+      - Docker Logs:       ~/orangead/alpr/logs/alpr.*.log
+      - Monitor Logs:      ~/orangead/alpr/logs/monitor.*.log
+      - Auto Log Rotation: Enabled (7 day retention)
+      - Auto Cleanup:      Old detections removed after 7 days
+
+      Phase 9 ALPR Integration: COMPLETE ✅

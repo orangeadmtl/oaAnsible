@@ -8,6 +8,7 @@
   pre_tasks:
     - name: Gather facts
       ansible.builtin.setup:
+      become: false
 
     - name: Verify target is macOS
       ansible.builtin.fail:
@@ -22,8 +23,12 @@
           - User: {{ ansible_user }}
           - Target: ALPR service with Docker
 
+    - name: Ensure system requirements are met
+      ansible.builtin.import_tasks: ../../tasks/pre_checks.yml
+      tags: ["always"]
+
     - name: Environment safety checks
-      ansible.builtin.import_tasks: ../tasks/environment_checks.yml
+      ansible.builtin.import_tasks: ../../tasks/environment_checks.yml
       tags: ["always"]
 
     - name: Check ALPR deployment flag
@@ -38,6 +43,12 @@
       vars:
         minimal_base: true
 
+    # Python environment for ALPR monitor
+    - role: macos/python
+      tags: ["python", "dependencies"]
+      vars:
+        python_versions: ["{{ alpr_python_version | default('3.12') }}"]
+
     - role: macos/network
       tags: ["network"]
       vars:
@@ -47,47 +58,55 @@
       tags: ["tailscale", "network"]
       when: oa_environment.allow_tailscale_changes | default(false)
 
-    # Docker is required for ALPR service
-    - role: geerlingguy.mac.docker
-      tags: ["docker", "dependencies"]
+    # Camera permissions for ALPR monitor
+    - role: macos/security
+      tags: ["security", "camera"]
       vars:
-        docker_users:
-          - "{{ ansible_user }}"
+        security_scope: "alpr_camera"
 
+    # ALPR service deployment (Docker + Python monitor)
     - role: macos/alpr_service
       tags: ["alpr", "main"]
-      # Main ALPR service deployment
-
-    - role: macos/security
-      tags: ["security"]
-      vars:
-        security_scope: "alpr_only"
 
   post_tasks:
     - name: Verify ALPR installation
-      ansible.builtin.import_tasks: ../tasks/verify.yml
+      ansible.builtin.import_tasks: ../../tasks/verify.yml
       tags: ["verify"]
       vars:
         verify_scope: "alpr"
 
-    - name: Start ALPR service
+    - name: Check ALPR services status
       ansible.builtin.shell: |
-        launchctl load -w "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.alpr.plist"
-      become: false
-      register: alpr_start_result
-      failed_when: false
-
-    - name: Check Docker status
-      ansible.builtin.command: docker info
-      register: docker_status
+        echo "=== ALPR Services Status ==="
+        echo "Docker Service:"
+        launchctl list | grep com.orangead.alpr || echo "  Not running"
+        echo "Monitor Service:"
+        launchctl list | grep com.orangead.alpr-monitor || echo "  Not running"
+        echo "Docker Status:"
+        docker info >/dev/null 2>&1 && echo "  Docker daemon running" || echo "  Docker daemon not available"
+      register: alpr_services_check
       failed_when: false
       become: false
 
     - name: Display completion message
       ansible.builtin.debug:
         msg: |
-          ALPR Service Deployment Completed!
-          - Service: com.orangead.alpr
-          - Docker Status: {{ 'Running' if docker_status.rc == 0 else 'Check Docker installation' }}
-          - Status: Check with 'launchctl list | grep orangead'
-          - Logs: {{ ansible_user_dir }}/orangead/alpr/logs/
+          🎥 ALPR Stack Deployment Completed!
+
+          Components Deployed:
+          - PlateRecognizer Docker Service (port {{ macos_alpr_host_port | default(8081) }})
+          - ALPR Python Monitor ({{ ansible_user_dir }}/orangead/alpr/detect.py)
+
+          Services Status:
+          {{ alpr_services_check.stdout | default('Status check failed') }}
+
+          Management:
+          - Start Docker:  launchctl load -w ~/Library/LaunchAgents/com.orangead.alpr.plist
+          - Start Monitor: launchctl load -w ~/Library/LaunchAgents/com.orangead.alpr-monitor.plist
+          - Check Status:  launchctl list | grep orangead
+          - View Logs:     tail -f ~/orangead/alpr/logs/*.log
+
+          Test API:
+          curl -F "upload=@image.jpg" -F regions='ca' -F mmc=true \\
+               -F 'config={"mode":"fast", "detection_mode":"vehicle"}' \\
+               http://localhost:{{ macos_alpr_host_port | default(8081) }}/v1/plate-reader/
