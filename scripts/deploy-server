@@ -270,6 +270,9 @@ log_info "Running Ubuntu server onboarding playbook..."
 log_info "Using vault-encrypted passwords, no prompting required."
 echo
 
+# Load SSH key from vault for deployment
+load_ssh_key_from_vault "Ubuntu server deployment"
+
 # Use ANSIBLE_CONFIG like other scripts
 ANSIBLE_CONFIG=ansible.cfg "$ANSIBLE_CMD" "${ANSIBLE_ARGS[@]}"
 PLAYBOOK_EXIT_CODE=$?
