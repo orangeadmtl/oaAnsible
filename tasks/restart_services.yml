@@ -65,12 +65,12 @@
   ansible.builtin.debug:
     msg: |
       === SERVICE STATUS ===
-      API Service (port 9090): {{ 'Running ✅' if api_health_check.status == 200 else 'Not running ❌' }}
+      API Service (port 9090): {{ 'Running  ' if api_health_check.status == 200 else 'Not running ERROR:' }}
       {% if api_health_check.status != 200 %}
       API Check attempts: {{ api_health_check.attempts | default(1) }}
       API Last error: {{ api_health_check.msg | default('Unknown') }}
       {% endif %}
-      Tracker Service (port 8080): {{ 'Running ✅' if tracker_health_check is defined and tracker_health_check.status == 200 else 'Not running ❌' }}
+      Tracker Service (port 8080): {{ 'Running  ' if tracker_health_check is defined and tracker_health_check.status == 200 else 'Not running ERROR:' }}
       {% if tracker_health_check is defined and tracker_health_check.status != 200 %}
       Tracker Check attempts: {{ tracker_health_check.attempts | default(1) }}
       Tracker Last error: {{ tracker_health_check.msg | default('Unknown') }}

@@ -156,6 +156,7 @@
           changed_when: false
           failed_when: false
           become: false
+          when: verify_scope | default('full') in ['full', 'api']
 
         - name: Check tracker service status
           ansible.builtin.shell: |
@@ -165,6 +166,17 @@
           changed_when: false
           failed_when: false
           become: false
+          when: verify_scope | default('full') in ['full', 'tracker']
+
+        - name: Check ALPR service status
+          ansible.builtin.shell: |
+            set -o pipefail
+            launchctl list | grep com.orangead.alpr || echo "Not running"
+          register: alpr_status
+          changed_when: false
+          failed_when: false
+          become: false
+          when: verify_scope | default('full') in ['full', 'alpr']
 
         - name: Check macOS API service via HTTP (with retries)
           ansible.builtin.uri:
@@ -178,6 +190,7 @@
           retries: 2
           delay: 3
           until: api_http_check.status == 200
+          when: verify_scope | default('full') in ['full', 'api']
 
         - name: Check tracker service via HTTP (with retries)
           ansible.builtin.uri:
@@ -191,13 +204,34 @@
           retries: 2
           delay: 3
           until: tracker_http_check.status == 200
+          when: verify_scope | default('full') in ['full', 'tracker']
+
+        - name: Check ALPR service via HTTP (with retries)
+          ansible.builtin.uri:
+            url: http://localhost:8081/health
+            method: GET
+            status_code: 200
+            timeout: 10
+          register: alpr_http_check
+          ignore_errors: true
+          delegate_to: "{{ inventory_hostname }}"
+          retries: 2
+          delay: 3
+          until: alpr_http_check.status == 200
+          when: verify_scope | default('full') in ['full', 'alpr']
 
     - name: Set verification status fact
       ansible.builtin.set_fact:
         verification_status: >
-          {% if (macos_api_status is defined and macos_api_status.stdout is defined and macos_api_status.stdout != 'Not running') or
-                (tracker_status is defined and tracker_status.stdout is defined and tracker_status.stdout != 'Not
-          running') %}true{% else %}false{% endif %}
+          {% if verify_scope | default('full') == 'alpr' %}
+            {% if alpr_status is defined and alpr_status.stdout is defined and alpr_status.stdout != 'Not running' %}true{% else %}false{% endif %}
+          {% elif verify_scope | default('full') == 'api' %}
+            {% if macos_api_status is defined and macos_api_status.stdout is defined and macos_api_status.stdout != 'Not running' %}true{% else %}false{% endif
+          %} {% elif verify_scope | default('full') == 'tracker' %}
+            {% if tracker_status is defined and tracker_status.stdout is defined and tracker_status.stdout != 'Not running' %}true{% else %}false{% endif %}
+          {% else %}
+            {% if (macos_api_status is defined and macos_api_status.stdout is defined and macos_api_status.stdout != 'Not running') and (tracker_status is
+          defined and tracker_status.stdout is defined and tracker_status.stdout != 'Not running') %}true{% else %}false{% endif %} {% endif %}
 
     - name: Display verification results
       ansible.builtin.debug:
@@ -236,15 +270,21 @@
           {% endif %}
 
           === SERVICES ===
+          {% if verify_scope | default('full') in ['full', 'api'] %}
           macOS API Service:   {% if macos_api_status is defined and macos_api_status.stdout is defined and macos_api_status.stdout != 'Not running' %}Running{% else %}Not running (ATTENTION REQUIRED){% endif %} {% if api_http_check is defined and api_http_check.status == 200 %}- HTTP Accessible{% else %}- HTTP Not Accessible{% endif %}
-
+          {% endif %}
+          {% if verify_scope | default('full') in ['full', 'tracker'] %}
           Tracker Service:     {% if tracker_status is defined and tracker_status.stdout is defined and tracker_status.stdout != 'Not running' %}Running{% else %}Not running (ATTENTION REQUIRED){% endif %} {% if tracker_http_check is defined and tracker_http_check.status == 200 %}- HTTP Accessible{% else %}- HTTP Not Accessible{% endif %}
+          {% endif %}
+          {% if verify_scope | default('full') in ['full', 'alpr'] %}
+          ALPR Service:        {% if alpr_status is defined and alpr_status.stdout is defined and alpr_status.stdout != 'Not running' %}Running{% else %}Not running (ATTENTION REQUIRED){% endif %} {% if alpr_http_check is defined and alpr_http_check.status == 200 %}- HTTP Accessible{% else %}- HTTP Not Accessible{% endif %}
+          {% endif %}
 
           ============================================================
           {% if verification_status == 'true' %}
-          STATUS: All services are running correctly.
+          STATUS: All {{ verify_scope | default('full') | title }} services are running correctly.
           {% else %}
-          STATUS: Some services are not running. See details above.
+          STATUS: Some {{ verify_scope | default('full') | title }} services are not running. See details above.
           {% endif %}
           ============================================================
       tags: ["verify"]
