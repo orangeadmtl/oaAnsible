@@ -1,0 +1,53 @@
+---
+# Manage services using systemd (Linux)
+
+- name: Process services for systemd
+  block:
+    - name: Map service names for current platform
+      ansible.builtin.set_fact:
+        mapped_services: "{{ mapped_services | default([]) + [mapped_service] }}"
+      vars:
+        service_name: "{{ item.name if item is mapping else item }}"
+        mapped_name: "{{ service_mappings[service_name][platform_os] if service_mappings[service_name] is defined and service_mappings[service_name][platform_os] is defined else service_name }}"
+        mapped_service:
+          name: "{{ mapped_name }}"
+          state: "{{ item.state if item is mapping else 'started' }}"
+          enabled: "{{ item.enabled if item is mapping else true }}"
+      loop: "{{ common_services }}"
+      when: 
+        - service_name != "null"
+        - mapped_name != "null"
+
+    - name: Reload systemd daemon
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true
+      when: service_manager.systemd.daemon_reload
+
+    - name: Manage systemd services
+      ansible.builtin.systemd:
+        name: "{{ item.name }}"
+        state: "{{ item.state }}"
+        enabled: "{{ item.enabled }}"
+      become: true
+      loop: "{{ mapped_services }}"
+      when: mapped_services is defined
+      register: systemd_service_results
+
+    - name: Display systemd service management results
+      ansible.builtin.debug:
+        msg: |
+          Systemd Service Management Results:
+          {% for result in systemd_service_results.results %}
+          - {{ result.item.name }}: {{ 'Changed' if result.changed else 'No change' }}
+          {% endfor %}
+      when: systemd_service_results is defined
+
+    - name: Report skipped services
+      ansible.builtin.debug:
+        msg: "Skipped services not available on {{ platform_os }}: {{ skipped_services | join(', ') }}"
+      vars:
+        skipped_services: "{{ common_services | map('extract', 'name') | select('in', service_mappings.keys()) | 
+                           map('extract', service_mappings) | map('extract', platform_os) | 
+                           select('none') | list }}"
+      when: skipped_services | length > 0

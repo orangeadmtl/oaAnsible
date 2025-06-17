@@ -1,0 +1,151 @@
+---
+# OrangePi opi-setup service role defaults
+
+# Service configuration
+opi_setup_service:
+  name: "opi-setup"
+  user: "{{ ansible_user }}"
+  group: "{{ ansible_user }}"
+  
+  # Service paths
+  install_dir: "/home/{{ ansible_user }}/orangead/opi-setup"
+  config_dir: "/home/{{ ansible_user }}/orangead/config"
+  logs_dir: "/home/{{ ansible_user }}/orangead/logs"
+  data_dir: "/home/{{ ansible_user }}/orangead/data"
+  
+  # API configuration
+  api:
+    host: "0.0.0.0"
+    port: 9090
+    workers: 1
+    log_level: "info"
+    api_key: "{{ vault_opi_setup_api_key | default('orangead-dev-key-change-in-production') }}"
+  
+  # Python environment
+  python:
+    version: "3.11"
+    venv_path: "/home/{{ ansible_user }}/orangead/opi-setup/.venv"
+
+# Repository configuration
+opi_setup_repository:
+  url: "https://github.com/orangead/opi-setup.git"
+  version: "main"  # branch, tag, or commit
+  force_update: false
+
+# Dependencies
+opi_setup_dependencies:
+  system_packages:
+    - python3
+    - python3-pip
+    - python3-venv
+    - python3-dev
+    - gcc
+    - g++
+    - make
+    - pkg-config
+    - libffi-dev
+    - libssl-dev
+    - libjpeg-dev
+    - libpng-dev
+    - libv4l-dev
+    - v4l-utils
+    - ffmpeg
+    - scrot
+    - imagemagick
+    - curl
+    - wget
+  
+  python_packages:
+    # Core FastAPI dependencies
+    - fastapi>=0.104.0
+    - uvicorn[standard]>=0.24.0
+    - pydantic>=2.5.0
+    - pydantic-settings>=2.1.0
+    
+    # System monitoring
+    - psutil>=5.9.0
+    - python-multipart>=0.0.6
+    
+    # Image and video processing
+    - pillow>=10.1.0
+    - opencv-python-headless>=4.8.0
+    
+    # Network and utilities
+    - httpx>=0.25.0
+    - aiofiles>=23.2.1
+
+# Health monitoring configuration
+health_monitoring:
+  enabled: true
+  check_interval: 30  # seconds
+  endpoints:
+    - path: "/health"
+      timeout: 5
+    - path: "/api/status"
+      timeout: 5
+
+# Screenshot configuration
+screenshot_config:
+  enabled: true
+  interval: 60  # seconds
+  quality: 85
+  max_screenshots: 100
+  storage_path: "/home/{{ ansible_user }}/orangead/data/screenshots"
+  
+  # Screenshot methods (in order of preference)
+  methods:
+    - "scrot"
+    - "ffmpeg"
+    - "imagemagick"
+
+# Logging configuration
+logging_config:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  max_size: "10MB"
+  backup_count: 5
+  
+  # Log files
+  files:
+    app: "{{ opi_setup_service.logs_dir }}/opi-setup.log"
+    access: "{{ opi_setup_service.logs_dir }}/access.log"
+    error: "{{ opi_setup_service.logs_dir }}/error.log"
+
+# Security configuration
+security_config:
+  api_key_required: true
+  cors_enabled: true
+  cors_origins:
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"
+    - "https://dashboard.orangead.local"
+  
+  # Rate limiting
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60
+
+# Backup configuration
+backup_config:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention_days: 7
+  backup_paths:
+    - "{{ opi_setup_service.config_dir }}"
+    - "{{ opi_setup_service.logs_dir }}"
+    - "{{ screenshot_config.storage_path }}"
+
+# Performance tuning
+performance_config:
+  # Memory limits
+  memory_limit: "512M"
+  
+  # CPU limits
+  cpu_limit: "1.0"
+  
+  # File descriptor limits
+  file_descriptor_limit: 1024
+  
+  # Worker configuration
+  worker_connections: 1000
+  keepalive_timeout: 75

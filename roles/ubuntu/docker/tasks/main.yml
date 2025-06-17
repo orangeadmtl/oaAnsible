@@ -1,0 +1,198 @@
+---
+# Ubuntu Docker installation and configuration
+
+- name: Check Docker installation status
+  block:
+    - name: Check if Docker is already installed
+      ansible.builtin.command: docker --version
+      register: docker_version_check
+      failed_when: false
+      changed_when: false
+
+    - name: Check if Docker Compose is already installed
+      ansible.builtin.command: docker compose version
+      register: docker_compose_version_check
+      failed_when: false
+      changed_when: false
+      when: docker_install_compose
+
+    - name: Set Docker installation flags
+      ansible.builtin.set_fact:
+        docker_already_installed: "{{ docker_version_check.rc == 0 }}"
+        docker_compose_already_installed: "{{ docker_compose_version_check.rc == 0 if docker_install_compose else true }}"
+
+- name: Display Docker installation status
+  ansible.builtin.debug:
+    msg: |
+      Docker Installation Status:
+      - Docker Engine: {{ 'Already installed' if docker_already_installed else 'Need installation' }}
+      - Docker Compose: {{ 'Already installed' if docker_compose_already_installed else 'Need installation' }}
+
+- name: Install Docker prerequisites
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+      - software-properties-common
+    state: present
+    update_cache: true
+  become: true
+  when: not docker_already_installed
+
+- name: Add Docker GPG key
+  ansible.builtin.apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+  become: true
+  when: not docker_already_installed
+
+- name: Add Docker repository
+  ansible.builtin.apt_repository:
+    repo: "deb [arch={{ ansible_architecture }}] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} {{ docker_channel }}"
+    state: present
+    update_cache: true
+  become: true
+  when: not docker_already_installed
+
+- name: Install Docker Engine
+  ansible.builtin.apt:
+    name: "{{ 'docker-ce' if docker_version == 'latest' else 'docker-ce=' + docker_version }}"
+    state: present
+    update_cache: true
+  become: true
+  when: not docker_already_installed
+  notify: restart docker
+
+- name: Install Docker CLI
+  ansible.builtin.apt:
+    name: "{{ 'docker-ce-cli' if docker_version == 'latest' else 'docker-ce-cli=' + docker_version }}"
+    state: present
+  become: true
+  when: not docker_already_installed
+
+- name: Install containerd.io
+  ansible.builtin.apt:
+    name: containerd.io
+    state: present
+  become: true
+  when: not docker_already_installed
+
+- name: Install Docker Compose
+  ansible.builtin.get_url:
+    url: "https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-{{ ansible_system }}-{{ ansible_architecture }}"
+    dest: /usr/local/bin/docker-compose
+    mode: "0755"
+  become: true
+  when:
+    - docker_install_compose
+    - not docker_compose_already_installed
+
+- name: Create docker-compose symlink for new plugin format
+  ansible.builtin.file:
+    src: /usr/local/bin/docker-compose
+    dest: /usr/libexec/docker/cli-plugins/docker-compose
+    state: link
+    force: true
+  become: true
+  when:
+    - docker_install_compose
+    - not docker_compose_already_installed
+
+- name: Create Docker daemon configuration directory
+  ansible.builtin.file:
+    path: /etc/docker
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Configure Docker daemon
+  ansible.builtin.copy:
+    content: "{{ docker_daemon_config | to_nice_json }}"
+    dest: /etc/docker/daemon.json
+    mode: "0644"
+    backup: true
+  become: true
+  notify: restart docker
+
+- name: Add users to docker group
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: docker
+    append: true
+  become: true
+  loop: "{{ docker_users }}"
+  notify: restart docker
+
+- name: Enable and start Docker service
+  ansible.builtin.systemd:
+    name: docker
+    enabled: "{{ docker_service_enabled }}"
+    state: "{{ docker_service_state }}"
+    daemon_reload: true
+  become: true
+
+- name: Create Docker networks
+  community.docker.docker_network:
+    name: "{{ item.name }}"
+    driver: "{{ item.driver | default('bridge') }}"
+    ipam_config: "{{ item.ipam_config | default(omit) }}"
+    state: present
+  loop: "{{ docker_networks }}"
+  when: docker_networks | length > 0
+
+- name: Create Docker volumes
+  community.docker.docker_volume:
+    name: "{{ item.name }}"
+    driver: "{{ item.driver | default('local') }}"
+    driver_options: "{{ item.driver_options | default(omit) }}"
+    state: present
+  loop: "{{ docker_volumes }}"
+  when: docker_volumes | length > 0
+
+- name: Configure Docker registry authentication
+  community.docker.docker_login:
+    registry_url: "{{ item.url }}"
+    username: "{{ item.username }}"
+    password: "{{ item.password }}"
+    state: present
+  loop: "{{ docker_registries }}"
+  when: docker_registries | length > 0
+  no_log: true
+
+- name: Create Docker system cleanup cron job
+  ansible.builtin.cron:
+    name: "Docker system prune"
+    job: "docker system prune -af --volumes > /dev/null 2>&1"
+    minute: "{{ docker_prune_schedule.split()[1] }}"
+    hour: "{{ docker_prune_schedule.split()[2] }}"
+    day: "{{ docker_prune_schedule.split()[3] }}"
+    month: "{{ docker_prune_schedule.split()[4] }}"
+    weekday: "{{ docker_prune_schedule.split()[0] }}"
+    user: root
+    state: "{{ 'present' if docker_prune_enabled else 'absent' }}"
+  become: true
+
+- name: Verify Docker installation
+  block:
+    - name: Test Docker installation
+      ansible.builtin.command: docker run --rm hello-world
+      register: docker_test
+      changed_when: false
+      become: true
+
+    - name: Test Docker Compose installation
+      ansible.builtin.command: docker compose version
+      register: docker_compose_test
+      changed_when: false
+      when: docker_install_compose
+
+    - name: Display Docker verification results
+      ansible.builtin.debug:
+        msg: |-
+          Docker Installation Verification:
+          - Docker Engine: {{ 'Working' if docker_test.rc == 0 else 'Failed' }}
+          - Docker Compose: {{ 'Working' if docker_compose_test.rc == 0 else 'Failed' if docker_install_compose else 'Not installed' }}
+          - Users in docker group: {{ docker_users | join(', ') }}

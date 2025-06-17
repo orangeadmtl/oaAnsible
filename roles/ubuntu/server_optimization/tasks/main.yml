@@ -1,0 +1,220 @@
+---
+# Ubuntu server optimization tasks
+
+- name: Check system optimization status
+  block:
+    - name: Check current kernel parameters
+      ansible.builtin.slurp:
+        src: /etc/sysctl.conf
+      register: current_sysctl
+      failed_when: false
+
+    - name: Check current system limits
+      ansible.builtin.slurp:
+        src: /etc/security/limits.conf
+      register: current_limits
+      failed_when: false
+
+    - name: Check essential packages
+      ansible.builtin.package_facts:
+        manager: auto
+
+- name: Display optimization status
+  ansible.builtin.debug:
+    msg: |
+      Server Optimization Status:
+      - Kernel parameter optimization: {{ 'Configured' if current_sysctl.content is defined else 'Needs configuration' }}
+      - System limits optimization: {{ 'Configured' if current_limits.content is defined else 'Needs configuration' }}
+      - Essential packages: {{ 'Checking installation' }}
+
+# Kernel Parameter Optimization
+- name: Configure kernel parameters for server optimization
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-orangead-optimization.conf
+    reload: true
+    state: present
+  loop: "{{ system_optimization.kernel_params | dict2items }}"
+  become: true
+  when: system_optimization.enabled
+
+# System Limits Optimization
+- name: Configure system limits for server optimization
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.conf
+    regexp: "^{{ item.domain }}\\s+{{ item.type }}\\s+{{ item.item }}\\s+"
+    line: "{{ item.domain }} {{ item.type }} {{ item.item }} {{ item.value }}"
+    backup: true
+  loop: "{{ system_optimization.limits }}"
+  become: true
+  when: system_optimization.enabled
+
+# Service Optimization
+- name: Disable unnecessary services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: false
+    state: stopped
+  loop: "{{ service_optimization.services_to_disable }}"
+  become: true
+  when: 
+    - service_optimization.enabled
+    - item in ansible_facts.services
+  failed_when: false  # Don't fail if service doesn't exist
+
+- name: Enable essential services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: "{{ service_optimization.services_to_enable }}"
+  become: true
+  when: service_optimization.enabled
+  failed_when: false
+
+# Package Optimization
+- name: Remove unnecessary packages
+  ansible.builtin.apt:
+    name: "{{ package_optimization.packages_to_remove }}"
+    state: absent
+    purge: true
+    autoremove: true
+  become: true
+  when: package_optimization.enabled
+
+- name: Install essential packages
+  ansible.builtin.apt:
+    name: "{{ package_optimization.essential_packages }}"
+    state: present
+    update_cache: true
+  become: true
+  when: package_optimization.enabled
+
+# Boot Optimization
+- name: Configure GRUB for boot optimization
+  ansible.builtin.lineinfile:
+    path: /etc/default/grub
+    regexp: '^GRUB_TIMEOUT='
+    line: 'GRUB_TIMEOUT={{ boot_optimization.grub_timeout }}'
+    backup: true
+  become: true
+  when: boot_optimization.enabled
+  notify: update grub
+
+- name: Configure GRUB kernel parameters
+  ansible.builtin.lineinfile:
+    path: /etc/default/grub
+    regexp: '^GRUB_CMDLINE_LINUX_DEFAULT='
+    line: 'GRUB_CMDLINE_LINUX_DEFAULT="{{ boot_optimization.grub_cmdline_params | join(" ") }}"'
+    backup: true
+  become: true
+  when: boot_optimization.enabled
+  notify: update grub
+
+# Storage Optimization
+- name: Enable fstrim timer for SSD optimization
+  ansible.builtin.systemd:
+    name: fstrim.timer
+    enabled: true
+    state: started
+  become: true
+  when: 
+    - storage_optimization.enabled
+    - storage_optimization.enable_fstrim
+
+- name: Configure temporary directory cleanup
+  ansible.builtin.cron:
+    name: "Cleanup old temporary files"
+    job: "find /tmp -type f -atime +{{ storage_optimization.tmp_cleanup.max_age_days }} -delete"
+    minute: "0"
+    hour: "3"
+    user: root
+    state: "{{ 'present' if storage_optimization.tmp_cleanup.enabled else 'absent' }}"
+  become: true
+  when: storage_optimization.enabled
+
+# Network Optimization
+- name: Configure DNS servers for optimization
+  ansible.builtin.template:
+    src: resolved.conf.j2
+    dest: /etc/systemd/resolved.conf
+    backup: true
+  become: true
+  when: network_optimization.enabled
+  notify: restart systemd-resolved
+
+# Security Hardening
+- name: Configure unattended upgrades
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: present
+  become: true
+  when: 
+    - security_hardening.enabled
+    - security_hardening.unattended_upgrades.enabled
+
+- name: Configure unattended upgrades settings
+  ansible.builtin.template:
+    src: 50unattended-upgrades.j2
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    backup: true
+  become: true
+  when: 
+    - security_hardening.enabled
+    - security_hardening.unattended_upgrades.enabled
+
+- name: Enable unattended upgrades
+  ansible.builtin.template:
+    src: 20auto-upgrades.j2
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    backup: true
+  become: true
+  when: 
+    - security_hardening.enabled
+    - security_hardening.unattended_upgrades.enabled
+
+# Performance Baseline Collection
+- name: Create performance monitoring directory
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/orangead/performance"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+  become: true
+  when: performance_monitoring.enabled
+
+- name: Create performance baseline script
+  ansible.builtin.template:
+    src: collect_baseline.sh.j2
+    dest: "/home/{{ ansible_user }}/orangead/performance/collect_baseline.sh"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+  become: true
+  when: 
+    - performance_monitoring.enabled
+    - performance_monitoring.collect_baseline
+
+- name: Run initial performance baseline collection
+  ansible.builtin.command: "/home/{{ ansible_user }}/orangead/performance/collect_baseline.sh"
+  become_user: "{{ ansible_user }}"
+  become: true
+  when: 
+    - performance_monitoring.enabled
+    - performance_monitoring.collect_baseline
+  changed_when: true
+
+- name: Display server optimization results
+  ansible.builtin.debug:
+    msg: |
+      Ubuntu Server Optimization Completed:
+      - Kernel parameters: {{ 'Optimized' if system_optimization.enabled else 'Skipped' }}
+      - System limits: {{ 'Configured' if system_optimization.enabled else 'Skipped' }}
+      - Services: {{ 'Optimized' if service_optimization.enabled else 'Skipped' }}
+      - Boot configuration: {{ 'Optimized' if boot_optimization.enabled else 'Skipped' }}
+      - Storage optimization: {{ 'Configured' if storage_optimization.enabled else 'Skipped' }}
+      - Network optimization: {{ 'Configured' if network_optimization.enabled else 'Skipped' }}
+      - Security hardening: {{ 'Enabled' if security_hardening.enabled else 'Skipped' }}
+      - Performance monitoring: {{ 'Enabled' if performance_monitoring.enabled else 'Skipped' }}

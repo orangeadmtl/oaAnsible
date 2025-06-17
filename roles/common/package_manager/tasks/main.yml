@@ -1,0 +1,48 @@
+---
+# Common package manager tasks for cross-platform package management
+
+- name: Detect platform and package manager
+  block:
+    - name: Set platform facts
+      ansible.builtin.set_fact:
+        platform_os: "{{ ansible_distribution }}"
+        platform_family: "{{ ansible_os_family }}"
+        platform_manager: "{{ package_manager_commands[ansible_distribution].manager }}"
+
+    - name: Display platform detection results
+      ansible.builtin.debug:
+        msg: |
+          Platform Detection:
+          - OS: {{ platform_os }}
+          - Family: {{ platform_family }}
+          - Package Manager: {{ platform_manager }}
+
+- name: Update package cache (Linux)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: "{{ package_manager.cache_valid_time }}"
+  become: true
+  when:
+    - platform_family == "Debian"
+    - package_manager.update_cache
+
+- name: Update package cache (macOS)
+  community.general.homebrew:
+    update_homebrew: true
+  when:
+    - platform_family == "Darwin"
+    - package_manager.update_cache
+
+- name: Install common packages
+  ansible.builtin.include_tasks: "install_{{ platform_family | lower }}.yml"
+  when: common_packages is defined
+
+- name: Install package groups
+  ansible.builtin.include_tasks: install_package_group.yml
+  loop: "{{ common_package_groups | default([]) }}"
+  loop_control:
+    loop_var: package_group_name
+
+- name: Verify package installation
+  ansible.builtin.include_tasks: verify_packages.yml
+  when: verify_installation | default(true)

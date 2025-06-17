@@ -1,0 +1,53 @@
+[Unit]
+Description=OrangeAd OPI-Setup FastAPI Service
+Documentation=https://github.com/orangead/opi-setup
+After=network.target network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+User={{ opi_setup_service.user }}
+Group={{ opi_setup_service.group }}
+WorkingDirectory={{ opi_setup_service.install_dir }}
+Environment="PATH={{ opi_setup_service.python.venv_path }}/bin:{{ ansible_env.PATH }}"
+EnvironmentFile={{ opi_setup_service.config_dir }}/opi-setup.env
+ExecStart={{ opi_setup_service.python.venv_path }}/bin/uvicorn main:app \
+    --host {{ opi_setup_service.api.host }} \
+    --port {{ opi_setup_service.api.port }} \
+    --workers {{ opi_setup_service.api.workers }} \
+    --log-level {{ opi_setup_service.api.log_level }} \
+    --access-log-format '%(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s' \
+    --access-log \
+    --use-colors \
+    --loop uvloop \
+    --http httptools
+
+# Process management
+Restart=always
+RestartSec=5
+StartLimitBurst=5
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=false
+ProtectSystem=strict
+ReadWritePaths={{ opi_setup_service.install_dir }} {{ opi_setup_service.config_dir }} {{ opi_setup_service.logs_dir }} {{ opi_setup_service.data_dir }}
+
+# Resource limits
+LimitNOFILE={{ performance_config.file_descriptor_limit }}
+{% if performance_config.memory_limit %}
+MemoryMax={{ performance_config.memory_limit }}
+{% endif %}
+{% if performance_config.cpu_limit %}
+CPUQuota={{ (performance_config.cpu_limit | float * 100) | int }}%
+{% endif %}
+
+# Logging
+StandardOutput=append:{{ opi_setup_service.logs_dir }}/opi-setup.log
+StandardError=append:{{ opi_setup_service.logs_dir }}/error.log
+SyslogIdentifier={{ opi_setup_service.name }}
+
+[Install]
+WantedBy=multi-user.target

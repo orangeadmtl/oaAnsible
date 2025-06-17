@@ -1,0 +1,180 @@
+---
+# Ubuntu server optimization role defaults
+
+# System optimization
+system_optimization:
+  enabled: true
+
+  # Kernel parameters
+  kernel_params:
+    # Network optimization
+    net.core.rmem_max: 134217728
+    net.core.wmem_max: 134217728
+    net.core.rmem_default: 65536
+    net.core.wmem_default: 65536
+    net.core.netdev_max_backlog: 5000
+    net.ipv4.tcp_rmem: "4096 65536 134217728"
+    net.ipv4.tcp_wmem: "4096 65536 134217728"
+    net.ipv4.tcp_congestion_control: "bbr"
+
+    # Memory management
+    vm.swappiness: 10
+    vm.dirty_ratio: 15
+    vm.dirty_background_ratio: 5
+    vm.vfs_cache_pressure: 50
+
+    # File system
+    fs.file-max: 1000000
+    fs.nr_open: 1000000
+
+    # Security
+    kernel.dmesg_restrict: 1
+    kernel.kptr_restrict: 2
+    net.ipv4.conf.all.log_martians: 1
+    net.ipv4.conf.default.log_martians: 1
+
+  # System limits
+  limits:
+    - domain: "{{ ansible_user }}"
+      type: soft
+      item: nofile
+      value: 65536
+    - domain: "{{ ansible_user }}"
+      type: hard
+      item: nofile
+      value: 65536
+    - domain: root
+      type: soft
+      item: nofile
+      value: 65536
+    - domain: root
+      type: hard
+      item: nofile
+      value: 65536
+
+# Service optimization
+service_optimization:
+  enabled: true
+
+  # Services to disable (not needed on server)
+  services_to_disable:
+    - bluetooth
+    - cups
+    - cups-browsed
+    - avahi-daemon
+    - whoopsie
+    - kerneloops
+    - accounts-daemon
+    - fwupd
+    - snapd.seeded.service
+    - snapd.socket
+    - snapd.service
+
+  # Services to enable
+  services_to_enable:
+    - ssh
+    - systemd-timesyncd
+    - ufw
+    - cron
+    - rsyslog
+
+# Boot optimization
+boot_optimization:
+  enabled: true
+  grub_timeout: 2
+
+  # GRUB kernel parameters for optimization
+  grub_cmdline_params:
+    - "quiet"
+    - "splash"
+    - "nomodeset"
+    - "elevator=deadline"
+    - "intel_idle.max_cstate=1"
+    - "processor.max_cstate=1"
+
+# Package optimization
+package_optimization:
+  enabled: true
+
+  # Packages to remove (bloatware)
+  packages_to_remove:
+    - snapd
+    - ubuntu-web-launchers
+    - ubuntu-report
+    - popularity-contest
+    - apport
+    - whoopsie
+    - kerneloops
+
+  # Essential packages to ensure are installed
+  essential_packages:
+    - curl
+    - wget
+    - htop
+    - iotop
+    - tree
+    - unzip
+    - software-properties-common
+    - apt-transport-https
+    - ca-certificates
+    - gnupg
+    - lsb-release
+
+# Storage optimization
+storage_optimization:
+  enabled: true
+
+  # Automatic filesystem trimming
+  enable_fstrim: true
+  fstrim_schedule: "weekly"
+
+  # Temporary directory cleanup
+  tmp_cleanup:
+    enabled: true
+    max_age_days: 7
+
+  # Log rotation optimization
+  log_rotation:
+    enabled: true
+    max_size: "100M"
+    rotate_count: 4
+    compress: true
+
+# Network optimization
+network_optimization:
+  enabled: true
+
+  # DNS optimization
+  dns_servers:
+    - "1.1.1.1"
+    - "8.8.8.8"
+    - "8.8.4.4"
+
+  # Network interface optimization
+  network_interface_optimization: true
+
+# Security hardening
+security_hardening:
+  enabled: true
+
+  # SSH hardening (in addition to security role)
+  ssh_hardening:
+    max_auth_tries: 3
+    login_grace_time: 30
+    max_sessions: 4
+
+  # Automatic security updates
+  unattended_upgrades:
+    enabled: true
+    automatic_reboot: false
+    automatic_reboot_time: "02:00"
+
+# Performance monitoring
+performance_monitoring:
+  enabled: true
+
+  # System resource monitoring
+  resource_monitoring: true
+
+  # Performance baseline collection
+  collect_baseline: true

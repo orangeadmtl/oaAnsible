@@ -15,7 +15,7 @@
       ansible.builtin.debug:
         msg: |
           ═══════════════════════════════════════════════════════════
-          🚀 Ubuntu Server Onboarding Started
+            Ubuntu Server Onboarding Started
           ═══════════════════════════════════════════════════════════
           Target: {{ inventory_hostname }} ({{ ansible_host }})
           User: {{ ansible_user }}
@@ -98,7 +98,7 @@
 
           Server: {{ inventory_hostname }} ({{ ansible_host }})
 
-          🔧 Configuration Summary:
+            Configuration Summary:
           ├─ Base System: Essential packages and user setup
           ├─ Security: Passwordless sudo, SSH hardening, firewall
           ├─ Shell: Zsh with Oh My Zsh (bash-compatible)
@@ -110,12 +110,12 @@
           • Tailscale: Connected with tags [tag:oa-server, tag:oa-ubuntu]
           • Shell: Enhanced zsh with your custom aliases
 
-          📝 Your Custom Aliases Available:
+            Your Custom Aliases Available:
           • ls, l, la, ll, lsa → Modern directory listing with lsd
           • lt → Tree view with lsd --tree
           • All bash scripts remain fully compatible!
 
-          {{ '⚠️  REBOOT REQUIRED for NVIDIA drivers' if reboot_required.stat.exists else '✅ No reboot required' }}
+          {{ 'WARNING:  REBOOT REQUIRED for NVIDIA drivers' if reboot_required.stat.exists else '  No reboot required' }}
 
-          🚀 Ready for OrangeAd infrastructure operations!
+            Ready for OrangeAd infrastructure operations!
           ═══════════════════════════════════════════════════════════

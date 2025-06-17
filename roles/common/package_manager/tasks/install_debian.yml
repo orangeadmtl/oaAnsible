@@ -1,0 +1,32 @@
+---
+# Install packages on Debian-based systems (Ubuntu, Debian)
+
+- name: Process packages for Debian-based systems
+  block:
+    - name: Map package names for current platform
+      ansible.builtin.set_fact:
+        mapped_packages: "{{ mapped_packages | default([]) + [package_mappings[item][platform_os]] }}"
+      loop: "{{ common_packages }}"
+      when: 
+        - package_mappings[item] is defined
+        - package_mappings[item][platform_os] is defined
+        - package_mappings[item][platform_os] != null
+
+    - name: Install mapped packages
+      ansible.builtin.apt:
+        name: "{{ mapped_packages }}"
+        state: present
+        install_recommends: "{{ package_manager.apt.install_recommends }}"
+        force_apt_get: "{{ package_manager.apt.force_apt_get }}"
+      become: true
+      when: mapped_packages is defined and mapped_packages | length > 0
+
+    - name: Report skipped packages
+      ansible.builtin.debug:
+        msg: "Skipped packages not available on {{ platform_os }}: {{ skipped_packages | join(', ') }}"
+      vars:
+        skipped_packages: "{{ common_packages | reject('in', package_mappings.keys()) | list + 
+                           (common_packages | select('in', package_mappings.keys()) | 
+                           select('match', '^.*$') | map('extract', package_mappings) | 
+                           map('extract', platform_os) | select('none') | list) }}"
+      when: skipped_packages | length > 0

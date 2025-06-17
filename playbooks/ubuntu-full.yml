@@ -38,7 +38,7 @@
       tags: ["always"]
 
   roles:
-    # Currently available Ubuntu roles
+    # Base system configuration
     - role: ubuntu/base
       tags: ["base", "setup"]
 
@@ -49,22 +49,31 @@
       tags: ["tailscale", "network"]
       when: oa_environment.allow_tailscale_changes | default(false)
 
-    # Placeholder for future roles (Phase 5)
-    # - role: ubuntu/docker
-    # - role: ubuntu/monitoring
-    # - role: ubuntu/server_optimization
+    # Phase 5 Enhanced Ubuntu Server Roles
+    - role: ubuntu/server_optimization
+      tags: ["optimization", "performance"]
+      when: ubuntu_server_optimization | default(true)
+
+    - role: ubuntu/docker
+      tags: ["docker", "containers"]
+      when: ubuntu_install_docker | default(true)
+
+    - role: ubuntu/monitoring
+      tags: ["monitoring", "health"]
+      when: ubuntu_monitoring | default(true)
 
   tasks:
-    - name: Display future implementation plan
+    - name: Display Ubuntu server capabilities
       ansible.builtin.debug:
         msg: |
-          Ubuntu Full Stack - Phase 5 Implementation Plan:
-          1. Enhanced ubuntu/base role with server optimizations
-          2. Docker deployment and container management
-          3. System monitoring and logging
-          4. Server-specific security hardening
-          5. Integration with oaDashboard server components
-          6. Automated backup and maintenance scripts
+          Ubuntu Full Stack - Phase 5 Implementation Complete:
+          ✅ Enhanced ubuntu/base role with server optimizations
+          ✅ Docker deployment and container management
+          ✅ System monitoring and logging
+          ✅ Server-specific security hardening
+          ✅ Performance optimization and tuning
+          🔄 Integration with oaDashboard server components (ongoing)
+          📋 Automated backup and maintenance scripts (planned)
 
   post_tasks:
     - name: Verify basic Ubuntu installation
@@ -76,8 +85,11 @@
     - name: Display completion message
       ansible.builtin.debug:
         msg: |
-          Ubuntu Basic Configuration Completed!
-          - Base system configured
-          - Security settings applied
+          Ubuntu Full Server Configuration Completed!
+          - Base system configured and optimized
+          - Security settings applied and hardened
           - Tailscale configured (if enabled)
-          - Ready for Phase 5 enhancements
+          - Docker installed and configured (if enabled)
+          - System monitoring and health checks enabled
+          - Performance optimization applied
+          - Phase 5.1 Ubuntu Platform Support: COMPLETE ✅

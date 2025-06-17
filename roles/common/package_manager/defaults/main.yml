@@ -1,0 +1,189 @@
+---
+# Common package manager role defaults
+
+# Package manager detection and configuration
+package_manager:
+  auto_detect: true
+  update_cache: true
+  cache_valid_time: 3600
+
+  # Platform-specific configurations
+  apt:
+    update_cache: true
+    cache_valid_time: 3600
+    install_recommends: false
+    force_apt_get: false
+
+  homebrew:
+    update_homebrew: true
+    upgrade_all: false
+
+  pacman:
+    update_cache: true
+    upgrade: false
+
+# Package name mappings for cross-platform compatibility
+package_mappings:
+  # Development tools
+  python3:
+    Ubuntu: python3
+    Debian: python3
+    Darwin: python3
+
+  python3-pip:
+    Ubuntu: python3-pip
+    Debian: python3-pip
+    Darwin: pip3
+
+  python3-venv:
+    Ubuntu: python3-venv
+    Debian: python3-venv
+    Darwin: # Not needed on macOS
+
+  git:
+    Ubuntu: git
+    Debian: git
+    Darwin: git
+
+  curl:
+    Ubuntu: curl
+    Debian: curl
+    Darwin: curl
+
+  wget:
+    Ubuntu: wget
+    Debian: wget
+    Darwin: wget
+
+  # System monitoring tools
+  htop:
+    Ubuntu: htop
+    Debian: htop
+    Darwin: htop
+
+  iotop:
+    Ubuntu: iotop
+    Debian: iotop
+    Darwin: # Not available on macOS
+
+  tree:
+    Ubuntu: tree
+    Debian: tree
+    Darwin: tree
+
+  # Network tools
+  net-tools:
+    Ubuntu: net-tools
+    Debian: net-tools
+    Darwin: # Built-in on macOS
+
+  netcat:
+    Ubuntu: netcat
+    Debian: netcat
+    Darwin: netcat
+
+  # Compression tools
+  unzip:
+    Ubuntu: unzip
+    Debian: unzip
+    Darwin: unzip
+
+  zip:
+    Ubuntu: zip
+    Debian: zip
+    Darwin: zip
+
+  # Build tools
+  build-essential:
+    Ubuntu: build-essential
+    Debian: build-essential
+    Darwin: # Use Xcode Command Line Tools
+
+  gcc:
+    Ubuntu: gcc
+    Debian: gcc
+    Darwin: gcc
+
+  make:
+    Ubuntu: make
+    Debian: make
+    Darwin: make
+
+  # Docker and containers
+  docker:
+    Ubuntu: docker.io
+    Debian: docker.io
+    Darwin: docker
+
+  docker-compose:
+    Ubuntu: docker-compose
+    Debian: docker-compose
+    Darwin: docker-compose
+
+# Common package groups for easy bulk installation
+package_groups:
+  essential:
+    description: "Essential system packages"
+    packages:
+      - curl
+      - wget
+      - git
+      - unzip
+      - tree
+
+  development:
+    description: "Development tools and dependencies"
+    packages:
+      - python3
+      - python3-pip
+      - python3-venv
+      - git
+      - build-essential
+      - gcc
+      - make
+
+  monitoring:
+    description: "System monitoring and diagnostic tools"
+    packages:
+      - htop
+      - iotop
+      - tree
+      - net-tools
+      - netcat
+
+  network:
+    description: "Network tools and utilities"
+    packages:
+      - curl
+      - wget
+      - netcat
+      - net-tools
+
+# Platform-specific package manager commands
+package_manager_commands:
+  Ubuntu:
+    manager: apt
+    install: "apt-get install -y"
+    update: "apt-get update"
+    upgrade: "apt-get upgrade -y"
+    search: "apt-cache search"
+    info: "apt-cache show"
+
+  Debian:
+    manager: apt
+    install: "apt-get install -y"
+    update: "apt-get update"
+    upgrade: "apt-get upgrade -y"
+    search: "apt-cache search"
+    info: "apt-cache show"
+
+  Darwin:
+    manager: brew
+    install: "brew install"
+    update: "brew update"
+    upgrade: "brew upgrade"
+    search: "brew search"
+    info: "brew info"
+
+# Default behavior for missing packages
+missing_package_behavior: "warn" # warn, skip, fail

@@ -1,0 +1,243 @@
+---
+# OrangePi opi-setup service deployment
+
+- name: Check opi-setup service status
+  block:
+    - name: Check if opi-setup service exists
+      ansible.builtin.systemd:
+        name: "{{ opi_setup_service.name }}"
+      register: opi_setup_service_status
+      failed_when: false
+
+    - name: Check if repository exists
+      ansible.builtin.stat:
+        path: "{{ opi_setup_service.install_dir }}"
+      register: opi_setup_repo_check
+
+    - name: Check if virtual environment exists
+      ansible.builtin.stat:
+        path: "{{ opi_setup_service.python.venv_path }}"
+      register: opi_setup_venv_check
+
+    - name: Set deployment flags
+      ansible.builtin.set_fact:
+        opi_setup_service_exists: "{{ opi_setup_service_status.status is defined }}"
+        opi_setup_repo_exists: "{{ opi_setup_repo_check.stat.exists }}"
+        opi_setup_venv_exists: "{{ opi_setup_venv_check.stat.exists }}"
+
+- name: Display opi-setup deployment status
+  ansible.builtin.debug:
+    msg: |
+      OPI-Setup Service Deployment Status:
+      - Service: {{ 'Already exists' if opi_setup_service_exists else 'Need to create' }}
+      - Repository: {{ 'Already cloned' if opi_setup_repo_exists else 'Need to clone' }}
+      - Virtual environment: {{ 'Already exists' if opi_setup_venv_exists else 'Need to create' }}
+
+- name: Install system dependencies
+  ansible.builtin.apt:
+    name: "{{ opi_setup_dependencies.system_packages }}"
+    state: present
+    update_cache: true
+  become: true
+
+- name: Create opi-setup directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ opi_setup_service.user }}"
+    group: "{{ opi_setup_service.group }}"
+    mode: "0755"
+  loop:
+    - "{{ opi_setup_service.install_dir }}"
+    - "{{ opi_setup_service.config_dir }}"
+    - "{{ opi_setup_service.logs_dir }}"
+    - "{{ opi_setup_service.data_dir }}"
+    - "{{ screenshot_config.storage_path }}"
+  become: true
+
+- name: Clone or update opi-setup repository
+  ansible.builtin.git:
+    repo: "{{ opi_setup_repository.url }}"
+    dest: "{{ opi_setup_service.install_dir }}"
+    version: "{{ opi_setup_repository.version }}"
+    force: "{{ opi_setup_repository.force_update }}"
+  become_user: "{{ opi_setup_service.user }}"
+  become: true
+  notify: restart opi-setup
+
+- name: Create Python virtual environment
+  ansible.builtin.command: |
+    python3 -m venv {{ opi_setup_service.python.venv_path }}
+  become_user: "{{ opi_setup_service.user }}"
+  become: true
+  when: not opi_setup_venv_exists
+  changed_when: true
+
+- name: Upgrade pip in virtual environment
+  ansible.builtin.pip:
+    name: pip
+    state: latest
+    virtualenv: "{{ opi_setup_service.python.venv_path }}"
+  become_user: "{{ opi_setup_service.user }}"
+  become: true
+
+- name: Install Python dependencies
+  ansible.builtin.pip:
+    name: "{{ opi_setup_dependencies.python_packages }}"
+    state: present
+    virtualenv: "{{ opi_setup_service.python.venv_path }}"
+  become_user: "{{ opi_setup_service.user }}"
+  become: true
+  notify: restart opi-setup
+
+- name: Install requirements from repository
+  ansible.builtin.pip:
+    requirements: "{{ opi_setup_service.install_dir }}/requirements.txt"
+    virtualenv: "{{ opi_setup_service.python.venv_path }}"
+  become_user: "{{ opi_setup_service.user }}"
+  become: true
+  when: opi_setup_repo_exists
+  notify: restart opi-setup
+
+- name: Create opi-setup configuration file
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: "{{ opi_setup_service.config_dir }}/config.yaml"
+    owner: "{{ opi_setup_service.user }}"
+    group: "{{ opi_setup_service.group }}"
+    mode: "0644"
+    backup: true
+  become: true
+  notify: restart opi-setup
+
+- name: Create environment file for opi-setup
+  ansible.builtin.template:
+    src: opi-setup.env.j2
+    dest: "{{ opi_setup_service.config_dir }}/opi-setup.env"
+    owner: "{{ opi_setup_service.user }}"
+    group: "{{ opi_setup_service.group }}"
+    mode: "0600"
+    backup: true
+  become: true
+  notify: restart opi-setup
+
+- name: Create opi-setup systemd service
+  ansible.builtin.template:
+    src: opi-setup.service.j2
+    dest: "/etc/systemd/system/{{ opi_setup_service.name }}.service"
+    mode: "0644"
+    backup: true
+  become: true
+  notify:
+    - reload systemd
+    - restart opi-setup
+
+- name: Create log rotation configuration
+  ansible.builtin.template:
+    src: opi-setup-logrotate.j2
+    dest: "/etc/logrotate.d/opi-setup"
+    mode: "0644"
+  become: true
+
+- name: Create screenshot cleanup script
+  ansible.builtin.template:
+    src: cleanup-screenshots.sh.j2
+    dest: "{{ opi_setup_service.install_dir }}/cleanup-screenshots.sh"
+    owner: "{{ opi_setup_service.user }}"
+    group: "{{ opi_setup_service.group }}"
+    mode: "0755"
+  become: true
+
+- name: Create screenshot cleanup cron job
+  ansible.builtin.cron:
+    name: "OPI-Setup screenshot cleanup"
+    job: "{{ opi_setup_service.install_dir }}/cleanup-screenshots.sh"
+    minute: "0"
+    hour: "3"
+    user: "{{ opi_setup_service.user }}"
+    state: "{{ 'present' if screenshot_config.enabled else 'absent' }}"
+  become: true
+
+- name: Create backup script
+  ansible.builtin.template:
+    src: backup-opi-setup.sh.j2
+    dest: "{{ opi_setup_service.install_dir }}/backup-opi-setup.sh"
+    owner: "{{ opi_setup_service.user }}"
+    group: "{{ opi_setup_service.group }}"
+    mode: "0755"
+  become: true
+  when: backup_config.enabled
+
+- name: Create backup cron job
+  ansible.builtin.cron:
+    name: "OPI-Setup backup"
+    job: "{{ opi_setup_service.install_dir }}/backup-opi-setup.sh"
+    minute: "{{ backup_config.schedule.split()[1] }}"
+    hour: "{{ backup_config.schedule.split()[2] }}"
+    day: "{{ backup_config.schedule.split()[3] }}"
+    month: "{{ backup_config.schedule.split()[4] }}"
+    weekday: "{{ backup_config.schedule.split()[0] }}"
+    user: "{{ opi_setup_service.user }}"
+    state: "{{ 'present' if backup_config.enabled else 'absent' }}"
+  become: true
+
+- name: Enable and start opi-setup service
+  ansible.builtin.systemd:
+    name: "{{ opi_setup_service.name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+
+- name: Wait for opi-setup service to be ready
+  ansible.builtin.uri:
+    url: "http://localhost:{{ opi_setup_service.api.port }}/health"
+    method: GET
+    headers:
+      X-API-Key: "{{ opi_setup_service.api.api_key }}"
+    status_code: 200
+  register: health_check
+  retries: 10
+  delay: 3
+  until: health_check.status == 200
+  when: health_monitoring.enabled
+
+- name: Verify opi-setup installation
+  block:
+    - name: Test opi-setup health endpoint
+      ansible.builtin.uri:
+        url: "http://localhost:{{ opi_setup_service.api.port }}/health"
+        method: GET
+        headers:
+          X-API-Key: "{{ opi_setup_service.api.api_key }}"
+      register: health_test
+
+    - name: Test opi-setup status endpoint
+      ansible.builtin.uri:
+        url: "http://localhost:{{ opi_setup_service.api.port }}/api/status"
+        method: GET
+        headers:
+          X-API-Key: "{{ opi_setup_service.api.api_key }}"
+      register: status_test
+
+    - name: Display verification results
+      ansible.builtin.debug:
+        msg: |
+          OPI-Setup Service Verification:
+          - Health endpoint: {{ 'Working' if health_test.status == 200 else 'Failed' }}
+          - Status endpoint: {{ 'Working' if status_test.status == 200 else 'Failed' }}
+          - Service URL: http://{{ ansible_default_ipv4.address }}:{{ opi_setup_service.api.port }}
+          - API Key configured: {{ 'Yes' if opi_setup_service.api.api_key else 'No' }}
+
+- name: Display opi-setup deployment results
+  ansible.builtin.debug:
+    msg: |-
+      OPI-Setup Service Deployment Completed:
+      - Repository: {{ 'Updated' if not opi_setup_repo_exists else 'Already cloned' }}
+      - Virtual environment: {{ 'Created' if not opi_setup_venv_exists else 'Already exists' }}
+      - Dependencies: Installed and updated
+      - Service: {{ 'Created and started' if not opi_setup_service_exists else 'Updated and restarted' }}
+      - Configuration: Applied
+      - Health monitoring: {{ 'Enabled' if health_monitoring.enabled else 'Disabled' }}
+      - Screenshots: {{ 'Enabled' if screenshot_config.enabled else 'Disabled' }}
+      - Backup: {{ 'Configured' if backup_config.enabled else 'Disabled' }}

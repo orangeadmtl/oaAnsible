@@ -1,0 +1,179 @@
+---
+# Common monitoring role defaults
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+
+  # Health check configuration
+  health_checks:
+    enabled: true
+    interval: 300 # 5 minutes
+    timeout: 30
+    retries: 3
+
+  # Metrics collection
+  metrics:
+    enabled: true
+    interval: 60 # 1 minute
+    retention_days: 7
+    storage_path: "/var/lib/orangead/metrics"
+
+  # Log monitoring
+  logs:
+    enabled: true
+    rotation: true
+    max_size: "100M"
+    retention_days: 30
+
+# Platform-specific monitoring tools
+monitoring_tools:
+  Ubuntu:
+    system:
+      - htop
+      - iotop
+      - nethogs
+      - ncdu
+      - tree
+    network:
+      - net-tools
+      - netcat
+      - tcpdump
+    disk:
+      - smartmontools
+      - iotop
+    process:
+      - psmisc
+      - procps
+
+  Debian:
+    system:
+      - htop
+      - iotop
+      - nethogs
+      - ncdu
+      - tree
+    network:
+      - net-tools
+      - netcat
+      - tcpdump
+    disk:
+      - smartmontools
+      - iotop
+    process:
+      - psmisc
+      - procps
+
+  Darwin:
+    system:
+      - htop
+      - tree
+    network:
+      - netcat
+    disk:
+      - smartmontools
+    process:
+      -
+
+# Common metrics to collect
+common_metrics:
+  system:
+    - cpu_usage
+    - memory_usage
+    - load_average
+    - uptime
+
+  disk:
+    - disk_usage
+    - disk_io
+    - inode_usage
+
+  network:
+    - network_io
+    - network_connections
+    - bandwidth_usage
+
+  process:
+    - process_count
+    - process_memory
+    - process_cpu
+
+# Platform-specific metric commands
+metric_commands:
+  Ubuntu:
+    cpu_usage: "top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1"
+    memory_usage: "free | grep Mem | awk '{printf \"%.2f\", $3/$2 * 100.0}'"
+    load_average: "uptime | awk '{print $(NF-2)}' | cut -d',' -f1"
+    disk_usage: "df -h / | tail -n1 | awk '{print $5}' | cut -d'%' -f1"
+    uptime: "uptime -s"
+
+  Debian:
+    cpu_usage: "top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1"
+    memory_usage: "free | grep Mem | awk '{printf \"%.2f\", $3/$2 * 100.0}'"
+    load_average: "uptime | awk '{print $(NF-2)}' | cut -d',' -f1"
+    disk_usage: "df -h / | tail -n1 | awk '{print $5}' | cut -d'%' -f1"
+    uptime: "uptime -s"
+
+  Darwin:
+    cpu_usage: "top -l 1 | grep 'CPU usage' | awk '{print $3}' | cut -d'%' -f1"
+    memory_usage: "vm_stat | grep 'Pages active' | awk '{print $3}' | cut -d'.' -f1"
+    load_average: "uptime | awk '{print $10}' | cut -d',' -f1"
+    disk_usage: "df -h / | tail -n1 | awk '{print $5}' | cut -d'%' -f1"
+    uptime: "uptime | awk '{print $3,$4}' | cut -d',' -f1"
+
+# Alert thresholds
+alert_thresholds:
+  cpu_usage:
+    warning: 80
+    critical: 95
+
+  memory_usage:
+    warning: 80
+    critical: 95
+
+  disk_usage:
+    warning: 80
+    critical: 95
+
+  load_average:
+    warning: 2.0
+    critical: 4.0
+
+# Log file locations
+log_locations:
+  Ubuntu:
+    system: "/var/log/syslog"
+    auth: "/var/log/auth.log"
+    kernel: "/var/log/kern.log"
+    application: "/var/log/orangead"
+
+  Debian:
+    system: "/var/log/syslog"
+    auth: "/var/log/auth.log"
+    kernel: "/var/log/kern.log"
+    application: "/var/log/orangead"
+
+  Darwin:
+    system: "/var/log/system.log"
+    auth: "/var/log/auth.log"
+    kernel: "/var/log/kernel.log"
+    application: "/usr/local/var/log/orangead"
+
+# Health check endpoints
+health_endpoints:
+  - name: "system"
+    url: "http://localhost/health/system"
+    timeout: 5
+
+  - name: "application"
+    url: "http://localhost:9090/health"
+    timeout: 10
+    headers:
+      X-API-Key: "{{ vault_api_key | default('') }}"
+
+# Monitoring scripts
+monitoring_scripts:
+  health_check: "health_check.sh"
+  metrics_collector: "collect_metrics.sh"
+  log_analyzer: "analyze_logs.sh"
+  alert_handler: "handle_alerts.sh"

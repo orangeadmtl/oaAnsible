@@ -1,0 +1,35 @@
+---
+# Common service manager tasks for cross-platform service management
+
+- name: Detect service manager
+  block:
+    - name: Set service manager facts
+      ansible.builtin.set_fact:
+        platform_os: "{{ ansible_distribution }}"
+        platform_family: "{{ ansible_os_family }}"
+        service_manager_type: "{{ 'launchd' if ansible_os_family == 'Darwin' else 'systemd' }}"
+        service_commands_map: "{{ service_commands[ansible_distribution] }}"
+
+    - name: Display service manager detection
+      ansible.builtin.debug:
+        msg: |
+          Service Manager Detection:
+          - OS: {{ platform_os }}
+          - Family: {{ platform_family }}
+          - Service Manager: {{ service_manager_type }}
+
+- name: Manage common services
+  ansible.builtin.include_tasks: "manage_{{ service_manager_type }}.yml"
+  when: common_services is defined
+
+- name: Create service configurations
+  ansible.builtin.include_tasks: create_service_config.yml
+  loop: "{{ common_service_configs | default([]) }}"
+  loop_control:
+    loop_var: service_config
+
+- name: Verify service states
+  ansible.builtin.include_tasks: verify_services.yml
+  when: 
+    - verify_services | default(true)
+    - common_services is defined

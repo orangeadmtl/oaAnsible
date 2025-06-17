@@ -1,0 +1,98 @@
+---
+# Ubuntu monitoring role defaults
+
+# System monitoring tools
+monitoring_tools:
+  - htop
+  - iotop
+  - nethogs
+  - ncdu
+  - tree
+  - curl
+  - wget
+  - jq
+  - unzip
+
+# Log management
+log_rotation_enabled: true
+log_retention_days: 30
+log_max_size: "100M"
+
+# System logs to monitor
+system_logs:
+  - path: "/var/log/syslog"
+    retention: "{{ log_retention_days }}"
+  - path: "/var/log/auth.log"
+    retention: "{{ log_retention_days }}"
+  - path: "/var/log/kern.log"
+    retention: "{{ log_retention_days }}"
+  - path: "/var/log/docker/*.log"
+    retention: "{{ log_retention_days }}"
+    if_exists: true
+
+# OrangeAd specific logs
+orangead_logs:
+  - path: "/home/{{ ansible_user }}/orangead/logs"
+    retention: "{{ log_retention_days }}"
+    if_exists: true
+
+# System health monitoring
+health_check_enabled: true
+health_check_interval: "*/5 * * * *"  # Every 5 minutes
+health_check_script_path: "/home/{{ ansible_user }}/orangead/scripts"
+
+# Disk space monitoring
+disk_monitoring:
+  enabled: true
+  threshold_warning: 80  # Warning at 80% usage
+  threshold_critical: 90  # Critical at 90% usage
+  check_paths:
+    - "/"
+    - "/home"
+    - "/var"
+    - "/tmp"
+
+# Memory monitoring
+memory_monitoring:
+  enabled: true
+  threshold_warning: 80  # Warning at 80% usage
+  threshold_critical: 90  # Critical at 90% usage
+
+# Service monitoring
+service_monitoring:
+  enabled: true
+  services:
+    - name: "docker"
+      critical: true
+    - name: "tailscaled"
+      critical: true
+    - name: "ssh"
+      critical: true
+
+# Network monitoring
+network_monitoring:
+  enabled: true
+  check_connectivity:
+    - host: "8.8.8.8"
+      timeout: 5
+    - host: "1.1.1.1"
+      timeout: 5
+
+# Alerting (basic email notifications)
+alerting:
+  enabled: false  # Set to true when email is configured
+  email_to: "admin@orangead.local"
+  email_from: "monitoring@{{ ansible_hostname }}"
+  smtp_server: "localhost"
+
+# Performance monitoring
+performance_monitoring:
+  enabled: true
+  collect_interval: 300  # 5 minutes
+  metrics_retention_days: 7
+  collect_metrics:
+    - cpu_usage
+    - memory_usage
+    - disk_usage
+    - network_io
+    - load_average

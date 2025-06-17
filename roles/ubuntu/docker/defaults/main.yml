@@ -1,0 +1,72 @@
+---
+# Ubuntu Docker role defaults
+
+# Docker installation
+docker_install_method: "repository"  # repository, convenience, manual
+docker_version: "latest"  # Specific version or 'latest'
+docker_channel: "stable"  # stable, test, edge
+docker_install_compose: true
+docker_compose_version: "v2.24.6"
+
+# Docker daemon configuration
+docker_daemon_config:
+  log-driver: "json-file"
+  log-opts:
+    max-size: "100m"
+    max-file: "3"
+  storage-driver: "overlay2"
+  live-restore: true
+  experimental: false
+  userland-proxy: false
+  default-ulimits:
+    memlock: -1
+    nofile: 1048576
+
+# Docker service management
+docker_service_enabled: true
+docker_service_state: "started"
+docker_restart_handler_state: "restarted"
+
+# Docker users (users to be added to docker group)
+docker_users:
+  - "{{ ansible_user }}"
+
+# Docker network configuration
+docker_networks: []
+# Example:
+# docker_networks:
+#   - name: "orangead"
+#     driver: "bridge"
+#     ipam_config:
+#       - subnet: "172.20.0.0/16"
+
+# Docker volumes
+docker_volumes: []
+# Example:
+# docker_volumes:
+#   - name: "orangead-data"
+#     driver: "local"
+
+# Docker registry configuration
+docker_registries: []
+# Example:
+# docker_registries:
+#   - url: "https://registry.example.com"
+#     username: "user"
+#     password: "pass"
+
+# Docker security options
+docker_security_options:
+  - "no-new-privileges:true"
+  - "seccomp:unconfined"
+
+# Docker system cleanup
+docker_prune_enabled: true
+docker_prune_schedule: "0 3 * * 0"  # Weekly at 3 AM on Sunday
+
+# Performance tuning
+docker_performance_tuning:
+  enabled: true
+  max_concurrent_downloads: 3
+  max_concurrent_uploads: 5
+  max_download_attempts: 5

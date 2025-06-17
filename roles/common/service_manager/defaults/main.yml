@@ -1,0 +1,142 @@
+---
+# Common service manager role defaults
+
+# Service management configuration
+service_manager:
+  auto_detect: true
+
+  # Platform-specific configurations
+  systemd:
+    daemon_reload: true
+    enabled_by_default: true
+
+  launchd:
+    load_immediately: true
+    enable_by_default: true
+
+# Service name mappings for cross-platform compatibility
+service_mappings:
+  # SSH service
+  ssh:
+    Ubuntu: ssh
+    Debian: ssh
+    Darwin: com.openssh.sshd
+
+  # Docker service
+  docker:
+    Ubuntu: docker
+    Debian: docker
+    Darwin: docker
+
+  # Network services
+  network-manager:
+    Ubuntu: NetworkManager
+    Debian: NetworkManager
+    Darwin: # Not applicable on macOS
+
+  # System services
+  cron:
+    Ubuntu: cron
+    Debian: cron
+    Darwin: com.vix.cron
+
+  rsyslog:
+    Ubuntu: rsyslog
+    Debian: rsyslog
+    Darwin: com.apple.syslogd
+
+  # Time synchronization
+  ntp:
+    Ubuntu: systemd-timesyncd
+    Debian: systemd-timesyncd
+    Darwin: com.apple.timed
+
+  # Firewall services
+  firewall:
+    Ubuntu: ufw
+    Debian: ufw
+    Darwin: com.apple.pfctl
+
+# Service state mappings
+service_states:
+  started: "started"
+  stopped: "stopped"
+  restarted: "restarted"
+  reloaded: "reloaded"
+
+# Platform-specific service commands
+service_commands:
+  Ubuntu:
+    manager: systemctl
+    start: "systemctl start"
+    stop: "systemctl stop"
+    restart: "systemctl restart"
+    reload: "systemctl reload"
+    enable: "systemctl enable"
+    disable: "systemctl disable"
+    status: "systemctl status"
+    is_active: "systemctl is-active"
+    is_enabled: "systemctl is-enabled"
+
+  Debian:
+    manager: systemctl
+    start: "systemctl start"
+    stop: "systemctl stop"
+    restart: "systemctl restart"
+    reload: "systemctl reload"
+    enable: "systemctl enable"
+    disable: "systemctl disable"
+    status: "systemctl status"
+    is_active: "systemctl is-active"
+    is_enabled: "systemctl is-enabled"
+
+  Darwin:
+    manager: launchctl
+    start: "launchctl start"
+    stop: "launchctl stop"
+    restart: "launchctl kickstart -k"
+    reload: "launchctl kickstart"
+    enable: "launchctl enable"
+    disable: "launchctl disable"
+    status: "launchctl print"
+    is_active: "launchctl print"
+    is_enabled: "launchctl print-disabled"
+
+# Service configuration templates
+service_templates:
+  systemd:
+    path: "/etc/systemd/system"
+    extension: ".service"
+    template: "systemd.service.j2"
+
+  launchd:
+    user_path: "~/Library/LaunchAgents"
+    system_path: "/Library/LaunchDaemons"
+    extension: ".plist"
+    template: "launchd.plist.j2"
+
+# Common service patterns
+service_patterns:
+  api_service:
+    description: "API service template"
+    type: "exec"
+    restart: "always"
+    restart_sec: 5
+
+  background_service:
+    description: "Background daemon template"
+    type: "forking"
+    restart: "on-failure"
+    restart_sec: 10
+
+  oneshot_service:
+    description: "One-time execution service"
+    type: "oneshot"
+    restart: "no"
+
+# Health check configuration
+health_check:
+  enabled: true
+  timeout: 30
+  retries: 3
+  delay: 5
