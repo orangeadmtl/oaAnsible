@@ -1,0 +1,76 @@
+---
+all:
+  vars:
+    target_env: f1-preprod
+    project_name: f1
+    environment: preprod
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_connection: ssh
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    ansible_ssh_pipelining: true
+    ansible_become_method: sudo
+
+    # Runtime versions
+    python:
+      version: "3.11.11"
+    node:
+      version: "22.11.0"
+
+    # Feature toggles
+    configure:
+      tailscale: false  # Pre-production - Tailscale managed separately
+      pyenv: true
+      node: true
+
+    # Environment-specific features
+    oa_environment:
+      name: "f1-preprod"
+      project: "f1"
+      allow_experimental: false
+      allow_server_optimizations: true
+      allow_destructive_operations: false
+      # F1 project components: macos-api, tracker only
+      deploy_macos_api: true
+      deploy_tracker: true
+      deploy_alpr_service: false
+      deploy_player: false
+
+    # System packages
+    system:
+      homebrew:
+        packages:
+          - go
+          - git
+          - wget
+          - jq
+          - btop
+          - httpie
+          - curl
+          - telnet
+          - util-linux
+          - fish
+          - lsd
+
+    # Tracker configuration
+    tracker:
+      repository_url: "https://github.com/oa-device/oaTracker.git"
+      git_version: "main"
+      default_yolo_source: 0
+      default_model: "yolo12s.pt"
+      server_port: 8080
+
+  children:
+    macos:
+      hosts:
+        f1-ca-010:
+          ansible_host: 100.71.210.2
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-010'] }}"
+          cam_id: "11111111-1111-1111-1111-111111111111"
+        m4-ca-001:
+          ansible_host: 100.77.175.17
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['m4-ca-001'] }}"
+          cam_id: "22222222-2222-2222-2222-222222222222"

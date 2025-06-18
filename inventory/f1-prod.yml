@@ -1,0 +1,143 @@
+---
+all:
+  vars:
+    target_env: f1-prod
+    project_name: f1
+    environment: production
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_connection: ssh
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    ansible_ssh_pipelining: true
+    ansible_become_method: sudo
+
+    # Runtime versions
+    python:
+      version: "3.11.11"
+    node:
+      version: "22.11.0"
+
+    # Feature toggles
+    configure:
+      tailscale: false  # Production - Tailscale managed separately
+      pyenv: true
+      node: true
+
+    # Environment-specific features (Production settings)
+    oa_environment:
+      name: "f1-prod"
+      project: "f1"
+      allow_experimental: false
+      allow_server_optimizations: false # Conservative for production
+      allow_destructive_operations: false
+      # F1 project components: macos-api, tracker only
+      deploy_macos_api: true
+      deploy_tracker: true
+      deploy_alpr_service: false
+      deploy_player: false
+
+    # System packages (minimal for production)
+    system:
+      homebrew:
+        packages:
+          - go
+          - git
+          - wget
+          - jq
+          - curl
+          - lsd
+
+    # Tracker configuration
+    tracker:
+      repository_url: "https://github.com/oa-device/oaTracker.git"
+      git_version: "main"
+      default_yolo_source: 0
+      default_model: "yolo12s.pt"
+      server_port: 8080
+
+  children:
+    macos:
+      hosts:
+        f1-ca-001:
+          ansible_host: 100.103.229.95
+          ansible_user: studio
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-001'] }}"
+          cam_id: "5e2b80e0-b554-4ee4-99a6-2b1b05c2c656"
+        f1-ca-002:
+          ansible_host: 100.122.121.83
+          ansible_user: ek003
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-002'] }}"
+          cam_id: "1e776547-5c26-4292-a4ce-068260f28bff"
+        f1-ca-003:
+          ansible_host: 100.114.173.58
+          ansible_user: ek002
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-003'] }}"
+          cam_id: "459c9094-809c-4910-8962-aaac0b116c11"
+        f1-ca-004:
+          ansible_host: 100.126.26.26
+          ansible_user: ek001
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-004'] }}"
+          cam_id: "5cc648e6-6767-4d34-ba76-04a3501de7f0"
+        f1-ca-005:
+          ansible_host: 100.120.130.91
+          ansible_user: ek000
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-005'] }}"
+          cam_id: "ac20dace-7838-4f10-ac6f-e3b45770a6af"
+        f1-ca-007:
+          ansible_host: 100.78.224.4
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-007'] }}"
+          cam_id: "bac0f58a-e190-484c-b718-6b40e10f9e11"
+        f1-ca-009:
+          ansible_host: 100.76.69.41
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-009'] }}"
+          cam_id: "d9349e50-693f-4adc-9ef6-1ff9095da260"
+        f1-ca-011:
+          ansible_host: 100.108.127.23
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-011'] }}"
+          cam_id: "0d0b831c-740e-421a-b2d2-5d42dcef030f"
+        f1-ca-012:
+          ansible_host: 100.67.135.111
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-012'] }}"
+          cam_id: "2f68e7d5-d0c1-4ee8-a273-bab7619b9c22"
+        f1-ca-013:
+          ansible_host: 100.100.39.53
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-013'] }}"
+          cam_id: "e1109807-d70b-4f79-ad2e-88b439903235"
+        f1-ca-014:
+          ansible_host: 100.74.169.36
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-014'] }}"
+          cam_id: "1ec0b062-a1e6-46b8-bfb0-9ab3ac45eb45"
+        f1-ca-015:
+          ansible_host: 100.91.66.122
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-015'] }}"
+          cam_id: "f5f9b8d0-6048-4cbb-8fb7-39df676733a0"
+        f1-ca-016:
+          ansible_host: 100.68.254.108
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-016'] }}"
+          cam_id: "009a3750-3d03-456c-933f-5e0e035f92de"
+        f1-ca-017:
+          ansible_host: 100.83.231.37
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-017'] }}"
+          cam_id: "979d9cc5-a8b4-45bb-a6cf-8d988ab2f1eb"

@@ -1,0 +1,91 @@
+---
+all:
+  vars:
+    target_env: f1-staging
+    project_name: f1
+    environment: staging
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_connection: ssh
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    ansible_ssh_pipelining: true
+    ansible_become_method: sudo
+
+    # Runtime versions
+    python:
+      version: "3.11.11"
+    node:
+      version: "22.11.0"
+
+    # Feature toggles
+    configure:
+      tailscale: true
+      pyenv: true
+      node: true
+
+    # Environment-specific features
+    oa_environment:
+      name: "f1-staging"
+      project: "f1"
+      allow_experimental: true
+      allow_server_optimizations: true
+      allow_destructive_operations: true
+      # F1 project components: macos-api, tracker only
+      deploy_macos_api: true
+      deploy_tracker: true
+      deploy_alpr_service: false
+      deploy_player: false
+
+    # System packages
+    system:
+      homebrew:
+        packages:
+          - go
+          - git
+          - wget
+          - jq
+          - btop
+          - httpie
+          - curl
+          - telnet
+          - util-linux
+          - fish
+          - orbstack
+          - lsd
+
+    # Tracker configuration
+    tracker:
+      repository_url: "https://github.com/oa-device/oaTracker.git"
+      git_version: "main"
+      default_yolo_source: 0
+      default_model: "yolo12s.pt"
+      server_port: 8080
+
+  children:
+    macos:
+      hosts:
+        m4-ca-001:
+          ansible_host: 192.168.2.47
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_method: sudo
+          ansible_become_password: "{{ vault_sudo_passwords['m4-ca-001'] }}"
+          # Host-specific overrides for testing
+          oa_environment:
+            name: "f1-staging"
+            project: "f1"
+            allow_experimental: true
+            allow_server_optimizations: false # Disable for testing
+            allow_destructive_operations: true
+            # F1 project components: macos-api, tracker only
+            deploy_macos_api: true
+            deploy_tracker: true
+            deploy_alpr_service: false
+            deploy_player: false
+
+    ubuntu_servers:
+      hosts:
+        kampus-rig:
+          ansible_host: 100.88.17.33
+          ansible_user: kai
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['kampus-rig'] }}"
