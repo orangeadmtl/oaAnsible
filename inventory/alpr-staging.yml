@@ -1,0 +1,77 @@
+---
+all:
+  vars:
+    target_env: alpr-staging
+    project_name: alpr
+    environment: staging
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_connection: ssh
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    ansible_ssh_pipelining: true
+    ansible_become_method: sudo
+
+    # Runtime versions
+    python:
+      version: "3.11.11"
+    node:
+      version: "22.11.0"
+
+    # Feature toggles
+    configure:
+      tailscale: true
+      pyenv: true
+      node: true
+
+    # Environment-specific features
+    oa_environment:
+      name: "alpr-staging"
+      project: "alpr"
+      allow_experimental: true
+      allow_server_optimizations: true
+      allow_destructive_operations: true
+      # ALPR project components: macos-api, alpr only
+      deploy_macos_api: true
+      deploy_tracker: false
+      deploy_alpr_service: true
+      deploy_player: false
+
+    # System packages
+    system:
+      homebrew:
+        packages:
+          - go
+          - git
+          - wget
+          - jq
+          - btop
+          - httpie
+          - curl
+          - telnet
+          - util-linux
+          - fish
+          - orbstack
+          - lsd
+          - docker # Required for ALPR
+
+    # ALPR configuration
+    alpr:
+      enabled: true
+      docker_image: "platerecognizer/alpr"
+      api_port: 8080
+      monitor_interval: 30
+      camera_source: 0
+      detection_threshold: 0.7
+
+  children:
+    macos:
+      hosts:
+        # Placeholder for ALPR staging devices
+        # alpr-staging-001:
+        #   ansible_host: 192.168.1.200
+        #   ansible_user: admin
+        #   ansible_port: 22
+        #   ansible_become_password: "{{ vault_sudo_passwords['alpr-staging-001'] }}"
+
+    ubuntu_servers:
+      hosts:
+        # Placeholder for Ubuntu servers if needed

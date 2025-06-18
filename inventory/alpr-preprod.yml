@@ -1,0 +1,76 @@
+---
+all:
+  vars:
+    target_env: alpr-preprod
+    project_name: alpr
+    environment: preprod
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_connection: ssh
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    ansible_ssh_pipelining: true
+    ansible_become_method: sudo
+
+    # Runtime versions
+    python:
+      version: "3.11.11"
+    node:
+      version: "22.11.0"
+
+    # Feature toggles
+    configure:
+      tailscale: false  # Pre-production - Tailscale managed separately
+      pyenv: true
+      node: true
+
+    # Environment-specific features
+    oa_environment:
+      name: "alpr-preprod"
+      project: "alpr"
+      allow_experimental: false
+      allow_server_optimizations: true
+      allow_destructive_operations: false
+      # ALPR project components: macos-api, alpr only
+      deploy_macos_api: true
+      deploy_tracker: false
+      deploy_alpr_service: true
+      deploy_player: false
+
+    # System packages
+    system:
+      homebrew:
+        packages:
+          - go
+          - git
+          - wget
+          - jq
+          - btop
+          - httpie
+          - curl
+          - telnet
+          - util-linux
+          - fish
+          - lsd
+          - docker # Required for ALPR
+
+    # ALPR configuration (Pre-production)
+    alpr:
+      enabled: true
+      docker_image: "platerecognizer/alpr"
+      api_port: 8080
+      monitor_interval: 15
+      camera_source: 0
+      detection_threshold: 0.8
+
+  children:
+    macos:
+      hosts:
+        # Placeholder for ALPR pre-production devices
+        # alpr-preprod-001:
+        #   ansible_host: 192.168.1.201
+        #   ansible_user: admin
+        #   ansible_port: 22
+        #   ansible_become_password: "{{ vault_sudo_passwords['alpr-preprod-001'] }}"
+
+    ubuntu_servers:
+      hosts:
+        # Placeholder for Ubuntu servers if needed
