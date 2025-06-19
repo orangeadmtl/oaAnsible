@@ -1,170 +1,141 @@
 #!/bin/bash
 
-# Script to reboot machines using Ansible ad-hoc commands
-# Usage: ./reboot [options]
-#   -l <limit>     : Limit execution to specific hosts (comma-separated)
-#   -i <inventory> : Specify inventory (staging, production) 
-#   -h, --help     : Show this help message
+# reboot - Reboot machines in selected inventory
+# Usage: ./scripts/reboot [inventory_name] [host_pattern]
 
-# Source helper functions and variables
-HELPER_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
-if [ -f "$HELPER_SCRIPT_PATH" ]; then
-  # shellcheck source=./helpers.sh
-  source "$HELPER_SCRIPT_PATH"
-else
-  echo "ERROR: helpers.sh not found at $HELPER_SCRIPT_PATH"
-  exit 1
-fi
+set -e
 
-# Set script-specific log level
-SCRIPT_LOG_LEVEL=$_LOG_LEVEL_INFO
-export SCRIPT_LOG_LEVEL
+# Get script directory and source helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/helpers.sh"
 
-show_help() {
-  cat << EOF
-Usage: $0 [options]
-
-Reboot macOS machines using Ansible ad-hoc commands.
-
-Options:
-  -l <limit>     Limit execution to specific hosts (comma-separated)
-                 Example: -l f1-ca-001,f1-ca-003,f1-ca-012
-  -i <inventory> Specify inventory environment (staging, production)
-                 Default: production
-  -h, --help     Show this help message
-
-Examples:
-  # Reboot specific machines in production
-  $0 -l f1-ca-001,f1-ca-003,f1-ca-012
-  
-  # Reboot machines in staging
-  $0 -i staging -l staging-host-001
-  
-  # Interactive mode (will prompt for selection)
-  $0
-
-EOF
-}
-
-# Parse command line arguments
-INVENTORY="production"
-LIMIT=""
-ANSIBLE_EXTRA_ARGS=()
-
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    -l|--limit)
-      LIMIT="$2"
-      shift 2
-      ;;
-    -i|--inventory)
-      INVENTORY="$2"
-      shift 2
-      ;;
-    -h|--help)
-      show_help
-      exit 0
-      ;;
-    *)
-      # Pass through any other arguments to ansible
-      ANSIBLE_EXTRA_ARGS+=("$1")
-      shift
-      ;;
-  esac
-done
-
-log_debug "reboot script started."
+# Ensure we're in the correct directory
 ensure_ansible_root_dir
 
-# --- SSH Agent Key Loading ---
-log_info "Checking and loading SSH key into agent..."
-
-# Ensure ssh-agent is running
-if ! ssh-add -l >/dev/null 2>&1; then
-  log_info "ssh-agent not running or no keys loaded. Starting agent..."
-  eval "$(ssh-agent -s)" >/dev/null
-  if [ $? -ne 0 ]; then
-    log_error "Failed to start ssh-agent. Please start it manually."
-    exit 1
-  fi
-fi
-
-# Variables from helpers.sh
-
-# Check for required dependencies
-check_vault_password_file
-check_yq_installed
-check_ansible_vault_installed
+# Check dependencies
 check_ansible_installed
+check_yq_installed
+check_vault_password_file
 
-log_info "Attempting to add SSH private key from Ansible Vault to ssh-agent..."
-if ansible-vault view "$VAULT_YML_FILE" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" |
-  yq -re '.vault_ssh_private_key // ""' |
-  ssh-add - >/dev/null 2>&1; then
-  log_info "SSH key from vault successfully added/verified in ssh-agent."
-else
-  if ssh-add -l >/dev/null 2>&1; then
-    log_warn "Could not add key (might already be loaded). An identity is present in the agent."
-  else
-    log_error "Failed to add SSH key and no keys present in agent. SSH authentication might fail."
+show_usage() {
+    echo "Usage: $0 [inventory_name] [host_pattern]"
+    echo ""
+    echo "Reboot machines in the specified inventory"
+    echo ""
+    echo "Arguments:"
+    echo "  inventory_name  - Target inventory (optional, will prompt if not provided)"
+    echo "  host_pattern    - Host pattern to target (optional, will target all if not provided)"
+    echo ""
+    echo "Examples:"
+    echo "  $0                          # Interactive: select inventory and reboot all hosts"
+    echo "  $0 f1-prod                  # Reboot all hosts in f1-prod inventory"
+    echo "  $0 f1-staging f1-ca-001     # Reboot specific host in f1-staging"
+    echo "  $0 f1-prod \"f1-ca-*\"        # Reboot hosts matching pattern in f1-prod"
+    echo ""
+    echo "Available inventories:"
+    discover_inventories | sed 's/^/  /'
+}
+
+# Parse arguments
+INVENTORY_NAME=""
+HOST_PATTERN=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        *)
+            if [ -z "$INVENTORY_NAME" ]; then
+                INVENTORY_NAME="$1"
+            elif [ -z "$HOST_PATTERN" ]; then
+                HOST_PATTERN="$1"
+            else
+                log_error "Too many arguments. Use --help for usage information."
+                exit 1
+            fi
+            ;;
+    esac
+    shift
+done
+
+# Interactive inventory selection if not provided
+if [ -z "$INVENTORY_NAME" ]; then
+    log_info "No inventory specified. Please select one:"
+    # Use a different approach for older bash versions
+    available_inventories=()
+    while IFS= read -r inv; do
+        available_inventories+=("$inv")
+    done < <(discover_inventories)
+    
+    if [ ${#available_inventories[@]} -eq 0 ]; then
+        log_error "No inventories found in $OA_ANSIBLE_INVENTORY_DIR"
+        exit 1
+    fi
+    
+    select inv in "${available_inventories[@]}"; do
+        if [[ -n "$inv" ]]; then
+            INVENTORY_NAME="$inv"
+            log_info "Selected inventory: $INVENTORY_NAME"
+            break
+        else
+            log_warn "Invalid selection. Please try again."
+        fi
+    done
+fi
+
+# Get inventory path
+INVENTORY_PATH=$(get_inventory_path "$INVENTORY_NAME")
+if [ $? -ne 0 ] || [ ! -f "$INVENTORY_PATH" ]; then
+    log_error "Inventory not found: $INVENTORY_NAME"
+    log_error "Available inventories: $(discover_inventories | tr '\n' ' ')"
     exit 1
-  fi
 fi
 
-# Build inventory path
-INVENTORY_PATH="inventory/${INVENTORY}/hosts.yml"
-
-if [ ! -f "$INVENTORY_PATH" ]; then
-  log_error "Inventory file not found: $INVENTORY_PATH"
-  exit 1
-fi
-
-# Build ansible command
-ANSIBLE_CMD="ansible"
-ANSIBLE_CMD+=" -i $INVENTORY_PATH"
-ANSIBLE_CMD+=" all"
-
-# Add limit if specified
-if [ -n "$LIMIT" ]; then
-  ANSIBLE_CMD+=" -l $LIMIT"
-  log_info "Limiting execution to: $LIMIT"
-fi
-
-# Add the reboot module and options
-ANSIBLE_CMD+=" -m ansible.builtin.reboot"
-ANSIBLE_CMD+=" -a 'msg=\"Reboot initiated by oaAnsible reboot script\" pre_reboot_delay=5 post_reboot_delay=30 reboot_timeout=600'"
-
-# Add become for privilege escalation
-ANSIBLE_CMD+=" --become"
-
-# Add any extra arguments
-if [ ${#ANSIBLE_EXTRA_ARGS[@]} -gt 0 ]; then
-  ANSIBLE_CMD+=" ${ANSIBLE_EXTRA_ARGS[*]}"
-fi
-
-log_warn "⚠️  About to REBOOT machines in $INVENTORY environment"
-if [ -n "$LIMIT" ]; then
-  log_warn "⚠️  Target machines: $LIMIT"
+# Set host pattern
+if [ -z "$HOST_PATTERN" ]; then
+    HOST_PATTERN="all"
+    log_info "No host pattern specified, targeting all hosts in $INVENTORY_NAME"
 else
-  log_warn "⚠️  Target: ALL machines in $INVENTORY"
+    log_info "Targeting hosts matching pattern: $HOST_PATTERN"
 fi
-log_warn "Press CTRL+C now to abort, or wait 5 seconds to continue..."
-sleep 5
 
+# Safety confirmation for production inventories
+if [[ "$INVENTORY_NAME" =~ prod ]]; then
+    log_warn "⚠️  WARNING: You are about to reboot machines in a PRODUCTION environment!"
+    log_warn "Inventory: $INVENTORY_NAME"
+    log_warn "Host pattern: $HOST_PATTERN"
+    echo ""
+    read -p "Type 'YES' to confirm reboot of production machines: " confirm
+    if [ "$confirm" != "YES" ]; then
+        log_info "Reboot cancelled by user"
+        exit 0
+    fi
+fi
+
+# Load SSH key and execute reboot
+log_info "Initiating reboot for inventory: $INVENTORY_NAME, pattern: $HOST_PATTERN"
+
+if ! load_ssh_key_from_vault "reboot"; then
+    log_error "SSH key loading failed. Reboot may not work properly."
+fi
+
+# Execute reboot command
 log_info "Executing reboot command..."
-log_debug "Command: $ANSIBLE_CMD"
+ANSIBLE_CONFIG=ansible.cfg ansible \
+    "$HOST_PATTERN" \
+    -i "$INVENTORY_PATH" \
+    --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" \
+    --extra-vars "@$VAULT_YML_FILE" \
+    -m ansible.builtin.reboot \
+    -a 'msg="Reboot initiated by oaAnsible" pre_reboot_delay=5 post_reboot_delay=30 reboot_timeout=600' \
+    --become
 
-# Execute the command
-eval "ANSIBLE_CONFIG=ansible.cfg $ANSIBLE_CMD"
-
-REBOOT_EXIT_CODE=$?
-
-if [ $REBOOT_EXIT_CODE -eq 0 ]; then
-  log_info "Reboot command completed successfully."
-  log_info "Machines should be rebooting now and will be back online in a few minutes."
+if [ $? -eq 0 ]; then
+    log_info "✅ Reboot command sent successfully to $HOST_PATTERN in $INVENTORY_NAME"
+    log_info "Machines will reboot and be back online in a few minutes"
 else
-  log_error "Reboot command failed with exit code $REBOOT_EXIT_CODE."
+    log_error "❌ Reboot command failed"
+    exit 1
 fi
-
-log_debug "reboot script finished."
-exit $REBOOT_EXIT_CODE
