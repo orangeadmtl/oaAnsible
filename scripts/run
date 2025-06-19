@@ -1,0 +1,258 @@
+#!/bin/bash
+
+# run - Unified deployment script for oaAnsible
+# Usage: ./scripts/run [inventory] [component...] [options]
+
+set -e
+
+# Get script directory and source helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/helpers.sh"
+
+# Ensure we're in the correct directory
+ensure_ansible_root_dir
+
+# Check dependencies
+check_ansible_installed
+check_vault_password_file
+
+show_usage() {
+    echo "Usage: $0 [inventory] [options]"
+    echo ""
+    echo "Unified deployment script for oaAnsible - Fast, tag-based component deployment"
+    echo ""
+    echo "Arguments:"
+    echo "  inventory      - Target inventory (optional, will prompt if not provided)"
+    echo ""
+    echo "Options:"
+    echo "  -t, --tags TAGS     - Deploy specific components by tag (comma-separated)"
+    echo "  -l, --limit HOST    - Limit deployment to specific host(s)"
+    echo "  --dry-run          - Preview changes without executing (safe mode)"
+    echo "  --check            - Validation mode - check configuration only"
+    echo "  --force            - Skip safety checks and confirmations"
+    echo "  -v, --verbose      - Detailed output for debugging"
+    echo "  -h, --help         - Show this comprehensive help"
+    echo ""
+    echo "🚀 Tag-Based Deployment Examples:"
+    echo "  $0 spectra-preprod -t player           # Deploy only the player component"
+    echo "  $0 spectra-preprod -t base,network     # Deploy infrastructure only"
+    echo "  $0 spectra-preprod -t macos-api        # Deploy macOS API only"
+    echo "  $0 spectra-preprod -t api              # Same as above (alias)"
+    echo "  $0 spectra-preprod -t tracker,security # Deploy tracker + security"
+    echo "  $0 prod -t network --dry-run           # Safe preview of network changes"
+    echo ""
+    echo "🔧 Full Stack Examples:"
+    echo "  $0                                    # Interactive mode"
+    echo "  $0 spectra-preprod                    # Full deployment"
+    echo "  $0 spectra-prod --dry-run             # Preview full prod deployment"
+    echo ""
+    echo "🎯 Targeted Host Examples:"
+    echo "  $0 spectra-preprod -t player -l spectra-ca-001  # Deploy player to one host"
+    echo "  $0 staging -t tracker -l 'host1,host2'          # Multiple hosts"
+    echo ""
+    echo "📋 Available Inventories:"
+    discover_inventories | sed 's/^/  📁 /'
+    echo ""
+    echo "🏷️  Available Component Tags:"
+    echo "  🛠️  Infrastructure:"
+    echo "     base       - Core system setup, shell, sudo, cleanup"
+    echo "     network    - Networking stack, Tailscale, DNS"
+    echo "     security   - Firewall, permissions, system hardening"
+    echo "     ssh        - SSH configuration and access"
+    echo ""
+    echo "  🚀 Applications:"
+    echo "     macos-api  - macOS device API service (alias: api)"
+    echo "     tracker    - AI object tracking system"
+    echo "     player     - Video player for dual-screen displays"
+    echo "     alpr       - Automatic License Plate Recognition"
+    echo ""
+    echo "  🐧 Platform-specific:"
+    echo "     docker     - Container runtime (Ubuntu only)"
+    echo ""
+    echo "💡 Pro Tips:"
+    echo "  • Use --dry-run first to preview changes safely"
+    echo "  • Combine multiple tags for grouped deployments"  
+    echo "  • Tag deployment is much faster than full stack"
+    echo "  • Production deployments require 'YES' confirmation"
+    echo "  • Use -v for detailed output when troubleshooting"
+}
+
+# Parse arguments
+INVENTORY_NAME=""
+TAGS=""
+LIMIT=""
+EXECUTION_MODE="normal"
+VERBOSE=false
+ANSIBLE_EXTRA_ARGS=()
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        -t|--tags)
+            TAGS="$2"
+            shift 2
+            ;;
+        -l|--limit)
+            LIMIT="$2"
+            shift 2
+            ;;
+        --dry-run)
+            EXECUTION_MODE="dry-run"
+            ANSIBLE_EXTRA_ARGS+=("--check" "--diff")
+            shift
+            ;;
+        --check)
+            EXECUTION_MODE="check"
+            ANSIBLE_EXTRA_ARGS+=("--check")
+            shift
+            ;;
+        --force)
+            EXECUTION_MODE="force"
+            ANSIBLE_EXTRA_ARGS+=("--extra-vars" "force_deployment=true")
+            shift
+            ;;
+        -v|--verbose)
+            VERBOSE=true
+            ANSIBLE_EXTRA_ARGS+=("-v")
+            shift
+            ;;
+        -*)
+            # Pass through other options to ansible
+            ANSIBLE_EXTRA_ARGS+=("$1")
+            shift
+            ;;
+        *)
+            if [ -z "$INVENTORY_NAME" ]; then
+                # Check if this looks like an inventory name
+                if discover_inventories | grep -q "^$1$"; then
+                    INVENTORY_NAME="$1"
+                else
+                    # If not a known inventory, show error
+                    log_error "Unknown inventory: $1"
+                    log_error "Available inventories: $(discover_inventories | tr '\n' ' ')"
+                    exit 1
+                fi
+            else
+                log_error "Unexpected argument: $1"
+                log_error "Use -t/--tags to specify components to deploy"
+                show_usage
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Interactive inventory selection if not provided
+if [ -z "$INVENTORY_NAME" ]; then
+    log_info "No inventory specified. Please select one:"
+    # Use a different approach for older bash versions
+    available_inventories=()
+    while IFS= read -r inv; do
+        available_inventories+=("$inv")
+    done < <(discover_inventories)
+    
+    if [ ${#available_inventories[@]} -eq 0 ]; then
+        log_error "No inventories found in $OA_ANSIBLE_INVENTORY_DIR"
+        exit 1
+    fi
+    
+    select inv in "${available_inventories[@]}"; do
+        if [[ -n "$inv" ]]; then
+            INVENTORY_NAME="$inv"
+            log_info "Selected inventory: $INVENTORY_NAME"
+            break
+        else
+            log_warn "Invalid selection. Please try again."
+        fi
+    done
+fi
+
+# Get inventory path
+INVENTORY_PATH=$(get_inventory_path "$INVENTORY_NAME")
+if [ $? -ne 0 ] || [ ! -f "$INVENTORY_PATH" ]; then
+    log_error "Inventory not found: $INVENTORY_NAME"
+    log_error "Available inventories: $(discover_inventories | tr '\n' ' ')"
+    exit 1
+fi
+
+# Always use the universal playbook
+PLAYBOOK="playbooks/universal.yml"
+
+# Build ansible command
+CONTEXT="$INVENTORY_NAME deployment"
+if [ -n "$TAGS" ]; then
+    CONTEXT="$INVENTORY_NAME ($TAGS) deployment"
+    ANSIBLE_EXTRA_ARGS+=("--tags" "$TAGS")
+    ANSIBLE_EXTRA_ARGS+=("--extra-vars" "provided_tags=$TAGS")
+    log_info "Running components with tags: $TAGS"
+fi
+
+# Add limit if specified
+if [ -n "$LIMIT" ]; then
+    ANSIBLE_EXTRA_ARGS+=("-l" "$LIMIT")
+    CONTEXT="$CONTEXT (limited to $LIMIT)"
+fi
+
+# Safety confirmation for production inventories (exclude preprod)
+if [[ "$INVENTORY_NAME" =~ -prod$ ]] && [[ "$EXECUTION_MODE" != "dry-run" ]] && [[ "$EXECUTION_MODE" != "check" ]]; then
+    log_warn "⚠️  WARNING: You are about to deploy to a PRODUCTION environment!"
+    log_warn "Inventory: $INVENTORY_NAME"
+    log_warn "Playbook: $PLAYBOOK"
+    if [ -n "$LIMIT" ]; then
+        log_warn "Limited to: $LIMIT"
+    fi
+    if [ -n "$TAGS" ]; then
+        log_warn "Tags: $TAGS"
+    fi
+    echo ""
+    read -p "Type 'YES' to confirm production deployment: " confirm
+    if [ "$confirm" != "YES" ]; then
+        log_info "Deployment cancelled by user"
+        exit 0
+    fi
+fi
+
+# Set execution mode for the playbook (map script modes to playbook modes)
+PLAYBOOK_EXECUTION_MODE="full"  # Default to full deployment
+if [ "$EXECUTION_MODE" == "dry-run" ]; then
+    PLAYBOOK_EXECUTION_MODE="dry-run"
+elif [ "$EXECUTION_MODE" == "check" ]; then
+    PLAYBOOK_EXECUTION_MODE="check"
+elif [ "$EXECUTION_MODE" == "force" ]; then
+    PLAYBOOK_EXECUTION_MODE="force"
+fi
+
+# Pass execution mode to playbook (use different variable when tags are provided)
+if [ -n "$TAGS" ]; then
+    # When tags are provided, pass the original execution mode separately
+    # and let the playbook handle tag-based component selection
+    ANSIBLE_EXTRA_ARGS+=("--extra-vars" "script_execution_mode=$PLAYBOOK_EXECUTION_MODE")
+else
+    # Normal execution mode for full deployments
+    ANSIBLE_EXTRA_ARGS+=("--extra-vars" "execution_mode=$PLAYBOOK_EXECUTION_MODE")
+fi
+
+# Execute deployment
+log_info "Initiating deployment: $CONTEXT"
+log_info "Execution mode: $EXECUTION_MODE"
+
+# Use the enhanced deployment function from helpers.sh
+run_ansible_playbook_with_ssh "$PLAYBOOK" "$INVENTORY_PATH" "$CONTEXT" "${ANSIBLE_EXTRA_ARGS[@]}"
+
+DEPLOY_EXIT_CODE=$?
+
+if [ $DEPLOY_EXIT_CODE -eq 0 ]; then
+    log_info "✅ Deployment completed successfully"
+    if [[ "$EXECUTION_MODE" == "dry-run" ]]; then
+        log_info "This was a dry run - no changes were made"
+    elif [[ "$EXECUTION_MODE" == "check" ]]; then
+        log_info "Configuration check passed"
+    fi
+else
+    log_error "❌ Deployment failed with exit code $DEPLOY_EXIT_CODE"
+    exit $DEPLOY_EXIT_CODE
+fi
