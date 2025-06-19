@@ -146,6 +146,53 @@ check_vault_password_file() {
   fi
 }
 
+# Function to discover available inventories dynamically
+discover_inventories() {
+  local inventories=()
+  
+  # Look for both old format (directory-based) and new format (file-based)
+  
+  # Old format: inventory/staging/hosts.yml, inventory/production/hosts.yml, etc.
+  for dir in "$OA_ANSIBLE_INVENTORY_DIR"/*; do
+    if [ -d "$dir" ] && [ -f "$dir/hosts.yml" ]; then
+      inventories+=($(basename "$dir"))
+    fi
+  done
+  
+  # New format: inventory/f1-staging.yml, inventory/f1-preprod.yml, etc.
+  for file in "$OA_ANSIBLE_INVENTORY_DIR"/*.yml; do
+    if [ -f "$file" ]; then
+      local basename=$(basename "$file" .yml)
+      # Skip if this is inside a directory (already handled above)
+      if [[ ! "$basename" =~ ^(staging|production|pre-prod)$ ]]; then
+        inventories+=("$basename")
+      fi
+    fi
+  done
+  
+  # Remove duplicates and sort
+  printf '%s\n' "${inventories[@]}" | sort -u
+}
+
+# Function to get inventory file path from inventory name
+get_inventory_path() {
+  local inventory_name="$1"
+  
+  # Check new format first: inventory/f1-staging.yml
+  if [ -f "$OA_ANSIBLE_INVENTORY_DIR/$inventory_name.yml" ]; then
+    echo "$OA_ANSIBLE_INVENTORY_DIR/$inventory_name.yml"
+    return 0
+  fi
+  
+  # Check old format: inventory/staging/hosts.yml
+  if [ -f "$OA_ANSIBLE_INVENTORY_DIR/$inventory_name/hosts.yml" ]; then
+    echo "$OA_ANSIBLE_INVENTORY_DIR/$inventory_name/hosts.yml"
+    return 0
+  fi
+  
+  return 1
+}
+
 # Function to select a target host from an inventory
 # Returns 0 on success, 1 on failure
 # Sets global variables: TARGET_INVENTORY_PATH, TARGET_HOST_ALIAS
@@ -154,20 +201,32 @@ select_target_host() {
   local extract_connection_details=${1:-false}
   
   log_debug "Starting host selection process."
-  local inventories=("staging" "production")
+  local inventories=()
   local selected_inventory_name
   local selected_inventory_path
   local host_aliases=() # Initialize as an empty array
   local selected_host_alias
+
+  # Discover available inventories dynamically
+  # Use a different approach for older bash versions
+  inventories=()
+  while IFS= read -r inv; do
+    inventories+=("$inv")
+  done < <(discover_inventories)
+  
+  if [ ${#inventories[@]} -eq 0 ]; then
+    log_error "No inventories found in $OA_ANSIBLE_INVENTORY_DIR"
+    return 1
+  fi
 
   # Select inventory
   log_info "Please select an inventory environment:"
   select inv_choice in "${inventories[@]}"; do
     if [[ -n "$inv_choice" ]]; then
       selected_inventory_name="$inv_choice"
-      selected_inventory_path="$OA_ANSIBLE_INVENTORY_DIR/$selected_inventory_name/hosts.yml"
-      if [ ! -f "$selected_inventory_path" ]; then
-        log_error "Inventory file not found: $selected_inventory_path"
+      selected_inventory_path=$(get_inventory_path "$selected_inventory_name")
+      if [ $? -ne 0 ] || [ ! -f "$selected_inventory_path" ]; then
+        log_error "Inventory file not found for: $selected_inventory_name"
         return 1
       fi
       log_info "Selected inventory: $selected_inventory_name"
@@ -257,22 +316,33 @@ select_target_host() {
 
 # Function to list all available hosts from all inventories
 list_all_hosts() {
-  local inventories=("staging" "production")
+  local inventories=()
+  # Use a different approach for older bash versions
+  inventories=()
+  while IFS= read -r inv; do
+    inventories+=("$inv")
+  done < <(discover_inventories)
   
   echo "Available hosts:"
   echo "---------------"
   
   for inv in "${inventories[@]}"; do
-    local inventory_path="$OA_ANSIBLE_INVENTORY_DIR/$inv/hosts.yml"
-    if [ ! -f "$inventory_path" ]; then
-      log_warn "Inventory file not found: $inventory_path"
+    local inventory_path=$(get_inventory_path "$inv")
+    if [ $? -ne 0 ] || [ ! -f "$inventory_path" ]; then
+      log_warn "Inventory file not found for: $inv"
       continue
     fi
     
     echo "[$inv]"
+    # List macOS hosts
     yq e '.all.children.macos.hosts | keys | .[]' "$inventory_path" 2>/dev/null | while read -r host; do
       local host_ip=$(yq e ".all.children.macos.hosts.\"$host\".ansible_host" "$inventory_path")
-      echo "  $host ($host_ip)"
+      echo "  $host ($host_ip) [macOS]"
+    done
+    # List Ubuntu hosts
+    yq e '.all.children.ubuntu_servers.hosts | keys | .[]' "$inventory_path" 2>/dev/null | while read -r host; do
+      local host_ip=$(yq e ".all.children.ubuntu_servers.hosts.\"$host\".ansible_host" "$inventory_path")
+      echo "  $host ($host_ip) [Ubuntu]"
     done
     echo ""
   done
@@ -286,30 +356,46 @@ find_host_by_name() {
   local search_term="$1"
   local specified_inventory="$2"
   local extract_connection_details=${3:-false}
-  local inventories
+  local inventories=()
   
   if [ -n "$specified_inventory" ]; then
     inventories=("$specified_inventory")
   else
-    inventories=("staging" "production")
+    # Use a different approach for older bash versions
+  inventories=()
+  while IFS= read -r inv; do
+    inventories+=("$inv")
+  done < <(discover_inventories)
   fi
   
   local found_hosts=()
   local found_inventories=()
+  local found_groups=()
   
   for inv in "${inventories[@]}"; do
-    local inventory_path="$OA_ANSIBLE_INVENTORY_DIR/$inv/hosts.yml"
-    if [ ! -f "$inventory_path" ]; then
-      log_warn "Inventory file not found: $inventory_path"
+    local inventory_path=$(get_inventory_path "$inv")
+    if [ $? -ne 0 ] || [ ! -f "$inventory_path" ]; then
+      log_warn "Inventory file not found for: $inv"
       continue
     fi
     
+    # Search in macOS hosts
     while IFS= read -r host; do
       if [[ "$host" == *"$search_term"* ]]; then
         found_hosts+=("$host")
         found_inventories+=("$inv")
+        found_groups+=("macos")
       fi
     done < <(yq e '.all.children.macos.hosts | keys | .[]' "$inventory_path" 2>/dev/null)
+    
+    # Search in Ubuntu hosts
+    while IFS= read -r host; do
+      if [[ "$host" == *"$search_term"* ]]; then
+        found_hosts+=("$host")
+        found_inventories+=("$inv")
+        found_groups+=("ubuntu_servers")
+      fi
+    done < <(yq e '.all.children.ubuntu_servers.hosts | keys | .[]' "$inventory_path" 2>/dev/null)
   done
   
   if [ ${#found_hosts[@]} -eq 0 ]; then
@@ -318,7 +404,7 @@ find_host_by_name() {
   elif [ ${#found_hosts[@]} -gt 1 ]; then
     log_warn "Multiple hosts match '$search_term':"
     for i in "${!found_hosts[@]}"; do
-      echo "$((i+1)). ${found_hosts[$i]} (${found_inventories[$i]})"
+      echo "$((i+1)). ${found_hosts[$i]} (${found_inventories[$i]}) [${found_groups[$i]}]"
     done
     
     echo "Please select a host:"
@@ -333,36 +419,40 @@ find_host_by_name() {
     selected_index=$((selection-1))
     selected_host_alias="${found_hosts[$selected_index]}"
     selected_inventory_name="${found_inventories[$selected_index]}"
+    selected_host_group="${found_groups[$selected_index]}"
   else
     selected_host_alias="${found_hosts[0]}"
     selected_inventory_name="${found_inventories[0]}"
+    selected_host_group="${found_groups[0]}"
   fi
   
-  selected_inventory_path="$OA_ANSIBLE_INVENTORY_DIR/$selected_inventory_name/hosts.yml"
+  selected_inventory_path=$(get_inventory_path "$selected_inventory_name")
   
   # Set the global variables
   TARGET_HOST_ALIAS="$selected_host_alias"
   TARGET_INVENTORY_PATH="$selected_inventory_path"
+  TARGET_HOST_GROUP="$selected_host_group"
   
   # Optionally extract connection details
   if [ "$extract_connection_details" = true ]; then
-    # Get connection details
-    TARGET_CONNECT_HOST=$(yq e ".all.children.macos.hosts.\"$selected_host_alias\".ansible_host" "$selected_inventory_path")
-    TARGET_CONNECT_USER=$(yq e ".all.children.macos.hosts.\"$selected_host_alias\".ansible_user" "$selected_inventory_path")
-    TARGET_CONNECT_PORT=$(yq e ".all.children.macos.hosts.\"$selected_host_alias\".ansible_port // 22" "$selected_inventory_path")
+    # Get connection details based on the group
+    TARGET_CONNECT_HOST=$(yq e ".all.children.${selected_host_group}.hosts.\"$selected_host_alias\".ansible_host" "$selected_inventory_path")
+    TARGET_CONNECT_USER=$(yq e ".all.children.${selected_host_group}.hosts.\"$selected_host_alias\".ansible_user" "$selected_inventory_path")
+    TARGET_CONNECT_PORT=$(yq e ".all.children.${selected_host_group}.hosts.\"$selected_host_alias\".ansible_port // 22" "$selected_inventory_path")
     
     if [ -z "$TARGET_CONNECT_HOST" ] || [ "$TARGET_CONNECT_HOST" == "null" ]; then
-      log_error "Could not determine 'ansible_host' for '$selected_host_alias' in $selected_inventory_path."
+      log_error "Could not determine 'ansible_host' for '$selected_host_alias' in group '$selected_host_group' from $selected_inventory_path."
       return 1
     fi
     if [ -z "$TARGET_CONNECT_USER" ] || [ "$TARGET_CONNECT_USER" == "null" ]; then
-      log_error "Could not determine 'ansible_user' for '$selected_host_alias' in $selected_inventory_path."
+      log_error "Could not determine 'ansible_user' for '$selected_host_alias' in group '$selected_host_group' from $selected_inventory_path."
       return 1
     fi
     
     log_debug "Target connection host: $TARGET_CONNECT_HOST"
     log_debug "Target connection user: $TARGET_CONNECT_USER"
     log_debug "Target connection port: $TARGET_CONNECT_PORT"
+    log_debug "Target host group: $selected_host_group"
   fi
   
   log_info "Found host: $selected_host_alias in $selected_inventory_name"
@@ -499,12 +589,13 @@ run_environment_playbook() {
     local environment="$1"
     shift  # Remove environment argument, rest are passed through
     
-    local inventory="inventory/$environment/hosts.yml"
+    local inventory=$(get_inventory_path "$environment")
     local context="$environment deployment"
     
     # Check if inventory exists
-    if [[ ! -f "$inventory" ]]; then
-        log_error "Inventory file not found: $inventory"
+    if [[ $? -ne 0 ]] || [[ ! -f "$inventory" ]]; then
+        log_error "Inventory file not found for environment: $environment"
+        log_error "Available inventories: $(discover_inventories | tr '\n' ' ')"
         return 1
     fi
     
