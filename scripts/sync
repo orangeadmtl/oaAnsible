@@ -1,0 +1,339 @@
+#!/bin/bash
+
+# sync - Inventory synchronization and management tool
+# Usage: ./scripts/sync [action] [options]
+
+set -e
+
+# Get script directory and source helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/helpers.sh"
+
+# Ensure we're in the correct directory
+ensure_ansible_root_dir
+
+# Check dependencies
+check_yq_installed
+
+show_usage() {
+    echo "Usage: $0 [action] [options]"
+    echo ""
+    echo "Inventory synchronization and management tool"
+    echo ""
+    echo "Actions:"
+    echo "  list              - List all inventories and their hosts"
+    echo "  validate          - Validate inventory files"
+    echo "  migrate           - Migrate old inventory structure to new format"
+    echo "  backup            - Backup inventory files"
+    echo "  restore BACKUP    - Restore from backup"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help        - Show this help"
+    echo "  -v, --verbose     - Verbose output"
+    echo ""
+    echo "Examples:"
+    echo "  $0 list           # List all inventories and hosts"
+    echo "  $0 validate       # Validate all inventory files"
+    echo "  $0 migrate        # Migrate old structure to new project-based"
+    echo "  $0 backup         # Create backup of current inventories"
+}
+
+# Parse arguments
+ACTION=""
+VERBOSE=false
+BACKUP_NAME=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        -v|--verbose)
+            VERBOSE=true
+            shift
+            ;;
+        list|validate|migrate|backup|restore)
+            ACTION="$1"
+            shift
+            if [ "$ACTION" = "restore" ] && [ $# -gt 0 ]; then
+                BACKUP_NAME="$1"
+                shift
+            fi
+            ;;
+        *)
+            if [ "$ACTION" = "restore" ] && [ -z "$BACKUP_NAME" ]; then
+                BACKUP_NAME="$1"
+                shift
+            else
+                log_error "Unknown argument: $1"
+                show_usage
+                exit 1
+            fi
+            ;;
+    esac
+done
+
+# Default action
+if [ -z "$ACTION" ]; then
+    ACTION="list"
+fi
+
+# Action: List inventories and hosts
+list_inventories() {
+    log_info "📋 Available Inventories and Hosts"
+    echo "=================================="
+    
+    # Use a different approach for older bash versions
+    inventories=()
+    while IFS= read -r inv; do
+        inventories+=("$inv")
+    done < <(discover_inventories)
+    
+    if [ ${#inventories[@]} -eq 0 ]; then
+        log_warn "No inventories found in $OA_ANSIBLE_INVENTORY_DIR"
+        return 1
+    fi
+    
+    for inv in "${inventories[@]}"; do
+        local inventory_path=$(get_inventory_path "$inv")
+        if [ $? -ne 0 ] || [ ! -f "$inventory_path" ]; then
+            log_warn "⚠️  Inventory file not found for: $inv"
+            continue
+        fi
+        
+        echo ""
+        echo "📦 $inv"
+        echo "   Path: $inventory_path"
+        
+        # Get environment info
+        local env_name=$(yq e '.all.vars.target_env // .all.vars.environment // "unknown"' "$inventory_path" 2>/dev/null)
+        local project_name=$(yq e '.all.vars.project_name // "N/A"' "$inventory_path" 2>/dev/null)
+        echo "   Environment: $env_name"
+        echo "   Project: $project_name"
+        
+        # Count hosts
+        local macos_count=$(yq e '.all.children.macos.hosts | length' "$inventory_path" 2>/dev/null || echo "0")
+        local ubuntu_count=$(yq e '.all.children.ubuntu_servers.hosts | length' "$inventory_path" 2>/dev/null || echo "0")
+        echo "   Hosts: $macos_count macOS, $ubuntu_count Ubuntu"
+        
+        if [ "$VERBOSE" = true ]; then
+            echo "   📍 macOS Hosts:"
+            yq e '.all.children.macos.hosts | to_entries | .[] | "      " + .key + " (" + .value.ansible_host + ")"' "$inventory_path" 2>/dev/null || echo "      None"
+            
+            echo "   📍 Ubuntu Hosts:"
+            yq e '.all.children.ubuntu_servers.hosts | to_entries | .[] | "      " + .key + " (" + .value.ansible_host + ")"' "$inventory_path" 2>/dev/null || echo "      None"
+        fi
+    done
+    
+    echo ""
+    echo "Total inventories: ${#inventories[@]}"
+}
+
+# Action: Validate inventory files
+validate_inventories() {
+    log_info "🔍 Validating Inventory Files"
+    echo "============================="
+    
+    local validation_errors=0
+    # Use a different approach for older bash versions
+    inventories=()
+    while IFS= read -r inv; do
+        inventories+=("$inv")
+    done < <(discover_inventories)
+    
+    for inv in "${inventories[@]}"; do
+        local inventory_path=$(get_inventory_path "$inv")
+        echo -n "Validating $inv... "
+        
+        if [ ! -f "$inventory_path" ]; then
+            echo "❌ File not found"
+            ((validation_errors++))
+            continue
+        fi
+        
+        # YAML syntax validation
+        if ! yq e '.' "$inventory_path" >/dev/null 2>&1; then
+            echo "❌ Invalid YAML syntax"
+            ((validation_errors++))
+            continue
+        fi
+        
+        # Basic structure validation
+        if ! yq e '.all' "$inventory_path" >/dev/null 2>&1; then
+            echo "❌ Missing 'all' group"
+            ((validation_errors++))
+            continue
+        fi
+        
+        # Check for required vars
+        if ! yq e '.all.vars.target_env' "$inventory_path" >/dev/null 2>&1 && 
+           ! yq e '.all.vars.environment' "$inventory_path" >/dev/null 2>&1; then
+            echo "⚠️  Missing environment variable"
+        fi
+        
+        echo "✅ Valid"
+    done
+    
+    echo ""
+    if [ $validation_errors -eq 0 ]; then
+        log_info "All inventory files are valid"
+    else
+        log_error "$validation_errors inventory files have validation errors"
+        return 1
+    fi
+}
+
+# Action: Migrate old inventory structure
+migrate_inventories() {
+    log_info "🔄 Migrating Inventory Structure"
+    echo "================================"
+    
+    # Check if old structure exists
+    local old_dirs=("staging" "production" "pre-prod")
+    local found_old=false
+    
+    for dir in "${old_dirs[@]}"; do
+        if [ -d "$OA_ANSIBLE_INVENTORY_DIR/$dir" ]; then
+            found_old=true
+            break
+        fi
+    done
+    
+    if [ "$found_old" = false ]; then
+        log_info "No old inventory structure found to migrate"
+        return 0
+    fi
+    
+    log_warn "⚠️  This will create new project-based inventory files"
+    log_warn "Old directory-based inventories will be backed up"
+    echo ""
+    read -p "Continue with migration? (y/N): " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        log_info "Migration cancelled"
+        return 0
+    fi
+    
+    # Create backup first
+    backup_inventories "pre-migration"
+    
+    # Migrate each old inventory
+    for dir in "${old_dirs[@]}"; do
+        local old_path="$OA_ANSIBLE_INVENTORY_DIR/$dir/hosts.yml"
+        if [ -f "$old_path" ]; then
+            log_info "Migrating $dir..."
+            
+            # Determine new name based on content
+            local project=$(yq e '.all.children.macos.hosts | keys | .[0]' "$old_path" 2>/dev/null | cut -d'-' -f1)
+            if [ -z "$project" ] || [ "$project" = "null" ]; then
+                project="legacy"
+            fi
+            
+            local new_name=""
+            case $dir in
+                "staging") new_name="${project}-staging" ;;
+                "pre-prod") new_name="${project}-preprod" ;;
+                "production") new_name="${project}-prod" ;;
+            esac
+            
+            local new_path="$OA_ANSIBLE_INVENTORY_DIR/${new_name}.yml"
+            
+            # Copy and update structure
+            cp "$old_path" "$new_path"
+            
+            # Update vars
+            yq e ".all.vars.target_env = \"$new_name\"" -i "$new_path"
+            yq e ".all.vars.project_name = \"$project\"" -i "$new_path"
+            yq e ".all.vars.environment = \"$(echo $dir | sed 's/pre-prod/preprod/')\"" -i "$new_path"
+            
+            log_info "✅ Created $new_path"
+        fi
+    done
+    
+    log_info "Migration completed. Please review the new inventory files."
+    log_info "Old inventories have been backed up and can be removed when ready."
+}
+
+# Action: Backup inventories
+backup_inventories() {
+    local backup_suffix="${1:-$(date +%Y%m%d_%H%M%S)}"
+    local backup_dir="$OA_ANSIBLE_INVENTORY_DIR/backups"
+    local backup_path="$backup_dir/inventory_backup_$backup_suffix"
+    
+    log_info "💾 Creating Inventory Backup"
+    echo "============================"
+    
+    mkdir -p "$backup_dir"
+    mkdir -p "$backup_path"
+    
+    # Backup all inventory files and directories
+    cp -r "$OA_ANSIBLE_INVENTORY_DIR"/*.yml "$backup_path/" 2>/dev/null || true
+    cp -r "$OA_ANSIBLE_INVENTORY_DIR"/staging "$backup_path/" 2>/dev/null || true
+    cp -r "$OA_ANSIBLE_INVENTORY_DIR"/production "$backup_path/" 2>/dev/null || true
+    cp -r "$OA_ANSIBLE_INVENTORY_DIR"/pre-prod "$backup_path/" 2>/dev/null || true
+    
+    log_info "✅ Backup created: $backup_path"
+    
+    # List backup contents
+    echo "Backup contents:"
+    ls -la "$backup_path" | sed 's/^/  /'
+}
+
+# Action: Restore from backup
+restore_inventories() {
+    if [ -z "$BACKUP_NAME" ]; then
+        log_error "Please specify a backup name to restore"
+        echo ""
+        echo "Available backups:"
+        ls -1 "$OA_ANSIBLE_INVENTORY_DIR/backups/" 2>/dev/null | grep "inventory_backup_" || echo "  No backups found"
+        return 1
+    fi
+    
+    local backup_path="$OA_ANSIBLE_INVENTORY_DIR/backups/$BACKUP_NAME"
+    
+    if [ ! -d "$backup_path" ]; then
+        log_error "Backup not found: $backup_path"
+        return 1
+    fi
+    
+    log_warn "⚠️  This will overwrite current inventory files"
+    echo "Restoring from: $backup_path"
+    echo ""
+    read -p "Continue with restore? (y/N): " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        log_info "Restore cancelled"
+        return 0
+    fi
+    
+    # Create backup of current state first
+    backup_inventories "pre-restore"
+    
+    # Restore files
+    cp -r "$backup_path"/* "$OA_ANSIBLE_INVENTORY_DIR/"
+    
+    log_info "✅ Inventory restored from $BACKUP_NAME"
+}
+
+# Execute action
+case $ACTION in
+    list)
+        list_inventories
+        ;;
+    validate)
+        validate_inventories
+        ;;
+    migrate)
+        migrate_inventories
+        ;;
+    backup)
+        backup_inventories
+        ;;
+    restore)
+        restore_inventories
+        ;;
+    *)
+        log_error "Unknown action: $ACTION"
+        show_usage
+        exit 1
+        ;;
+esac
