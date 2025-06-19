@@ -85,4 +85,4 @@ security:
 
 # Network configuration
 network:
-  configure_wifi: false  # Set to true to configure Wi-Fi networks from vault
+  configure_wifi: false # Set to true to configure Wi-Fi networks from vault

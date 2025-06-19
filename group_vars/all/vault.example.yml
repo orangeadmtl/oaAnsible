@@ -13,16 +13,42 @@ vault_ssh_private_key: |
   # Your private key here
   -----END OPENSSH PRIVATE KEY-----
 vault_ssh_public_key: "ssh-rsa AAAAB3NzaC1yc2E... user@example.com"
-# Host-specific sudo passwords - REQUIRED
+# Host-specific sudo passwords - REQUIRED for each device
+# Each device must have its password explicitly defined
 vault_sudo_passwords:
-  kampus-rig: "machine-password"
-  kai-vm-001: "machine-password"
-  kai-vm-002: "machine-password"
-  # Add more hosts as needed
-  # hostname: "password"
+  # F1 Project (macos-api + tracker)
+  f1-ca-001: "f1-device-password"
+  f1-ca-002: "f1-device-password"
+  f1-ca-003: "f1-device-password"
+  f1-ca-004: "f1-device-password"
+  f1-ca-005: "f1-device-password"
+  f1-ca-007: "f1-device-password"
+  f1-ca-009: "f1-device-password"
+  f1-ca-011: "f1-device-password"
+  f1-ca-012: "f1-device-password"
+  f1-ca-013: "f1-device-password"
+  f1-ca-014: "f1-device-password"
+  f1-ca-015: "f1-device-password"
+  f1-ca-016: "f1-device-password"
+  f1-ca-017: "f1-device-password"
 
-# Default sudo password (fallback if host-specific not found)
-vault_default_sudo_password: "default_password"
+  # Spectra Project (macos-api + tracker + video-player)
+  spectra-staging-001: "spectra-device-password"
+  spectra-staging-002: "spectra-device-password"
+  spectra-preprod-001: "spectra-device-password"
+  spectra-prod-001: "spectra-device-password"
+  spectra-prod-002: "spectra-device-password"
+
+  # ALPR Project (macos-api + alpr)
+  alpr-staging-001: "alpr-device-password"
+  alpr-preprod-001: "alpr-device-password"
+  alpr-prod-001: "alpr-device-password"
+
+  # Legacy devices (to be migrated)
+  kampus-rig: "legacy-password"
+  kai-vm-001: "legacy-password"
+  kai-vm-002: "legacy-password"
+  m4-ca-001: "existing-device-password"
 
 # Ubuntu server configuration (OPTIONAL - only for new Ubuntu servers)
 vault_ubuntu_ansible_user: "admin"
