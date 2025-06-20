@@ -1,7 +1,7 @@
 # oaAnsible - Advanced Multi-Platform Orchestration System
 
 A production-ready, server-integrated Ansible orchestration system for OrangeAd devices. Part of the `oaPangaea` monorepo, providing comprehensive device
-management across macOS, Ubuntu, and OrangePi platforms with advanced automation capabilities.
+management across macOS and Ubuntu platforms with advanced automation capabilities.
 
 ## 🚀 Overview
 
@@ -10,7 +10,7 @@ component frameworks, and seamless integration capabilities.
 
 ### Key Features
 
-- **🌐 Multi-Platform Support**: macOS, Ubuntu, and OrangePi devices
+- **🌐 Multi-Platform Support**: macOS and Ubuntu devices
 - **🧠 Intelligent Component Framework**: Automatic dependency resolution and conflict detection
 - **🔄 Advanced Execution Modes**: Dry-run, check, diff, and force modes with safety checks
 - **⚡ Server Integration**: REST API for remote execution and job management
@@ -71,7 +71,7 @@ oaAnsible/
 # Deploy full stack to staging
 ./scripts/run-staging -l hostname
 
-# Deploy specific components  
+# Deploy specific components
 ./scripts/run-component staging macos-api tracker -l hostname
 
 # Deploy to all production devices
@@ -92,11 +92,17 @@ Deploy specific components with automatic dependency resolution:
 # Deploy tracking system with full dependency chain
 ./scripts/run-component staging macos-tracker
 
+# Deploy video player for digital signage
+./scripts/run-component staging player
+
 # Dry-run mode to preview changes
 ./scripts/run-component staging macos-api --dry-run
 
 # Multiple components with conflict detection
 ./scripts/run-component staging macos-api network-stack --check
+
+# Deploy Spectra project stack (API + Tracker + Player)
+./scripts/run-component staging macos-api macos-tracker player
 ```
 
 ### 2. Server-Side Execution
@@ -130,6 +136,7 @@ ansible-playbook playbooks/universal.yml -i inventory/production/hosts.yml \
 
 - `macos-api` - Device monitoring and management API
 - `macos-tracker` - AI tracking and analysis system
+- `player` - Flexible video player for digital signage and content display
 - `alpr` - License plate recognition (conflicts with tracker)
 
 **Universal Components:**
@@ -142,10 +149,6 @@ ansible-playbook playbooks/universal.yml -i inventory/production/hosts.yml \
 **Ubuntu Platform:**
 
 - `ubuntu-docker` - Docker environment setup
-
-**OrangePi Platform:**
-
-- `opi-player` - Media player and display service
 
 ### Intelligent Features
 
@@ -268,13 +271,6 @@ Show detailed differences for all changes:
 - **Network**: Tailscale, firewall (ufw)
 - **Management**: SystemD services
 
-### OrangePi (Embedded)
-
-- **Services**: opi-setup integration, media player
-- **Runtimes**: Python, embedded-specific packages
-- **Network**: Tailscale, GPIO access
-- **Management**: SystemD services, hardware optimization
-
 ## 📊 Monitoring & Observability
 
 ### Job Management
@@ -328,22 +324,6 @@ export OAANSIBLE_SECRET_KEY="your-secure-secret-key"
 export OADASHBOARD_API_URL="http://localhost:8000"
 export OADASHBOARD_API_KEY="your-dashboard-api-key"
 ```
-
-## 📚 Documentation
-
-### Quick Reference
-
-- [Component Guide](docs/components.md) - Available components and dependencies
-- [Server API](docs/server-api.md) - REST API documentation and examples
-- [Execution Modes](docs/execution-modes.md) - Advanced deployment options
-- [Integration Guide](docs/integration.md) - oaDashboard integration details
-
-### Advanced Topics
-
-- [Platform Support](docs/platforms.md) - Platform-specific capabilities
-- [Performance Tuning](docs/performance.md) - Optimization and scaling
-- [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
-- [Development](docs/development.md) - Contributing and extending
 
 ## 🛠️ Development & Testing
 
@@ -440,11 +420,11 @@ oaAnsible follows a comprehensive development framework:
 
 ### Essential Guides
 
-| Guide | Description | Use Case |
-|-------|-------------|----------|
+| Guide                                          | Description                                       | Use Case                           |
+| ---------------------------------------------- | ------------------------------------------------- | ---------------------------------- |
 | **[Script Usage Guide](docs/SCRIPT_USAGE.md)** | Complete examples for all platforms and scenarios | New users, comprehensive reference |
-| **[Quick Reference](docs/QUICK_REFERENCE.md)** | Common commands and quick examples | Daily operations, quick lookup |
-| **[WiFi Setup Guide](docs/WIFI_SETUP.md)** | Complete WiFi configuration walkthrough | Network configuration |
+| **[Quick Reference](docs/QUICK_REFERENCE.md)** | Common commands and quick examples                | Daily operations, quick lookup     |
+| **[WiFi Setup Guide](docs/WIFI_SETUP.md)**     | Complete WiFi configuration walkthrough           | Network configuration              |
 
 ### Additional Documentation
 
@@ -461,7 +441,7 @@ oaAnsible follows a comprehensive development framework:
 # 📖 Complete script examples
 cat docs/SCRIPT_USAGE.md
 
-# ⚡ Quick command reference  
+# ⚡ Quick command reference
 cat docs/QUICK_REFERENCE.md
 
 # 📡 WiFi configuration guide

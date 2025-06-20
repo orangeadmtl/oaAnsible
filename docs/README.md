@@ -49,6 +49,7 @@ Complete documentation for the oaAnsible multi-platform orchestration system.
 - Full stack: [Script Usage Guide](SCRIPT_USAGE.md#full-macos-stack)
 - API only: [Script Usage Guide](SCRIPT_USAGE.md#macos-api-only)
 - Tracker: [Script Usage Guide](SCRIPT_USAGE.md#tracker-only)
+- Player: [Component Framework](components.md#player)
 
 **Ubuntu Server:**
 
@@ -87,6 +88,9 @@ Complete documentation for the oaAnsible multi-platform orchestration system.
 
 # Deploy component stack
 ./scripts/run-component staging macos-api tracker -l hostname
+
+# Deploy player component for digital signage
+./scripts/run-component staging player -l hostname
 
 # Verify component
 ./scripts/run-verify staging macos_api -l hostname
