@@ -17,7 +17,6 @@ oa_environment:
   allow_experimental: true
   allow_server_optimizations: true
   allow_destructive_operations: true
-  allow_tailscale_changes: true
   deploy_alpr_service: true
 
 # System packages

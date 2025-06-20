@@ -7,7 +7,7 @@ node:
 
 # Feature toggles
 configure:
-  tailscale: true
+  tailscale: false
   pyenv: true
   node: true
 
@@ -17,7 +17,6 @@ oa_environment:
   allow_experimental: false
   allow_server_optimizations: false
   allow_destructive_operations: false
-  allow_tailscale_changes: false # Extra careful - require explicit override
   deploy_alpr_service: false
 
 # System packages
