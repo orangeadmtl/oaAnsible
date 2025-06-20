@@ -1,0 +1,126 @@
+---
+- name: Install Python video player dependencies
+  block:
+    - name: Remove VLC if present (switching to Python player)
+      ansible.builtin.debug:
+        msg: "Switching from VLC to lightweight Python-based video player"
+
+    - name: Unlink VLC command line symlink if exists
+      ansible.builtin.file:
+        path: "/usr/local/bin/vlc"
+        state: absent
+      become: true
+      ignore_errors: true
+
+    - name: Check Python3 availability
+      ansible.builtin.command: python3 --version
+      register: python3_check
+      failed_when: false
+      changed_when: false
+
+    - name: Check PyObjC availability for screen detection
+      ansible.builtin.shell: |
+        python3 -c "import Cocoa; print('PyObjC available')" 2>/dev/null || echo "PyObjC not available"
+      register: pyobjc_check
+      changed_when: false
+      failed_when: false
+
+    - name: Check if uv is installed
+      ansible.builtin.command: uv --version
+      register: uv_check
+      failed_when: false
+      changed_when: false
+
+    - name: Install uv if not available
+      ansible.builtin.shell: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+      when: uv_check.rc != 0
+      register: uv_install_result
+      changed_when: true
+
+    - name: Add uv to PATH for current session
+      ansible.builtin.set_fact:
+        uv_binary: "{{ ansible_user_dir }}/.local/bin/uv"
+      when: uv_check.rc != 0
+
+    - name: Create virtual environment for Python player with dependencies using uv
+      ansible.builtin.shell:
+        cmd: |
+          export PATH="{{ ansible_user_dir }}/.local/bin:$PATH"
+          cd "{{ player.video_source }}"
+          
+          # Create virtual environment using uv if it doesn't exist
+          if [ ! -d ".venv" ]; then
+            echo "Creating virtual environment with uv..."
+            uv venv .venv
+          fi
+          
+          # Install PyObjC for screen detection using uv
+          echo "Installing PyObjC with uv..."
+          uv pip install --python .venv/bin/python PyObjC-core PyObjC-framework-Cocoa
+          
+          # Install pygame for lightweight video playback using uv
+          echo "Installing pygame with uv..."
+          uv pip install --python .venv/bin/python pygame
+          
+          # Install additional video libraries for better format support
+          echo "Installing additional video libraries..."
+          uv pip install --python .venv/bin/python opencv-python-headless imageio[ffmpeg]
+          
+          # Verify installations in venv
+          .venv/bin/python -c 'import Cocoa; print("PyObjC successfully installed in venv via uv")'
+          .venv/bin/python -c 'import pygame; print("pygame successfully installed in venv via uv")'
+          .venv/bin/python -c 'import cv2; print("OpenCV successfully installed in venv via uv")'
+      when: python3_check.rc == 0
+      register: venv_setup_result
+      changed_when: true
+
+    - name: Log PyObjC installation status
+      ansible.builtin.debug:
+        msg: |
+          Python/PyObjC Status:
+          - Python3: {{ 'Available' if python3_check.rc == 0 else 'Not Available' }}
+          - PyObjC: {{ 'Available' if 'PyObjC available' in pyobjc_check.stdout else 'Not Available' }}
+          - Note: PyObjC enables exact screen coordinate detection (oabrowser-style)
+          - Fallback: system_profiler will be used if PyObjC is unavailable
+
+    - name: Check display configuration
+      ansible.builtin.shell: |
+        # Try multiple methods to detect displays
+        if command -v system_profiler >/dev/null 2>&1; then
+          display_count=$(system_profiler SPDisplaysDataType 2>/dev/null | grep -c "Resolution:" || echo "0")
+          if [ "$display_count" -eq 0 ]; then
+            # Fallback: try counting displays via system_profiler differently
+            display_count=$(system_profiler SPDisplaysDataType 2>/dev/null | grep -c "Display Type:" || echo "1")
+          fi
+        else
+          display_count="1"
+        fi
+        echo "$display_count"
+      register: display_count
+      changed_when: false
+      failed_when: false
+
+    - name: Log display configuration
+      ansible.builtin.debug:
+        msg: "Found {{ display_count.stdout }} display(s) configured"
+
+    - name: Warn if dual screen requested but not available
+      ansible.builtin.debug:
+        msg: "WARNING: Dual screen requested but only {{ display_count.stdout }} display(s) detected"
+      when:
+        - player.dual_screen | default(false)
+        - display_count.stdout | int < 2
+
+    - name: Check Spectra dual-screen requirements
+      ansible.builtin.debug:
+        msg: "INFO: Spectra project requires dual-screen setup. Detected {{ display_count.stdout }} display(s)."
+      when:
+        - oa_environment.project | default('default') == 'spectra'
+
+    - name: Fail if Spectra project lacks dual displays
+      ansible.builtin.fail:
+        msg: "ERROR: Spectra project requires exactly 2 displays, but {{ display_count.stdout }} detected. Please connect a second display."
+      when:
+        - oa_environment.project | default('default') == 'spectra'
+        - display_count.stdout | int != 2

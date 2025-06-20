@@ -1,0 +1,47 @@
+---
+- name: Create video player directory structure
+  block:
+    - name: Create main video directory
+      ansible.builtin.file:
+        path: "{{ player.video_source }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0755"
+
+    - name: Create video logs directory
+      ansible.builtin.file:
+        path: "{{ player.video_source }}/logs"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0755"
+
+    - name: Create video scripts directory
+      ansible.builtin.file:
+        path: "{{ player.video_source }}/scripts"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0755"
+
+    - name: Create video backup directory
+      ansible.builtin.file:
+        path: "{{ player.video_source }}/backups"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0755"
+
+    - name: Check if required video files exist
+      ansible.builtin.stat:
+        path: "{{ player.video_source }}/{{ item.name }}"
+      register: video_files_check
+      loop: "{{ player.videos | selectattr('enabled', 'equalto', true) | list }}"
+      when: player.videos is defined
+
+    - name: Create Jazz video file if none exist
+      ansible.builtin.include_tasks: create_sample_videos.yml
+      when: 
+        - player.videos is defined
+        - video_files_check.results | selectattr('stat.exists', 'equalto', true) | list | length == 0

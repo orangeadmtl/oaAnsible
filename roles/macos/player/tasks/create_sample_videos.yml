@@ -1,0 +1,15 @@
+---
+- name: Copy Jazz video file
+  block:
+    - name: Copy Jazz_video.webm to video directory
+      ansible.builtin.copy:
+        src: Jazz_video.webm
+        dest: "{{ player.video_source }}/Jazz_video.webm"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0644"
+      become: true
+
+    - name: Log Jazz video deployment
+      ansible.builtin.debug:
+        msg: "Deployed Jazz_video.webm to {{ player.video_source }}"

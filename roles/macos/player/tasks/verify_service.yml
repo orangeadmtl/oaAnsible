@@ -1,0 +1,160 @@
+---
+- name: Verify player service is running
+  block:
+    - name: Get current configuration
+      ansible.builtin.set_fact:
+        current_config: "{{ player }}"
+        current_project: "{{ inventory_hostname }}"
+        effective_dual_screen: "{{ player.dual_screen | default(false) }}"
+
+    - name: Check if player LaunchAgent is loaded
+      ansible.builtin.shell: |
+        launchctl list | grep "{{ player.service_name }}" || echo "not loaded"
+      register: service_status
+      changed_when: false
+      failed_when: false
+
+    - name: Check for running Python player processes
+      ansible.builtin.shell: |
+        ps aux | grep -v grep | grep -c "oaplayer.py" || echo "0"
+      register: player_count
+      changed_when: false
+      failed_when: false
+
+    - name: Get all window positions using AppleScript (more comprehensive approach)
+      ansible.builtin.shell: |
+        osascript -e '
+        tell application "System Events"
+          -- Get all processes
+          set allProcesses to every process
+          set allWindows to ""
+          
+          -- First, list all processes with their windows for debugging
+          set processInfo to "All processes:\n"
+          repeat with p in allProcesses
+            try
+              set pName to name of p
+              set pWindows to count of (windows of p)
+              set processInfo to processInfo & "- " & pName & ": " & pWindows & " window(s)\n"
+            end try
+          end repeat
+          log processInfo
+          
+          -- Look for Python process specifically
+          set pythonProcess to first process whose name is "Python" or name contains "python"
+          set pythonWindows to windows of pythonProcess
+          set windowCount to count of pythonWindows
+          set windowInfo to "Found " & windowCount & " Python windows:\n"
+          
+          -- Get all windows from the Python process
+          repeat with w in pythonWindows
+            try
+              set winName to name of w
+              set winPos to position of w
+              set winSize to size of w
+              set windowInfo to windowInfo & "Window: " & winName & ", Position: " & winPos & ", Size: " & winSize & "\n"
+            end try
+          end repeat
+          
+          -- Also look for any window with OrangeAd in the name regardless of process
+          set orangeWindows to ""
+          repeat with p in allProcesses
+            try
+              repeat with w in windows of p
+                if name of w contains "OrangeAd" then
+                  set procName to name of p
+                  set winName to name of w
+                  set winPos to position of w
+                  set winSize to size of w
+                  set orangeWindows to orangeWindows & "Process: " & procName & ", Window: " & winName & ", Position: " & winPos & ", Size: " & winSize & "\n"
+                end if
+              end repeat
+            end try
+          end repeat
+          
+          return "Python Windows:\n" & windowInfo & "\nOrangeAd Windows:\n" & orangeWindows
+        end tell
+        ' 2>/dev/null || echo "No player windows found or AppleScript error"
+      register: player_window_positions
+      changed_when: false
+      failed_when: false
+      
+    - name: Get detailed process information for Python player
+      ansible.builtin.shell: |
+        ps -ef | grep -v grep | grep "oaplayer.py" || echo "No player processes found"
+      register: player_process_info
+      changed_when: false
+      failed_when: false
+
+    - name: Check for log files
+      ansible.builtin.find:
+        paths: "{{ player.video_source }}/logs"
+        patterns: "player*.log"
+      register: log_files
+
+    - name: Verify log files are being created
+      ansible.builtin.stat:
+        path: "{{ player.video_source }}/logs/player.log"
+      register: log_file_check
+
+    - name: Check video files exist
+      ansible.builtin.stat:
+        path: "{{ player.video_source }}/{{ video_item.name }}"
+      loop: "{{ current_config.videos | default(player.videos) }}"
+      loop_control:
+        loop_var: video_item
+      register: video_files_check
+
+    - name: Display verification results
+      ansible.builtin.debug:
+        msg: |
+          Video Player Service Verification (Project: {{ current_project }}):
+          - LaunchAgent Status: {{ service_status.stdout if service_status.stdout != 'not loaded' else 'Not loaded' }}
+          - Running Python player processes: {{ player_count.stdout }}
+          - Expected processes: {{ '1' }}  # Now using a single Python process for all displays
+          - Log files found: {{ log_files.files | length }}
+          - Main log file: {{ 'Created' if log_file_check.stat.exists else 'Missing' }}
+          - Dual screen mode: {{ effective_dual_screen }}
+          - Service: {{ player.service_name }}
+          
+          Process Details:
+          {{ player_process_info.stdout }}
+
+    - name: Display player window positions
+      ansible.builtin.debug:
+        msg: |
+          Player Window Positions:
+          {{ player_window_positions.stdout if player_window_positions.stdout else 'No player windows detected or AppleScript failed' }}
+
+    - name: Display video file status
+      ansible.builtin.debug:
+        msg: |
+          Video Files Status:
+          {% for result in video_files_check.results %}
+          - {{ result.video_item.name }} (display {{ result.video_item.display | default(1) }}): {{ 'Found' if result.stat.exists else 'MISSING' }}
+          {% endfor %}
+
+    - name: Read recent log entries
+      ansible.builtin.shell: |
+        tail -n 20 "{{ player.video_source }}/logs/player.log" 2>/dev/null || echo "No log entries yet"
+      register: recent_logs
+      changed_when: false
+
+    - name: Display recent log entries
+      ansible.builtin.debug:
+        msg: |
+          Recent Log Entries:
+          {{ recent_logs.stdout }}
+
+    - name: Fail if player is not running correctly
+      ansible.builtin.fail:
+        msg: "Player service is not running correctly. Check logs at {{ player.video_source }}/logs/player.log"
+      when: service_status.stdout == 'not loaded' or player_count.stdout|int < 1
+
+    - name: Display troubleshooting notes
+      ansible.builtin.debug:
+        msg: |
+          Troubleshooting Notes:
+          - For Spectra project, ensure both video files exist and 2 displays are connected
+          - Service can be restarted with: launchctl kickstart -k gui/$(id -u)/{{ player.service_name }}
+          - Check logs at: {{ player.video_source }}/logs/player.log

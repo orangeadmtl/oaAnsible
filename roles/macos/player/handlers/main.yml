@@ -1,0 +1,36 @@
+---
+- name: restart player
+  ansible.builtin.shell: |
+    # Stop the service
+    launchctl stop {{ player.service_name }} 2>/dev/null || true
+    
+    # Wait briefly for service to stop
+    sleep 3
+    
+    # Kill any remaining player processes
+    pkill -f "python.*oaplayer.py" 2>/dev/null || true
+    
+    # Start the service
+    launchctl start {{ player.service_name }}
+  become: false
+  failed_when: false
+
+- name: reload player
+  ansible.builtin.shell: |
+    launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist" 2>/dev/null || true
+    launchctl load "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist"
+  become: false
+  failed_when: false
+
+- name: stop player
+  ansible.builtin.shell: |
+    launchctl stop {{ player.service_name }} 2>/dev/null || true
+    pkill -f "python.*oaplayer.py" 2>/dev/null || true
+  become: false
+  failed_when: false
+
+- name: start player
+  ansible.builtin.shell: |
+    launchctl start {{ player.service_name }}
+  become: false
+  failed_when: false

@@ -1,0 +1,197 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# Health check script for OrangeAd Video Player
+# Generated for: {{ inventory_hostname }}
+# Project: {{ project_name | default('default') }}
+
+# Configuration
+SERVICE_NAME="{{ player.service_name }}"
+LOG_FILE="{{ player.log_file }}"
+PLAYER_BINARY="{{ player.player_binary }}"
+VIDEO_SOURCE="{{ player.video_source }}"
+MAX_RESTART_ATTEMPTS={{ player.restart_attempts | default(3) }}
+RESTART_DELAY={{ player.restart_delay | default(10) }}
+HEALTH_CHECK_LOG="$(dirname "$LOG_FILE")/health_check.log"
+
+# Ensure log directory exists
+mkdir -p "$(dirname "$LOG_FILE")"
+mkdir -p "$(dirname "$HEALTH_CHECK_LOG")"
+
+# Logging function - only to file to avoid stdout contamination
+log_message() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$HEALTH_CHECK_LOG"
+}
+
+# Check if Python video player processes are running
+check_player_process() {
+    # Use a single, efficient process check to avoid resource exhaustion
+    local python_count
+    python_count=$(pgrep -f "python.*video_player" 2>/dev/null | wc -l | tr -d ' ')
+    
+    log_message "INFO: Found $python_count Python video player process(es)"
+    
+    # Consider healthy if any Python video player processes are running
+    if [ "$python_count" -gt 0 ]; then
+        log_message "INFO: Python video player processes are running"
+        return 0
+    else
+        # Give Python player time to start up - single recheck only
+        log_message "INFO: No Python video player processes found, waiting 10 seconds..."
+        sleep 10
+        
+        # Single recheck after waiting
+        python_count=$(pgrep -f "python.*video_player" 2>/dev/null | wc -l | tr -d ' ')
+        log_message "INFO: After waiting, found $python_count Python video player process(es)"
+        
+        if [ "$python_count" -gt 0 ]; then
+            log_message "INFO: Python video player processes found after waiting"
+            return 0
+        else
+            log_message "WARNING: No Python video player processes found after grace period"
+            return 1
+        fi
+    fi
+}
+
+# Check LaunchAgent service status
+check_service_status() {
+    local service_status
+    service_status=$(launchctl list | grep "$SERVICE_NAME" 2>/dev/null)
+    
+    if [ -n "$service_status" ]; then
+        log_message "INFO: LaunchAgent service '$SERVICE_NAME' is loaded"
+        return 0
+    else
+        log_message "ERROR: LaunchAgent service '$SERVICE_NAME' is not loaded"
+        return 1
+    fi
+}
+
+# Check if video files exist
+check_video_files() {
+    if [ ! -d "$VIDEO_SOURCE" ]; then
+        log_message "ERROR: Video source directory '$VIDEO_SOURCE' does not exist"
+        return 1
+    fi
+    
+    local video_count
+    video_count=$(find "$VIDEO_SOURCE" -type f \( -name "*.webm" -o -name "*.mp4" -o -name "*.mov" -o -name "*.avi" -o -name "*.mkv" \) 2>/dev/null | wc -l)
+    
+    if [ "$video_count" -eq 0 ]; then
+        log_message "ERROR: No video files found in '$VIDEO_SOURCE'"
+        return 1
+    else
+        log_message "INFO: Found $video_count video file(s) in source directory"
+        return 0
+    fi
+}
+
+# Restart player service
+restart_player_service() {
+    log_message "INFO: Attempting to restart player service '$SERVICE_NAME'"
+    
+    # Stop the service gracefully
+    launchctl stop "$SERVICE_NAME" 2>/dev/null || true
+    sleep 3
+    
+    # Kill any remaining Python video player processes
+    pkill -f "python.*video_player" 2>/dev/null || true
+    pkill -f "python_video_player.py" 2>/dev/null || true
+    sleep 2
+    
+    # Start the service
+    if launchctl start "$SERVICE_NAME" 2>/dev/null; then
+        log_message "INFO: Successfully restarted player service"
+        return 0
+    else
+        log_message "ERROR: Failed to restart player service"
+        return 1
+    fi
+}
+
+# Perform log rotation if log file is too large (> 10MB)
+rotate_logs() {
+    if [ -f "$LOG_FILE" ]; then
+        local log_size
+        log_size=$(stat -f%z "$LOG_FILE" 2>/dev/null || echo 0)
+        local max_size=$((10 * 1024 * 1024))  # 10MB
+        
+        if [ "$log_size" -gt "$max_size" ]; then
+            log_message "INFO: Rotating log file (size: $log_size bytes)"
+            mv "$LOG_FILE" "${LOG_FILE}.old"
+            touch "$LOG_FILE"
+        fi
+    fi
+    
+    # Also rotate health check log
+    if [ -f "$HEALTH_CHECK_LOG" ]; then
+        local health_log_size
+        health_log_size=$(stat -f%z "$HEALTH_CHECK_LOG" 2>/dev/null || echo 0)
+        local max_size=$((5 * 1024 * 1024))  # 5MB
+        
+        if [ "$health_log_size" -gt "$max_size" ]; then
+            mv "$HEALTH_CHECK_LOG" "${HEALTH_CHECK_LOG}.old"
+            touch "$HEALTH_CHECK_LOG"
+        fi
+    fi
+}
+
+# Main health check function
+main() {
+    log_message "INFO: Starting health check for OrangeAd Video Player"
+    
+    # Rotate logs if needed
+    rotate_logs
+    
+    # Check if video files exist
+    if ! check_video_files; then
+        log_message "CRITICAL: Video files check failed - cannot proceed"
+        exit 1
+    fi
+    
+    # Check service status
+    local service_ok=true
+    if ! check_service_status; then
+        service_ok=false
+    fi
+    
+    # Check player process
+    local process_ok=true
+    if ! check_player_process; then
+        process_ok=false
+    fi
+    
+    # If either check failed, attempt restart
+    if [ "$service_ok" = false ] || [ "$process_ok" = false ]; then
+        log_message "WARNING: Health check failed - attempting service restart"
+        
+        local attempt=1
+        while [ $attempt -le $MAX_RESTART_ATTEMPTS ]; do
+            log_message "INFO: Restart attempt $attempt of $MAX_RESTART_ATTEMPTS"
+            
+            if restart_player_service; then
+                # Wait and verify the restart worked
+                sleep $RESTART_DELAY
+                if check_player_process && check_service_status; then
+                    log_message "SUCCESS: Player service restarted successfully"
+                    exit 0
+                fi
+            fi
+            
+            attempt=$((attempt + 1))
+            if [ $attempt -le $MAX_RESTART_ATTEMPTS ]; then
+                log_message "WARNING: Restart attempt $((attempt - 1)) failed, waiting ${RESTART_DELAY}s before next attempt"
+                sleep $RESTART_DELAY
+            fi
+        done
+        
+        log_message "CRITICAL: All restart attempts failed - player service is unhealthy"
+        exit 1
+    else
+        log_message "SUCCESS: Player service is healthy"
+        exit 0
+    fi
+}
+
+# Run main function
+main "$@"

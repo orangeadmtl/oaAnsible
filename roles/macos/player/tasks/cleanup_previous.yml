@@ -1,0 +1,128 @@
+---
+- name: Comprehensive cleanup of previous player deployment
+  block:
+    - name: Stop and unload existing player LaunchAgent
+      ansible.builtin.shell: |
+        launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist" 2>/dev/null || true
+        launchctl stop "{{ player.service_name }}" 2>/dev/null || true
+      become: false
+      changed_when: false
+      failed_when: false
+
+    - name: Stop and unload existing health monitoring LaunchAgent
+      ansible.builtin.shell: |
+        launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.health.plist" 2>/dev/null || true
+        launchctl stop "{{ player.service_name }}.health" 2>/dev/null || true
+      become: false
+      changed_when: false
+      failed_when: false
+
+    - name: Kill all existing player processes
+      ansible.builtin.shell: |
+        # Kill any pygame/python player processes
+        pkill -f "python.*oaplayer.*screen=1" 2>/dev/null || true
+        pkill -f "python.*oaplayer.*screen=2" 2>/dev/null || true
+        pkill -f "python.*{{ player.video_source }}/oaplayer.py" 2>/dev/null || true
+        
+        # Wait for processes to terminate
+        sleep 2
+        
+        # Force kill if any remain
+        pkill -9 -f "python.*oaplayer" 2>/dev/null || true
+        pkill -9 -f "python.*{{ player.video_source }}/oaplayer.py" 2>/dev/null || true
+      become: false
+      changed_when: false
+      failed_when: false
+
+    - name: Remove legacy files and state files
+      ansible.builtin.shell: |
+        # Remove any legacy PID files
+        rm -f "{{ player.video_source }}"/*.pid 2>/dev/null || true
+        rm -f "{{ player.video_source }}"/*_player.pid 2>/dev/null || true
+      become: false
+      changed_when: false
+      failed_when: false
+      
+    - name: Create logs directory
+      ansible.builtin.file:
+        path: "{{ player.video_source }}/logs"
+        state: directory
+        mode: '0755'
+      become: false
+      
+    - name: Create logs backup directory
+      ansible.builtin.file:
+        path: "{{ player.video_source }}/logs/backup"
+        state: directory
+        mode: '0755'
+      become: false
+
+    - name: Backup existing log files
+      ansible.builtin.shell: |
+        # Get current timestamp for backup
+        TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
+        
+        # Backup existing log files if they exist and have content
+        if [ -s "{{ player.video_source }}/logs/player.log" ]; then
+          cp "{{ player.video_source }}/logs/player.log" "{{ player.video_source }}/logs/backup/player_${TIMESTAMP}.log"
+        fi
+        
+        # Backup other log files if they exist
+        for logfile in "{{ player.video_source }}/logs/player.stdout.log" "{{ player.video_source }}/logs/player.stderr.log" "{{ player.video_source }}/logs/health_check.log" "{{ player.video_source }}/logs/health_check_error.log"; do
+          if [ -s "$logfile" ]; then
+            BASENAME=$(basename "$logfile")
+            cp "$logfile" "{{ player.video_source }}/logs/backup/${BASENAME%.*}_${TIMESTAMP}.log"
+          fi
+        done
+      args:
+        executable: /bin/bash
+      become: false
+      changed_when: true
+
+    - name: Clear main log file
+      ansible.builtin.shell: |
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Log file cleared by Ansible deployment" > "{{ player.video_source }}/logs/player.log"
+      args:
+        executable: /bin/bash
+      become: false
+      changed_when: true
+
+    - name: Clean up old backup logs (keep last 10 days)
+      ansible.builtin.shell: |
+        find "{{ player.video_source }}/logs/backup/" -name "*.log" -type f -mtime +10 -delete 2>/dev/null || true
+      args:
+        executable: /bin/bash
+      become: false
+      changed_when: false
+
+    - name: Remove old LaunchAgent plist files
+      ansible.builtin.shell: |
+        rm -f "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist.old" 2>/dev/null || true
+        rm -f "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.health.plist.old" 2>/dev/null || true
+      become: false
+      changed_when: false
+      failed_when: false
+
+    - name: Wait for cleanup to complete
+      ansible.builtin.pause:
+        seconds: 3
+
+    - name: Verify cleanup completed
+      ansible.builtin.shell: |
+        echo "=== Cleanup Verification ==="
+        echo "VLC processes: $(pgrep -f vlc | wc -l)"
+        echo "LaunchAgent status: $(launchctl list | grep {{ player.service_name }} || echo 'Not loaded')"
+        echo "PID files: $(find {{ player.video_source }} -name '*.pid' 2>/dev/null | wc -l)"
+        echo "==========================="
+      register: cleanup_verification
+      changed_when: false
+      failed_when: false
+
+    - name: Display cleanup results
+      ansible.builtin.debug:
+        msg: "{{ cleanup_verification.stdout }}"
+
+  rescue:
+    - name: Handle cleanup errors
+      ansible.builtin.debug:
+        msg: "Some cleanup operations failed, but continuing with deployment"

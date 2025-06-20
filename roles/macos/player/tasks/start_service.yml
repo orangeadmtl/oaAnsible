@@ -1,0 +1,24 @@
+---
+- name: Start video player service
+  block:
+    - name: Start video player LaunchAgent
+      ansible.builtin.shell: |
+        launchctl start {{ player.service_name }}
+      become: false
+      changed_when: true
+
+    - name: Wait for service to start
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: Check if video player service is loaded
+      ansible.builtin.shell: |
+        launchctl list | grep {{ player.service_name }}
+      register: service_status
+      become: false
+      failed_when: false
+      changed_when: false
+
+    - name: Log service status
+      ansible.builtin.debug:
+        msg: "Video player service status: {{ 'Running' if service_status.rc == 0 else 'Not running' }}"

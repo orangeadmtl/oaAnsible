@@ -1,0 +1,97 @@
+---
+- name: Setup health monitoring for video player
+  block:
+    - name: Ensure scripts directory exists
+      ansible.builtin.file:
+        path: "{{ player.video_source }}/scripts"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0755"
+
+    - name: Create health check script
+      ansible.builtin.template:
+        src: health_check.sh.j2
+        dest: "{{ player.video_source }}/scripts/health_check.sh"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0755"
+        backup: true
+      register: health_script_result
+
+    - name: Validate health check script syntax
+      ansible.builtin.shell: |
+        bash -n "{{ player.video_source }}/scripts/health_check.sh"
+      become: false
+      changed_when: false
+      failed_when: false
+      register: script_validation
+
+    - name: Report script validation issues
+      ansible.builtin.debug:
+        msg: "WARNING: Health check script has syntax issues - {{ script_validation.stderr }}"
+      when: script_validation.rc != 0
+
+    - name: Create health monitoring LaunchAgent
+      ansible.builtin.template:
+        src: com.orangead.videoplayer.health.plist.j2
+        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.health.plist"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0644"
+        backup: true
+      register: health_plist_result
+
+    - name: Validate LaunchAgent plist syntax
+      ansible.builtin.shell: |
+        plutil -lint "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.health.plist"
+      become: false
+      changed_when: false
+      failed_when: false
+      register: plist_validation
+
+    - name: Report plist validation issues  
+      ansible.builtin.debug:
+        msg: "WARNING: Health LaunchAgent plist has syntax issues - {{ plist_validation.stderr }}"
+      when: plist_validation.rc != 0
+
+    - name: Unload existing health monitoring LaunchAgent
+      ansible.builtin.shell: |
+        launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.health.plist" 2>/dev/null || true
+      become: false
+      changed_when: false
+      failed_when: false
+
+    - name: Load health monitoring LaunchAgent
+      ansible.builtin.shell: |
+        launchctl load "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.health.plist"
+      become: false
+      register: load_result
+      failed_when: load_result.rc != 0
+      changed_when: true
+
+    - name: Verify health monitoring service is loaded
+      ansible.builtin.shell: |
+        launchctl list | grep "{{ player.service_name }}.health"
+      become: false
+      changed_when: false
+      register: health_service_status
+      failed_when: false
+
+    - name: Report health monitoring service status
+      ansible.builtin.debug:
+        msg: "Health monitoring service status: {{ 'LOADED' if health_service_status.rc == 0 else 'NOT LOADED' }}"
+
+  rescue:
+    - name: Handle health monitoring setup failure
+      ansible.builtin.debug:
+        msg: "Health monitoring setup failed - continuing without health checks"
+      
+    - name: Log health monitoring failure
+      ansible.builtin.lineinfile:
+        path: "{{ player.log_file | dirname }}/setup_errors.log"
+        line: "[{{ ansible_date_time.iso8601 }}] Health monitoring setup failed on {{ inventory_hostname }}"
+        create: true
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0644"

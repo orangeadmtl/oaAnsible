@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{ player.service_name }}.health</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>{{ player.video_source }}/scripts/health_check.sh</string>
+    </array>
+    
+    <key>StartInterval</key>
+    <integer>{{ player.health_check_interval | default(300) }}</integer>
+    
+    <key>RunAtLoad</key>
+    <{{ player.service_run_at_load | default(true) | lower }}/>
+    
+    <key>KeepAlive</key>
+    <{{ player.service_keep_alive | default(false) | lower }}/>
+    
+    <key>StandardOutPath</key>
+    <string>{{ player.log_file | dirname }}/health_check.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>{{ player.log_file | dirname }}/health_check_error.log</string>
+    
+    <key>UserName</key>
+    <string>{{ ansible_user }}</string>
+    
+    <key>WorkingDirectory</key>
+    <string>{{ player.video_source }}</string>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>{{ ansible_user_dir }}</string>
+        <key>USER</key>
+        <string>{{ ansible_user }}</string>
+    </dict>
+    
+    <!-- Process management -->
+    <key>ProcessType</key>
+    <string>Background</string>
+    
+    <key>AbandonProcessGroup</key>
+    <true/>
+    
+    <!-- Logging configuration -->
+    <key>LaunchOnlyOnce</key>
+    <false/>
+    
+    <!-- Resource limits -->
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>1024</integer>
+        <key>NumberOfProcesses</key>
+        <integer>100</integer>
+    </dict>
+    
+    <!-- Throttling to prevent excessive restarts -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    
+</dict>
+</plist>

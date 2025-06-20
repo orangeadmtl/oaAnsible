@@ -1,0 +1,82 @@
+---
+- name: macOS Player deployment
+  when: player.enabled | default(false)
+  tags: ["player"]
+  block:
+    - name: Merge player defaults with inventory overrides
+      ansible.builtin.set_fact:
+        player: "{{ player_defaults | combine(player | default({}), recursive=True) }}"
+      vars:
+        player_defaults:
+          enabled: false
+          video_source: "{{ ansible_user_dir }}/orangead/videos"
+          loop_mode: true
+          dual_screen: false
+          health_check: true
+          restart_on_failure: true
+          volume: 0.0
+          autostart: true
+          system_volume_muted: true
+          hide_cursor: true
+          black_background: true
+          disable_screensaver: true
+          video_selection_strategy: "single"
+          videos:
+            - name: "Jazz_video.webm"
+              display: 1
+              enabled: true
+              loop: true
+              volume: 0.0
+          screen_1_display: 1
+          screen_2_display: 2
+          fullscreen: true
+          player_binary: "/usr/local/bin/vlc"
+          log_level: "info"
+          log_file: "{{ ansible_user_dir }}/orangead/logs/player.log"
+          service_name: "com.orangead.player"
+          service_user: "{{ ansible_user }}"
+          service_keep_alive: true
+          service_run_at_load: true
+          health_check_interval: 300
+          restart_attempts: 3
+          restart_delay: 10
+      tags: ["player", "config"]
+
+    - name: Clean up previous player deployment
+      ansible.builtin.include_tasks: cleanup_previous.yml
+      tags: ["player", "cleanup"]
+      
+    - name: Clean up old unused player files
+      ansible.builtin.include_tasks: cleanup_old_files.yml
+      tags: ["player", "cleanup"]
+      
+    - name: Ensure player dependencies are installed
+      ansible.builtin.include_tasks: install_dependencies.yml
+      tags: ["player", "dependencies"]
+
+    - name: Create player directory structure
+      ansible.builtin.include_tasks: create_directories.yml
+      tags: ["player", "setup"]
+
+    - name: Deploy video files
+      ansible.builtin.include_tasks: manage_videos.yml
+      tags: ["player", "videos"]
+
+    - name: Configure player service
+      ansible.builtin.include_tasks: configure_service.yml
+      tags: ["player", "config"]
+
+    - name: Setup health monitoring
+      ansible.builtin.include_tasks: health_monitoring.yml
+      when: 
+        - player.health_check | default(true)
+        - not (oa_environment.name | default('') | regex_search('preprod|staging'))  # Disable for development
+      tags: ["player", "monitoring"]
+
+    - name: Start player service
+      ansible.builtin.include_tasks: start_service.yml
+      tags: ["player", "service"]
+
+    - name: Verify player is running
+      ansible.builtin.include_tasks: verify_service.yml
+      tags: ["player", "verify"]

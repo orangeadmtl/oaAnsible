@@ -1,0 +1,133 @@
+---
+# Player Role Defaults
+
+# Player configuration
+player:
+  enabled: false
+  video_source: "{{ ansible_user_dir }}/orangead/videos"
+  loop_mode: true
+  dual_screen: false
+  health_check: true
+  restart_on_failure: true
+  volume: 0.0 # Muted by default - remove volume controls per requirements
+  autostart: true
+
+  # Display management for kiosk-style deployment
+  system_volume_muted: true # System-wide mute
+  hide_cursor: true # Hide cursor for clean display
+  black_background: true # Set desktop background to black
+  disable_screensaver: true # Prevent screensaver activation
+
+  # Video selection strategy
+  # Options: "single", "sequential", "random", "playlist"
+  video_selection_strategy: "single"
+
+  # Videos configuration - flexible array of video objects
+  videos:
+    - name: "Jazz_video.webm"
+      display: 1
+      enabled: true
+      loop: true
+      volume: 0.0 # Muted by default
+  # Future videos can be added here:
+  # - name: "another_video.mp4"
+  #   display: 2
+  #   enabled: false
+  #   loop: false
+  #   volume: 0.5
+
+  # Display configuration
+  screen_1_display: 1 # Main display
+  screen_2_display: 2 # Secondary display
+  fullscreen: true
+  debug_mode: false # Set to true to show debug titles, false for production
+
+  # Player settings
+  player_binary: "/usr/local/bin/vlc"
+  log_level: "info"
+  log_file: "{{ ansible_user_dir }}/orangead/logs/player.log"
+
+  # LaunchAgent configuration
+  service_name: "com.orangead.player"
+  service_user: "{{ ansible_user }}"
+  service_keep_alive: true
+  service_run_at_load: true
+
+  # Health monitoring
+  health_check_interval: 30 # seconds
+  restart_attempts: 3
+  restart_delay: 10 # seconds
+
+# Video file management
+video_files:
+  # Auto-discover videos from role files/ directory
+  auto_discover: true
+  # Supported video formats
+  supported_formats:
+    - ".webm"
+    - ".mp4"
+    - ".mov"
+    - ".avi"
+    - ".mkv"
+  # Download configuration (for external video sources)
+  download_enabled: false
+  download_url: ""
+  backup_enabled: true
+  backup_retention_days: 7
+
+# Project-specific configurations (can be overridden in inventory)
+project_configs:
+  f1:
+    videos:
+      - name: "f1-highlights.mp4"
+        display: 1
+        enabled: true
+        loop: true
+        volume: 0.0 # Muted
+      - name: "f1-race-replay.mp4"
+        display: 2
+        enabled: false
+        loop: true
+        volume: 0.0 # Muted
+    dual_screen: true
+    video_selection_strategy: "sequential"
+
+  alpr:
+    videos:
+      - name: "alpr-demo.mp4"
+        display: 1
+        enabled: true
+        loop: true
+        volume: 0.0 # Muted
+    dual_screen: false
+    video_selection_strategy: "single"
+
+  spectra:
+    videos:
+      - name: "Jazz_video.webm"
+        display: 1
+        enabled: true
+        loop: true
+        volume: 0.0 # Muted as per requirements
+      - name: "Jazz_video.webm"
+        display: 2
+        enabled: true
+        loop: true
+        volume: 0.0 # Muted as per requirements
+    dual_screen: true
+    video_selection_strategy: "playlist"
+    system_volume_muted: true # System-wide mute
+    hide_cursor: true # Hide cursor for kiosk mode
+    black_background: true # Set desktop to black
+    disable_screensaver: true # Prevent screensaver
+
+  # Default configuration for any project
+  default:
+    videos:
+      - name: "Jazz_video.webm"
+        display: 1
+        enabled: true
+        loop: true
+        volume: 0.0 # Muted
+    dual_screen: false
+    video_selection_strategy: "single"

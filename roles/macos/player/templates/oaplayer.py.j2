@@ -1,0 +1,727 @@
+#!/usr/bin/env python3
+"""
+OrangeAd Video Player - Lightweight dual-screen video player for kiosk setups
+Uses pygame for efficient video playback with precise window positioning
+"""
+
+import os
+import sys
+import json
+import argparse
+from pathlib import Path
+
+# Don't set global SDL environment variables here - they're set in the shell script per-process
+# This avoids conflicts between multiple player instances
+
+import pygame
+import cv2
+import time
+import signal
+import logging
+from typing import Dict, List, Any
+
+# Configure logging
+import os
+
+# Reset the logging system completely for this process
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
+    handler.close()
+
+# Create a custom logger for this player instance
+logger = logging.getLogger('oaplayer')
+logger.setLevel(logging.INFO)
+logger.handlers = []  # Clear any existing handlers
+
+# Custom formatter that will be updated with prefix if needed
+log_formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
+# We'll only add console handler - file logging is handled by shell script redirection
+console = logging.StreamHandler()
+console.setFormatter(log_formatter)
+logger.addHandler(console)
+
+# Disable propagation to avoid duplicate logs
+logger.propagate = False
+
+# Will be updated with prefix in main()
+class VideoPlayerConfig:
+    """Configuration management for the video player"""
+    
+    def __init__(self, config_path: str):
+        self.config_path = config_path
+        self.config = self._load_config()
+        
+    def _load_config(self) -> Dict[str, Any]:
+        """Load configuration from JSON file"""
+        try:
+            with open(self.config_path, 'r') as f:
+                config = json.load(f)
+            logger.info(f"Loaded configuration from {self.config_path}")
+            return config
+        except Exception as e:
+            logger.error(f"Failed to load config from {self.config_path}: {e}")
+            sys.exit(1)
+    
+    @property
+    def video_source_dir(self) -> str:
+        return self.config.get('video_source_dir', '/Users/studio/orangead/videos')
+    
+    @property
+    def videos(self) -> List[Dict[str, Any]]:
+        return self.config.get('videos', [])
+    
+    @property
+    def dual_screen(self) -> bool:
+        return self.config.get('dual_screen', True)
+    
+    @property
+    def window_width(self) -> int:
+        return self.config.get('window_width', 800)
+    
+    @property
+    def window_height(self) -> int:
+        return self.config.get('window_height', 600)
+    
+    @property
+    def fullscreen(self) -> bool:
+        return self.config.get('fullscreen', False)
+    
+    @property
+    def loop(self) -> bool:
+        return self.config.get('loop', True)
+
+class ScreenDetector:
+    """Detect screen coordinates using PyObjC (oabrowser-style)"""
+    
+    @staticmethod
+    def get_screen_coordinates(screen_index: int) -> tuple:
+        """Get exact screen coordinates for the given screen index"""
+        try:
+            # Try to use virtual environment Python with PyObjC
+            import Cocoa
+            screens = Cocoa.NSScreen.screens()
+            
+            if len(screens) > screen_index:
+                screen = screens[screen_index]
+                frame = screen.frame()
+                x, y = int(frame.origin.x), int(frame.origin.y)
+                # Add 2px offset for non-primary displays to ensure proper positioning
+                if screen_index > 0:
+                    x += 2
+                logger.info(f"Screen {screen_index}: detected at ({x}, {y})")
+                return (x, y)
+            else:
+                logger.warning(f"Screen {screen_index} not found, using fallback")
+                return (screen_index * 1080, 0)  # Fallback positioning
+                
+        except ImportError:
+            logger.warning("PyObjC not available, using fallback positioning")
+            return (screen_index * 1080, 0)
+        except Exception as e:
+            logger.error(f"Screen detection failed: {e}")
+            return (screen_index * 1080, 0)
+
+class VideoPlayer:
+    """Individual video player instance"""
+    
+    def __init__(self, video_path: str, x_pos: int, y_pos: int, width: int = 800, 
+                 height: int = 600, fullscreen: bool = False, loop: bool = True, volume: float = 0.0):
+        self.video_path = video_path
+        self.x_pos = x_pos
+        self.y_pos = y_pos
+        self.width = width
+        self.height = height
+        self.fullscreen = fullscreen
+        self.loop = loop
+        self.volume = volume  # Store the volume parameter
+        self.running = True
+        self.screen = None
+        self.clock = None
+        self.cap = None
+        self.target_fps = 30  # Default value, will be updated when loading video
+        
+        # Note: We don't initialize pygame here anymore - it's done in MultiScreenVideoPlayer
+        # to ensure it happens on the main thread
+        
+        # Set up signal handler for graceful shutdown
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        signal.signal(signal.SIGINT, self._signal_handler)
+        
+    def _signal_handler(self, signum, frame):
+        """Handle shutdown signals gracefully"""
+        logger.info(f"Received signal {signum}, shutting down player for {self.video_path}")
+        self.running = False
+        
+    def initialize_display(self):
+        """Initialize the pygame display with explicit display targeting for macOS"""
+        try:
+            # Get display index from the position
+            display_index = 0
+            if self.x_pos > 1000:  # Assume this is the second display
+                display_index = 1
+                
+            logger.info(f"Initializing display at ({self.x_pos}, {self.y_pos}) on display index {display_index}")
+            
+            # Set specific flags for better macOS window management
+            flags = pygame.NOFRAME  # Remove window decorations for better positioning
+            
+            # Create display with appropriate flags
+            if self.fullscreen:
+                # For macOS, use borderless window instead of true fullscreen
+                # This works better when running multiple instances
+                flags |= pygame.HWSURFACE | pygame.DOUBLEBUF
+                # Use the actual dimensions instead of (0,0) to avoid macOS fullscreen issues
+                self.screen = pygame.display.set_mode((self.width, self.height), flags)
+                logger.info(f"Initialized borderless fullscreen-like display on display {display_index}")
+            else:
+                # For windowed mode, use hardware acceleration and make window visible
+                flags |= pygame.HWSURFACE | pygame.SHOWN
+                self.screen = pygame.display.set_mode((self.width, self.height), flags)
+                logger.info(f"Initialized windowed display: {self.width}x{self.height} at ({self.x_pos}, {self.y_pos})")
+            
+            # Set window title with display information for easier identification
+            # Include display index and position in the title
+            window_title = f"OrangeAd Player {display_index+1} - Screen at ({self.x_pos},{self.y_pos})"
+            pygame.display.set_caption(window_title)
+            logger.info(f"Set window title: {window_title}")
+            
+            # Force window update and ensure it's visible
+            pygame.display.flip()
+            
+            # Create clock for frame timing
+            self.clock = pygame.time.Clock()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize display: {e}")
+            return False
+    
+    def load_video(self):
+        """Load the video file using OpenCV"""
+        try:
+            self.cap = cv2.VideoCapture(self.video_path)
+            
+            if not self.cap.isOpened():
+                logger.error(f"Failed to open video file: {self.video_path}")
+                return False
+                
+            # Get video properties
+            fps = self.cap.get(cv2.CAP_PROP_FPS)
+            frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            
+            logger.info(f"Video loaded: {width}x{height}, {fps:.2f} FPS, {frame_count} frames")
+            
+            # Set target FPS for playback
+            self.target_fps = fps if fps > 0 else 30
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to load video: {e}")
+            return False
+    
+    def play(self):
+        """Main playback loop"""
+        if not self.initialize_display():
+            return False
+            
+        if not self.load_video():
+            return False
+            
+        logger.info(f"Starting video playback: {self.video_path}")
+        
+        try:
+            while self.running:
+                # Handle pygame events
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self.running = False
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_ESCAPE:
+                            self.running = False
+                        elif event.key == pygame.K_f:
+                            # Toggle fullscreen
+                            self.toggle_fullscreen()
+                
+                # Read frame from video
+                ret, frame = self.cap.read()
+                
+                if not ret:
+                    if self.loop:
+                        # Reset to beginning of video
+                        self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                        continue
+                    else:
+                        # End of video, exit
+                        logger.info("Video playback completed")
+                        break
+                
+                # Convert frame from BGR to RGB
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                
+                # Convert to pygame surface
+                frame_surface = pygame.surfarray.make_surface(frame_rgb.swapaxes(0, 1))
+                
+                # Scale to fit screen if necessary
+                if self.fullscreen:
+                    frame_surface = pygame.transform.scale(frame_surface, self.screen.get_size())
+                else:
+                    # Scale to window size while maintaining aspect ratio
+                    screen_w, screen_h = self.screen.get_size()
+                    frame_w, frame_h = frame_surface.get_size()
+                    
+                    # Calculate scaling to fit within window
+                    scale_x = screen_w / frame_w
+                    scale_y = screen_h / frame_h
+                    scale = min(scale_x, scale_y)
+                    
+                    new_w = int(frame_w * scale)
+                    new_h = int(frame_h * scale)
+                    
+                    frame_surface = pygame.transform.scale(frame_surface, (new_w, new_h))
+                
+                # Clear screen and blit frame
+                self.screen.fill((0, 0, 0))  # Black background
+                
+                # Center the frame on screen
+                frame_rect = frame_surface.get_rect()
+                screen_rect = self.screen.get_rect()
+                frame_rect.center = screen_rect.center
+                
+                self.screen.blit(frame_surface, frame_rect)
+                pygame.display.flip()
+                
+                # Control playback speed
+                self.clock.tick(self.target_fps)
+                
+        except Exception as e:
+            logger.error(f"Error during playback: {e}")
+            return False
+        finally:
+            self.cleanup()
+            
+        return True
+    
+    def toggle_fullscreen(self):
+        """Toggle between fullscreen and windowed mode with improved macOS handling"""
+        try:
+            self.fullscreen = not self.fullscreen
+            
+            # Get display index from position (for better macOS handling)
+            display_index = 0
+            if self.x_pos > 1000:  # Assume this is the second display
+                display_index = 1
+                
+            # Set specific flags for better macOS window management
+            flags = pygame.NOFRAME  # Remove window decorations for better positioning
+            
+            if self.fullscreen:
+                # For macOS, use borderless window instead of true fullscreen
+                # This works better when running multiple instances
+                flags |= pygame.HWSURFACE | pygame.DOUBLEBUF
+                
+                # Explicitly set window position before changing mode
+                os.environ['SDL_VIDEO_WINDOW_POS'] = f'{self.x_pos},{self.y_pos}'
+                
+                # Create a borderless window that covers the screen area
+                self.screen = pygame.display.set_mode((self.width, self.height), flags)
+                logger.info(f"Switched to borderless fullscreen-like mode on display {display_index}")
+            else:
+                # For windowed mode, use hardware acceleration and make window visible
+                flags |= pygame.HWSURFACE | pygame.SHOWN
+                
+                # Reset window position when returning to windowed mode
+                os.environ['SDL_VIDEO_WINDOW_POS'] = f'{self.x_pos},{self.y_pos}'
+                
+                # Create the windowed mode window
+                self.screen = pygame.display.set_mode((self.width, self.height), flags)
+                logger.info(f"Switched to windowed mode at ({self.x_pos}, {self.y_pos})")
+            
+            # Force window update to ensure it's visible
+            pygame.display.flip()
+                
+        except Exception as e:
+            logger.error(f"Failed to toggle fullscreen: {e}")
+    
+    def cleanup(self):
+        """Clean up resources"""
+        try:
+            if self.cap:
+                self.cap.release()
+            logger.info(f"Cleanup completed for {self.video_path}")
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+
+class MultiScreenVideoPlayer:
+    """Manager for multiple video players across screens"""
+    
+    def __init__(self, config: VideoPlayerConfig):
+        self.config = config
+        self.players = []
+        self.running = True
+        
+        # Set up signal handlers
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        signal.signal(signal.SIGINT, self._signal_handler)
+        
+        # Initialize pygame on the main thread
+        if not pygame.get_init():
+            pygame.init()
+            pygame.mixer.quit()  # Disable audio mixer for performance
+            logger.info("Initialized pygame on main thread")
+    
+    def _signal_handler(self, signum, frame):
+        """Handle shutdown signals gracefully"""
+        logger.info(f"Received signal {signum}, shutting down all players...")
+        self.running = False
+        for player in self.players:
+            player.running = False
+    
+    def setup_players(self):
+        """Set up video players based on configuration"""
+        for video_config in self.config.videos:
+            if not video_config.get('enabled', True):
+                continue
+                
+            video_name = video_config['name']
+            display_num = video_config.get('display', 1)
+            
+            # Build full path to video file
+            video_path = os.path.join(self.config.video_source_dir, video_name)
+            
+            # Validate video file exists
+            if not Path(video_path).exists():
+                logger.error(f"Video file not found: {video_path}")
+                continue
+                
+            # Get screen coordinates (0-indexed)
+            screen_index = display_num - 1
+            x_pos, y_pos = ScreenDetector.get_screen_coordinates(screen_index)
+            
+            # Create player instance
+            player = VideoPlayer(
+                video_path=video_path,
+                x_pos=x_pos,
+                y_pos=y_pos,
+                width=self.config.window_width,
+                height=self.config.window_height,
+                fullscreen=self.config.fullscreen,
+                loop=self.config.loop
+            )
+            
+            self.players.append(player)
+            logger.info(f"Setup player for {video_name} on display {display_num} at ({x_pos}, {y_pos})")
+    
+    def start_playback(self):
+        """Start video playback on all configured players"""
+        if not self.players:
+            logger.error("No video players configured")
+            return False
+        
+        logger.info(f"Starting playback on {len(self.players)} player(s)")
+        
+        try:
+            if len(self.players) == 1:
+                # Single player - run directly
+                return self.players[0].play()
+            else:
+                # macOS requires all UI windows to be created on the main thread
+                # Initialize all displays on the main thread first
+                
+                # First, ensure pygame is properly initialized
+                if pygame.get_init():
+                    pygame.quit()
+                    # Force a small delay after quitting pygame
+                    time.sleep(0.5)
+                
+                # Initialize pygame with specific flags for multi-window support
+                os.environ['SDL_VIDEO_ALLOW_SCREENSAVER'] = '0'  # Prevent screensaver
+                os.environ['SDL_VIDEO_CENTERED'] = '0'  # Don't center windows automatically
+                pygame.init()
+                pygame.mixer.quit()  # Disable audio mixer for performance
+                
+                # Log all available displays for debugging
+                logger.info(f"Available displays: {pygame.display.get_num_displays()}")
+                for i in range(pygame.display.get_num_displays()):
+                    try:
+                        info = pygame.display.Info()
+                        logger.info(f"Display {i} info: {info.current_w}x{info.current_h}")
+                    except:
+                        logger.info(f"Could not get info for display {i}")
+                
+                # CRITICAL FIX: For macOS, we need a completely different approach to ensure both windows appear
+                # The key issue is that macOS requires special handling for multi-display setups
+                
+                # First, completely reset pygame and all environment variables
+                pygame.quit()
+                time.sleep(1.0)  # Wait for cleanup
+                
+                # Create a clean environment with only essential variables
+                clean_env = {
+                    'HOME': os.path.expanduser('~'),
+                    'PATH': '/usr/bin:/bin:/usr/sbin:/sbin',
+                    'USER': os.environ.get('USER', ''),
+                    'LOGNAME': os.environ.get('LOGNAME', ''),
+                    'DISPLAY': ':0'
+                }
+                
+                # Get screen information using PyObjC for accurate positioning
+                try:
+                    import Cocoa
+                    screens = Cocoa.NSScreen.screens()
+                    logger.info(f"Found {len(screens)} screens using Cocoa")
+                    
+                    for i, screen in enumerate(screens):
+                        frame = screen.frame()
+                        logger.info(f"Screen {i}: Origin ({frame.origin.x}, {frame.origin.y}), Size ({frame.size.width}, {frame.size.height})")
+                except Exception as e:
+                    logger.error(f"Failed to get screen info via Cocoa: {e}")
+                
+                # Process players in reverse order (screen 2 first, then screen 1)
+                # This counter-intuitive approach helps with macOS window layering
+                for i in range(len(self.players)-1, -1, -1):
+                    player = self.players[i]
+                    
+                    # Reset environment to clean state
+                    os.environ.clear()
+                    for key, value in clean_env.items():
+                        os.environ[key] = value
+                    
+                    # Set SDL environment variables for this specific window
+                    os.environ['SDL_VIDEODRIVER'] = 'cocoa'  # Use Cocoa driver for macOS
+                    os.environ['SDL_VIDEO_MAC_FULLSCREEN_SPACES'] = '0'  # Disable spaces for better fullscreen
+                    
+                    # Calculate position based on screen coordinates
+                    x_pos = player.x_pos
+                    y_pos = player.y_pos
+                    
+                    # Set explicit window position
+                    os.environ['SDL_VIDEO_WINDOW_POS'] = f'{x_pos},{y_pos}'
+                    
+                    # Log the window position being set with more detail
+                    logger.info(f"Creating player {i+1} at position ({x_pos},{y_pos}) for display {i+1}")
+                    
+                    # Initialize pygame for this window
+                    pygame.init()
+                    pygame.mixer.quit()  # Disable audio mixer for performance
+                    
+                    # Set fullscreen mode based on display index
+                    # For first display (index 0), use windowed mode initially
+                    # For second display (index 1), use fullscreen directly
+                    player.fullscreen = (i > 0)
+                    
+                    # Wait between window creations - longer delay for macOS
+                    if i < len(self.players) - 1:  # Not for the first window we create
+                        logger.info(f"Waiting 3 seconds between player windows")
+                        time.sleep(3.0)  # Longer delay to ensure windows are properly initialized
+                    
+                    # Initialize display and load video
+                    if not player.initialize_display():
+                        logger.error(f"Failed to initialize display for player {i+1}")
+                        continue
+                    
+                    # Set a distinctive window title for each player
+                    # This helps with debugging and verification
+                    window_title = f"OrangeAd Player {i+1} - Screen at ({x_pos},{y_pos})"
+                    pygame.display.set_caption(window_title)
+                    logger.info(f"Set window title: {window_title}")
+                    
+                    # Force display update to ensure window appears in correct position
+                    pygame.display.flip()
+                    
+                    # Verify the window was created at the correct position
+                    info = pygame.display.Info()
+                    logger.info(f"Player {i+1} window created with size: {info.current_w}x{info.current_h}")
+                    
+                    # Load the video after window is properly positioned
+                    if not player.load_video():
+                        logger.error(f"Failed to load video for player {i+1}")
+                        continue
+                    
+                    # Force another display update
+                    pygame.display.flip()
+                    
+                    # Verify window is visible
+                    logger.info(f"Player {i+1} window initialized and visible at ({x_pos},{y_pos})")
+                    
+                    # Switch to fullscreen if needed after window is properly positioned
+                    if self.config.fullscreen and not player.fullscreen:
+                        logger.info(f"Switching player {i+1} to fullscreen mode")
+                        player.toggle_fullscreen()
+                    
+                    # Force another small delay to ensure window is fully rendered before creating next one
+                    time.sleep(0.5)
+                
+                # Now that displays are initialized on the main thread,
+                # use a custom playback loop to handle all players
+                return self._run_multi_player_loop()
+            
+        except Exception as e:
+            logger.error(f"Failed to start playback: {e}")
+            return False
+        finally:
+            pygame.quit()
+    
+    def _run_multi_player_loop(self):
+        """Run a custom playback loop that handles all players on the main thread"""
+        try:
+            # Prepare all players
+            for player in self.players:
+                if not player.cap or not player.cap.isOpened():
+                    logger.error(f"Video not properly loaded for {player.video_path}")
+                    return False
+            
+            # Main playback loop
+            while self.running and any(player.running for player in self.players):
+                # Handle pygame events
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self.running = False
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_ESCAPE:
+                            self.running = False
+                
+                # Update each player
+                for player in self.players:
+                    if not player.running or not player.screen:
+                        continue
+                    
+                    # Read frame from video
+                    ret, frame = player.cap.read()
+                    
+                    if not ret:
+                        if player.loop:
+                            # Reset to beginning of video
+                            player.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                            continue
+                        else:
+                            # End of video
+                            player.running = False
+                            continue
+                    
+                    # Convert frame from BGR to RGB
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    
+                    # Convert to pygame surface
+                    frame_surface = pygame.surfarray.make_surface(frame_rgb.swapaxes(0, 1))
+                    
+                    # Scale to fit screen if necessary
+                    if player.fullscreen:
+                        frame_surface = pygame.transform.scale(frame_surface, player.screen.get_size())
+                    else:
+                        # Scale to window size while maintaining aspect ratio
+                        screen_w, screen_h = player.screen.get_size()
+                        frame_w, frame_h = frame_surface.get_size()
+                        
+                        # Calculate scaling to fit within window
+                        scale_x = screen_w / frame_w
+                        scale_y = screen_h / frame_h
+                        scale = min(scale_x, scale_y)
+                        
+                        new_w = int(frame_w * scale)
+                        new_h = int(frame_h * scale)
+                        
+                        frame_surface = pygame.transform.scale(frame_surface, (new_w, new_h))
+                    
+                    # Clear screen and blit frame
+                    player.screen.fill((0, 0, 0))  # Black background
+                    
+                    # Center the frame on screen
+                    frame_rect = frame_surface.get_rect()
+                    screen_rect = player.screen.get_rect()
+                    frame_rect.center = screen_rect.center
+                    
+                    player.screen.blit(frame_surface, frame_rect)
+                    pygame.display.flip()
+                    
+                    # Control playback speed
+                    player.clock.tick(player.target_fps)
+                
+                # Small sleep to prevent CPU hogging
+                time.sleep(0.001)
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error in multi-player loop: {e}")
+            return False
+
+# Main entry point for standalone execution
+if __name__ == '__main__':
+    """Main entry point"""
+    parser = argparse.ArgumentParser(description='OrangeAd Video Player')
+    parser.add_argument('--config', help='Path to configuration JSON file')
+    parser.add_argument('--screen', type=int, choices=[1, 2], help='Screen number to display (1 or 2)')
+    parser.add_argument('--log-prefix', help='Prefix for log messages to identify this instance')
+    args = parser.parse_args()
+    
+    # Update log formatter with prefix if provided
+    if args.log_prefix:
+        prefix_formatter = logging.Formatter(f'[%(asctime)s] {args.log_prefix} %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+        for handler in logger.handlers:
+            handler.setFormatter(prefix_formatter)
+        logger.info(f"Logging initialized with prefix: {args.log_prefix}")
+    
+    if not args.config:
+        logger.error("Configuration file path required: --config <path>")
+        sys.exit(1)
+        
+    # Load the configuration
+    config = VideoPlayerConfig(args.config)
+    
+    # Debug current working directory and config path
+    logger.info(f"Current working directory: {os.getcwd()}")
+    logger.info(f"Config file path: {args.config}")
+    logger.info(f"Config file absolute path: {os.path.abspath(args.config)}")
+    logger.info(f"Config file exists: {Path(args.config).exists()}")
+    
+    # Check if we're running in single-screen mode
+    if args.screen in [1, 2]:
+        logger.info(f"Starting player for screen {args.screen}")
+        
+        # Find the video configuration for this screen
+        selected_videos = [v for v in config.videos if v.get('display') == args.screen]
+        
+        if not selected_videos:
+            logger.error(f"No video configured for screen {args.screen}")
+            sys.exit(1)
+            
+        video_config = selected_videos[0]
+        logger.info(f"Using video: {video_config['name']} on screen {args.screen}")
+        
+        # Create a single player instance
+        x_pos = 0 if args.screen == 1 else 1082  # Use fixed positions for simplicity
+        y_pos = 0
+        
+        # Create the player
+        player = VideoPlayer(
+            video_path=os.path.join(config.video_source_dir, video_config['name']),
+            width=1080,
+            height=1920,
+            x_pos=x_pos,
+            y_pos=y_pos,
+            fullscreen=True,
+            loop=video_config.get('loop', True),
+            volume=video_config.get('volume', 0.0)
+        )
+        
+        # Initialize and run the player
+        if player.initialize_display() and player.load_video():
+            logger.info(f"Player {args.screen} initialized successfully")
+            player.play()
+        else:
+            logger.error(f"Failed to initialize player for screen {args.screen}")
+            sys.exit(1)
+    else:
+        # Run in multi-screen mode (legacy)
+        logger.info("Starting in multi-screen mode (legacy)")
+        
+        # Initialize multi-screen player
+        multi_player = MultiScreenVideoPlayer(config)
+        multi_player.setup_players()
+        
+        # Start playback
+        success = multi_player.start_playback()
+        sys.exit(0 if success else 1)

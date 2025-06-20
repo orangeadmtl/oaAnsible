@@ -1,0 +1,54 @@
+---
+- name: Configure player service
+  block:
+    - name: Deploy OrangeAd video player script
+      ansible.builtin.template:
+        src: oaplayer.py.j2
+        dest: "{{ player.video_source }}/oaplayer.py"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0755"
+      notify: restart player
+
+    - name: Generate player configuration
+      ansible.builtin.template:
+        src: player_config.json.j2
+        dest: "{{ player.video_source }}/player_config.json"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0644"
+      notify: restart player
+      
+    - name: Create scripts directory if it doesn't exist
+      ansible.builtin.file:
+        path: "{{ player.video_source }}/scripts"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0755"
+      
+    - name: Deploy dual-screen player launcher script
+      ansible.builtin.template:
+        src: start_player.sh.j2
+        dest: "{{ player.video_source }}/scripts/start_player.sh"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0755"
+      notify: restart player
+
+    - name: Create player LaunchAgent plist
+      ansible.builtin.template:
+        src: com.orangead.player.plist.j2
+        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0644"
+      notify: restart player
+
+    - name: Load player LaunchAgent
+      ansible.builtin.shell: |
+        launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist" 2>/dev/null || true
+        launchctl load "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist"
+      become: false
+      changed_when: true
+      notify: restart player

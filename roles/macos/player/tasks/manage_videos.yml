@@ -1,0 +1,101 @@
+---
+- name: Manage video files
+  block:
+    - name: Deploy videos from role files directory
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ player.video_source }}/{{ item | basename }}"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0644"
+        backup: "{{ video_files.backup_enabled | default(true) }}"
+      with_fileglob:
+        - "{{ role_path }}/files/*"
+      when:
+        - item | regex_search('\.(webm|mp4|mov|avi|mkv)$')
+
+    - name: Download additional video files
+      ansible.builtin.get_url:
+        url: "{{ video_files.download_url }}/{{ video_item.name }}"
+        dest: "{{ player.video_source }}/{{ video_item.name }}"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0644"
+        backup: "{{ video_files.backup_enabled | default(true) }}"
+      loop: "{{ current_project_videos }}"
+      loop_control:
+        loop_var: video_item
+      vars:
+        # Get project-specific videos or default videos
+        current_project: "{{ oa_environment.project | default('default') }}"
+        current_project_videos: "{{ project_configs[current_project].videos | default(player.videos) }}"
+      when:
+        - video_files.download_enabled | default(false)
+        - video_files.download_url is defined
+        - video_files.download_url != ""
+        - video_item.name not in ansible_local_videos | default([])
+
+    - name: List currently deployed videos
+      ansible.builtin.find:
+        paths: "{{ player.video_source }}"
+        patterns: "*.webm,*.mp4,*.mov,*.avi,*.mkv"
+      register: deployed_videos
+
+    - name: Set fact for deployed video list
+      ansible.builtin.set_fact:
+        ansible_local_videos: "{{ deployed_videos.files | map(attribute='path') | map('basename') | list }}"
+
+    - name: Validate Spectra dual-screen video files
+      when:
+        - oa_environment.project | default('default') == 'spectra'
+
+      block:
+        - name: Check for required Spectra video files
+          ansible.builtin.stat:
+            path: "{{ player.video_source }}/{{ video_item.name }}"
+          loop: "{{ project_configs.spectra.videos }}"
+          loop_control:
+            loop_var: video_item
+          register: spectra_video_check
+
+        - name: List missing Spectra video files
+          ansible.builtin.set_fact:
+            spectra_missing_videos: "{{ spectra_video_check.results | selectattr('stat.exists', 'equalto', false) | map(attribute='video_item.name') | list }}"
+
+        - name: Warn about missing Spectra video files
+          ansible.builtin.debug:
+            msg: "WARNING: Spectra project missing video files: {{ spectra_missing_videos | join(', ') }}"
+          when: spectra_missing_videos | length > 0
+
+        - name: Create placeholder video files for Spectra if missing
+          ansible.builtin.copy:
+            content: |
+              # Placeholder video file for {{ video_item.name }}
+              # Replace this with actual Spectra content for {{ 'display 1' if video_item.name.endswith('display1.webm') else 'display 2' }}
+            dest: "{{ player.video_source }}/{{ video_item.name }}.placeholder"
+            owner: "{{ ansible_user }}"
+            group: "{{ ansible_user_group | default('staff') }}"
+            mode: "0644"
+          loop: "{{ project_configs.spectra.videos }}"
+          loop_control:
+            loop_var: video_item
+          when:
+            - video_item.name in spectra_missing_videos
+            - spectra_missing_videos | length > 0
+    - name: Create backup rotation script
+      ansible.builtin.template:
+        src: backup_rotation.sh.j2
+        dest: "{{ player.video_source }}/scripts/backup_rotation.sh"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user_group | default('staff') }}"
+        mode: "0755"
+      when: video_files.backup_enabled | default(true)
+
+    - name: Create cron job for backup rotation
+      ansible.builtin.cron:
+        name: "Player backup rotation"
+        minute: "0"
+        hour: "2"
+        job: "{{ player.video_source }}/scripts/backup_rotation.sh"
+        user: "{{ ansible_user }}"
+      when: video_files.backup_enabled | default(true)

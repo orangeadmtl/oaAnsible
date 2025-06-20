@@ -1,0 +1,20 @@
+---
+# Cleanup old unused files from previous player implementations
+- name: Remove old player implementation files
+  ansible.builtin.file:
+    path: "{{ player.video_source }}/{{ item }}"
+    state: absent
+  loop:
+    - "python_video_player.py"
+    - "player.sh"
+    - "scripts/player.sh"
+  ignore_errors: true
+
+- name: Remove old health check files if using new implementation
+  ansible.builtin.file:
+    path: "{{ player.video_source }}/{{ item }}"
+    state: absent
+  loop:
+    - "health_check.sh"
+  when: not player.legacy_health_check | default(false)
+  ignore_errors: true
