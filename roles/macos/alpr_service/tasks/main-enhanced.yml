@@ -2,8 +2,7 @@
 # Enhanced ALPR Service Deployment with Python Monitor Integration
 # This task file deploys both the PlateRecognizer Docker service and Python monitor
 
-- name: Include original ALPR Docker service deployment
-  ansible.builtin.include_tasks: main.yml
+# Note: main.yml is already executed, so we only add the monitor-specific tasks here
 
 - name: Ensure ALPR application directories exist
   ansible.builtin.file:
@@ -157,11 +156,11 @@
       === ALPR Stack Deployment Complete ===
 
       Services Deployed:
-      ✅ PlateRecognizer Docker Service ({{ macos_alpr_image_name }})
-      ✅ ALPR Python Monitor ({{ ansible_user_dir }}/orangead/alpr/detect.py)
-      ✅ Health Monitoring (every 5 minutes)
-      ✅ Log Rotation and Management
-      ✅ Comprehensive Management Tools
+      - PlateRecognizer Docker Service ({{ macos_alpr_image_name }})
+      - ALPR Python Monitor ({{ ansible_user_dir }}/orangead/alpr/detect.py)
+      - Health Monitoring (every 5 minutes)
+      - Log Rotation and Management
+      - Comprehensive Management Tools
 
       Configuration:
       - Camera ID: {{ alpr_camera_id }}
@@ -191,4 +190,4 @@
       - Auto Log Rotation: Enabled (7 day retention)
       - Auto Cleanup:      Old detections removed after 7 days
 
-      Phase 9 ALPR Integration: COMPLETE ✅
+      Phase 9 ALPR Integration: COMPLETE

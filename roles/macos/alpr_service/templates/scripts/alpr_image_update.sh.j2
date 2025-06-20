@@ -1,0 +1,46 @@
+#!/bin/bash
+set -o pipefail
+set -x
+
+echo "=== ALPR IMAGE VERSION CHECK AND UPDATE ==="
+
+# Get current image info if it exists
+CURRENT_IMAGE_ID=""
+if docker image inspect {{ macos_alpr_image_name }} >/dev/null 2>&1; then
+  CURRENT_IMAGE_ID=$(docker image inspect {{ macos_alpr_image_name }} --format {% raw %}'{{.Id}}'{% endraw %})
+  echo "Current image ID: $CURRENT_IMAGE_ID"
+else
+  echo "No current image found"
+fi
+
+# Always try to pull latest version for comparison
+echo "Pulling latest image version..."
+{% if macos_cpu_arch.stdout == 'arm64' %}
+docker pull --platform linux/arm64 {{ macos_alpr_image_name }}
+{% else %}
+docker pull {{ macos_alpr_image_name }}
+{% endif %}
+
+# Get new image info
+NEW_IMAGE_ID=$(docker image inspect {{ macos_alpr_image_name }} --format {% raw %}'{{.Id}}'{% endraw %})
+echo "Latest image ID: $NEW_IMAGE_ID"
+
+# Check if update occurred
+if [ "$CURRENT_IMAGE_ID" != "$NEW_IMAGE_ID" ]; then
+  echo "SUCCESS: Image updated: $CURRENT_IMAGE_ID -> $NEW_IMAGE_ID"
+  echo "UPDATED" > /tmp/alpr_image_updated
+  
+  # Remove old image if it exists and is different
+  if [ -n "$CURRENT_IMAGE_ID" ] && [ "$CURRENT_IMAGE_ID" != "$NEW_IMAGE_ID" ]; then
+    echo "Removing old image: $CURRENT_IMAGE_ID"
+    docker rmi "$CURRENT_IMAGE_ID" 2>/dev/null || true
+  fi
+else
+  echo "SUCCESS: Image is already up to date"
+  echo "CURRENT" > /tmp/alpr_image_updated
+fi
+
+# Clean up dangling images
+docker image prune -f 2>/dev/null || true
+
+echo "=== IMAGE UPDATE COMPLETE ==="

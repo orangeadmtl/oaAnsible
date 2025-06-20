@@ -7,25 +7,32 @@
     
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/docker</string>
-        <string>run</string>
-        <string>--name</string>
-        <string>{{ macos_alpr_container_name }}</string>
-        <string>--restart=unless-stopped</string>
-        <string>-d</string>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>
+        # Comprehensive container startup script with cleanup
+        set -e
+        
+        # Remove any existing container with the same name
+        /usr/local/bin/docker rm -f {{ macos_alpr_container_name }} 2>/dev/null || true
+        
+        # Wait a moment for cleanup
+        sleep 2
+        
+        # Start the container with proper configuration
+        exec /usr/local/bin/docker run \
+            --name {{ macos_alpr_container_name }} \
+            --restart=unless-stopped \
+            --rm \
 {% if ansible_machine == 'arm64' %}
-        <string>--platform</string>
-        <string>linux/amd64</string>
+            --platform linux/arm64 \
 {% endif %}
-        <string>-p</string>
-        <string>{{ macos_alpr_host_port }}:{{ macos_alpr_container_port }}</string>
-        <string>-v</string>
-        <string>{{ macos_alpr_license_volume_name }}:/license</string>
-        <string>-e</string>
-        <string>TOKEN={{ vault_alpr_token }}</string>
-        <string>-e</string>
-        <string>LICENSE_KEY={{ vault_alpr_license_key }}</string>
-        <string>{{ macos_alpr_image_name }}</string>
+            -p {{ macos_alpr_host_port }}:{{ macos_alpr_container_port }} \
+            -v {{ macos_alpr_license_volume_name }}:/license \
+            -e TOKEN={{ vault_alpr_token }} \
+            -e LICENSE_KEY={{ vault_alpr_license_key }} \
+            {{ macos_alpr_image_name }}
+        </string>
     </array>
     
     <key>RunAtLoad</key>

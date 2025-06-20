@@ -2,7 +2,7 @@
 # Default variables for ALPR service deployment
 
 # ALPR Docker configuration
-macos_alpr_image_name: platerecognizer/alpr
+macos_alpr_image_name: platerecognizer/alpr-arm
 macos_alpr_container_name: orangead_alpr
 macos_alpr_host_port: 8081 # Changed from 8080 due to oaTracker using it
 macos_alpr_container_port: 8080

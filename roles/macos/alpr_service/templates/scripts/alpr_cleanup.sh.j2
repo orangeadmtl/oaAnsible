@@ -1,0 +1,297 @@
+#!/bin/bash
+set -o pipefail
+set -x
+
+echo "=== STARTING COMPREHENSIVE ALPR CLEANUP WITH BULLETPROOF LICENSE UNINSTALL ==="
+
+# Helper functions for robust license uninstall
+test_docker_daemon() {
+    if ! timeout 10 docker info >/dev/null 2>&1; then
+        echo "ERROR: Docker daemon not responsive"
+        return 1
+    fi
+    return 0
+}
+
+test_docker_permissions() {
+    if ! docker ps >/dev/null 2>&1; then
+        echo "ERROR: Docker permission test failed"
+        return 1
+    fi
+    return 0
+}
+
+get_container_port() {
+    local container_name=$1
+    docker port "$container_name" {{ macos_alpr_container_port }} 2>/dev/null | cut -d':' -f2
+}
+
+wait_for_container_stability() {
+    local container_name=$1
+    echo "Waiting for container $container_name to stabilize..."
+    for i in {1..12}; do
+        sleep 5
+        local status=$(docker ps --filter "name=$container_name" --format "{{.Status}}" 2>/dev/null || echo "")
+        if [[ ! "$status" =~ "Restarting" ]]; then
+            echo "Container stabilized with status: $status"
+            return 0
+        fi
+        echo "Container still restarting... ($i/12)"
+    done
+    echo "WARNING: Container failed to stabilize"
+    return 1
+}
+
+test_network_connectivity() {
+    local host=$1
+    local port=$2
+    
+    # Test basic connectivity
+    if ! nc -z "$host" "$port" 2>/dev/null; then
+        echo "Network connectivity test failed to $host:$port"
+        return 1
+    fi
+    return 0
+}
+
+wait_for_service_ready() {
+    local port=$1
+    local timeout=${2:-60}
+    local start_time=$(date +%s)
+    
+    echo "Waiting for PlateRecognizer service on port $port to be ready..."
+    while true; do
+        # Try health check first, fallback to basic endpoint
+        if /usr/bin/curl -f -s --connect-timeout 5 "http://localhost:$port/v1/plate-reader/" >/dev/null 2>&1; then
+            echo "PlateRecognizer service is ready on port $port"
+            return 0
+        fi
+        
+        current_time=$(date +%s)
+        if (( current_time - start_time > timeout )); then
+            echo "Timeout waiting for PlateRecognizer service on port $port"
+            return 1
+        fi
+        
+        sleep 3
+    done
+}
+
+check_license_status() {
+    local port=$1
+    echo "Checking license status on port $port..."
+    
+    # Try multiple endpoints to detect license
+    for endpoint in "/v1/license/" "/v1/plate-reader/" "/"; do
+        local response_code=$(/usr/bin/curl -w "%{http_code}" -s -o /dev/null --connect-timeout 10 "http://localhost:$port$endpoint" 2>/dev/null || echo "000")
+        if [[ "$response_code" =~ ^[2-4][0-9][0-9]$ ]]; then
+            echo "Service responding on $endpoint (HTTP $response_code)"
+            return 0
+        fi
+    done
+    
+    echo "No license/service detected on port $port"
+    return 1
+}
+
+attempt_license_uninstall() {
+    local port=$1
+    echo "Attempting license uninstall on port $port..."
+    
+    local response_code=$(/usr/bin/curl -w "%{http_code}" -s -o /tmp/uninstall_response -X GET "http://localhost:$port/uninstall/" --connect-timeout 15 --max-time 45 2>/dev/null || echo "000")
+    local response_body=$(cat /tmp/uninstall_response 2>/dev/null || echo "")
+    
+    echo "Uninstall response: HTTP $response_code"
+    [[ -n "$response_body" ]] && echo "Response body: $response_body"
+    
+    case $response_code in
+        200|201)
+            echo "SUCCESS: License uninstalled successfully (HTTP $response_code)"
+            return 0
+            ;;
+        404)
+            echo "INFO: License uninstall endpoint not found (may not be needed)"
+            return 0
+            ;;
+        409)
+            echo "INFO: No license to uninstall (already uninstalled)"
+            return 0
+            ;;
+        000)
+            echo "ERROR: Network/connection failure during uninstall"
+            return 1
+            ;;
+        *)
+            echo "ERROR: License uninstall failed with HTTP $response_code"
+            [[ -n "$response_body" ]] && echo "Error details: $response_body"
+            return 1
+            ;;
+    esac
+}
+
+# Step 1: Test prerequisites
+echo "Testing prerequisites..."
+if ! test_docker_daemon; then
+    echo "CRITICAL: Docker daemon issues detected, cannot proceed safely"
+    exit 1
+fi
+
+if ! test_docker_permissions; then
+    echo "CRITICAL: Docker permission issues detected"
+    exit 1
+fi
+
+# Step 2: Disable LaunchAgent to prevent race conditions
+echo "Disabling LaunchAgent to prevent race conditions..."
+launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist" 2>/dev/null || true
+sleep 3
+
+# Step 3: Find all relevant containers (by name and by image)
+echo "Discovering ALPR containers..."
+all_containers=$(docker ps -a --filter "ancestor={{ macos_alpr_image_name }}" --format "{{.Names}}:{{.Status}}" 2>/dev/null || true)
+named_container=$(docker ps -a --filter "name={{ macos_alpr_container_name }}" --format "{{.Names}}:{{.Status}}" 2>/dev/null || true)
+
+# Combine and deduplicate container list
+containers_to_process=$(echo -e "$all_containers\n$named_container" | sort -u | grep -v '^$' || true)
+
+if [[ -z "$containers_to_process" ]]; then
+    echo "No ALPR containers found, skipping license uninstall"
+else
+    echo "Found ALPR containers to process:"
+    echo "$containers_to_process"
+    
+    # Step 4: Process each container for license uninstall
+    uninstall_attempted=false
+    while IFS=':' read -r container_name container_status; do
+        [[ -z "$container_name" ]] && continue
+        
+        echo "\n--- Processing container: $container_name ($container_status) ---"
+        
+        if [[ "$container_status" =~ "Up" ]]; then
+            # Handle restarting containers
+            if [[ "$container_status" =~ "Restarting" ]]; then
+                if ! wait_for_container_stability "$container_name"; then
+                    echo "Skipping unstable container $container_name"
+                    continue
+                fi
+            fi
+            
+            # Determine actual port mapping
+            actual_port=$(get_container_port "$container_name")
+            uninstall_port=${actual_port:-{{ macos_alpr_host_port }}}
+            
+            echo "Using port $uninstall_port for container $container_name"
+            
+            # Test network connectivity
+            if test_network_connectivity "localhost" "$uninstall_port"; then
+                # Wait for service readiness
+                if wait_for_service_ready "$uninstall_port" 45; then
+                    # Check if license exists
+                    if check_license_status "$uninstall_port"; then
+                        # Attempt uninstall with retries
+                        uninstall_success=false
+                        for attempt in {1..3}; do
+                            echo "License uninstall attempt $attempt/3 for $container_name..."
+                            if attempt_license_uninstall "$uninstall_port"; then
+                                echo "SUCCESS: License uninstalled from $container_name"
+                                uninstall_attempted=true
+                                uninstall_success=true
+                                break
+                            else
+                                echo "WARNING: License uninstall attempt $attempt failed for $container_name"
+                                if [ $attempt -lt 3 ]; then
+                                    echo "Waiting 10 seconds before retry..."
+                                    sleep 10
+                                fi
+                            fi
+                        done
+                        
+                        if [[ "$uninstall_success" == "false" ]]; then
+                            echo "ERROR: Failed to uninstall license from $container_name after 3 attempts"
+                            echo "This may cause license conflicts. Manual intervention may be required."
+                        fi
+                    else
+                        echo "INFO: No license to uninstall in $container_name"
+                    fi
+                else
+                    echo "WARNING: Service not ready in $container_name, skipping license uninstall"
+                fi
+            else
+                echo "WARNING: Network connectivity failed to $container_name:$uninstall_port"
+            fi
+        else
+            echo "Container $container_name not running, skipping license uninstall"
+        fi
+    done <<< "$containers_to_process"
+    
+    # Step 5: Wait after license uninstall before container cleanup
+    if [[ "$uninstall_attempted" == "true" ]]; then
+        echo "\nWaiting after license uninstall before container cleanup..."
+        sleep 5
+    fi
+fi
+
+echo "\n=== LICENSE UNINSTALL PHASE COMPLETE ==="
+
+# Step 6: Stop and unload LaunchAgent service
+echo "Stopping LaunchAgent service..."
+launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist 2>/dev/null || true
+launchctl remove {{ macos_alpr_service_plist }} 2>/dev/null || true
+
+# Step 3: Give processes time to gracefully shutdown
+echo "Waiting for graceful shutdown..."
+sleep 5
+
+# Step 4: Force kill any remaining docker processes for this container
+echo "Force killing remaining processes..."
+pkill -f "{{ macos_alpr_container_name }}" 2>/dev/null || true
+
+# Step 5: Comprehensive container cleanup
+echo "Cleaning up Docker containers..."
+
+# Stop container by name (multiple methods)
+docker stop {{ macos_alpr_container_name }} 2>/dev/null || true
+docker kill {{ macos_alpr_container_name }} 2>/dev/null || true
+
+# Remove container by name
+docker rm -f {{ macos_alpr_container_name }} 2>/dev/null || true
+
+# Find and remove any containers using our image
+CONTAINERS_TO_REMOVE=$(docker ps -a --filter "ancestor={{ macos_alpr_image_name }}" --format {% raw %}"{{.ID}}"{% endraw %} 2>/dev/null || true)
+if [ -n "$CONTAINERS_TO_REMOVE" ]; then
+  echo "Removing containers using image {{ macos_alpr_image_name }}: $CONTAINERS_TO_REMOVE"
+  echo "$CONTAINERS_TO_REMOVE" | xargs -r docker rm -f 2>/dev/null || true
+fi
+
+# Find and remove any containers with similar names
+SIMILAR_CONTAINERS=$(docker ps -a --filter "name=orangead_alpr" --format {% raw %}"{{.ID}}"{% endraw %} 2>/dev/null || true)
+if [ -n "$SIMILAR_CONTAINERS" ]; then
+  echo "Removing containers with similar names: $SIMILAR_CONTAINERS"
+  echo "$SIMILAR_CONTAINERS" | xargs -r docker rm -f 2>/dev/null || true
+fi
+
+# Step 6: Clean up any dangling containers or processes
+echo "Final cleanup of dangling resources..."
+docker container prune -f 2>/dev/null || true
+
+# Step 7: Verify cleanup
+echo "=== CLEANUP VERIFICATION ==="
+echo "Checking for remaining containers..."
+REMAINING=$(docker ps -a --filter "name={{ macos_alpr_container_name }}" --format {% raw %}"{{.Names}}"{% endraw %} 2>/dev/null || true)
+if [ -n "$REMAINING" ]; then
+  echo "WARNING: Container still exists: $REMAINING"
+  # Try one more aggressive cleanup
+  docker rm -f "$REMAINING" 2>/dev/null || true
+else
+  echo "SUCCESS: No remaining containers found"
+fi
+
+echo "Checking LaunchAgent status..."
+LAUNCHD_STATUS=$(launchctl list | grep {{ macos_alpr_service_plist }} 2>/dev/null || true)
+if [ -n "$LAUNCHD_STATUS" ]; then
+  echo "WARNING: LaunchAgent still active: $LAUNCHD_STATUS"
+else
+  echo "SUCCESS: LaunchAgent properly stopped"
+fi
+
+echo "=== BULLETPROOF CLEANUP WITH LICENSE UNINSTALL COMPLETE ==="

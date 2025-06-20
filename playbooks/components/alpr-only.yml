@@ -56,7 +56,7 @@
 
     - role: macos/network/tailscale
       tags: ["tailscale", "network"]
-      when: oa_environment.allow_tailscale_changes | default(false)
+      when: configure.tailscale | default(false)
 
     # Camera permissions for ALPR monitor
     - role: macos/security
@@ -64,9 +64,11 @@
       vars:
         security_scope: "alpr_camera"
 
-    # ALPR service deployment (Docker + Python monitor)
+    # ALPR service deployment (Docker + Python monitor) - Using enhanced tasks
     - role: macos/alpr_service
       tags: ["alpr", "main"]
+      vars:
+        use_enhanced_alpr: true
 
   post_tasks:
     - name: Verify ALPR installation
@@ -91,7 +93,7 @@
     - name: Display completion message
       ansible.builtin.debug:
         msg: |
-          🎥 ALPR Stack Deployment Completed!
+          === ALPR Stack Deployment Completed ===
 
           Components Deployed:
           - PlateRecognizer Docker Service (port {{ macos_alpr_host_port | default(8081) }})

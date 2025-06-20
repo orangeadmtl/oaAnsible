@@ -1,0 +1,69 @@
+#!/bin/bash
+set -o pipefail
+set -x
+
+echo "=== STARTING ALPR SERVICE WITH PRE-FLIGHT CHECKS ==="
+
+# Pre-flight check 1: Verify no conflicting containers
+echo "Pre-flight check: Verifying no conflicting containers..."
+CONFLICTS=$(docker ps -a --filter "name={{ macos_alpr_container_name }}" --format {% raw %}"{{.Names}}"{% endraw %} 2>/dev/null || true)
+if [ -n "$CONFLICTS" ]; then
+  echo "ERROR: Found conflicting container: $CONFLICTS"
+  echo "Attempting emergency cleanup..."
+  docker rm -f "$CONFLICTS" 2>/dev/null || true
+  sleep 2
+fi
+
+# Pre-flight check 2: Verify port is available
+echo "Pre-flight check: Verifying port {{ macos_alpr_host_port }} is available..."
+if lsof -ti:{{ macos_alpr_host_port }} >/dev/null 2>&1; then
+  echo "WARNING: Port {{ macos_alpr_host_port }} is in use"
+  PROCESS_INFO=$(lsof -ti:{{ macos_alpr_host_port }} | head -1)
+  echo "Process using port: $PROCESS_INFO"
+else
+  echo "SUCCESS: Port {{ macos_alpr_host_port }} is available"
+fi
+
+# Pre-flight check 3: Verify image exists
+echo "Pre-flight check: Verifying Docker image..."
+if ! docker image inspect {{ macos_alpr_image_name }} >/dev/null 2>&1; then
+  echo "ERROR: Docker image {{ macos_alpr_image_name }} not found"
+  echo "Attempting to pull image..."
+  {% if macos_cpu_arch.stdout == 'arm64' %}
+  docker pull --platform linux/arm64 {{ macos_alpr_image_name }} || exit 1
+  {% else %}
+  docker pull {{ macos_alpr_image_name }} || exit 1
+  {% endif %}
+else
+  echo "SUCCESS: Docker image {{ macos_alpr_image_name }} is available"
+fi
+
+# Step 1: Load LaunchAgent
+echo "Loading LaunchAgent service..."
+launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist
+
+# Step 2: Wait for service startup
+echo "Waiting for service to start..."
+sleep 10
+
+# Step 3: Verify service started
+echo "=== SERVICE STARTUP VERIFICATION ==="
+
+echo "LaunchAgent status:"
+LAUNCHD_STATUS=$(launchctl list | grep {{ macos_alpr_service_plist }} || echo "Not found")
+echo "  $LAUNCHD_STATUS"
+
+echo "Container status:"
+CONTAINER_STATUS=$(docker ps --filter "name={{ macos_alpr_container_name }}" --format {% raw %}"{{.Names}}: {{.Status}}"{% endraw %} || echo "Not found")
+echo "  $CONTAINER_STATUS"
+
+echo "Port check:"
+if nc -z localhost {{ macos_alpr_host_port }} 2>/dev/null; then
+  echo "  SUCCESS: Port {{ macos_alpr_host_port }} is accessible"
+else
+  echo "  ERROR: Port {{ macos_alpr_host_port }} is not accessible"
+  echo "  Recent container logs:"
+  docker logs {{ macos_alpr_container_name }} --tail 10 2>/dev/null || echo "  No logs available"
+fi
+
+echo "=== SERVICE STARTUP COMPLETE ==="

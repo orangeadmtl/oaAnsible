@@ -92,7 +92,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -v|--verbose)
-            VERBOSE="-vvv"
+            VERBOSE="-v"
             shift
             ;;
         -p|--production)
@@ -193,10 +193,11 @@ echo "ALPR Role:       $ALPR_ROLE_FILES"
 echo "Mode:            $([ "$DRY_RUN" == "true" ] && echo "DRY RUN" || echo "DEPLOY")"
 echo ""
 echo "Components:"
-echo "  • PlateRecognizer Docker Service"
+echo "  • PlateRecognizer Docker Service (with proper license management)"
 echo "  • Python ALPR Monitor (YOLO + OpenCV)"
 echo "  • Camera permissions setup"
-echo "  • LaunchAgent services"
+echo "  • LaunchAgent services for both Docker and Monitor"
+echo "  • Proper license uninstall procedure for safe redeployment"
 echo ""
 
 # Production safety check
@@ -214,6 +215,11 @@ fi
 
 # Execute deployment
 echo "🚀 Starting ALPR deployment..."
+echo "ℹ️  This deployment will:"
+echo "   1. Bulletproof license uninstall with comprehensive edge case handling"
+echo "   2. Deploy both Docker service AND Python monitor"
+echo "   3. Set up comprehensive monitoring and management tools"
+echo "   4. Handle multiple containers, port conflicts, and network issues"
 echo ""
 
 if ! run_ansible_playbook_with_ssh "$PLAYBOOK" "$INVENTORY" "ALPR deployment" "${ANSIBLE_ARGS[@]}"; then
@@ -226,6 +232,8 @@ if ! run_ansible_playbook_with_ssh "$PLAYBOOK" "$INVENTORY" "ALPR deployment" "$
     echo "3. Ensure OrbStack/Docker is available on target"
     echo "4. Check logs in ~/orangead/alpr/logs/ on target host"
     echo "5. Run with --dry-run to test configuration"
+    echo "6. If license issues occur, manually call http://HOST-IP:8081/uninstall/"
+    echo "7. Check both Docker and Monitor services: launchctl list | grep orangead"
     exit 1
 fi
 
@@ -233,16 +241,24 @@ echo ""
 echo "✅ ALPR Stack Deployment Completed!"
 echo ""
 echo "Next steps:"
-echo "• SSH to target host and verify services:"
+echo "• SSH to target host and verify BOTH services:"
 echo "  launchctl list | grep orangead"
+echo "  Expected: com.orangead.alpr AND com.orangead.alpr-monitor"
 echo ""
 echo "• Check Docker container:"
 echo "  docker ps | grep orangead_alpr"
 echo ""
-echo "• Test ALPR API:"
+echo "• Use the ALPR manager for comprehensive control:"
+echo "  ~/orangead/alpr/alpr_manager.sh status"
+echo "  ~/orangead/alpr/alpr_manager.sh health"
+echo ""
+echo "• Test PlateRecognizer API:"
 echo "  curl -F \"upload=@image.jpg\" -F regions='ca' -F mmc=true \\"
 echo "       http://localhost:8081/v1/plate-reader/"
 echo ""
-echo "• Monitor real-time detection:"
+echo "• Monitor real-time detection (Python monitor):"
 echo "  tail -f ~/orangead/alpr/logs/monitor.out.log"
+echo ""
+echo "• For license issues, uninstall before redeployment:"
+echo "  curl http://localhost:8081/uninstall/"
 echo ""
