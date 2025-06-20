@@ -31,26 +31,31 @@
         path: "/home/{{ ansible_user }}/.zshrc"
       register: zshrc_file
 
-    - name: Check if zshrc contains our aliases
+    - name: Check if zshrc contains our configuration signature
       ansible.builtin.shell: |
         if [ -f "/home/{{ ansible_user }}/.zshrc" ]; then
-          grep -q "alias ls='lsd --group-dirs first'" "/home/{{ ansible_user }}/.zshrc"
+          # Check for our unique signature that indicates our template was used
+          grep -q "# Enhanced Zsh Configuration for {{ ansible_user }}@{{ inventory_hostname }}" "/home/{{ ansible_user }}/.zshrc"
         else
           exit 1
         fi
-      register: zsh_aliases_check
+      register: zsh_config_check
       failed_when: false
       changed_when: false
       become_user: "{{ ansible_user }}"
 
     - name: Set shell enhancement skip flags
       ansible.builtin.set_fact:
-        current_shell: "{{ user_shell_info.ansible_facts.getent_passwd[ansible_user][5] }}"
+        passwd_entry: "{{ user_shell_info.ansible_facts.getent_passwd[ansible_user] }}"
         skip_zsh_install: "{{ zsh_installed.rc == 0 }}"
         skip_lsd_install: "{{ lsd_installed.rc == 0 }}"
         skip_oh_my_zsh: "{{ oh_my_zsh_dir.stat.exists }}"
-        skip_shell_change: "{{ user_shell_info.ansible_facts.getent_passwd[ansible_user][6] == '/usr/bin/zsh' }}"
-        skip_zsh_config: "{{ zshrc_file.stat.exists and zsh_aliases_check.rc == 0 }}"
+        skip_zsh_config: "{{ zshrc_file.stat.exists and zsh_config_check.rc == 0 }}"
+
+    - name: Set shell-related facts
+      ansible.builtin.set_fact:
+        current_shell: "{{ passwd_entry[5] if passwd_entry|length > 5 else '/bin/bash' }}"
+        skip_shell_change: "{{ (passwd_entry[6] if passwd_entry|length > 6 else '/bin/bash') == '/usr/bin/zsh' }}"
 
 - name: Display shell configuration status
   ansible.builtin.debug:
@@ -61,7 +66,7 @@
       - Oh My Zsh: {{ 'Already installed' if skip_oh_my_zsh else 'Needs installation' }}
       - lsd (modern ls): {{ 'Already installed' if skip_lsd_install else 'Needs installation' }}
       - Zsh as default: {{ 'Already set' if skip_shell_change else 'Needs configuration' }}
-      - Custom aliases: {{ 'Already configured' if skip_zsh_config else 'Needs setup' }}
+      - Enhanced .zshrc: {{ 'Already configured' if skip_zsh_config else 'Needs setup' }}
 
 - name: Install zsh shell and dependencies
   ansible.builtin.apt:
@@ -97,33 +102,79 @@
         state: absent
       become: true
 
-- name: Configure zsh enhancement
-  when: not (skip_oh_my_zsh and skip_zsh_config)
+- name: Install Oh My Zsh
+  when: not skip_oh_my_zsh
   block:
-    - name: Copy zsh enhancement script
-      ansible.builtin.template:
-        src: zsh_enhancement.sh.j2
-        dest: "/home/{{ ansible_user }}/zsh_enhancement.sh"
+    - name: Download Oh My Zsh installer
+      ansible.builtin.get_url:
+        url: "https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh"
+        dest: "/tmp/install_ohmyzsh.sh"
+        mode: "0755"
+
+    - name: Install Oh My Zsh
+      ansible.builtin.shell: |
+        sh /tmp/install_ohmyzsh.sh --unattended
+      become_user: "{{ ansible_user }}"
+      environment:
+        ZSH: "/home/{{ ansible_user }}/.oh-my-zsh"
+      register: ohmyzsh_install
+      changed_when: "'Oh My Zsh is already installed' not in ohmyzsh_install.stdout"
+
+    - name: Clean up Oh My Zsh installer
+      ansible.builtin.file:
+        path: "/tmp/install_ohmyzsh.sh"
+        state: absent
+
+- name: Install Oh My Zsh external plugins
+  when: not skip_oh_my_zsh
+  block:
+    - name: Create custom plugins directory
+      ansible.builtin.file:
+        path: "/home/{{ ansible_user }}/.oh-my-zsh/custom/plugins"
+        state: directory
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
         mode: "0755"
 
-    - name: Execute zsh enhancement script
-      ansible.builtin.shell: |
-        /home/{{ ansible_user }}/zsh_enhancement.sh
+    - name: Install zsh-autosuggestions plugin
+      ansible.builtin.git:
+        repo: "https://github.com/zsh-users/zsh-autosuggestions"
+        dest: "/home/{{ ansible_user }}/.oh-my-zsh/custom/plugins/zsh-autosuggestions"
+        clone: yes
+        update: yes
       become_user: "{{ ansible_user }}"
-      register: zsh_enhancement
-      changed_when: zsh_enhancement.stdout is search('enhanced successfully')
 
-    - name: Display enhancement results
-      ansible.builtin.debug:
-        msg: "{{ zsh_enhancement.stdout_lines }}"
-      when: zsh_enhancement.stdout_lines is defined
+    - name: Install zsh-syntax-highlighting plugin
+      ansible.builtin.git:
+        repo: "https://github.com/zsh-users/zsh-syntax-highlighting"
+        dest: "/home/{{ ansible_user }}/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
+        clone: yes
+        update: yes
+      become_user: "{{ ansible_user }}"
 
-    - name: Clean up enhancement script
-      ansible.builtin.file:
-        path: "/home/{{ ansible_user }}/zsh_enhancement.sh"
-        state: absent
+- name: Configure zsh with enhanced settings
+  when: not skip_zsh_config
+  block:
+    - name: Backup existing .zshrc if it exists
+      ansible.builtin.copy:
+        src: "/home/{{ ansible_user }}/.zshrc"
+        dest: "/home/{{ ansible_user }}/.zshrc.bak"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0644"
+        remote_src: yes
+      when: zshrc_file.stat.exists
+      failed_when: false
+
+    - name: Create enhanced .zshrc configuration
+      ansible.builtin.template:
+        src: zshrc.j2
+        dest: "/home/{{ ansible_user }}/.zshrc"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0644"
+        backup: yes
+      register: zshrc_created
 
 - name: Set zsh as default shell for ansible user
   ansible.builtin.user:
@@ -135,12 +186,13 @@
 - name: Display shell enhancement results
   ansible.builtin.debug:
     msg: |-
-      Shell Enhancement Completed:
-      - Zsh: {{ 'Verified' if skip_zsh_install else 'Installed with Oh My Zsh framework' }}
+      Enhanced Zsh Configuration Completed:
+      - Zsh: {{ 'Verified' if skip_zsh_install else 'Installed' }}
+      - Oh My Zsh: {{ 'Verified' if skip_oh_my_zsh else 'Installed with robbyrussell theme' }}
+      - External plugins: {{ 'Verified' if skip_oh_my_zsh else 'Installed zsh-autosuggestions and zsh-syntax-highlighting' }}
       - Default shell: {{ 'Already zsh' if skip_shell_change else 'Changed to zsh for ' + ansible_user }}
       - Modern ls (lsd): {{ 'Verified' if skip_lsd_install else 'Installed with custom aliases' }}
-      - Custom aliases: {{ 'Verified' if skip_zsh_config else 'Configured (ls, l, la, ll, lsa, lt)' }}
-      - Theme: {{ 'Verified' if skip_zsh_config else 'Set to custom theme with username@hostname display' }}
-      - Features: {{ 'Verified' if skip_zsh_config else 'Added syntax highlighting, autosuggestions, bash compatibility' }}
+      - Enhanced .zshrc: {{ 'Already configured' if skip_zsh_config else 'Created with useful plugins and aliases' }}
+      - Nano editor: {{ 'Already configured' if skip_zsh_config else 'Set as default with enhanced options' }}
 
-      Note: All bash scripts (like camera-proxy/deploy.sh) remain fully compatible!
+      Note: All bash scripts remain fully compatible!
