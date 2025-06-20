@@ -30,6 +30,6 @@
 
 - name: Verify service states
   ansible.builtin.include_tasks: verify_services.yml
-  when: 
+  when:
     - verify_services | default(true)
     - common_services is defined

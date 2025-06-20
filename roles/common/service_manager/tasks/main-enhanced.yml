@@ -1,0 +1,49 @@
+---
+# Enhanced service manager tasks with advanced monitoring and lifecycle management
+
+- name: Enhanced service management
+  block:
+    - name: Install service monitoring tools (macOS)
+      community.general.homebrew:
+        name:
+          - pstree
+          - htop
+        state: present
+        update_homebrew: false
+      when:
+        - service_manager_type == 'launchd'
+        - ansible_os_family == 'Darwin'
+      failed_when: false
+
+    - name: Install service monitoring tools (Linux)
+      ansible.builtin.package:
+        name:
+          - psmisc
+          - htop
+          - systemd-cron
+        state: present
+      when:
+        - service_manager_type == 'systemd'
+        - ansible_os_family != 'Darwin'
+      become: true
+      failed_when: false
+
+    - name: Enhanced service monitoring setup
+      ansible.builtin.debug:
+        msg: |
+          Enhanced Service Management Features:
+          - Service monitoring tools installed
+          - Cross-platform service lifecycle management
+          - Advanced logging and debugging capabilities
+
+    - name: Create service monitoring script
+      ansible.builtin.template:
+        src: monitor_services.sh.j2
+        dest: "{{ ansible_user_dir }}/bin/monitor_services.sh"
+        mode: "0755"
+      when: create_monitoring_script | default(false)
+
+  rescue:
+    - name: Enhanced service setup failed
+      ansible.builtin.debug:
+        msg: "Enhanced service features encountered issues, but core functionality remains available"

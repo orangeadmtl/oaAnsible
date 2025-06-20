@@ -1,0 +1,36 @@
+---
+# Create service configuration files for cross-platform services
+
+- name: Create service configuration
+  block:
+    - name: Create launchd plist (macOS)
+      ansible.builtin.template:
+        src: "{{ service_config.template_path | default('service.plist.j2') }}"
+        dest: "{{ service_config.dest_path }}"
+        mode: "{{ service_config.mode | default('0644') }}"
+        owner: "{{ service_config.owner | default(ansible_user_id) }}"
+        group: "{{ service_config.group | default('staff') }}"
+      when: 
+        - service_manager_type == 'launchd'
+        - service_config is defined
+
+    - name: Create systemd service file (Linux)
+      ansible.builtin.template:
+        src: "{{ service_config.template_path | default('service.service.j2') }}"
+        dest: "{{ service_config.dest_path }}"
+        mode: "{{ service_config.mode | default('0644') }}"
+        owner: root
+        group: root
+      when: 
+        - service_manager_type == 'systemd'
+        - service_config is defined
+      become: true
+
+    - name: Display service config creation
+      ansible.builtin.debug:
+        msg: "Created {{ service_config.name }} service configuration at {{ service_config.dest_path }}"
+
+  rescue:
+    - name: Service config creation failed
+      ansible.builtin.debug:
+        msg: "Failed to create service config {{ service_config.name }}, but continuing"

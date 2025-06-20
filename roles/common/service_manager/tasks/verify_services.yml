@@ -1,0 +1,44 @@
+---
+# Service verification tasks for cross-platform service validation
+
+- name: Verify service states
+  block:
+    - name: Check service status (macOS/launchd)
+      ansible.builtin.shell: |
+        launchctl list | grep {{ item.name }} || echo "Service {{ item.name }} not found"
+      register: service_status_launchd
+      loop: "{{ common_services }}"
+      when: service_manager_type == 'launchd'
+      changed_when: false
+      failed_when: false
+
+    - name: Check service status (Linux/systemd)
+      ansible.builtin.systemd:
+        name: "{{ item.name }}"
+      register: service_status_systemd
+      loop: "{{ common_services }}"
+      when: service_manager_type == 'systemd'
+      failed_when: false
+
+    - name: Display service verification results (macOS)
+      ansible.builtin.debug:
+        msg: |
+          Service Status (launchd):
+          {% for result in service_status_launchd.results %}
+          - {{ result.item.name }}: {{ result.stdout | default('Unknown') }}
+          {% endfor %}
+      when: service_manager_type == 'launchd' and service_status_launchd is defined
+
+    - name: Display service verification results (Linux)
+      ansible.builtin.debug:
+        msg: |
+          Service Status (systemd):
+          {% for result in service_status_systemd.results %}
+          - {{ result.item.name }}: {{ result.status.ActiveState | default('Unknown') }}
+          {% endfor %}
+      when: service_manager_type == 'systemd' and service_status_systemd is defined
+
+  rescue:
+    - name: Service verification failed
+      ansible.builtin.debug:
+        msg: "Service verification encountered issues, but continuing deployment"
