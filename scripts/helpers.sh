@@ -14,6 +14,7 @@ OA_ANSIBLE_GROUP_VARS_DIR="$OA_ANSIBLE_ROOT_DIR/group_vars"
 OA_ANSIBLE_VAULT_PASSWORD_FILE="$OA_ANSIBLE_ROOT_DIR/vault_password_file"
 OA_ANSIBLE_LOG_DIR="$OA_ANSIBLE_ROOT_DIR/logs"       # New log directory
 OA_ANSIBLE_LOG_FILE="$OA_ANSIBLE_LOG_DIR/script.log" # New log file path
+VAULT_YML_FILE="$OA_ANSIBLE_GROUP_VARS_DIR/all/vault.yml"
 
 export OA_ANSIBLE_SCRIPTS_DIR
 export OA_ANSIBLE_INVENTORY_DIR
@@ -23,6 +24,7 @@ export OA_ANSIBLE_GROUP_VARS_DIR
 export OA_ANSIBLE_VAULT_PASSWORD_FILE
 export OA_ANSIBLE_LOG_DIR
 export OA_ANSIBLE_LOG_FILE
+export VAULT_YML_FILE
 
 # Ensure log directory exists
 mkdir -p "$OA_ANSIBLE_LOG_DIR"
@@ -436,8 +438,8 @@ load_ssh_key_from_vault() {
         fi
     fi
     
-    # Variables from helpers.sh
-    local vault_yml_file="$OA_ANSIBLE_GROUP_VARS_DIR/all/vault.yml"
+    # Use the exported VAULT_YML_FILE variable
+    local vault_yml_file="$VAULT_YML_FILE"
     
     # Check for required dependencies
     check_vault_password_file
@@ -476,9 +478,7 @@ run_ansible_playbook_with_ssh() {
         # Continue anyway in case there are other keys available
     fi
     
-    # Load vault variables and export sudo passwords as environment variables
-    eval "$(ansible-vault view group_vars/all/vault.yml --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" | yq e '.vault_sudo_passwords | to_entries | .[] | "export ANSIBLE_BECOME_PASSWORD_" + .key | sub("-", "_") + "=" + .value' -)"
-    export ANSIBLE_BECOME_PASSWORD_DEFAULT=$(ansible-vault view group_vars/all/vault.yml --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" | yq e '.vault_default_sudo_password' -)
+    log_info "Loading vault variables for inventory template resolution..."
     
     # Ensure we're in the correct directory
     ensure_ansible_root_dir
@@ -488,7 +488,58 @@ run_ansible_playbook_with_ssh() {
     log_info "Context: $context"
     
     # Run the playbook with all remaining arguments
-    ANSIBLE_CONFIG=ansible.cfg ansible-playbook "$playbook" -i "$inventory" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" "$@"
+    # Add explicit vault loading to ensure inventory templates can resolve vault variables
+    ANSIBLE_CONFIG=ansible.cfg ansible-playbook "$playbook" -i "$inventory" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" --extra-vars "@$VAULT_YML_FILE" "$@"
+    
+    return $?
+}
+
+# Simplified function for running playbooks with environment-specific defaults
+run_environment_playbook() {
+    local environment="$1"
+    shift  # Remove environment argument, rest are passed through
+    
+    local inventory="inventory/$environment/hosts.yml"
+    local context="$environment deployment"
+    
+    # Check if inventory exists
+    if [[ ! -f "$inventory" ]]; then
+        log_error "Inventory file not found: $inventory"
+        return 1
+    fi
+    
+    run_ansible_playbook_with_ssh "main.yml" "$inventory" "$context" "$@"
+}
+
+# Function for running any playbook with proper vault and SSH setup
+run_playbook_with_vault() {
+    local playbook="$1"
+    local inventory="$2"
+    local context="${3:-playbook execution}"
+    shift 3  # Remove first 3 arguments, rest are passed to ansible-playbook
+    
+    # Load SSH key from vault
+    if ! load_ssh_key_from_vault "$context"; then
+        log_error "SSH key loading failed. Playbook execution may not work properly."
+        # Continue anyway in case there are other keys available
+    fi
+    
+    log_info "Loading vault variables for inventory template resolution..."
+    
+    # Ensure we're in the correct directory
+    ensure_ansible_root_dir
+    
+    log_info "Running Ansible playbook: $playbook"
+    log_info "Inventory: $inventory"
+    log_info "Context: $context"
+    
+    # Check for required dependencies
+    check_vault_password_file
+    check_ansible_installed
+    
+    # Run the playbook with all remaining arguments
+    # Add explicit vault loading to ensure inventory templates can resolve vault variables
+    ANSIBLE_CONFIG=ansible.cfg ansible-playbook "$playbook" -i "$inventory" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" --extra-vars "@$VAULT_YML_FILE" "$@"
     
     return $?
 }

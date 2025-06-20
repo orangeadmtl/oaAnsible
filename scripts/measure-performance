@@ -169,7 +169,7 @@ log_info "Loading SSH key for performance testing..."
 check_vault_password_file
 check_ansible_installed
 
-VAULT_YML_FILE="$OA_ANSIBLE_GROUP_VARS_DIR/all/vault.yml"
+# Variables from helpers.sh
 
 if ! ssh-add -l >/dev/null 2>&1; then
   log_info "Starting ssh-agent..."

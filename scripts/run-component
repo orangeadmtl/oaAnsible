@@ -103,8 +103,16 @@ ensure_ansible_root_dir
 
 # Validate environment
 case $ENVIRONMENT in
-  staging|production|preprod)
+  staging|production)
     INVENTORY_FILE="$OA_ANSIBLE_INVENTORY_DIR/$ENVIRONMENT/hosts.yml"
+    if [ ! -f "$INVENTORY_FILE" ]; then
+      log_error "Inventory file not found: $INVENTORY_FILE"
+      exit 1
+    fi
+    ;;
+  preprod|pre-prod)
+    # Handle both preprod and pre-prod naming
+    INVENTORY_FILE="$OA_ANSIBLE_INVENTORY_DIR/pre-prod/hosts.yml"
     if [ ! -f "$INVENTORY_FILE" ]; then
       log_error "Inventory file not found: $INVENTORY_FILE"
       exit 1
@@ -112,7 +120,7 @@ case $ENVIRONMENT in
     ;;
   *)
     log_error "Invalid environment: $ENVIRONMENT"
-    log_error "Valid environments: staging, production, preprod"
+    log_error "Valid environments: staging, production, preprod, pre-prod"
     exit 1
     ;;
 esac
@@ -187,33 +195,11 @@ for component in "${COMPONENTS[@]}"; do
   fi
 done
 
-# --- SSH Agent Key Loading ---
-log_info "Checking and loading SSH key into agent for component deployment..."
+# Check for required dependencies (SSH and vault loading handled by run_playbook_with_vault)
 check_vault_password_file
 check_yq_installed
 check_ansible_vault_installed
 check_ansible_installed
-
-# Load SSH key from vault
-VAULT_YML_FILE="$OA_ANSIBLE_GROUP_VARS_DIR/all/vault.yml"
-
-if ! ssh-add -l >/dev/null 2>&1; then
-  log_info "ssh-agent not running or no keys loaded. Starting agent..."
-  eval "$(ssh-agent -s)" >/dev/null
-fi
-
-log_info "Loading SSH key from vault..."
-if ansible-vault view "$VAULT_YML_FILE" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" |
-  yq -re '.vault_ssh_private_key // ""' |
-  ssh-add - >/dev/null 2>&1; then
-  log_info "SSH key successfully loaded."
-else
-  if ssh-add -l >/dev/null 2>&1; then
-    log_warn "Could not add key from vault, but keys are present in agent."
-  else
-    log_error "Failed to load SSH key and no keys in agent. SSH authentication may fail."
-  fi
-fi
 
 # --- Advanced Component Deployment ---
 log_info "🚀 Starting advanced component deployment..."
@@ -241,16 +227,11 @@ if [ -n "$EXECUTION_MODE_OPTIONS" ]; then
 fi
 
 # Execute the universal playbook with component mode and advanced framework
-ANSIBLE_CONFIG=ansible.cfg ansible-playbook \
-  playbooks/universal.yml \
-  -i "$INVENTORY_FILE" \
-  --extra-vars "$EXTRA_VARS" \
-  --tags "components" \
-  "${ANSIBLE_FLAGS[@]}"
-
-PLAYBOOK_EXIT_CODE=$?
-
-if [ $PLAYBOOK_EXIT_CODE -eq 0 ]; then
+if ! run_playbook_with_vault "playbooks/universal.yml" "$INVENTORY_FILE" "component deployment" --extra-vars "$EXTRA_VARS" --tags "components" "${ANSIBLE_FLAGS[@]}"; then
+  log_error "❌ Component deployment failed"
+  log_error "💡 Try running with --dry-run first to validate the configuration"
+  exit 1
+else
   log_info "✅ Advanced component deployment completed successfully!"
   log_info "📦 Deployed components: ${COMPONENTS[*]}"
   log_info "🎯 Environment: $ENVIRONMENT"
@@ -259,10 +240,6 @@ if [ $PLAYBOOK_EXIT_CODE -eq 0 ]; then
   elif [[ "$EXECUTION_MODE_OPTIONS" == *"check"* ]]; then
     log_info "🔍 Check mode completed - validation passed"
   fi
-else
-  log_error "❌ Component deployment failed with exit code $PLAYBOOK_EXIT_CODE"
-  log_error "💡 Try running with --dry-run first to validate the configuration"
 fi
 
 log_debug "run-component script finished."
-exit $PLAYBOOK_EXIT_CODE

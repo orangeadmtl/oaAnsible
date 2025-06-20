@@ -59,8 +59,16 @@ ensure_ansible_root_dir
 
 # Validate environment
 case $ENVIRONMENT in
-  staging|production|preprod)
+  staging|production)
     INVENTORY_FILE="$OA_ANSIBLE_INVENTORY_DIR/$ENVIRONMENT/hosts.yml"
+    if [ ! -f "$INVENTORY_FILE" ]; then
+      log_error "Inventory file not found: $INVENTORY_FILE"
+      exit 1
+    fi
+    ;;
+  preprod|pre-prod)
+    # Handle both preprod and pre-prod naming
+    INVENTORY_FILE="$OA_ANSIBLE_INVENTORY_DIR/pre-prod/hosts.yml"
     if [ ! -f "$INVENTORY_FILE" ]; then
       log_error "Inventory file not found: $INVENTORY_FILE"
       exit 1
@@ -68,7 +76,7 @@ case $ENVIRONMENT in
     ;;
   *)
     log_error "Invalid environment: $ENVIRONMENT"
-    log_error "Valid environments: staging, production, preprod"
+    log_error "Valid environments: staging, production, preprod, pre-prod"
     exit 1
     ;;
 esac
@@ -85,33 +93,11 @@ case $PLATFORM in
     ;;
 esac
 
-# --- SSH Agent Key Loading ---
-log_info "Checking and loading SSH key into agent for platform deployment..."
+# Check for required dependencies (SSH and vault loading handled by run_playbook_with_vault)
 check_vault_password_file
 check_yq_installed
 check_ansible_vault_installed
 check_ansible_installed
-
-# Load SSH key from vault
-VAULT_YML_FILE="$OA_ANSIBLE_GROUP_VARS_DIR/all/vault.yml"
-
-if ! ssh-add -l >/dev/null 2>&1; then
-  log_info "ssh-agent not running or no keys loaded. Starting agent..."
-  eval "$(ssh-agent -s)" >/dev/null
-fi
-
-log_info "Loading SSH key from vault..."
-if ansible-vault view "$VAULT_YML_FILE" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" |
-  yq -re '.vault_ssh_private_key // ""' |
-  ssh-add - >/dev/null 2>&1; then
-  log_info "SSH key successfully loaded."
-else
-  if ssh-add -l >/dev/null 2>&1; then
-    log_warn "Could not add key from vault, but keys are present in agent."
-  else
-    log_error "Failed to load SSH key and no keys in agent. SSH authentication may fail."
-  fi
-fi
 
 # --- Platform Deployment ---
 log_info "Starting platform deployment..."
@@ -159,26 +145,18 @@ log_info "Executing platform deployment..."
 
 # Execute the appropriate playbook
 if [ -n "$EXTRA_VARS" ]; then
-  ANSIBLE_CONFIG=ansible.cfg ansible-playbook \
-    "$PLAYBOOK" \
-    -i "$INVENTORY_FILE" \
-    --extra-vars "$EXTRA_VARS" \
-    "$@"
+  if ! run_playbook_with_vault "$PLAYBOOK" "$INVENTORY_FILE" "$ENVIRONMENT $PLATFORM deployment" --extra-vars "$EXTRA_VARS" "$@"; then
+    log_error "Platform deployment failed."
+    exit 1
+  fi
 else
-  ANSIBLE_CONFIG=ansible.cfg ansible-playbook \
-    "$PLAYBOOK" \
-    -i "$INVENTORY_FILE" \
-    "$@"
+  if ! run_playbook_with_vault "$PLAYBOOK" "$INVENTORY_FILE" "$ENVIRONMENT $PLATFORM deployment" "$@"; then
+    log_error "Platform deployment failed."
+    exit 1
+  fi
 fi
 
-PLAYBOOK_EXIT_CODE=$?
-
-if [ $PLAYBOOK_EXIT_CODE -eq 0 ]; then
-  log_info "Platform deployment completed successfully."
-  log_info "Environment: $ENVIRONMENT, Platform: $PLATFORM"
-else
-  log_error "Platform deployment failed with exit code $PLAYBOOK_EXIT_CODE."
-fi
+log_info "Platform deployment completed successfully."
+log_info "Environment: $ENVIRONMENT, Platform: $PLATFORM"
 
 log_debug "run-platform script finished."
-exit $PLAYBOOK_EXIT_CODE

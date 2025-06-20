@@ -90,7 +90,6 @@ if ! ssh-add -l >/dev/null 2>&1; then
 fi
 
 # Variables from helpers.sh
-VAULT_YML_FILE="$OA_ANSIBLE_GROUP_VARS_DIR/all/vault.yml"
 
 # Check for required dependencies
 check_vault_password_file
