@@ -38,14 +38,14 @@ orangead_logs:
 
 # System health monitoring
 health_check_enabled: true
-health_check_interval: "*/5 * * * *"  # Every 5 minutes
+health_check_interval: "*/5 * * * *" # Every 5 minutes
 health_check_script_path: "/home/{{ ansible_user }}/orangead/scripts"
 
 # Disk space monitoring
 disk_monitoring:
   enabled: true
-  threshold_warning: 80  # Warning at 80% usage
-  threshold_critical: 90  # Critical at 90% usage
+  threshold_warning: 80 # Warning at 80% usage
+  threshold_critical: 90 # Critical at 90% usage
   check_paths:
     - "/"
     - "/home"
@@ -55,8 +55,8 @@ disk_monitoring:
 # Memory monitoring
 memory_monitoring:
   enabled: true
-  threshold_warning: 80  # Warning at 80% usage
-  threshold_critical: 90  # Critical at 90% usage
+  threshold_warning: 80 # Warning at 80% usage
+  threshold_critical: 90 # Critical at 90% usage
 
 # Service monitoring
 service_monitoring:
@@ -80,7 +80,7 @@ network_monitoring:
 
 # Alerting (basic email notifications)
 alerting:
-  enabled: false  # Set to true when email is configured
+  enabled: false # Set to true when email is configured
   email_to: "admin@orangead.local"
   email_from: "monitoring@{{ ansible_hostname }}"
   smtp_server: "localhost"
@@ -88,7 +88,7 @@ alerting:
 # Performance monitoring
 performance_monitoring:
   enabled: true
-  collect_interval: 300  # 5 minutes
+  collect_interval: 300 # 5 minutes
   metrics_retention_days: 7
   collect_metrics:
     - cpu_usage

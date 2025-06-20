@@ -78,8 +78,7 @@
     tracker_python: "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python3"
     python_execs:
       real_api: "{{ ansible_user_dir }}/.pyenv/versions/{{ python.version }}/bin/python3.{{ python.version.split('.')[0] }}.{{ python.version.split('.')[1] }}"
-      real_tracker:
-        "{{ ansible_user_dir }}/.pyenv/versions/{{ python.version }}/bin/python3.{{ python.version.split('.')[0] }}.{{ python.version.split('.')[1] }}"
+      real_tracker: "{{ ansible_user_dir }}/.pyenv/versions/{{ python.version }}/bin/python3.{{ python.version.split('.')[0] }}.{{ python.version.split('.')[1] }}"
 
 # Show Python executable paths
 - name: Show Python executable paths
@@ -232,9 +231,8 @@
 
 - name: Check if camera permissions need to be granted
   ansible.builtin.set_fact:
-    need_camera_permissions:
-      "{{ api_access_missing == 'true' or tracker_access_missing == 'true' or setsid_access_missing == 'true' or nohup_access_missing == 'true' or
-      bash_access_missing == 'true' or tailscale_access_missing == 'true' or terminal_access_missing == 'true' or ssh_access_missing == 'true' }}"
+    need_camera_permissions: "{{ api_access_missing == 'true' or tracker_access_missing == 'true' or setsid_access_missing == 'true' or nohup_access_missing == 'true'
+      or bash_access_missing == 'true' or tailscale_access_missing == 'true' or terminal_access_missing == 'true' or ssh_access_missing == 'true' }}"
 
 # Grant Full Disk Access first (required for TCC database access)
 - name: Create script to grant Full Disk Access
@@ -285,9 +283,9 @@
 # Verify camera access
 - name: Check if camera permissions are granted
   ansible.builtin.set_fact:
-    camera_permissions_granted:
-      "{{ api_access_status == 'Granted' and tracker_access_status == 'Granted' and setsid_access_status == 'Granted' and nohup_access_status == 'Granted' and
-      bash_access_status == 'Granted' and tailscale_access_status == 'Granted' and terminal_access_status == 'Granted' and ssh_access_status == 'Granted' }}"
+    camera_permissions_granted: "{{ api_access_status == 'Granted' and tracker_access_status == 'Granted' and setsid_access_status == 'Granted' and nohup_access_status
+      == 'Granted' and bash_access_status == 'Granted' and tailscale_access_status == 'Granted' and terminal_access_status == 'Granted' and ssh_access_status == 'Granted'
+      }}"
 
 - name: Debug camera permissions granted status
   ansible.builtin.debug:

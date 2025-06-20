@@ -99,8 +99,9 @@
     # Check platform compatibility
     - name: Validate platform requirements
       ansible.builtin.set_fact:
-        compatibility_results: "{{ compatibility_results | combine({'errors': compatibility_results.errors + ['Platform ' + detected_platform + ' not supported by
-          component ' + item]}) }}"
+        compatibility_results:
+          "{{ compatibility_results | combine({'errors': compatibility_results.errors + ['Platform ' + detected_platform + ' not supported by component ' +
+          item]}) }}"
       loop: "{{ dependency_resolution.resolved_components }}"
       when:
         - component_framework.available_components[item].platform != 'universal'
@@ -117,10 +118,11 @@
 
     - name: Sum resource requirements
       ansible.builtin.set_fact:
-        total_resources: "{{ total_resources | combine({'memory_mb': total_resources.memory_mb + (compatibility_matrix.resource_requirements[item].min_memory_mb |
-          default(0)), 'disk_mb': total_resources.disk_mb + (compatibility_matrix.resource_requirements[item].min_disk_mb | default(0)), 'cpu_cores': [total_resources.cpu_cores,
-          compatibility_matrix.resource_requirements[item].cpu_cores | default(1)] | max, 'ports_needed': total_resources.ports_needed + (compatibility_matrix.resource_requirements[item].network_ports
-          | default([]))}) }}"
+        total_resources:
+          "{{ total_resources | combine({'memory_mb': total_resources.memory_mb + (compatibility_matrix.resource_requirements[item].min_memory_mb | default(0)),
+          'disk_mb': total_resources.disk_mb + (compatibility_matrix.resource_requirements[item].min_disk_mb | default(0)), 'cpu_cores':
+          [total_resources.cpu_cores, compatibility_matrix.resource_requirements[item].cpu_cores | default(1)] | max, 'ports_needed':
+          total_resources.ports_needed + (compatibility_matrix.resource_requirements[item].network_ports | default([]))}) }}"
       loop: "{{ dependency_resolution.resolved_components }}"
       when: item in compatibility_matrix.resource_requirements
 
@@ -131,23 +133,25 @@
 
     - name: Find components using same ports
       ansible.builtin.set_fact:
-        port_conflict_components: "{{ port_conflict_components + [{'port': item.key, 'components': item.value | intersect(dependency_resolution.resolved_components)}]
-          }}"
+        port_conflict_components:
+          "{{ port_conflict_components + [{'port': item.key, 'components': item.value | intersect(dependency_resolution.resolved_components)}] }}"
       loop: "{{ compatibility_matrix.port_conflicts | dict2items }}"
       when: (item.value | intersect(dependency_resolution.resolved_components)) | length > 1
 
     - name: Add port conflict errors
       ansible.builtin.set_fact:
-        compatibility_results: "{{ compatibility_results | combine({'errors': compatibility_results.errors + ['Port conflict on ' + item.port | string + ': ' + item.components
-          | join(', ')]}) }}"
+        compatibility_results:
+          "{{ compatibility_results | combine({'errors': compatibility_results.errors + ['Port conflict on ' + item.port | string + ': ' + item.components |
+          join(', ')]}) }}"
       loop: "{{ port_conflict_components }}"
       when: port_conflict_components | length > 0
 
     # Check runtime conflicts
     - name: Check for runtime conflicts
       ansible.builtin.set_fact:
-        compatibility_results: "{{ compatibility_results | combine({'errors': compatibility_results.errors + [item.reason + ': ' + (item.components | intersect(dependency_resolution.resolved_components)
-          | join(', '))]}) }}"
+        compatibility_results:
+          "{{ compatibility_results | combine({'errors': compatibility_results.errors + [item.reason + ': ' + (item.components |
+          intersect(dependency_resolution.resolved_components) | join(', '))]}) }}"
       loop: "{{ compatibility_matrix.runtime_conflicts }}"
       when:
         - item.severity == 'error'
@@ -155,8 +159,9 @@
 
     - name: Add runtime warnings
       ansible.builtin.set_fact:
-        compatibility_results: "{{ compatibility_results | combine({'warnings': compatibility_results.warnings + [item.reason + ': ' + (item.components | intersect(dependency_resolution.resolved_components)
-          | join(', '))]}) }}"
+        compatibility_results:
+          "{{ compatibility_results | combine({'warnings': compatibility_results.warnings + [item.reason + ': ' + (item.components |
+          intersect(dependency_resolution.resolved_components) | join(', '))]}) }}"
       loop: "{{ compatibility_matrix.runtime_conflicts }}"
       when:
         - item.severity == 'warning'
@@ -165,7 +170,8 @@
     # Set overall compatibility status
     - name: Determine overall compatibility
       ansible.builtin.set_fact:
-        compatibility_results: "{{ compatibility_results | combine({'passed': compatibility_results.errors | length == 0, 'resource_analysis': total_resources}) }}"
+        compatibility_results:
+          "{{ compatibility_results | combine({'passed': compatibility_results.errors | length == 0, 'resource_analysis': total_resources}) }}"
 
 - name: Display compatibility analysis
   ansible.builtin.debug:

@@ -69,7 +69,9 @@
         quiet: true
       when:
         - available_disk_gb.rc == 0
+        - available_disk_gb.stdout != ""
         - not execution_config.force_mode
+        - not execution_config.check_mode
 
     - name: Check network connectivity to required services
       ansible.builtin.uri:
