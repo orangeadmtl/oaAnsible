@@ -1,0 +1,48 @@
+---
+- name: "Configure Wi-Fi network: {{ wifi_network.ssid }}"
+  become: true
+  tags: ["wifi", "network"]
+  block:
+    - name: "Check if {{ wifi_network.ssid }} is available"
+      ansible.builtin.shell: |
+        set -o pipefail
+        /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -s | grep "{{ wifi_network.ssid }}"
+      register: network_available
+      changed_when: false
+      failed_when: false
+
+    - name: "Check if {{ wifi_network.ssid }} is already configured"
+      ansible.builtin.shell: |
+        set -o pipefail
+        networksetup -listpreferredwirelessnetworks "{{ wifi_device }}" | grep "{{ wifi_network.ssid }}"
+      register: network_configured
+      changed_when: false
+      failed_when: false
+
+    - name: "Add {{ wifi_network.ssid }} to preferred networks"
+      ansible.builtin.command: >-
+        networksetup -addpreferredwirelessnetworkatindex "{{ wifi_device }}" 
+        "{{ wifi_network.ssid }}" 0 "{{ wifi_network.security_type | default('WPA2') }}" "{{ wifi_network.password }}"
+      when: 
+        - network_available.rc == 0
+        - network_configured.rc != 0
+      register: add_network_result
+      changed_when: add_network_result.rc == 0
+
+    - name: "Connect to {{ wifi_network.ssid }} if not already connected"
+      ansible.builtin.command: >-
+        networksetup -setairportnetwork "{{ wifi_device }}" "{{ wifi_network.ssid }}" "{{ wifi_network.password }}"
+      when: 
+        - network_available.rc == 0
+        - current_wifi.stdout != wifi_network.ssid
+        - wifi_network.auto_connect | default(true)
+      register: connect_result
+      changed_when: connect_result.rc == 0
+
+    - name: "Display connection status for {{ wifi_network.ssid }}"
+      ansible.builtin.debug:
+        msg: |
+          Network: {{ wifi_network.ssid }}
+          Available: {{ 'Yes' if network_available.rc == 0 else 'No' }}
+          Previously Configured: {{ 'Yes' if network_configured.rc == 0 else 'No' }}
+          Connection Attempted: {{ 'Yes' if connect_result.changed | default(false) else 'No' }}

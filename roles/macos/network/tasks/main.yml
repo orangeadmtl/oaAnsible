@@ -61,7 +61,7 @@
           {{ (dhcp_dns_servers_list + public_dns_servers + (macos_dns.tailscale_servers | default([]))) | unique | list }}
       ansible.builtin.command: >-
         networksetup -setdnsservers "{{ primary_service }}" {{ final_dns_list | join(' ') }}
-      when: macos_configure.tailscale | bool and final_dns_list | length > 0
+      when: configure.tailscale | bool and final_dns_list | length > 0
       register: dns_result
       changed_when: dns_result.rc == 0 and (current_dns.stdout_lines | default([]) | join(' ') != final_dns_list | join(' '))
 
@@ -70,7 +70,7 @@
         content: "{{ dhcp_dns_servers_list | join('\\n') }}"
         dest: "{{ ansible_env.HOME }}/.dns_backup_dhcp"
         mode: "0600"
-      when: macos_configure.tailscale | bool and dhcp_dns_servers_list | length > 0
+      when: configure.tailscale | bool and dhcp_dns_servers_list | length > 0
 
 - name: Configure Database DNS Override
   become: true
@@ -91,3 +91,8 @@
           100.66.164.99 detectiondb.orangead.ca  # Force Tailscale routing
         create: true
         mode: "0644"
+
+- name: Configure Wi-Fi Networks
+  ansible.builtin.include_tasks: wifi_configuration.yml
+  tags: ["wifi", "network"]
+  when: network.configure_wifi | default(false)

@@ -35,3 +35,9 @@ vault_tracker_secret_key: "tracker-secret-key"
 # ALPR service secrets (optional)
 vault_alpr_token: "platerecognizer-api-token"
 vault_alpr_license_key: "platerecognizer-license-key"
+
+# Wi-Fi configuration (for macOS devices)
+vault_wifi_networks:
+  - ssid: "Kampus"
+    password: "Kampus94"
+    security_type: "WPA2"

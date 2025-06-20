@@ -82,3 +82,7 @@ security:
   privacy:
     camera_permissions_required: true
     full_disk_access_required: false
+
+# Network configuration
+network:
+  configure_wifi: false  # Set to true to configure Wi-Fi networks from vault

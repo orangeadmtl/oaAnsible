@@ -1,0 +1,46 @@
+---
+- name: Configure Wi-Fi Networks
+  become: true
+  tags: ["wifi", "network", "connectivity"]
+  block:
+    - name: Get list of available Wi-Fi networks
+      ansible.builtin.shell: |
+        set -o pipefail
+        /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -s | grep -v "^SSID"
+      register: available_networks
+      changed_when: false
+      failed_when: false
+
+    - name: Get Wi-Fi interface name
+      ansible.builtin.shell: |
+        set -o pipefail
+        networksetup -listallhardwareports | grep -A 1 "Wi-Fi" | grep "Device:" | awk '{print $2}'
+      register: wifi_interface
+      changed_when: false
+
+    - name: Set Wi-Fi interface fact
+      ansible.builtin.set_fact:
+        wifi_device: "{{ wifi_interface.stdout }}"
+
+    - name: Get current Wi-Fi network
+      ansible.builtin.shell: |
+        set -o pipefail
+        networksetup -getairportnetwork "{{ wifi_device }}" | cut -d':' -f2 | xargs
+      register: current_wifi
+      changed_when: false
+      failed_when: false
+
+    - name: Configure Wi-Fi networks from vault
+      ansible.builtin.include_tasks: wifi_network_setup.yml
+      loop: "{{ vault_wifi_networks | default([]) }}"
+      loop_control:
+        loop_var: wifi_network
+      when: vault_wifi_networks is defined and vault_wifi_networks | length > 0
+
+    - name: Display current Wi-Fi status
+      ansible.builtin.debug:
+        msg: |
+          Current Wi-Fi Interface: {{ wifi_device }}
+          Current Network: {{ current_wifi.stdout | default('Not connected') }}
+          Configured Networks: {{ vault_wifi_networks | map(attribute='ssid') | list | default(['None']) }}
+      when: wifi_device is defined
