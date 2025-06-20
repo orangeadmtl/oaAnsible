@@ -57,6 +57,52 @@ disk, port 8080 **Service**: LaunchAgent running as ansible_user
 - Camera access with TCC permissions
 - AI model management
 
+#### `player`
+
+**Purpose**: Flexible video player system for digital signage and content display **Platform**: macOS **Dependencies**: `base-system` **Resources**: 512MB RAM, 2GB disk, ffmpeg **Service**: LaunchAgent running as ansible_user
+
+```bash
+# Deploy video player system
+./scripts/run-component staging player
+
+# Will deploy: base-system → player
+```
+
+**Features**:
+
+- **Multi-screen Support**: Configurable single or dual-screen video playback
+- **Flexible Video Management**: Dynamic video selection with multiple strategies (single, sequential, random, playlist)
+- **Auto-discovery**: Automatically detects videos in role files directory
+- **Project-specific Configuration**: Different video sets per project (F1, ALPR, Spectra)
+- **Format Support**: Handles .webm, .mp4, .mov, .avi, .mkv formats
+- **Health Monitoring**: Automatic restart and process monitoring
+- **LaunchAgent Integration**: Robust service management with automatic startup
+
+**Configuration Example**:
+```yaml
+player:
+  enabled: true
+  dual_screen: true
+  video_selection_strategy: "sequential"
+  videos:
+    - name: "content-1.mp4"
+      display: 1
+      enabled: true
+      loop: true
+      volume: 0.8
+    - name: "content-2.mp4"
+      display: 2
+      enabled: true
+      loop: true
+      volume: 0.8
+```
+
+**Video Selection Strategies**:
+- `single`: Play first enabled video only
+- `sequential`: Play all enabled videos in order
+- `random`: Randomly select from enabled videos
+- `playlist`: Advanced playlist management
+
 
 ### Universal Components
 
@@ -149,25 +195,7 @@ disk, port 8080 **Service**: LaunchAgent running as ansible_user
 - Resource management
 - Security hardening
 
-### OrangePi Platform Components
 
-#### `opi-player`
-
-**Purpose**: Media player service for embedded displays **Platform**: OrangePi **Dependencies**: `base-system`, `python` **Resources**: 1GB RAM, 2GB disk, port
-9090 **Category**: Service
-
-```bash
-# Deploy OrangePi media player
-./scripts/run-component staging opi-player
-```
-
-**Features**:
-
-- Media playback capabilities
-- Display management
-- GPIO integration
-- Hardware optimization
-- opi-setup integration
 
 ## Dependency Resolution
 
@@ -428,7 +456,7 @@ resource_requirements:
 ./scripts/run-component staging invalid-component
 # ❌ Component validation failed:
 # Invalid components: invalid-component
-# Available components: macos-api, macos-tracker, base-system, python, node, network-stack, ubuntu-docker, opi-player
+# Available components: macos-api, macos-tracker, base-system, python, node, network-stack, ubuntu-docker
 ```
 
 #### Platform Mismatch
