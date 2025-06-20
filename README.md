@@ -55,9 +55,31 @@ oaAnsible/
 ├── 📁 roles/              # Platform and service-specific roles
 ├── 📁 inventory/          # Environment-specific configurations
 └── 📁 docs/               # Comprehensive documentation
+    ├── SCRIPT_USAGE.md      # Complete script usage guide
+    ├── QUICK_REFERENCE.md   # Quick command reference
+    ├── WIFI_SETUP.md        # WiFi configuration guide
+    └── ...
 ```
 
 ## 🚀 Quick Start
+
+> **📖 For comprehensive script usage examples covering all platforms and use cases, see [SCRIPT_USAGE.md](docs/SCRIPT_USAGE.md)**
+
+### Essential Commands
+
+```bash
+# Deploy full stack to staging
+./scripts/run-staging -l hostname
+
+# Deploy specific components  
+./scripts/run-component staging macos-api tracker -l hostname
+
+# Deploy to all production devices
+./scripts/run-prod
+
+# Check what would be deployed (dry run)
+./scripts/run-staging -l hostname --check
+```
 
 ### 1. Component Deployment (Recommended)
 
@@ -412,6 +434,38 @@ oaAnsible follows a comprehensive development framework:
 
 # Run server tests
 ./scripts/demo-server
+```
+
+## 📚 Documentation
+
+### Essential Guides
+
+| Guide | Description | Use Case |
+|-------|-------------|----------|
+| **[Script Usage Guide](docs/SCRIPT_USAGE.md)** | Complete examples for all platforms and scenarios | New users, comprehensive reference |
+| **[Quick Reference](docs/QUICK_REFERENCE.md)** | Common commands and quick examples | Daily operations, quick lookup |
+| **[WiFi Setup Guide](docs/WIFI_SETUP.md)** | Complete WiFi configuration walkthrough | Network configuration |
+
+### Additional Documentation
+
+- [Environment System](docs/ENVIRONMENT_SYSTEM.md) - Environment and inventory management
+- [Component Framework](docs/components.md) - Component system architecture
+- [Server API](docs/server-api.md) - REST API documentation
+- [ALPR Integration](docs/alpr-integration.md) - License plate recognition setup
+- [System Architecture](docs/SYSTEM.md) - Overall system design
+- [Workflow Guide](docs/WORKFLOW.md) - Development and deployment workflows
+
+### Quick Links
+
+```bash
+# 📖 Complete script examples
+cat docs/SCRIPT_USAGE.md
+
+# ⚡ Quick command reference  
+cat docs/QUICK_REFERENCE.md
+
+# 📡 WiFi configuration guide
+cat docs/WIFI_SETUP.md
 ```
 
 ---
