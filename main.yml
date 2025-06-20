@@ -5,10 +5,5 @@
 
 - name: OrangeAd Universal Configuration (Legacy Entry Point)
   ansible.builtin.import_playbook: playbooks/universal.yml
-  vars:
-    # Default to full deployment for backward compatibility
-    execution_mode: "{{ execution_mode | default('full') }}"
-    # Components can still be specified via extra-vars
-    selected_components: "{{ selected_components | default([]) }}"
-    # Platform can be forced via extra-vars
-    force_platform: "{{ force_platform | default('') }}"
+  # Note: Variables are passed through from command line via --extra-vars
+  # The universal.yml playbook already has sensible defaults for all variables

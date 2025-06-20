@@ -44,7 +44,7 @@
 
     - role: macos/network/tailscale
       tags: ["tailscale", "network"]
-      when: oa_environment.allow_tailscale_changes | default(false)
+      when: configure.tailscale | default(false)
 
     - role: macos/tracker
       tags: ["tracker", "main"]

@@ -3,7 +3,7 @@
 # Routes to appropriate platform-specific playbooks based on detection
 - name: Universal OrangeAd Device Configuration
   hosts: all
-  gather_facts: false
+  gather_facts: true
   vars:
     # Default execution mode - can be overridden
     execution_mode: "full" # Options: full, components, base, network, dry-run, check, diff, force

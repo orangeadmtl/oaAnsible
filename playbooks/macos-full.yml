@@ -62,7 +62,7 @@
 
     - role: macos/network/tailscale # Installs tailscale binaries and deploys plist
       tags: ["tailscale", "network"]
-      when: oa_environment.allow_tailscale_changes | default(false)
+      when: configure.tailscale | default(false)
 
     - role: macos/python
       tags: ["python", "dev"]
