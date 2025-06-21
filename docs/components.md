@@ -40,7 +40,7 @@ The component system replaces manual service management with an intelligent fram
 #### `macos-tracker`
 
 **Purpose**: AI tracking and analysis system (oaTracker) **Platform**: macOS **Dependencies**: `python`, `base-system`, `macos-api` **Resources**: 2GB RAM, 5GB
-disk, port 8080 **Conflicts**: `alpr` (camera access conflict) **Service**: LaunchAgent running as ansible_user
+disk, port 8080 **Service**: LaunchAgent running as ansible_user
 
 ```bash
 # Deploy full tracking system
@@ -57,25 +57,6 @@ disk, port 8080 **Conflicts**: `alpr` (camera access conflict) **Service**: Laun
 - Camera access with TCC permissions
 - AI model management
 
-#### `alpr`
-
-**Purpose**: Automatic License Plate Recognition system **Platform**: macOS **Dependencies**: `python`, `base-system` **Resources**: 1.5GB RAM, 3GB disk, port
-8081 **Conflicts**: `macos-tracker` (camera access conflict) **Service**: LaunchAgent running as ansible_user
-
-```bash
-# Deploy ALPR system (conflicts with tracker)
-./scripts/run-component staging alpr
-
-# This will FAIL due to conflict:
-./scripts/run-component staging macos-tracker alpr
-```
-
-**Features**:
-
-- License plate detection and recognition
-- Real-time processing
-- Database integration
-- Alert system
 
 ### Universal Components
 
@@ -234,21 +215,11 @@ Resolved Order: base-system → python → macos-api → macos-tracker
 
 Components can declare conflicts with other components:
 
-```yaml
-alpr:
-  conflicts: ["macos-tracker"]
-  reason: "Both require exclusive camera access"
-```
 
 ### Conflict Examples
 
 ```bash
-# This will FAIL with clear error message:
-./scripts/run-component staging macos-tracker alpr
-# ⚠️ Component conflicts detected:
-# - macos-tracker conflicts with alpr: Both require exclusive camera access
-
-# This will also FAIL - platform mismatch:
+# Example of platform conflict:
 ./scripts/run-component staging ubuntu-docker macos-api
 # ❌ Platform ubuntu not supported by component macos-api
 ```
@@ -284,8 +255,8 @@ resource_requirements:
 ```yaml
 version_compatibility:
   python:
-    "3.11": ["macos-api", "macos-tracker", "alpr"]
-    "3.12": ["macos-api", "macos-tracker", "alpr"]
+    "3.11": ["macos-api", "macos-tracker"]
+    "3.12": ["macos-api", "macos-tracker"]
     "3.13": ["macos-api"] # Limited compatibility
 ```
 
@@ -457,7 +428,7 @@ resource_requirements:
 ./scripts/run-component staging invalid-component
 # ❌ Component validation failed:
 # Invalid components: invalid-component
-# Available components: macos-api, macos-tracker, alpr, base-system, python, node, network-stack, ubuntu-docker, opi-player
+# Available components: macos-api, macos-tracker, base-system, python, node, network-stack, ubuntu-docker, opi-player
 ```
 
 #### Platform Mismatch
@@ -479,11 +450,6 @@ resource_requirements:
 
 #### Conflict Detection
 
-```bash
-./scripts/run-component staging macos-tracker alpr
-# ⚠️ Component conflicts detected:
-# - macos-tracker conflicts with alpr: Both require exclusive camera access
-```
 
 ### Debug Techniques
 

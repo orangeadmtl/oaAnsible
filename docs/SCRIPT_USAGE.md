@@ -9,6 +9,7 @@ Complete guide for using the oaAnsible deployment scripts across all platforms a
 - [Platform Deployments](#-platform-deployments)
 - [Component Deployments](#-component-deployments)
 - [Environment Management](#-environment-management)
+- [Environment Configuration](#-environment-configuration)
 - [Mass Deployments](#-mass-deployments)
 - [Advanced Usage](#-advanced-usage)
 - [Troubleshooting](#-troubleshooting)
@@ -47,7 +48,6 @@ Complete guide for using the oaAnsible deployment scripts across all platforms a
 
 | Script          | Purpose                                          |
 | --------------- | ------------------------------------------------ |
-| `deploy-alpr`   | ALPR-specific deployment with license management |
 | `deploy-server` | Ubuntu server onboarding                         |
 | `genSSH`        | SSH key management and connectivity testing      |
 | `oassh`         | Enhanced SSH access to managed devices           |
@@ -99,15 +99,6 @@ Complete guide for using the oaAnsible deployment scripts across all platforms a
 ./scripts/run-component staging tracker -l mac-mini-01 --extra-vars "execution_mode=force"
 ```
 
-#### ALPR Only
-
-```bash
-# Deploy ALPR with specialized script (includes license management)
-./scripts/deploy-alpr mac-mini-01 -v
-
-# Check ALPR deployment
-./scripts/deploy-alpr mac-mini-01 --dry-run
-```
 
 ### Ubuntu Server Deployments
 
@@ -145,7 +136,6 @@ Complete guide for using the oaAnsible deployment scripts across all platforms a
 ./scripts/run-component staging network-stack -l hostname
 ./scripts/run-component staging macos-api -l hostname
 ./scripts/run-component staging tracker -l hostname
-./scripts/run-component staging alpr -l hostname
 ```
 
 ### Component Combinations
@@ -213,6 +203,66 @@ Complete guide for using the oaAnsible deployment scripts across all platforms a
 
 # Force production deployment (skip confirmations)
 ./scripts/run-prod -l mac-mini-prod --extra-vars "execution_mode=force"
+```
+
+## ⚙️ Environment Configuration
+
+### Environment Safety System
+
+oaAnsible uses a three-tier environment system with built-in safety controls:
+
+- **Staging**: VM environment for experimental features
+- **Pre-prod**: Real Mac Mini for final testing  
+- **Production**: Field devices requiring maximum safety
+
+### Environment Variables
+
+Each environment is configured in `inventory/{env}/group_vars/all.yml`:
+
+```yaml
+oa_environment:
+  name: "staging" # Environment identifier
+  allow_experimental: true # Enable experimental features
+  allow_server_optimizations: true # Enable UI minimization, auto-login
+  allow_destructive_operations: true # Enable daily reboot, etc.
+  allow_tailscale_changes: true # Enable Tailscale installation/config
+```
+
+### Environment-Specific Controls
+
+| Feature                | Staging | Pre-prod      | Production    |
+| ---------------------- | ------- | ------------- | ------------- |
+| Hardware               | VM      | Real Mac Mini | Field Devices |
+| Experimental Features  | ✅      | ❌            | ❌            |
+| Server Optimizations   | ✅      | ✅            | ❌            |
+| Destructive Operations | ✅      | ❌            | ❌            |
+| Tailscale Changes      | ✅      | ✅            | ❌*          |
+| Safety Prompts         | ❌      | ✅            | ✅            |
+
+*Production Tailscale requires explicit override
+
+### Using Environment Controls in Playbooks
+
+```yaml
+# Role-level control
+- role: macos/server_optimizations
+  when: oa_environment.allow_server_optimizations | default(false)
+
+# Task-level control
+- name: Configure daily reboot
+  block:
+    # ... tasks ...
+  when: oa_environment.allow_destructive_operations | default(true)
+```
+
+### Emergency Production Overrides
+
+```bash
+# Skip safety checks (emergency only)
+ansible-playbook main.yml -i inventory/production/hosts.yml --extra-vars "skip_safety_checks=true"
+
+# Allow Tailscale changes in production (dangerous!)
+ansible-playbook main.yml -i inventory/production/hosts.yml --tags tailscale --extra-vars "oa_environment.allow_tailscale_changes=true"
 ```
 
 ## 📡 Mass Deployments
@@ -466,9 +516,8 @@ ssh hostname "echo 'Connection test'"
 
 ## 📚 Additional Resources
 
-- [Environment Configuration](ENVIRONMENT_SYSTEM.md)
+- [Environment Configuration](SCRIPT_USAGE.md#-environment-configuration)
 - [Component Framework](components.md)
 - [Server API Documentation](server-api.md)
-- [ALPR Integration Guide](alpr-integration.md)
 
 For questions or issues, check the troubleshooting section above or consult the main project documentation.

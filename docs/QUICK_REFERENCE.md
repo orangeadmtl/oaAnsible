@@ -28,7 +28,6 @@
 | `run-preprod`   | Deploy to pre-production      | `./scripts/run-preprod -l mac-mini-01`                     |
 | `run-prod`      | Deploy to production          | `./scripts/run-prod -l mac-mini-01`                        |
 | `run-component` | Deploy specific components    | `./scripts/run-component staging macos-api -l mac-mini-01` |
-| `deploy-alpr`   | Deploy ALPR service           | `./scripts/deploy-alpr mac-mini-01`                        |
 
 ## 🧩 Available Components
 
@@ -39,7 +38,6 @@
 | `network-stack` | All      | Tailscale VPN and networking    |
 | `macos-api`     | macOS    | Device management API           |
 | `tracker`       | macOS    | AI tracking system              |
-| `alpr`          | macOS    | License plate recognition       |
 
 ## 🏷️ Common Tags
 
@@ -63,8 +61,6 @@
 # API + Tracker
 ./scripts/run-component staging macos-api tracker -l mac-mini-01
 
-# ALPR service
-./scripts/deploy-alpr mac-mini-01
 ```
 
 ### Ubuntu Server

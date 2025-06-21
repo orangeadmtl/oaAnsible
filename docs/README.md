@@ -20,15 +20,11 @@ Complete documentation for the oaAnsible multi-platform orchestration system.
 
 ### System Documentation
 
-- **[Environment System](ENVIRONMENT_SYSTEM.md)** - Environment and inventory management
 - **[Component Framework](components.md)** - Component system architecture
-- **[System Architecture](SYSTEM.md)** - Overall system design
-- **[Workflow Guide](WORKFLOW.md)** - Development and deployment workflows
 
 ### Integration Guides
 
 - **[Server API](server-api.md)** - REST API documentation
-- **[ALPR Integration](alpr-integration.md)** - License plate recognition setup
 
 ## 🚀 Quick Navigation
 
@@ -42,6 +38,8 @@ Complete documentation for the oaAnsible multi-platform orchestration system.
 
 **Deploying to production?** → See [Script Usage Guide](SCRIPT_USAGE.md#-mass-deployments)
 
+**Environment configuration?** → Check [Script Usage Guide](SCRIPT_USAGE.md#-environment-configuration)
+
 **Troubleshooting issues?** → Check [Script Usage Guide](SCRIPT_USAGE.md#-troubleshooting)
 
 ### By Platform
@@ -51,7 +49,6 @@ Complete documentation for the oaAnsible multi-platform orchestration system.
 - Full stack: [Script Usage Guide](SCRIPT_USAGE.md#full-macos-stack)
 - API only: [Script Usage Guide](SCRIPT_USAGE.md#macos-api-only)
 - Tracker: [Script Usage Guide](SCRIPT_USAGE.md#tracker-only)
-- ALPR: [Script Usage Guide](SCRIPT_USAGE.md#alpr-only)
 
 **Ubuntu Server:**
 
@@ -139,9 +136,8 @@ Complete documentation for the oaAnsible multi-platform orchestration system.
 
 ### Advanced Configuration
 
-- See [Environment System](ENVIRONMENT_SYSTEM.md) for inventory setup
+- See [Environment Configuration](SCRIPT_USAGE.md#-environment-configuration) for environment setup
 - Check [Component Framework](components.md) for component details
-- Review [System Architecture](SYSTEM.md) for overall design
 
 ---
 
