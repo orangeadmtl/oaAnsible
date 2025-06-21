@@ -4,6 +4,8 @@
 - name: Universal OrangeAd Device Configuration
   hosts: all
   gather_facts: true
+  # Performance optimizations for tag-based deployments
+  gather_subset: "!all,!hardware,network,virtual"
   vars:
     # Default execution mode - can be overridden
     execution_mode: "full" # Options: full, components, base, network, dry-run, check, diff, force
@@ -18,6 +20,111 @@
     force_deployment: false
 
   pre_tasks:
+    - name: Process tag-based component selection
+      ansible.builtin.set_fact:
+        # Component tag mappings - allows for aliases
+        component_tags: {
+          "player": "player",
+          "tracker": "tracker", 
+          "macos-api": "macos-api",
+          "api": "macos-api",
+          "alpr": "alpr",
+          "base": "base",
+          "network": "network",
+          "security": "security",
+          "ssh": "ssh"
+        }
+        # Extract component names from provided tags  
+        tag_components: >
+          {%- set tag_map = {
+            "player": "player",
+            "tracker": "tracker", 
+            "macos-api": "macos-api",
+            "api": "macos-api",
+            "alpr": "alpr",
+            "base": "base",
+            "network": "network",
+            "security": "security",
+            "ssh": "ssh"
+          } -%}
+          {%- set components = [] -%}
+          {%- for tag in (provided_tags | default('')).split(',') -%}
+            {%- set clean_tag = tag.strip() -%}
+            {%- if clean_tag in tag_map -%}
+              {%- set _ = components.append(tag_map[clean_tag]) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ components | unique | list }}
+        # Switch to component mode if tags were provided
+        execution_mode: >-
+          {%- if provided_tags is defined and provided_tags | length > 0 -%}
+            components
+          {%- else -%}
+            {{ execution_mode | default('full') }}
+          {%- endif -%}
+      tags: ["always"]
+
+    - name: Set components for tag-based deployment
+      ansible.builtin.set_fact:
+        selected_components: "{{ tag_components }}"
+      when: 
+        - provided_tags is defined
+        - tag_components | length > 0
+      tags: ["always"]
+
+    - name: Validate provided tags
+      ansible.builtin.set_fact:
+        # Find invalid tags (tags that don't map to components)
+        invalid_tags: >
+          {%- set invalid = [] -%}
+          {%- for tag in (provided_tags | default('')).split(',') -%}
+            {%- set clean_tag = tag.strip() -%}
+            {%- if clean_tag and clean_tag not in component_tags -%}
+              {%- set _ = invalid.append(clean_tag) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ invalid }}
+      when: provided_tags is defined
+      tags: ["always"]
+
+    - name: Display tag validation warnings
+      ansible.builtin.debug:
+        msg: |
+          ⚠️  WARNING: Invalid/unknown tags detected: {{ invalid_tags | join(', ') }}
+          
+          Valid component tags are:
+          - Infrastructure: base, network, security, ssh
+          - Applications: macos-api, api, tracker, player, alpr
+          - Platform-specific: docker
+          
+          Did you mean one of these similar tags?
+          {% for invalid_tag in invalid_tags %}
+          {% for valid_tag in component_tags.keys() %}
+          {% if invalid_tag.lower() in valid_tag.lower() or valid_tag.lower() in invalid_tag.lower() %}
+          - {{ invalid_tag }} → {{ valid_tag }}
+          {% endif %}
+          {% endfor %}
+          {% endfor %}
+      when: 
+        - provided_tags is defined
+        - invalid_tags | length > 0
+      tags: ["always"]
+
+    - name: Fail on invalid tags (safety check)
+      ansible.builtin.fail:
+        msg: |
+          ❌ DEPLOYMENT HALTED: Invalid tags detected.
+          
+          Invalid tags: {{ invalid_tags | join(', ') }}
+          
+          To continue, use only valid tags or run without tags for full deployment.
+          Use './scripts/run --help' to see all available tags.
+      when: 
+        - provided_tags is defined
+        - invalid_tags | length > 0
+        - not (force_deployment | default(false))
+      tags: ["always"]
+
     - name: Display universal playbook banner
       ansible.builtin.debug:
         msg: |
@@ -30,49 +137,81 @@
           - Platform: {{ force_platform | default('Auto-detect') }}
           - Targets: {{ ansible_play_hosts | join(', ') }}
           - Verbose: {{ verbose_mode }}
+          {% if tag_components | default([]) | length > 0 %}
+          - Tag-based Selection: {{ provided_tags.split(',') | join(', ') }}
+          {% endif %}
 
           Advanced Component Framework: ENABLED
+          {% if tag_components | default([]) | length > 0 %}
+          Performance Mode: OPTIMIZED (tag-based deployment)
+          {% endif %}
 
     - name: Import platform detection
       ansible.builtin.include_tasks: ../tasks/platform-detection.yml
       when: force_platform == ""
+      tags: ["always"]
 
     - name: Set forced platform
       ansible.builtin.set_fact:
         detected_platform: "{{ force_platform }}"
       when: force_platform != ""
-
-    - name: Initialize execution modes
-      ansible.builtin.include_tasks: ../tasks/execution-modes.yml
       tags: ["always"]
 
+    - name: Initialize execution modes  
+      ansible.builtin.include_tasks: ../tasks/execution-modes.yml
+      when: execution_mode == "full"  # Skip for tag-based deployments to improve performance
+      tags: ["always"]
+
+
   tasks:
+    - name: Determine components to deploy from inventory configuration
+      ansible.builtin.set_fact:
+        inventory_components: >
+          {{
+            (['base', 'network', 'security']) +
+            (oa_environment.deploy_macos_api | default(false) | ternary(['macos-api'], [])) +
+            (oa_environment.deploy_tracker | default(false) | ternary(['tracker'], [])) +
+            (oa_environment.deploy_player | default(false) | ternary(['player'], [])) +
+            (oa_environment.deploy_alpr_service | default(false) | ternary(['alpr'], []))
+          }}
+      when: 
+        - execution_mode == "full"
+        - tag_components | default([]) | length == 0
+
+    - name: Display determined components
+      ansible.builtin.debug:
+        msg: |
+          Components determined from inventory:
+          - deploy_macos_api: {{ oa_environment.deploy_macos_api | default(false) }}
+          - deploy_tracker: {{ oa_environment.deploy_tracker | default(false) }}
+          - deploy_player: {{ oa_environment.deploy_player | default(false) }}
+          - deploy_alpr_service: {{ oa_environment.deploy_alpr_service | default(false) }}
+
+          Final component list: {{ inventory_components | default([]) }}
+      when: 
+        - execution_mode == "full"
+        - tag_components | default([]) | length == 0
+
     - name: Execute macOS full configuration
       ansible.builtin.include_tasks: ../tasks/deploy-components.yml
       vars:
         target_platform: "macos"
-        components_to_deploy: ["base-system", "python", "network-stack", "macos-api", "macos-tracker"]
+        deployment_components: "{{ inventory_components }}"
       when:
         - execution_mode == "full"
         - detected_platform == "macos"
+        - tag_components | default([]) | length == 0
 
     - name: Execute Ubuntu full configuration
       ansible.builtin.include_tasks: ../tasks/deploy-components.yml
       vars:
         target_platform: "ubuntu"
-        components_to_deploy: ["base-system", "network-stack", "ubuntu-docker"]
+        deployment_components: ["base", "network", "security", "docker"]
       when:
         - execution_mode == "full"
         - detected_platform == "ubuntu"
+        - tag_components | default([]) | length == 0
 
-    - name: Execute OrangePi full configuration
-      ansible.builtin.include_tasks: ../tasks/deploy-components.yml
-      vars:
-        target_platform: "orangepi"
-        components_to_deploy: ["base-system", "python", "network-stack", "opi-player"]
-      when:
-        - execution_mode == "full"
-        - detected_platform == "orangepi"
 
     - name: Advanced component-specific deployment
       when: execution_mode == "components"
@@ -83,46 +222,48 @@
             msg: |
               ERROR: No components selected for deployment.
 
-              Available components:
-              - macOS: macos-api, macos-tracker, alpr
-              - Ubuntu: ubuntu-docker, base-system
-              - OrangePi: opi-player
-              - Universal: python, node, network-stack
+              Available component tags:
+              - Infrastructure: base, network, security, ssh
+              - Applications: macos-api (or 'api'), tracker, player, alpr
+              - Platform-specific: components, setup
 
-              Usage: --extra-vars 'selected_components=["macos-api","tracker"]'
-          when: selected_components | length == 0
+              Usage Examples:
+              - By tags: ./scripts/run inventory-name -t player
+              - By tags (multiple): ./scripts/run inventory-name -t base,network,player
+              - By variable: --extra-vars 'selected_components=["macos-api","tracker"]'
+          when: 
+            - selected_components | default([]) | length == 0
+            - tag_components | default([]) | length == 0
 
         - name: Initialize component framework
           ansible.builtin.include_tasks: ../tasks/component-framework.yml
+          when: tag_components | default([]) | length == 0  # Skip for tag-based deployments
           tags: ["always"]
 
         - name: Validate component compatibility
-          ansible.builtin.include_tasks: ../tasks/component-compatibility.yml
+          ansible.builtin.include_tasks: ../tasks/component-compatibility.yml  
+          when: tag_components | default([]) | length == 0  # Skip for tag-based deployments
           tags: ["always"]
 
-        - name: Execute component deployment
+
+        - name: Execute component deployment  
           ansible.builtin.include_tasks: ../tasks/deploy-components.yml
           vars:
             target_platform: "{{ detected_platform }}"
-            components_to_deploy: "{{ final_component_order }}"
-          when:
-            - component_deployment_plan.validation_passed
-            - component_compatibility.passed
-            - deployment_execution.confirmed
-            - not deployment_execution.dry_run
-            - not deployment_execution.check_mode
+            deployment_components: "{{ selected_components }}"
+          tags: ["always"]
     - name: Route to base system configuration
       ansible.builtin.include_tasks: ../tasks/deploy-components.yml
       vars:
         target_platform: "{{ detected_platform }}"
-        components_to_deploy: ["base-system"]
+        deployment_components: ["base"]
       when: execution_mode == "base"
 
     - name: Route to network configuration
       ansible.builtin.include_tasks: ../tasks/deploy-components.yml
       vars:
         target_platform: "{{ detected_platform }}"
-        components_to_deploy: ["network-stack"]
+        deployment_components: ["network"]
       when: execution_mode == "network"
 
   post_tasks:
