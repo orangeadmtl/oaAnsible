@@ -89,17 +89,6 @@
           category: "runtime"
           priority: 140
 
-        # OrangePi Components
-        opi-player:
-          platform: "orangepi"
-          requires: ["base-system", "python"]
-          conflicts: []
-          provides: ["media-player", "display-service"]
-          health_port: 9090
-          health_endpoint: "/health"
-          category: "service"
-          priority: 120
-
 - name: Validate selected components
   when: selected_components is defined and selected_components | length > 0
   block:

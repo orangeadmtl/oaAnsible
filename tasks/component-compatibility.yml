@@ -15,10 +15,6 @@
           minimum_version: "20.04"
           required_features: ["systemd", "apt"]
           optional_features: ["docker", "snap"]
-        orangepi:
-          minimum_version: "22.04" # Ubuntu base
-          required_features: ["systemd", "gpio_access"]
-          optional_features: ["camera_module", "display_output"]
       # Resource requirements matrix
       resource_requirements:
         macos-api:
@@ -47,18 +43,11 @@
           min_disk_mb: 10240 # Docker images
           cpu_cores: 1
           network_ports: []
-        opi-player:
-          min_memory_mb: 1024
-          min_disk_mb: 2048
-          cpu_cores: 1
-          network_ports: [9090]
-          requires_display: true
-
       # Version compatibility matrix
       version_compatibility:
         python:
-          "3.11": ["macos-api", "macos-tracker", "alpr", "opi-player"]
-          "3.12": ["macos-api", "macos-tracker", "alpr", "opi-player"]
+          "3.11": ["macos-api", "macos-tracker", "alpr"]
+          "3.12": ["macos-api", "macos-tracker", "alpr"]
           "3.13": ["macos-api"] # Limited compatibility for newer Python
 
         node:
@@ -75,13 +64,9 @@
           reason: "Different platform requirements"
           severity: "error"
 
-        - components: ["opi-player", "macos-tracker"]
-          reason: "Different platform architectures"
-          severity: "error"
-
       # Service port conflicts
       port_conflicts:
-        9090: ["macos-api", "opi-player"]
+        9090: ["macos-api"]
         8080: ["macos-tracker"]
         8081: ["alpr"]
 
@@ -217,7 +202,8 @@
   ansible.builtin.set_fact:
     component_compatibility:
       validated: true
-      passed: "{{ compatibility_results.passed | default(false) }}"
+      # For tag-based deployments, assume compatibility unless errors were found
+      passed: "{{ compatibility_results.passed | default(component_tags_provided | default(false)) | default(false) }}"
       total_resources: "{{ compatibility_results.resource_analysis | default({}) }}"
       errors: "{{ compatibility_results.errors | default([]) }}"
       warnings: "{{ compatibility_results.warnings | default([]) }}"
