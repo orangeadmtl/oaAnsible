@@ -46,11 +46,11 @@ Complete guide for using the oaAnsible deployment scripts across all platforms a
 
 ### Specialized Scripts
 
-| Script          | Purpose                                          |
-| --------------- | ------------------------------------------------ |
-| `deploy-server` | Ubuntu server onboarding                         |
-| `genSSH`        | SSH key management and connectivity testing      |
-| `oassh`         | Enhanced SSH access to managed devices           |
+| Script          | Purpose                                     |
+| --------------- | ------------------------------------------- |
+| `deploy-server` | Ubuntu server onboarding                    |
+| `genSSH`        | SSH key management and connectivity testing |
+| `oassh`         | Enhanced SSH access to managed devices      |
 
 ## 🖥️ Platform Deployments
 
@@ -98,7 +98,6 @@ Complete guide for using the oaAnsible deployment scripts across all platforms a
 # Force deployment (skip confirmations)
 ./scripts/run-component staging tracker -l mac-mini-01 --extra-vars "execution_mode=force"
 ```
-
 
 ### Ubuntu Server Deployments
 
@@ -212,7 +211,7 @@ Complete guide for using the oaAnsible deployment scripts across all platforms a
 oaAnsible uses a three-tier environment system with built-in safety controls:
 
 - **Staging**: VM environment for experimental features
-- **Pre-prod**: Real Mac Mini for final testing  
+- **Pre-prod**: Real Mac Mini for final testing
 - **Production**: Field devices requiring maximum safety
 
 ### Environment Variables
@@ -236,10 +235,10 @@ oa_environment:
 | Experimental Features  | ✅      | ❌            | ❌            |
 | Server Optimizations   | ✅      | ✅            | ❌            |
 | Destructive Operations | ✅      | ❌            | ❌            |
-| Tailscale Changes      | ✅      | ✅            | ❌*          |
+| Tailscale Changes      | ✅      | ✅            | ❌\*          |
 | Safety Prompts         | ❌      | ✅            | ✅            |
 
-*Production Tailscale requires explicit override
+\*Production Tailscale requires explicit override
 
 ### Using Environment Controls in Playbooks
 
