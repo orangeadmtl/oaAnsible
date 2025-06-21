@@ -7,7 +7,7 @@
 
 - name: Check macOS component compatibility
   ansible.builtin.set_fact:
-    compatible_components: "{{ compatible_components + ['macos-api', 'tracker', 'alpr', 'base', 'network', 'security', 'ssh'] }}"
+    compatible_components: "{{ compatible_components + ['macos-api', 'tracker', 'alpr', 'player', 'base', 'network', 'security', 'ssh'] }}"
   when: target_platform == "macos"
 
 - name: Check Ubuntu component compatibility
@@ -15,55 +15,27 @@
     compatible_components: "{{ compatible_components + ['base', 'network', 'security', 'docker', 'monitoring'] }}"
   when: target_platform == "ubuntu"
 
-- name: Check OrangePi component compatibility
-  ansible.builtin.set_fact:
-    compatible_components: "{{ compatible_components + ['opi-setup', 'base', 'network', 'optimization'] }}"
-  when: target_platform == "orangepi"
-
 - name: Validate selected components
   ansible.builtin.fail:
     msg: |
       Invalid component '{{ item }}' for platform '{{ target_platform }}'.
       Available components: {{ compatible_components | join(', ') }}
   when: item not in compatible_components
-  loop: "{{ selected_components }}"
+  loop: "{{ deployment_components | default(selected_components) }}"
 
 - name: Display deployment plan
   ansible.builtin.debug:
     msg: |
       Component Deployment Plan:
       - Platform: {{ target_platform }}
-      - Components: {{ selected_components | join(', ') }}
+      - Components: {{ deployment_components | default(selected_components) | join(', ') }}
       - Compatible: {{ compatible_components | join(', ') }}
 
-# macOS Component Deployment
-- name: Deploy macOS API component
-  ansible.builtin.include_role:
-    name: macos/api
-  when:
-    - target_platform == "macos"
-    - "'macos-api' in selected_components"
-  tags: ["macos-api", "components"]
-
-- name: Deploy tracker component
-  ansible.builtin.include_role:
-    name: macos/tracker
-  when:
-    - target_platform == "macos"
-    - "'tracker' in selected_components"
-  tags: ["tracker", "components"]
-
-- name: Deploy ALPR service component
-  ansible.builtin.include_role:
-    name: macos/alpr_service
-  when:
-    - target_platform == "macos"
-    - "'alpr' in selected_components"
-  tags: ["alpr", "components"]
+# Deploy components in dependency order: base -> network -> security -> applications
 
 - name: Deploy base system component
-  when: "'base' in selected_components"
-  tags: ["base", "components"]
+  when: "'base' in deployment_components | default(selected_components)"
+  tags: ["base"]
   block:
     - name: Deploy macOS base
       ansible.builtin.include_role:
@@ -75,11 +47,9 @@
         name: ubuntu/base
       when: target_platform == "ubuntu"
 
-    # OrangePi base will be added in Phase 5
-
 - name: Deploy network component
-  when: "'network' in selected_components"
-  tags: ["network", "components"]
+  when: "'network' in deployment_components | default(selected_components)"
+  tags: ["network"]
   block:
     - name: Deploy macOS network stack
       ansible.builtin.include_role:
@@ -91,7 +61,7 @@
         name: macos/network/tailscale
       when:
         - target_platform == "macos"
-        - oa_environment.allow_tailscale_changes | default(false)
+        - configure.tailscale | default(true)
 
     - name: Deploy Ubuntu network
       ansible.builtin.include_role:
@@ -99,8 +69,8 @@
       when: target_platform == "ubuntu"
 
 - name: Deploy security component
-  when: "'security' in selected_components"
-  tags: ["security", "components"]
+  when: "'security' in deployment_components | default(selected_components)"
+  tags: ["security"]
   block:
     - name: Deploy macOS security
       ansible.builtin.include_role:
@@ -117,8 +87,41 @@
     name: macos/ssh
   when:
     - target_platform == "macos"
-    - "'ssh' in selected_components"
-  tags: ["ssh", "components"]
+    - "'ssh' in deployment_components | default(selected_components)"
+  tags: ["ssh"]
+
+# macOS Application Components (after infrastructure is ready)
+- name: Deploy macOS API component
+  ansible.builtin.include_role:
+    name: macos/api
+  when:
+    - target_platform == "macos"
+    - "'macos-api' in deployment_components | default(selected_components)"
+  tags: ["macos-api", "api"]
+
+- name: Deploy tracker component
+  ansible.builtin.include_role:
+    name: macos/tracker
+  when:
+    - target_platform == "macos"
+    - "'tracker' in deployment_components | default(selected_components)"
+  tags: ["tracker"]
+
+- name: Deploy ALPR service component
+  ansible.builtin.include_role:
+    name: macos/alpr_service
+  when:
+    - target_platform == "macos"
+    - "'alpr' in deployment_components | default(selected_components)"
+  tags: ["alpr"]
+
+- name: Deploy player component
+  ansible.builtin.include_role:
+    name: macos/player
+  when:
+    - target_platform == "macos"
+    - "'player' in deployment_components | default(selected_components)"
+  tags: ["player"]
 
 # Ubuntu-specific components
 - name: Deploy Docker component
@@ -126,22 +129,13 @@
     name: ubuntu/docker
   when:
     - target_platform == "ubuntu"
-    - "'docker' in selected_components"
-  tags: ["docker", "components"]
-
-# OrangePi-specific components (to be implemented in Phase 5)
-- name: Deploy OPI setup component
-  ansible.builtin.debug:
-    msg: "OrangePi components will be implemented in Phase 5"
-  when:
-    - target_platform == "orangepi"
-    - "'opi-setup' in selected_components"
-  tags: ["opi-setup", "components"]
+    - "'docker' in deployment_components | default(selected_components)"
+  tags: ["docker"]
 
 - name: Component deployment summary
   ansible.builtin.debug:
     msg: |
       Component Deployment Completed:
       - Platform: {{ target_platform }}
-      - Components: {{ selected_components | join(', ') }}
+      - Components: {{ deployment_components | default(selected_components) | join(', ') }}
       - Host: {{ inventory_hostname }}
