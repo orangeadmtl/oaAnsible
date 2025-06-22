@@ -1,0 +1,28 @@
+---
+# Tasks for configuring automation permissions on macOS
+# This role focuses on granting automation access to required applications
+
+# Configure automation permissions for Tailscale and bash
+- name: Create script to grant automation permissions
+  ansible.builtin.template:
+    src: grant_automation_permissions.sh.j2
+    dest: /tmp/grant_automation_permissions.sh
+    mode: "0755"
+  changed_when: true
+
+- name: Run script to grant automation permissions
+  ansible.builtin.command: /tmp/grant_automation_permissions.sh
+  register: grant_automation_result
+  changed_when: true
+  failed_when: false
+
+- name: Display automation permission grant results
+  ansible.builtin.debug:
+    msg: "{{ grant_automation_result.stdout_lines }}"
+  when: grant_automation_result is defined
+
+- name: Clean up automation permissions script
+  ansible.builtin.file:
+    path: /tmp/grant_automation_permissions.sh
+    state: absent
+  changed_when: false

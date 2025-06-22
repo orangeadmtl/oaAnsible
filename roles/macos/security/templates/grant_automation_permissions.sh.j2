@@ -1,0 +1,144 @@
+#!/bin/bash
+# Template for granting automation permissions
+# This script grants automation permissions to various applications in the TCC database
+
+# TCC database paths - both user and system level
+USER_TCC_DB="{{ ansible_user_dir }}/Library/Application Support/com.apple.TCC/TCC.db"
+SYSTEM_TCC_DB="/Library/Application Support/com.apple.TCC/TCC.db"
+
+# Define automation permissions
+# Format: "client|client_type|target_app"
+# client_type: 0 = bundle ID, 1 = path
+# target_app: what the client can control
+declare -a automation_rules
+automation_rules+=(
+    "com.apple.Terminal|0|com.apple.systemevents"
+    "org.videolan.vlc|0|com.apple.systemevents"
+    "/usr/local/bin/tailscaled|1|com.apple.systemevents"
+    "{{ ansible_user_dir }}/go/bin/tailscaled|1|com.apple.systemevents"
+    "/bin/bash|1|com.apple.systemevents"
+    "/bin/zsh|1|com.apple.systemevents"
+    "/usr/libexec/sshd-keygen-wrapper|1|com.apple.systemevents"
+)
+
+# Function to grant automation permissions to a TCC database
+grant_automation_permissions_to_db() {
+    local tcc_db="$1"
+    local db_type="$2"
+    
+    echo "Granting automation permissions to $db_type TCC database: $tcc_db"
+    
+    # Check if the TCC database exists
+    if [ ! -f "$tcc_db" ]; then
+        echo "$db_type TCC database does not exist at $tcc_db"
+        if [ "$db_type" = "User" ]; then
+            echo "Attempting to create user TCC database directory"
+            mkdir -p "$(dirname "$tcc_db")" 2>/dev/null
+            echo "User TCC database will be created by the system when needed"
+        fi
+        return 1
+    fi
+    
+    # Try to fix permissions on the TCC database if needed
+    if [ "$db_type" = "User" ]; then
+        chown "$(whoami)" "$tcc_db" 2>/dev/null
+        chmod 644 "$tcc_db" 2>/dev/null
+    else
+        # For system database, we're already running as sudo
+        chmod 644 "$tcc_db" 2>/dev/null
+    fi
+    
+    # Check if we can access the database at all
+    if ! sqlite3 "$tcc_db" "SELECT name FROM sqlite_master WHERE type='table';" &>/dev/null; then
+        echo "WARNING: Cannot access $db_type TCC database, it may be locked by the system"
+        echo "Will try to proceed anyway"
+    fi
+    
+    # Check if kTCCServiceAppleEvents exists in the schema
+    service_exists=$(sqlite3 "$tcc_db" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='access';" 2>/dev/null || echo "0")
+    
+    if [ "$service_exists" = "0" ]; then
+        echo "The access table doesn't exist in the TCC database. This is unexpected."
+        echo "Attempting to continue anyway - the system may create the table when needed"
+    fi
+    
+    # Check if any automation permissions exist at all
+    automation_exists=$(sqlite3 "$tcc_db" "SELECT count(*) FROM access WHERE service='kTCCServiceAppleEvents';" 2>/dev/null || echo "0")
+    
+    if [ "$automation_exists" = "0" ]; then
+        echo "No automation permissions found in the database. Will create new entries."
+    fi
+    
+    # Loop over the automation rules
+    for rule in "${automation_rules[@]}"; do
+        IFS='|' read -r client client_type target_app <<< "$rule"
+        
+        echo "Processing $client (type=$client_type) -> $target_app"
+        
+        # First try to delete any existing record to ensure a clean state
+        sqlite3 "$tcc_db" "DELETE FROM access WHERE service='kTCCServiceAppleEvents' AND client='$client' AND indirect_object_identifier='$target_app';" 2>/dev/null
+        echo "    Cleared any existing automation records for $client -> $target_app"
+        
+        # Insert automation permission with proper format
+        # Based on your personal machine pattern: client_type=0, indirect_object_identifier=target_app
+        echo "    Inserting automation permission..."
+        
+        # Get current timestamp
+        timestamp=$(date +%s)
+        
+        # Insert with the correct format matching your personal machine
+        sqlite3 "$tcc_db" "INSERT INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, policy_id, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) 
+            VALUES ('kTCCServiceAppleEvents', '$client', $client_type, 2, 3, 1, NULL, NULL, '$target_app', NULL, 0, $timestamp);" 2>/dev/null
+        
+        if [ $? -eq 0 ]; then
+            echo "    ✓ Successfully granted automation permission for $client -> $target_app"
+        else
+            # Try simplified version if full version fails
+            echo "    Trying simplified insert..."
+            sqlite3 "$tcc_db" "INSERT INTO access (service, client, client_type, auth_value, indirect_object_identifier) 
+                VALUES ('kTCCServiceAppleEvents', '$client', $client_type, 2, '$target_app');" 2>/dev/null
+            
+            if [ $? -eq 0 ]; then
+                echo "    ✓ Successfully granted automation permission for $client -> $target_app (simplified)"
+            else
+                echo "    ✗ Failed to grant automation permission for $client -> $target_app"
+            fi
+        fi
+    done
+}
+
+# Grant automation permissions to user-level TCC database
+echo "\n===== ATTEMPTING USER-LEVEL TCC DATABASE AUTOMATION PERMISSIONS =====\n"
+
+# Check if we can access the user TCC database
+if sqlite3 "$USER_TCC_DB" "SELECT count(*) FROM sqlite_master;" &>/dev/null; then
+    echo "User TCC database is accessible"
+    grant_automation_permissions_to_db "$USER_TCC_DB" "User"
+else
+    echo "WARNING: User TCC database is not accessible (authorization denied)"
+    echo "This is normal on macOS with System Integrity Protection enabled"
+    echo "Skipping user-level TCC database modifications"
+    echo "Automation permissions will be set at system level instead"
+fi
+
+# Grant automation permissions to system-level TCC database (requires sudo)
+echo "\n===== ATTEMPTING SYSTEM-LEVEL TCC DATABASE AUTOMATION PERMISSIONS =====\n"
+echo "Granting automation permissions to system-level TCC database (requires sudo)..."
+sudo bash -c "
+$(declare -f grant_automation_permissions_to_db)
+$(declare -p automation_rules)
+grant_automation_permissions_to_db '$SYSTEM_TCC_DB' 'System'
+"
+
+echo "\n===== AUTOMATION PERMISSIONS OPERATION COMPLETE =====\n"
+echo "Automation permissions granted to all applications"
+
+# Verify the permissions
+echo -e "\nVerifying automation permissions:"
+echo "User TCC database:"
+sqlite3 "$USER_TCC_DB" "SELECT service, client, client_type, auth_value, auth_reason FROM access WHERE service='kTCCServiceAppleEvents';" 2>/dev/null || echo "Error accessing user TCC database"
+
+echo -e "\nSystem TCC database:"
+sudo sqlite3 "$SYSTEM_TCC_DB" "SELECT service, client, client_type, auth_value, auth_reason FROM access WHERE service='kTCCServiceAppleEvents';" 2>/dev/null || echo "Error accessing system TCC database"
+
+echo -e "\nAutomation permissions configuration complete!"
