@@ -21,9 +21,9 @@
 
     - name: "Add {{ wifi_network.ssid }} to preferred networks"
       ansible.builtin.command: >-
-        networksetup -addpreferredwirelessnetworkatindex "{{ wifi_device }}" 
-        "{{ wifi_network.ssid }}" 0 "{{ wifi_network.security_type | default('WPA2') }}" "{{ wifi_network.password }}"
-      when: 
+        networksetup -addpreferredwirelessnetworkatindex "{{ wifi_device }}" "{{ wifi_network.ssid }}" 0 "{{ wifi_network.security_type | default('WPA2') }}"
+        "{{ wifi_network.password }}"
+      when:
         - network_available.rc == 0
         - network_configured.rc != 0
       register: add_network_result
@@ -32,7 +32,7 @@
     - name: "Connect to {{ wifi_network.ssid }} if not already connected"
       ansible.builtin.command: >-
         networksetup -setairportnetwork "{{ wifi_device }}" "{{ wifi_network.ssid }}" "{{ wifi_network.password }}"
-      when: 
+      when:
         - network_available.rc == 0
         - current_wifi.stdout != wifi_network.ssid
         - wifi_network.auto_connect | default(true)

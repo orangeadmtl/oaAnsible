@@ -1,4 +1,23 @@
 ---
+# Skip Tailscale configuration if disabled in inventory (prod/preprod safety)
+- name: Check if Tailscale configuration is enabled
+  ansible.builtin.debug:
+    msg: |
+      Tailscale configuration status:
+      - configure.tailscale: {{ configure.tailscale | default(true) }}
+      - Environment: {{ oa_environment.name | default('unknown') }}
+      
+      {% if not (configure.tailscale | default(true)) %}
+      SKIPPING: Tailscale configuration disabled in inventory.
+      This is expected for production/pre-production environments where Tailscale is managed separately.
+      {% else %}
+      PROCEEDING: Tailscale configuration enabled.
+      {% endif %}
+
+- name: End Tailscale role when configuration is disabled
+  ansible.builtin.meta: end_play
+  when: not (configure.tailscale | default(true))
+
 - name: Install Go using Homebrew (latest version)
   community.general.homebrew:
     name: go
