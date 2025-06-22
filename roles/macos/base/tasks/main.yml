@@ -1,6 +1,7 @@
 ---
 # Set up shell configuration first
 - name: Configure shell environment
+  tags: ["base", "shell"]
   block:
     - name: Set default shell to zsh
       ansible.builtin.shell: |
@@ -45,10 +46,10 @@
           name: "PATH_CONFIG"
           content: |
             # System PATH configuration
-            export PATH="{{ homebrew_prefix }}/bin:$PATH"
+            export PATH="{{ macos_system.homebrew.prefix }}/bin:$PATH"
 
             # Homebrew configuration
-            eval "$({{ homebrew_prefix }}/bin/brew shellenv)"
+            eval "$({{ macos_system.homebrew.prefix }}/bin/brew shellenv)"
 
             {% if macos_configure.pyenv %}
             # Pyenv configuration
@@ -273,5 +274,143 @@
     - name: Apply screen saver settings immediately
       ansible.builtin.shell: |
         killall cfprefsd
+      failed_when: false
+      changed_when: false
+
+# Configure kiosk UI settings
+- name: Configure kiosk UI settings
+  tags: ["kiosk", "ui"]
+  block:
+    - name: Auto-hide menu bar
+      ansible.builtin.shell: |
+        defaults write NSGlobalDomain _HIHideMenuBar -bool true
+      changed_when: false
+
+    - name: Auto-hide dock
+      ansible.builtin.shell: |
+        defaults write com.apple.dock autohide -bool true
+      changed_when: false
+
+    - name: Set dock to small size
+      ansible.builtin.shell: |
+        defaults write com.apple.dock tilesize -int 36
+      changed_when: false
+
+    - name: Disable dock magnification
+      ansible.builtin.shell: |
+        defaults write com.apple.dock magnification -bool false
+      changed_when: false
+
+    - name: Set dock auto-hide delay to minimal
+      ansible.builtin.shell: |
+        defaults write com.apple.dock autohide-delay -float 0
+      changed_when: false
+
+    - name: Set dock auto-hide animation duration to minimal
+      ansible.builtin.shell: |
+        defaults write com.apple.dock autohide-time-modifier -float 0.5
+      changed_when: false
+
+    - name: Hide recent applications in dock
+      ansible.builtin.shell: |
+        defaults write com.apple.dock show-recents -bool false
+      changed_when: false
+
+    - name: Minimize windows to application icon
+      ansible.builtin.shell: |
+        defaults write com.apple.dock minimize-to-application -bool true
+      changed_when: false
+
+    - name: Set desktop background to solid black on all displays
+      ansible.builtin.shell: |
+        # Set black background on all displays using AppleScript
+        osascript << 'EOF'
+        tell application "System Events"
+          set desktopCount to count of desktops
+          repeat with i from 1 to desktopCount
+            tell desktop i
+              set picture to POSIX file "/System/Library/Desktop Pictures/Solid Colors/Black.png"
+            end tell
+          end repeat
+        end tell
+        EOF
+      changed_when: false
+      failed_when: false
+
+    - name: Apply UI settings immediately
+      ansible.builtin.shell: |
+        killall Dock
+        killall SystemUIServer
+      failed_when: false
+      changed_when: false
+
+# Configure modern macOS Desktop & Dock settings (Sequoia/Sonoma)
+- name: Configure modern macOS Desktop & Dock settings
+  tags: ["kiosk", "modern", "desktop"]
+  block:
+    - name: Disable "Click wallpaper to reveal desktop" (Sonoma/Sequoia)
+      ansible.builtin.shell: |
+        defaults write com.apple.WindowManager EnableStandardClickToShowDesktop -bool false
+      changed_when: false
+
+    - name: Disable Stage Manager
+      ansible.builtin.shell: |
+        defaults write com.apple.WindowManager GloballyEnabled -bool false
+      changed_when: false
+
+    - name: Disable Stage Manager auto-hide
+      ansible.builtin.shell: |
+        defaults write com.apple.WindowManager AutoHide -bool false
+      changed_when: false
+
+    - name: Disable window grouping behavior in Stage Manager
+      ansible.builtin.shell: |
+        defaults write com.apple.WindowManager AppWindowGroupingBehavior -bool false
+      changed_when: false
+
+    - name: Disable Notification Center
+      ansible.builtin.shell: |
+        defaults write com.apple.notificationcenterui DoNotDisturb -bool true
+      changed_when: false
+
+    - name: Hide Spotlight menu item
+      ansible.builtin.shell: |
+        defaults write com.apple.spotlight MenuItemHidden -int 1
+      changed_when: false
+
+    - name: Disable all Hot Corners
+      ansible.builtin.shell: |
+        defaults write com.apple.dock wvous-tl-corner -int 1
+        defaults write com.apple.dock wvous-tr-corner -int 1
+        defaults write com.apple.dock wvous-bl-corner -int 1
+        defaults write com.apple.dock wvous-br-corner -int 1
+      changed_when: false
+
+    - name: Disable window animations for performance
+      ansible.builtin.shell: |
+        defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
+      changed_when: false
+
+    - name: Speed up Mission Control animations
+      ansible.builtin.shell: |
+        defaults write com.apple.dock expose-animation-duration -float 0.1
+      changed_when: false
+
+    - name: Disable Launchpad gesture
+      ansible.builtin.shell: |
+        defaults write com.apple.dock showLaunchpadGestureEnabled -bool false
+      changed_when: false
+
+    - name: Disable Dashboard
+      ansible.builtin.shell: |
+        defaults write com.apple.dashboard mcx-disabled -bool true
+      changed_when: false
+
+    - name: Apply modern macOS settings immediately
+      ansible.builtin.shell: |
+        killall WindowManager
+        killall Dock
+        killall SystemUIServer
+        killall NotificationCenter
       failed_when: false
       changed_when: false
