@@ -1,25 +1,29 @@
 ---
 # Tasks for macOS security configuration
 
-- name: Configure macOS Firewall
+- name: macOS Security configuration
+  tags: ["security"]
   block:
-    - name: Disable macOS Firewall
-      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate off
-      become: true
-      register: firewall_global_state_result
-      # Changed if it wasn't already off. stdout for "off" can be "Firewall is disabled. (State = 0)" or just empty if already off.
-      # stderr might say "Firewall already disabled." if it was already off.
-      changed_when: >
-        firewall_global_state_result.rc == 0 and "already disabled" not in (firewall_global_state_result.stderr | default('')) and "Firewall is disabled" not in
-        (firewall_global_state_result.stdout | default(''))
-      failed_when: false # Don't fail if it's already off or other benign messages
+    - name: Configure macOS Firewall
+      tags: ["firewall"]
+      block:
+        - name: Disable macOS Firewall
+          ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate off
+          become: true
+          register: firewall_global_state_result
+          # Changed if it wasn't already off. stdout for "off" can be "Firewall is disabled. (State = 0)" or just empty if already off.
+          # stderr might say "Firewall already disabled." if it was already off.
+          changed_when: >
+            firewall_global_state_result.rc == 0 and "already disabled" not in (firewall_global_state_result.stderr | default('')) and "Firewall is disabled" not in
+            (firewall_global_state_result.stdout | default(''))
+          failed_when: false # Don't fail if it's already off or other benign messages
 
-    - name: Allow SSH connections
-      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/sbin/sshd
-      become: true
-      register: ssh_firewall_result
-      changed_when: "'already has a rule' not in (ssh_firewall_result.stdout | default('') + ssh_firewall_result.stderr | default(''))"
-      failed_when: false
+        - name: Allow SSH connections
+          ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/sbin/sshd
+          become: true
+          register: ssh_firewall_result
+          changed_when: "'already has a rule' not in (ssh_firewall_result.stdout | default('') + ssh_firewall_result.stderr | default(''))"
+          failed_when: false
 
     - name: Allow Tailscale CLI App (if exists, for user interactions)
       ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /Applications/Tailscale.app
@@ -148,3 +152,8 @@
 - name: Include camera permissions tasks
   ansible.builtin.include_tasks: camera_permissions.yml
   when: security_scope | default('full') != 'alpr_camera'
+
+# Include automation permissions tasks
+- name: Include automation permissions tasks
+  ansible.builtin.include_tasks: automation_permissions.yml
+  tags: ["automation", "permissions"]
