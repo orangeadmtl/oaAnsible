@@ -235,9 +235,8 @@
       ansible.builtin.set_fact:
         python_global_correct: "{{ pyenv_set_global.changed | default(false) or python_global_correct }}"
         python_executable: "{{ python_execution_recheck.stdout | default(python_execution_check.stdout | default('')) == 'PYTHON_EXECUTABLE' }}"
-        python_stack_ready:
-          "{{ pyenv_ready and python_version_installed and (pyenv_set_global.changed | default(false) or python_global_correct) and
-          (python_execution_recheck.stdout | default(python_execution_check.stdout | default('')) == 'PYTHON_EXECUTABLE') }}"
+        python_stack_ready: "{{ pyenv_ready and python_version_installed and (pyenv_set_global.changed | default(false) or python_global_correct) and (python_execution_recheck.stdout
+          | default(python_execution_check.stdout | default('')) == 'PYTHON_EXECUTABLE') }}"
 
     - name: Display Python stack readiness status
       ansible.builtin.debug:
