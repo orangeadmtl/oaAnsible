@@ -1,253 +1,266 @@
 ---
 # Tasks for deploying the macOS API
 
-- name: Ensure orangead directories exist in user's home
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: directory
-    mode: "0755"
-    owner: "{{ ansible_user }}"
-    group: staff
-  loop:
-    - "{{ ansible_user_dir }}/orangead"
-    - "{{ ansible_user_dir }}/orangead/macos-api"
-    - "{{ ansible_user_dir }}/orangead/macos-api/logs"
-  become: true
+- name: macOS API deployment
+  tags: ["macos-api", "api"]
+  block:
+    - name: Ensure orangead directories exist in user's home
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      loop:
+        - "{{ ansible_user_dir }}/orangead"
+        - "{{ ansible_user_dir }}/orangead/macos-api"
+        - "{{ ansible_user_dir }}/orangead/macos-api/logs"
+      become: true
+      tags: ["setup"]
 
-- name: Copy macOS API files
-  ansible.posix.synchronize:
-    src: "{{ playbook_dir }}/macos-api/"
-    dest: "{{ ansible_user_dir }}/orangead/macos-api/"
-    delete: false
-    rsync_opts:
-      - "--exclude=.venv"
-      - "--exclude=__pycache__"
-      - "--exclude=.git"
-      - "--exclude=.gitignore"
-  become: true
-  become_user: "{{ ansible_user }}"
+    - name: Copy macOS API files
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../macos-api/"
+        dest: "{{ ansible_user_dir }}/orangead/macos-api/"
+        delete: false
+        rsync_opts:
+          - "--exclude=.venv"
+          - "--exclude=__pycache__"
+          - "--exclude=.git"
+          - "--exclude=.gitignore"
+      become: true
+      become_user: "{{ ansible_user }}"
+      tags: ["deploy"]
 
-- name: Check if virtual environment needs rebuilding
-  ansible.builtin.stat:
-    path: "{{ ansible_user_dir }}/orangead/macos-api/.venv/rebuild_needed"
-  register: rebuild_flag
-  become: true
-  become_user: "{{ ansible_user }}"
+    - name: Check if virtual environment needs rebuilding
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/orangead/macos-api/.venv/rebuild_needed"
+      register: rebuild_flag
+      become: true
+      become_user: "{{ ansible_user }}"
 
-- name: Remove existing virtual environment if rebuild needed
-  ansible.builtin.file:
-    path: "{{ ansible_user_dir }}/orangead/macos-api/.venv"
-    state: absent
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: rebuild_flag.stat.exists | default(false)
+    - name: Remove existing virtual environment if rebuild needed
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/macos-api/.venv"
+        state: absent
+      become: true
+      become_user: "{{ ansible_user }}"
+      when: rebuild_flag.stat.exists | default(false)
 
-- name: Include Python detection tasks
-  ansible.builtin.include_tasks: ../../tasks/python_detect.yml
+    - name: Include Python detection tasks
+      ansible.builtin.include_tasks: ../../tasks/python_detect.yml
 
-- name: Check Python version in virtual environment
-  ansible.builtin.shell: |
-    set -o pipefail
-    if [ -f {{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python ]; then
-      VENV_VERSION=$({{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python --version | awk '{print $2}')
-      REQUIRED_VERSION="{{ macos_python.version }}"
-      if [[ "$VENV_VERSION" == "$REQUIRED_VERSION"* ]]; then
-        echo "0"
-      else
-        echo "1"
-      fi
-    else
-      echo "1"
-    fi
-  register: python_version_check
-  changed_when: false
-  become: true
-  become_user: "{{ ansible_user }}"
+    - name: Check Python version in virtual environment
+      ansible.builtin.shell: |
+        set -o pipefail
+        if [ -f {{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python ]; then
+          VENV_VERSION=$({{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python --version | awk '{print $2}')
+          REQUIRED_VERSION="{{ macos_python.version }}"
+          if [[ "$VENV_VERSION" == "$REQUIRED_VERSION"* ]]; then
+            echo "0"
+          else
+            echo "1"
+          fi
+        else
+          echo "1"
+        fi
+      register: python_version_check
+      changed_when: false
+      become: true
+      become_user: "{{ ansible_user }}"
 
-- name: Remove existing virtual environment if Python version doesn't match required version
-  ansible.builtin.file:
-    path: "{{ ansible_user_dir }}/orangead/macos-api/.venv"
-    state: absent
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: python_version_check.stdout != "0"
+    - name: Remove existing virtual environment if Python version doesn't match required version
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/macos-api/.venv"
+        state: absent
+      become: true
+      become_user: "{{ ansible_user }}"
+      when: python_version_check.stdout != "0"
 
-- name: Check if venv exists
-  ansible.builtin.stat:
-    path: "{{ ansible_user_dir }}/orangead/macos-api/.venv"
-  register: venv_check
-  become: true
-  become_user: "{{ ansible_user }}"
+    - name: Check if venv exists
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/orangead/macos-api/.venv"
+      register: venv_check
+      become: true
+      become_user: "{{ ansible_user }}"
 
-- name: Create Python virtual environment
-  ansible.builtin.shell: |
-    set -o pipefail
-    cd {{ ansible_user_dir }}/orangead/macos-api
-    {{ python_executable }} -m venv .venv
-    source .venv/bin/activate
-    pip install --upgrade pip
-  args:
-    creates: "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/activate"
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: not venv_check.stat.exists
+    - name: Create Python virtual environment
+      ansible.builtin.shell: |
+        set -o pipefail
+        cd {{ ansible_user_dir }}/orangead/macos-api
+        {{ python_executable }} -m venv .venv
+        source .venv/bin/activate
+        pip install --upgrade pip
+      args:
+        creates: "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/activate"
+      become: true
+      become_user: "{{ ansible_user }}"
+      when: not venv_check.stat.exists
+      tags: ["dependencies"]
 
-- name: Install uv package manager
-  ansible.builtin.shell: |
-    set -o pipefail
-    cd {{ ansible_user_dir }}/orangead/macos-api && \
-    source .venv/bin/activate && \
-    pip install uv
-  become: true
-  become_user: "{{ ansible_user }}"
-  changed_when: false
+    - name: Install uv package manager
+      ansible.builtin.shell: |
+        set -o pipefail
+        cd {{ ansible_user_dir }}/orangead/macos-api && \
+        source .venv/bin/activate && \
+        pip install uv
+      become: true
+      become_user: "{{ ansible_user }}"
+      changed_when: false
+      tags: ["dependencies"]
 
-- name: Check if requirements.txt exists
-  ansible.builtin.stat:
-    path: "{{ ansible_user_dir }}/orangead/macos-api/requirements.txt"
-  register: requirements_file
+    - name: Check if requirements.txt exists
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/orangead/macos-api/requirements.txt"
+      register: requirements_file
 
-- name: Fail if requirements.txt doesn't exist
-  ansible.builtin.fail:
-    msg: "requirements.txt not found in {{ ansible_user_dir }}/orangead/macos-api/"
-  when: not requirements_file.stat.exists
+    - name: Fail if requirements.txt doesn't exist
+      ansible.builtin.fail:
+        msg: "requirements.txt not found in {{ ansible_user_dir }}/orangead/macos-api/"
+      when: not requirements_file.stat.exists
 
-- name: Install NumPy first to ensure compatibility
-  ansible.builtin.shell: |
-    set -o pipefail
-    cd {{ ansible_user_dir }}/orangead/macos-api && \
-    source .venv/bin/activate && \
-    python -m uv pip install 'numpy<2.0.0'
-  become: true
-  become_user: "{{ ansible_user }}"
-  changed_when: false
+    - name: Install NumPy first to ensure compatibility
+      ansible.builtin.shell: |
+        set -o pipefail
+        cd {{ ansible_user_dir }}/orangead/macos-api && \
+        source .venv/bin/activate && \
+        python -m uv pip install 'numpy<2.0.0'
+      become: true
+      become_user: "{{ ansible_user }}"
+      changed_when: false
+      tags: ["dependencies"]
 
-- name: Install all dependencies from requirements.txt
-  ansible.builtin.shell: |
-    set -o pipefail
-    cd {{ ansible_user_dir }}/orangead/macos-api && \
-    source .venv/bin/activate && \
-    python -m uv pip install -r requirements.txt
-  become: true
-  become_user: "{{ ansible_user }}"
-  changed_when: false
-  register: pip_install_result
+    - name: Install all dependencies from requirements.txt
+      ansible.builtin.shell: |
+        set -o pipefail
+        cd {{ ansible_user_dir }}/orangead/macos-api && \
+        source .venv/bin/activate && \
+        python -m uv pip install -r requirements.txt
+      become: true
+      become_user: "{{ ansible_user }}"
+      changed_when: false
+      register: pip_install_result
+      tags: ["dependencies"]
 
-# Fix ownership of any files created with wrong permissions during pip install
-- name: Fix ownership of virtual environment and cache directories
-  ansible.builtin.file:
-    path: "{{ item }}"
-    owner: "{{ ansible_user }}"
-    group: staff
-    recurse: true
-  loop:
-    - "{{ ansible_user_dir }}/orangead/macos-api/.venv"
-    - "{{ ansible_user_dir }}/orangead/macos-api"
-  become: true
-  failed_when: false
+    # Fix ownership of any files created with wrong permissions during pip install
+    - name: Fix ownership of virtual environment and cache directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        owner: "{{ ansible_user }}"
+        group: staff
+        recurse: true
+      loop:
+        - "{{ ansible_user_dir }}/orangead/macos-api/.venv"
+        - "{{ ansible_user_dir }}/orangead/macos-api"
+      become: true
+      failed_when: false
 
-- name: Copy OpenCV verification script
-  ansible.builtin.copy:
-    src: verify_opencv.py
-    dest: "{{ ansible_user_dir }}/orangead/macos-api/verify_opencv.py"
-    mode: "0755"
-    owner: "{{ ansible_user }}"
-    group: staff
-  become: true
+    - name: Copy OpenCV verification script
+      ansible.builtin.copy:
+        src: verify_opencv.py
+        dest: "{{ ansible_user_dir }}/orangead/macos-api/verify_opencv.py"
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      become: true
 
-- name: Ensure smctemp binary is executable
-  ansible.builtin.file:
-    path: "{{ ansible_user_dir }}/orangead/macos-api/macos_api/bin/smctemp"
-    mode: "0755"
-    owner: "{{ ansible_user }}"
-    group: staff
-  become: true
-  failed_when: false # Don't fail if binary doesn't exist
+    - name: Ensure smctemp binary is executable
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/macos-api/macos_api/bin/smctemp"
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      become: true
+      failed_when: false # Don't fail if binary doesn't exist
 
-- name: Verify OpenCV installation
-  ansible.builtin.shell: |
-    set -o pipefail
-    cd {{ ansible_user_dir }}/orangead/macos-api && \
-    source .venv/bin/activate && \
-    python3 ./verify_opencv.py
-  register: opencv_check
-  changed_when: false
-  become: true
-  become_user: "{{ ansible_user }}"
-  failed_when: false # Don't fail the playbook if verification fails
+    - name: Verify OpenCV installation
+      ansible.builtin.shell: |
+        set -o pipefail
+        cd {{ ansible_user_dir }}/orangead/macos-api && \
+        source .venv/bin/activate && \
+        python3 ./verify_opencv.py
+      register: opencv_check
+      changed_when: false
+      become: true
+      become_user: "{{ ansible_user }}"
+      failed_when: false # Don't fail the playbook if verification fails
+      tags: ["verify"]
 
-- name: Create rebuild flag if OpenCV verification fails
-  ansible.builtin.file:
-    path: "{{ ansible_user_dir }}/orangead/macos-api/.venv/rebuild_needed"
-    state: touch
-    mode: "0644"
-    owner: "{{ ansible_user }}"
-    group: staff
-  become: true
-  when: opencv_check.rc != 0
+    - name: Create rebuild flag if OpenCV verification fails
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/macos-api/.venv/rebuild_needed"
+        state: touch
+        mode: "0644"
+        owner: "{{ ansible_user }}"
+        group: staff
+      become: true
+      when: opencv_check.rc != 0
 
-- name: Remove rebuild flag if OpenCV verification succeeds
-  ansible.builtin.file:
-    path: "{{ ansible_user_dir }}/orangead/macos-api/.venv/rebuild_needed"
-    state: absent
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: opencv_check.rc == 0
+    - name: Remove rebuild flag if OpenCV verification succeeds
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/macos-api/.venv/rebuild_needed"
+        state: absent
+      become: true
+      become_user: "{{ ansible_user }}"
+      when: opencv_check.rc == 0
 
-- name: Display OpenCV installation status
-  ansible.builtin.debug:
-    var: opencv_check.stdout_lines
-  when: opencv_check.stdout_lines is defined
+    - name: Display OpenCV installation status
+      ansible.builtin.debug:
+        var: opencv_check.stdout_lines
+      when: opencv_check.stdout_lines is defined
 
-# No longer creating a separate user - using ansible_user instead
+    # No longer creating a separate user - using ansible_user instead
 
-- name: Ensure specific executable files have proper permissions
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: file
-    mode: "0755"
-    owner: "{{ ansible_user }}"
-    group: staff
-  loop:
-    - "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/uvicorn"
-    - "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python"
-    - "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3"
-  become: true
-  failed_when: false # In case the file doesn't exist yet
+    - name: Ensure specific executable files have proper permissions
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: file
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      loop:
+        - "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/uvicorn"
+        - "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python"
+        - "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3"
+      become: true
+      failed_when: false # In case the file doesn't exist yet
 
-- name: Ensure LaunchAgents directory exists
-  ansible.builtin.file:
-    path: "{{ ansible_user_dir }}/Library/LaunchAgents"
-    state: directory
-    mode: "0755"
-    owner: "{{ ansible_user }}"
-    group: staff
-  become: true
+    - name: Ensure LaunchAgents directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/Library/LaunchAgents"
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      become: true
 
-- name: Create launchd plist for macOS API
-  ansible.builtin.template:
-    src: com.orangead.macosapi.plist.j2
-    dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist"
-    owner: "{{ ansible_user }}"
-    group: staff
-    mode: "0644"
-  become: false
-  notify: Reload macosapi service
+    - name: Create launchd plist for macOS API
+      ansible.builtin.template:
+        src: com.orangead.macosapi.plist.j2
+        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist"
+        owner: "{{ ansible_user }}"
+        group: staff
+        mode: "0644"
+      become: false
+      notify: Reload macosapi service
+      tags: ["service"]
 
-# Screenshot functionality has been removed
+    # Screenshot functionality has been removed
 
-- name: Configure firewall to allow API port
-  ansible.builtin.command: |
-    set -o pipefail
-    /usr/libexec/ApplicationFirewall/socketfilterfw --add {{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3
-  become: true
-  changed_when: false
-  failed_when: false # Some systems might not have firewall enabled
+    - name: Configure firewall to allow API port
+      ansible.builtin.command: |
+        set -o pipefail
+        /usr/libexec/ApplicationFirewall/socketfilterfw --add {{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3
+      become: true
+      changed_when: false
+      failed_when: false # Some systems might not have firewall enabled
+      tags: ["security"]
 
-- name: Load macOS API service
-  ansible.builtin.command: |
-    set -o pipefail
-    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
-  become: false
-  changed_when: false
-  failed_when: false # In case it's already loaded
+    - name: Load macOS API service
+      ansible.builtin.command: |
+        set -o pipefail
+        launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.macosapi.plist
+      become: false
+      changed_when: false
+      failed_when: false # In case it's already loaded
+      tags: ["service"]

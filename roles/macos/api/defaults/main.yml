@@ -13,3 +13,7 @@ macos_api_venv_dir: "{{ ansible_user_dir }}/orangead/macos-api/.venv"
 # Service user
 macos_api_user: "{{ ansible_user }}"
 macos_api_group: staff
+
+# Python configuration
+macos_python:
+  version: "{{ python.version | default('3.11.11') }}"
