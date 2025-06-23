@@ -3,7 +3,7 @@ all:
   vars:
     target_env: spectra-preprod
     project_name: spectra
-    environment: preprod
+    deployment_environment: preprod
     ansible_python_interpreter: /usr/bin/python3
     ansible_connection: ssh
     ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"

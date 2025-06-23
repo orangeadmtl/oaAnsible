@@ -3,7 +3,7 @@ all:
   vars:
     target_env: f1-preprod
     project_name: f1
-    environment: preprod
+    deployment_environment: preprod
     ansible_python_interpreter: /usr/bin/python3
     ansible_connection: ssh
     ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
