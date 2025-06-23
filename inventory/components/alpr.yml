@@ -32,7 +32,7 @@ docker:
     - "{{ ansible_user_dir }}/orangead/alpr/config:/etc/openalpr"
   ports:
     - "127.0.0.1:8081:8080"
-  environment:
+  env_vars:
     - "ALPR_COUNTRY=us"
     - "ALPR_PATTERN=us"
 
