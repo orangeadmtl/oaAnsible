@@ -1,0 +1,633 @@
+---
+#SPDX-License-Identifier: MIT-0
+# tasks file for roles/macos/tracker
+
+        - name: macOS Tracker deployment
+      tags: ["tracker"]
+      block:
+        # No longer creating a separate user - using ansible_user instead
+
+        # Ensure required system packages are installed
+        - name: Ensure util-linux is installed
+      community.general.homebrew:
+        name: util-linux
+        state: present
+      register: util_linux_install
+      become: true
+      become_user: "{{ ansible_user }}"
+
+        - name: Debug util-linux installation
+      ansible.builtin.debug:
+        msg: "util-linux installation result: {{ util_linux_install }}"
+
+# Ensure util-linux binaries are in PATH
+        - name: Add util-linux to shell profiles
+      ansible.builtin.blockinfile:
+        path: "{{ item }}"
+        create: true
+        mode: "0644"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - util-linux"
+        block: |
+          # Add util-linux to PATH
+          export PATH="/opt/homebrew/opt/util-linux/bin:$PATH"
+          export PATH="/opt/homebrew/opt/util-linux/sbin:$PATH"
+          # For compilers
+          export LDFLAGS="-L/opt/homebrew/opt/util-linux/lib"
+          export CPPFLAGS="-I/opt/homebrew/opt/util-linux/include"
+          export PKG_CONFIG_PATH="/opt/homebrew/opt/util-linux/lib/pkgconfig"
+      changed_when: false
+      loop:
+        - "{{ ansible_user_dir }}/.zshrc"
+        - "{{ ansible_user_dir }}/.bashrc"
+        - "{{ ansible_user_dir }}/.bash_profile"
+      become: true
+      become_user: "{{ ansible_user }}"
+      register: shell_profile_result
+      failed_when: false
+
+# Create directory structure in ansible_user's home directory
+        - name: Ensure tracker directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: staff
+        mode: "0755"
+      become: true
+      tags: ["tracker", "setup"]
+
+        - name: Ensure tracker data directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker/data"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: staff
+        mode: "0755"
+      become: true
+
+        - name: Ensure tracker logs directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker/logs"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: staff
+        mode: "0755"
+      become: true
+
+        - name: Ensure models directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker/models"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: staff
+        mode: "0755"
+      become: true
+
+# Check if tracker directory exists and is not empty
+        - name: Check if tracker directory exists
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/orangead/tracker"
+      register: tracker_dir
+      become: true
+      become_user: "{{ ansible_user }}"
+
+# Check if git repository already exists
+        - name: Check if tracker repository exists
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/orangead/tracker/.git"
+      register: tracker_git_repo
+      become: true
+      become_user: "{{ ansible_user }}"
+
+# Check if directory exists and is not empty
+        - name: Check if directory exists and has content
+      ansible.builtin.shell: |
+        set -o pipefail
+        if [ -d "{{ ansible_user_dir }}/orangead/tracker" ] && [ "$(ls -A {{ ansible_user_dir }}/orangead/tracker)" ]; then
+          echo "directory_has_content"
+        else
+          echo "directory_empty_or_missing"
+        fi
+      register: dir_content_status
+      changed_when: false
+      become: true
+      become_user: "{{ ansible_user }}"
+
+# Check if directory is a git repository
+        - name: Check if directory is a git repository
+      ansible.builtin.shell: |
+        set -o pipefail
+        if [ -d "{{ ansible_user_dir }}/orangead/tracker/.git" ] && cd "{{ ansible_user_dir }}/orangead/tracker" && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+          echo "is_git_repo"
+        else
+          echo "not_git_repo"
+        fi
+      register: git_repo_status
+      changed_when: false
+      become: true
+      become_user: "{{ ansible_user }}"
+      failed_when: false
+
+# Backup and clean non-empty directory that is not a git repository (preserve logs)
+        - name: Backup and clean non-empty directory that is not a git repository
+      ansible.builtin.shell: |
+        set -o pipefail
+        BACKUP_DIR="{{ ansible_user_dir }}/orangead/tracker_backup_$(date +%Y%m%d_%H%M%S)"
+        echo "Backing up existing files to $BACKUP_DIR"
+        mkdir -p "$BACKUP_DIR"
+        # Copy everything to backup
+        cp -R "{{ ansible_user_dir }}/orangead/tracker/"* "$BACKUP_DIR/" 2>/dev/null || true
+        # Save logs, output.txt, and database before cleanup
+        if [ -d "{{ ansible_user_dir }}/orangead/tracker/logs" ]; then
+          mkdir -p /tmp/tracker_logs_preserve
+          cp -R "{{ ansible_user_dir }}/orangead/tracker/logs/"* /tmp/tracker_logs_preserve/ 2>/dev/null || true
+        fi
+        if [ -f "{{ ansible_user_dir }}/orangead/tracker/output.txt" ]; then
+          cp "{{ ansible_user_dir }}/orangead/tracker/output.txt" /tmp/tracker_output_preserve.txt 2>/dev/null || true
+        fi
+        if [ -d "{{ ansible_user_dir }}/orangead/tracker/data" ]; then
+          mkdir -p /tmp/tracker_data_preserve
+          cp -R "{{ ansible_user_dir }}/orangead/tracker/data/"* /tmp/tracker_data_preserve/ 2>/dev/null || true
+        fi
+        # Clean directory
+        rm -rf "{{ ansible_user_dir }}/orangead/tracker"
+        mkdir -p "{{ ansible_user_dir }}/orangead/tracker"
+      become: true
+      become_user: "{{ ansible_user }}"
+      when: dir_content_status.stdout == "directory_has_content" and git_repo_status.stdout == "not_git_repo"
+      register: backup_result
+      changed_when: backup_result.stdout is search('Backing up existing files')
+
+# Check disk space before operations
+        - name: Check available disk space
+      ansible.builtin.shell: |
+        set -o pipefail
+        df -h {{ ansible_user_dir }}/orangead | awk 'NR==2 {print $4}'
+      register: disk_space
+      changed_when: false
+      become: true
+      become_user: "{{ ansible_user }}"
+
+        - name: Display available disk space
+      ansible.builtin.debug:
+        msg: "Available disk space: {{ disk_space.stdout }}"
+
+# Ensure tracker directory exists and is empty if not a git repo
+        - name: Ensure tracker directory is in proper state for git operations
+      ansible.builtin.shell: |
+        set -o pipefail
+        if [ "{{ git_repo_status.stdout }}" != "is_git_repo" ]; then
+          if [ -d "{{ ansible_user_dir }}/orangead/tracker" ]; then
+            # Directory exists but is not a git repo, clean it
+            echo "Cleaning existing directory"
+            rm -rf "{{ ansible_user_dir }}/orangead/tracker"
+          fi
+          # Create fresh directory
+          mkdir -p "{{ ansible_user_dir }}/orangead/tracker"
+          echo "Directory prepared for clone"
+        else
+          echo "Directory is already a git repo"
+        fi
+      register: dir_prep
+      changed_when: dir_prep.stdout is search('Cleaning existing directory') or dir_prep.stdout is search('Directory prepared for clone')
+      become: true
+      become_user: "{{ ansible_user }}"
+
+# Use tracker configuration from inventory
+        - name: Validate tracker config exists in inventory
+      ansible.builtin.fail:
+        msg: "Tracker configuration not found in inventory. Please define 'tracker' variables."
+      when: tracker is not defined
+
+        - name: Validate cam_id is defined for tracker deployment
+      ansible.builtin.fail:
+        msg: |
+          ERROR: cam_id is required for tracker deployment but not defined in inventory.
+          
+          Please add cam_id to the host configuration in your inventory file:
+          
+          hosts:
+            {{ inventory_hostname }}:
+              cam_id: "your-camera-identifier"
+              # ... other host vars
+          
+          The cam_id should uniquely identify this camera/device for tracking purposes.
+      when: cam_id is not defined
+
+        - name: Set tracker configuration
+      ansible.builtin.set_fact:
+        merged_tracker_config: "{{ tracker }}"
+
+        - name: Debug merged tracker configuration
+      ansible.builtin.debug:
+        msg: "Merged tracker config: {{ merged_tracker_config }}"
+
+# Determine final git version with proper priority: commit > branch > default
+        - name: Set final git version (prioritize specific commit over branch)
+      ansible.builtin.set_fact:
+        final_git_version: >-
+          {%- if tracker_git_branch is defined -%}
+            {{ tracker_git_branch }}
+          {%- else -%}
+            {{ merged_tracker_config.git_version | default('main') }}
+          {%- endif -%}
+
+# Debug git version being used
+        - name: Display git version being used for tracker
+      ansible.builtin.debug:
+        msg: "Using git version: {{ final_git_version }} (priority: device-commit > device-branch > global-default)"
+
+# Clone the tracker repository if it doesn't exist or was cleaned
+        - name: Clone oaTracker repository
+      ansible.builtin.git:
+        repo: "{{ merged_tracker_config.repository_url }}"
+        dest: "{{ ansible_user_dir }}/orangead/tracker"
+        clone: true
+        update: true
+        force: false
+        version: "{{ final_git_version }}"
+      become: true
+      become_user: "{{ ansible_user }}"
+      when: git_repo_status.stdout == "not_git_repo" or dir_content_status.stdout == "directory_empty_or_missing"
+      register: git_clone_result
+      retries: 3
+      delay: 5
+      until: git_clone_result is success
+      tags: ["tracker", "deploy"]
+
+# Update the tracker repository if it already exists
+        - name: Update oaTracker repository
+      ansible.builtin.git:
+        repo: "{{ merged_tracker_config.repository_url }}"
+        dest: "{{ ansible_user_dir }}/orangead/tracker"
+        update: true
+        force: false
+        version: "{{ final_git_version }}"
+      become: true
+      become_user: "{{ ansible_user }}"
+      when: git_repo_status.stdout == "is_git_repo"
+      register: git_update_result
+
+        - name: Display git update status
+      ansible.builtin.debug:
+        msg: "{{ 'Repository updated: ' + git_update_result.after if git_update_result.changed else 'Repository already at latest version' }}"
+      when: git_update_result is defined and git_update_result.changed is defined
+
+# Restore preserved logs after git operations
+        - name: Restore preserved logs and output.txt
+      ansible.builtin.shell: |
+        set -o pipefail
+        # Restore logs if they were preserved
+        if [ -d /tmp/tracker_logs_preserve ]; then
+          mkdir -p "{{ ansible_user_dir }}/orangead/tracker/logs"
+          cp -R /tmp/tracker_logs_preserve/* "{{ ansible_user_dir }}/orangead/tracker/logs/" 2>/dev/null || true
+          rm -rf /tmp/tracker_logs_preserve
+          echo "Restored preserved logs"
+        fi
+        # Restore output.txt if it was preserved
+        if [ -f /tmp/tracker_output_preserve.txt ]; then
+          cp /tmp/tracker_output_preserve.txt "{{ ansible_user_dir }}/orangead/tracker/output.txt" 2>/dev/null || true
+          rm -f /tmp/tracker_output_preserve.txt
+          echo "Restored preserved output.txt"
+        fi
+        # Restore data directory if it was preserved
+        if [ -d /tmp/tracker_data_preserve ]; then
+          mkdir -p "{{ ansible_user_dir }}/orangead/tracker/data"
+          cp -R /tmp/tracker_data_preserve/* "{{ ansible_user_dir }}/orangead/tracker/data/" 2>/dev/null || true
+          rm -rf /tmp/tracker_data_preserve
+          echo "Restored preserved data directory"
+        fi
+      register: restore_result
+      changed_when: restore_result.stdout is search('Restored preserved')
+      become: true
+      become_user: "{{ ansible_user }}"
+      when: backup_result is defined and backup_result.changed
+
+# Set proper ownership
+        - name: Set proper ownership for tracker files
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker"
+        owner: "{{ ansible_user }}"
+        group: staff
+        recurse: true
+      become: true
+
+        - name: Ensure specific directories have proper permissions
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: staff
+        mode: "0755"
+      loop:
+        - "{{ ansible_user_dir }}/orangead/tracker/logs"
+        - "{{ ansible_user_dir }}/orangead/tracker/data"
+      become: true
+
+# Make sure scripts are executable
+        - name: Ensure start.sh script is executable
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker/scripts/start.sh"
+        state: file
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      become: true
+
+        - name: Ensure start_api.sh script is executable
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker/start_api.sh"
+        state: file
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      become: true
+
+        - name: Ensure start_detection.sh script is executable
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker/start_detection.sh"
+        state: file
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      become: true
+
+# Use standardized Python version from group_vars
+        - name: Set required Python version from group_vars
+      ansible.builtin.set_fact:
+        tracker_python_version: "{{ python.version }}"
+
+        - name: Debug required Python version
+      ansible.builtin.debug:
+        msg: "Using standardized Python version: {{ tracker_python_version }}"
+
+# Check if required Python version is available in pyenv
+        - name: Check if required Python version is available in pyenv
+      ansible.builtin.shell: |
+        set -o pipefail
+        export PYENV_ROOT="$HOME/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        $PYENV_ROOT/bin/pyenv install --list | grep -E "^\s+{{ tracker_python_version }}$" || echo "not_found"
+      register: python_version_available
+      changed_when: false
+      become: true
+      become_user: "{{ ansible_user }}"
+
+        - name: Find closest available Python version if exact version not found
+      ansible.builtin.shell: |
+        set -o pipefail
+        export PYENV_ROOT="$HOME/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        # Extract major.minor version (e.g., 3.11 from 3.11.11)
+        MAJOR_MINOR=$(echo {{ tracker_python_version }} | cut -d. -f1-2)
+        # Find the latest available version for this major.minor
+        $PYENV_ROOT/bin/pyenv install --list | grep -E "^\s+${MAJOR_MINOR}\.[0-9]+$" | tail -1 | xargs
+      register: closest_python_version
+      changed_when: false
+      become: true
+      become_user: "{{ ansible_user }}"
+      when: python_version_available.stdout == "not_found"
+
+        - name: Set final Python version to use
+      ansible.builtin.set_fact:
+        final_python_version: >
+          {%- if python_version_available.stdout != "not_found" -%} {{ tracker_python_version | trim }}{%- else -%} {{ closest_python_version.stdout | trim }}{%-
+          endif -%}
+
+        - name: Debug final Python version
+      ansible.builtin.debug:
+        msg: "Will use Python version: {{ final_python_version }}"
+
+# Note: uv installation is handled by the setup.sh script
+
+# Run the setup.sh script to handle virtual environment and dependencies
+        - name: Make setup.sh executable
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker/setup.sh"
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      become: true
+
+        - name: Run setup.sh script to set up virtual environment and dependencies
+      ansible.builtin.shell: |
+        set -o pipefail
+        cd {{ ansible_user_dir }}/orangead/tracker
+        ./setup.sh
+      register: setup_result
+      changed_when: setup_result.stdout is search('Setup complete')
+      become: true
+      become_user: "{{ ansible_user }}"
+      environment:
+        PATH: "/opt/homebrew/bin:/opt/homebrew/sbin:{{ ansible_user_dir }}/.local/bin:{{ ansible_env.PATH }}"
+
+# Fix ownership of any files created with wrong permissions during setup
+        - name: Fix ownership of virtual environment and cache directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        owner: "{{ ansible_user }}"
+        group: staff
+        recurse: true
+      loop:
+        - "{{ ansible_user_dir }}/orangead/tracker/.venv"
+        - "{{ ansible_user_dir }}/orangead/tracker"
+      become: true
+      failed_when: false
+
+        - name: Display setup script output
+      ansible.builtin.debug:
+        msg: "{{ setup_result.stdout_lines }}"
+      when: setup_result.stdout_lines is defined
+# Note: uv installation and dependency management are handled by the setup.sh script
+# Copy and run dependency verification script
+        - name: Copy dependency verification script
+      ansible.builtin.copy:
+        src: verify_dependencies.py
+        dest: "{{ ansible_user_dir }}/orangead/tracker/verify_dependencies.py"
+        owner: "{{ ansible_user }}"
+        group: staff
+        mode: "0755"
+      become: true
+
+        - name: Verify dependencies installation
+      ansible.builtin.command: "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python {{ ansible_user_dir }}/orangead/tracker/verify_dependencies.py"
+      register: dependency_verification
+      changed_when: false
+      become: true
+      become_user: "{{ ansible_user }}"
+      failed_when: false
+
+        - name: Display dependency verification results
+      ansible.builtin.debug:
+        var: dependency_verification.stdout_lines
+      when: dependency_verification.stdout_lines is defined
+
+# Configure oaTracker
+        - name: Template config.yaml
+      ansible.builtin.template:
+        src: config.yaml.j2
+        dest: "{{ ansible_user_dir }}/orangead/tracker/config.yaml"
+        owner: "{{ ansible_user }}"
+        group: staff
+        mode: "0644"
+      become: true
+
+# Ensure system log directory exists
+        - name: Ensure /var/log/orangead directory exists
+      ansible.builtin.file:
+        path: /var/log/orangead
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      become: true
+
+# Clean up any existing broken symlinks first
+        - name: Check if output.txt is a symlink
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/orangead/tracker/output.txt"
+      register: output_txt_stat
+      become: true
+
+        - name: Remove output.txt only if it's a symlink
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker/output.txt"
+        state: absent
+      become: true
+      when: output_txt_stat.stat.exists and output_txt_stat.stat.islnk
+
+        - name: Remove any existing nohup.out file
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker/nohup.out"
+        state: absent
+      become: true
+
+        - name: Remove any existing centralized log symlinks
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /var/log/orangead/tracker.txt
+        - /var/log/orangead/tracker.log
+      become: true
+
+# Create centralized log symlink to output.txt (with timestamps)
+        - name: Create symlink from /var/log/orangead/tracker.log to output.txt
+      ansible.builtin.file:
+        src: "{{ ansible_user_dir }}/orangead/tracker/output.txt"
+        dest: /var/log/orangead/tracker.log
+        state: link
+        follow: false
+        force: true
+      become: true
+
+# Cleanup old incorrectly named plist files
+        - name: Stop and unload old API service (com.orangead.api)
+      ansible.builtin.command: launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.api.plist
+      become: false
+      failed_when: false
+      changed_when: false
+
+        - name: Remove old incorrectly named API plist file
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.api.plist"
+        state: absent
+      become: false
+
+# Setup launchd service
+        - name: Ensure LaunchAgents directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/Library/LaunchAgents"
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      become: true
+
+        - name: Template tracker launchd service file
+      ansible.builtin.template:
+        src: com.orangead.tracker.plist.j2
+        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist"
+        owner: "{{ ansible_user }}"
+        group: staff
+        mode: "0644"
+      become: false
+      register: launchd_service
+      tags: ["tracker", "service"]
+
+        - name: Template API launchd service file
+      ansible.builtin.template:
+        src: com.orangead.tracker_api.plist.j2
+        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker_api.plist"
+        owner: "{{ ansible_user }}"
+        group: staff
+        mode: "0644"
+      become: false
+      register: launchd_api_service
+      when: macos_deploy_tracker_api | default(true)
+      tags: ["tracker", "service"]
+
+        - name: Reload tracker service when changed
+      ansible.builtin.meta: flush_handlers
+      when: launchd_service.changed
+      notify:
+        - Unload existing launchd service
+        - Load launchd service
+        - Start launchd service
+
+        - name: Reload API service when changed
+      ansible.builtin.meta: flush_handlers
+      when: launchd_api_service.changed and macos_deploy_tracker_api | default(true)
+      notify:
+        - Unload existing API launchd service
+        - Load API launchd service
+        - Start API launchd service
+
+# Additional verification and troubleshooting tasks
+# Detect server port from config if available
+        - name: Check if config.yaml exists and extract server port
+      ansible.builtin.shell: |
+        set -o pipefail
+        if [ -f {{ ansible_user_dir }}/orangead/tracker/config.yaml ]; then
+          grep '^default_server_port:' {{ ansible_user_dir }}/orangead/tracker/config.yaml | awk '{print $2}' || echo "8080"
+        else
+          echo "8080"
+        fi
+      register: detected_server_port
+      changed_when: false
+
+        - name: Wait for tracker service to start
+      ansible.builtin.wait_for:
+        port: "{{ detected_server_port.stdout.strip() }}"
+        host: localhost
+        delay: 5
+        timeout: 30
+      failed_when: false
+
+        - name: Check if tracker process is running
+      ansible.builtin.shell: |
+        set -o pipefail
+        launchctl list | grep com.orangead.tracker || echo "Service not found"
+      register: tracker_status
+      changed_when: false
+
+        - name: Display tracker service status
+      ansible.builtin.debug:
+        msg: "Tracker service status: {{ tracker_status.stdout }}"
+
+        - name: Check tracker logs for any errors
+      ansible.builtin.shell: |
+        set -o pipefail
+        if [ -f {{ ansible_user_dir }}/orangead/tracker/logs/tracker.err.log ]; then
+          tail -10 {{ ansible_user_dir }}/orangead/tracker/logs/tracker.err.log
+        else
+          echo "No error log found"
+        fi
+      register: tracker_logs
+      changed_when: false
+      failed_when: false
+
+        - name: Display recent tracker errors (if any)
+      ansible.builtin.debug:
+        msg: "Recent tracker errors: {{ tracker_logs.stdout_lines }}"
+      when: tracker_logs.stdout_lines is defined and tracker_logs.stdout_lines | length > 0
