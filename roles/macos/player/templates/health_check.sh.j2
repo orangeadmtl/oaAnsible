@@ -1,6 +1,6 @@
 #!/bin/bash
 # {{ ansible_managed }}
-# Health check script for OrangeAd Video Player
+# Health check script for OrangeAd MPV Player
 # Generated for: {{ inventory_hostname }}
 # Project: {{ project_name | default('default') }}
 
@@ -22,32 +22,40 @@ log_message() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$HEALTH_CHECK_LOG"
 }
 
-# Check if Python video player processes are running
+# Check if MPV player processes are running
 check_player_process() {
-    # Use a single, efficient process check to avoid resource exhaustion
-    local python_count
-    python_count=$(pgrep -f "python.*video_player" 2>/dev/null | wc -l | tr -d ' ')
+    # Check for MPV processes with --screen parameter (our player instances)
+    local mpv_count
+    mpv_count=$(pgrep -f "mpv.*--screen=" 2>/dev/null | wc -l | tr -d ' ')
     
-    log_message "INFO: Found $python_count Python video player process(es)"
+    log_message "INFO: Found $mpv_count MPV player process(es)"
     
-    # Consider healthy if any Python video player processes are running
-    if [ "$python_count" -gt 0 ]; then
-        log_message "INFO: Python video player processes are running"
+    {% if player.dual_screen | default(true) %}
+    # For dual-screen setup, expect 2 MPV processes
+    local expected_count=2
+    {% else %}
+    # For single-screen setup, expect 1 MPV process
+    local expected_count=1
+    {% endif %}
+    
+    # Consider healthy if we have the expected number of MPV processes
+    if [ "$mpv_count" -ge "$expected_count" ]; then
+        log_message "INFO: MPV player processes are running ($mpv_count/$expected_count)"
         return 0
     else
-        # Give Python player time to start up - single recheck only
-        log_message "INFO: No Python video player processes found, waiting 10 seconds..."
+        # Give MPV player time to start up - single recheck only
+        log_message "INFO: Insufficient MPV processes found ($mpv_count/$expected_count), waiting 10 seconds..."
         sleep 10
         
         # Single recheck after waiting
-        python_count=$(pgrep -f "python.*video_player" 2>/dev/null | wc -l | tr -d ' ')
-        log_message "INFO: After waiting, found $python_count Python video player process(es)"
+        mpv_count=$(pgrep -f "mpv.*--screen=" 2>/dev/null | wc -l | tr -d ' ')
+        log_message "INFO: After waiting, found $mpv_count MPV player process(es)"
         
-        if [ "$python_count" -gt 0 ]; then
-            log_message "INFO: Python video player processes found after waiting"
+        if [ "$mpv_count" -ge "$expected_count" ]; then
+            log_message "INFO: MPV player processes found after waiting ($mpv_count/$expected_count)"
             return 0
         else
-            log_message "WARNING: No Python video player processes found after grace period"
+            log_message "WARNING: Insufficient MPV processes found after grace period ($mpv_count/$expected_count)"
             return 1
         fi
     fi
@@ -88,23 +96,23 @@ check_video_files() {
 
 # Restart player service
 restart_player_service() {
-    log_message "INFO: Attempting to restart player service '$SERVICE_NAME'"
+    log_message "INFO: Attempting to restart MPV player service '$SERVICE_NAME'"
     
     # Stop the service gracefully
     launchctl stop "$SERVICE_NAME" 2>/dev/null || true
     sleep 3
     
-    # Kill any remaining Python video player processes
-    pkill -f "python.*video_player" 2>/dev/null || true
-    pkill -f "python_video_player.py" 2>/dev/null || true
+    # Kill any remaining MPV processes
+    pkill -f "mpv.*--screen=" 2>/dev/null || true
+    pkill -f "oemplayer.sh" 2>/dev/null || true
     sleep 2
     
     # Start the service
     if launchctl start "$SERVICE_NAME" 2>/dev/null; then
-        log_message "INFO: Successfully restarted player service"
+        log_message "INFO: Successfully restarted MPV player service"
         return 0
     else
-        log_message "ERROR: Failed to restart player service"
+        log_message "ERROR: Failed to restart MPV player service"
         return 1
     fi
 }
