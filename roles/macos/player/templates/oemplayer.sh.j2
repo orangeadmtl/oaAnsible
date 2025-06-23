@@ -1,0 +1,107 @@
+#!/bin/bash
+# OrangeAd MPV Player - Simple dual-screen video player
+# Uses MPV with native macOS dual-screen support
+
+set -e
+
+PLAYER_DIR="{{ player.video_source }}"
+LOGS_DIR="${PLAYER_DIR}/logs"
+VIDEO_FILE="${PLAYER_DIR}/{{ player.videos[0].name }}"
+LOG_FILE="${LOGS_DIR}/player.log"
+
+# MPV common arguments for kiosk mode - optimized for performance (macOS compatible)
+# MPV_ARGS="--loop --fullscreen --no-audio --no-border --ontop --no-input-default-bindings --no-input-cursor --no-osd-bar --hwdec=auto --vo=libmpv --video-sync=audio --cache=yes --demuxer-max-bytes=50M --demuxer-readahead-secs=20"
+MPV_ARGS="--loop --fullscreen --no-audio --no-border --ontop --no-input-default-bindings --no-input-cursor --no-osd-bar"
+
+# Ensure logs directory exists
+mkdir -p "$LOGS_DIR"
+
+# Function to log messages
+log_message() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+}
+
+# Function to start MPV on specified screen
+start_mpv() {
+    local screen_num="$1"
+    mpv --screen="$screen_num" $MPV_ARGS "$VIDEO_FILE" &
+}
+
+# Function to cleanup processes on exit
+cleanup() {
+    log_message "Cleaning up MPV processes..."
+    pkill -f "mpv.*--screen=" || true
+    exit 0
+}
+
+# Set up signal handlers for graceful shutdown
+trap cleanup SIGTERM SIGINT
+
+# Validate video file exists
+if [[ ! -f "$VIDEO_FILE" ]]; then
+    log_message "ERROR: Video file not found: $VIDEO_FILE"
+    exit 1
+fi
+
+log_message "Starting OrangeAd MPV Player"
+log_message "Video file: $VIDEO_FILE"
+log_message "Dual screen: {{ player.dual_screen | default(true) }}"
+
+# Clean up any existing MPV processes
+pkill -f "mpv.*--screen=" || true
+sleep 1
+
+# Start MPV player(s) based on configuration
+{% if player.dual_screen | default(true) %}
+log_message "Starting dual-screen playback"
+
+# Start MPV on screen 0 (primary display)
+start_mpv 0
+MPV_PID_1=$!
+log_message "Started MPV on screen 0, PID: $MPV_PID_1"
+
+# Start MPV on screen 1 (secondary display)
+start_mpv 1
+MPV_PID_2=$!
+log_message "Started MPV on screen 1, PID: $MPV_PID_2"
+
+log_message "Both MPV instances started successfully"
+{% else %}
+log_message "Starting single-screen playback"
+
+# Start MPV on primary screen only
+start_mpv 0
+MPV_PID_1=$!
+log_message "Started MPV on screen 0, PID: $MPV_PID_1"
+{% endif %}
+
+# Keep the script running and monitor MPV processes
+while true; do
+    {% if player.dual_screen | default(true) %}
+    # Check if both MPV processes are still running
+    if ! kill -0 $MPV_PID_1 2>/dev/null; then
+        log_message "MPV screen 0 process died, restarting..."
+        start_mpv 0
+        MPV_PID_1=$!
+        log_message "Restarted MPV on screen 0, PID: $MPV_PID_1"
+    fi
+    
+    if ! kill -0 $MPV_PID_2 2>/dev/null; then
+        log_message "MPV screen 1 process died, restarting..."
+        start_mpv 1
+        MPV_PID_2=$!
+        log_message "Restarted MPV on screen 1, PID: $MPV_PID_2"
+    fi
+    {% else %}
+    # Check if single MPV process is still running
+    if ! kill -0 $MPV_PID_1 2>/dev/null; then
+        log_message "MPV process died, restarting..."
+        start_mpv 0
+        MPV_PID_1=$!
+        log_message "Restarted MPV on screen 0, PID: $MPV_PID_1"
+    fi
+    {% endif %}
+    
+    # Wait before checking again
+    sleep {{ player.health_check_interval | default(30) }}
+done

@@ -3,21 +3,19 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>{{ player.service_name }}</string>
+    <string>com.orangead.oemplayer</string>
     
     <key>Program</key>
-    <string>{{ player.video_source }}/scripts/start_player.sh</string>
+    <string>{{ player.video_source }}/oemplayer.sh</string>
     
     <key>WorkingDirectory</key>
     <string>{{ player.video_source }}</string>
     
     <key>StandardOutPath</key>
-    <string>{{ player.video_source }}/logs/player.log</string>
+    <string>{{ player.video_source }}/logs/oemplayer.log</string>
     
     <key>StandardErrorPath</key>
-    <string>{{ player.video_source }}/logs/player.log</string>
-    
-    <!-- Log consolidation: Using a single log file for all output -->
+    <string>{{ player.video_source }}/logs/oemplayer.log</string>
     
     <key>RunAtLoad</key>
     <{{ player.service_run_at_load | default(true) | lower }}/>
@@ -33,15 +31,13 @@
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin</string>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>HOME</key>
         <string>{{ ansible_user_dir }}</string>
         <key>USER</key>
         <string>{{ ansible_user }}</string>
         <key>DISPLAY</key>
         <string>:0</string>
-        <key>SDL_VIDEODRIVER</key>
-        <string>cocoa</string>
     </dict>
     
     <!-- Ensure the service can access the display -->
@@ -58,7 +54,7 @@
     <key>Nice</key>
     <integer>-5</integer>
     
-    <!-- Disable low priority I/O -->
+    <!-- Disable low priority I/O for better performance -->
     <key>LowPriorityIO</key>
     <false/>
     
