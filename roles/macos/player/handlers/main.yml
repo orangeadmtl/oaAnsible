@@ -7,8 +7,9 @@
     # Wait briefly for service to stop
     sleep 3
     
-    # Kill any remaining player processes
-    pkill -f "python.*oaplayer.py" 2>/dev/null || true
+    # Kill any remaining MPV processes
+    pkill -f "mpv.*--screen=" 2>/dev/null || true
+    pkill -f "oemplayer.sh" 2>/dev/null || true
     
     # Start the service
     launchctl start {{ player.service_name }}
@@ -25,7 +26,8 @@
 - name: stop player
   ansible.builtin.shell: |
     launchctl stop {{ player.service_name }} 2>/dev/null || true
-    pkill -f "python.*oaplayer.py" 2>/dev/null || true
+    pkill -f "mpv.*--screen=" 2>/dev/null || true
+    pkill -f "oemplayer.sh" 2>/dev/null || true
   become: false
   failed_when: false
 
