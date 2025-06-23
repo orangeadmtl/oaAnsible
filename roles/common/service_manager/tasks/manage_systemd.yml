@@ -8,13 +8,14 @@
         mapped_services: "{{ mapped_services | default([]) + [mapped_service] }}"
       vars:
         service_name: "{{ item.name if item is mapping else item }}"
-        mapped_name: "{{ service_mappings[service_name][platform_os] if service_mappings[service_name] is defined and service_mappings[service_name][platform_os] is defined else service_name }}"
+        mapped_name: "{{ service_mappings[service_name][platform_os] if service_mappings[service_name] is defined and service_mappings[service_name][platform_os]
+          is defined else service_name }}"
         mapped_service:
           name: "{{ mapped_name }}"
           state: "{{ item.state if item is mapping else 'started' }}"
           enabled: "{{ item.enabled if item is mapping else true }}"
       loop: "{{ common_services }}"
-      when: 
+      when:
         - service_name != "null"
         - mapped_name != "null"
 
@@ -47,7 +48,6 @@
       ansible.builtin.debug:
         msg: "Skipped services not available on {{ platform_os }}: {{ skipped_services | join(', ') }}"
       vars:
-        skipped_services: "{{ common_services | map('extract', 'name') | select('in', service_mappings.keys()) | 
-                           map('extract', service_mappings) | map('extract', platform_os) | 
-                           select('none') | list }}"
+        skipped_services: "{{ common_services | map('extract', 'name') | select('in', service_mappings.keys()) | map('extract', service_mappings) | map('extract',
+          platform_os) | select('none') | list }}"
       when: skipped_services | length > 0

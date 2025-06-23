@@ -1,6 +1,6 @@
 # Common Cross-Platform Roles
 
-This directory contains Ansible roles that provide cross-platform abstractions for common tasks across macOS, Ubuntu, and OrangePi platforms.
+This directory contains Ansible roles that provide cross-platform abstractions for common tasks across macOS and Ubuntu platforms.
 
 ## Philosophy
 

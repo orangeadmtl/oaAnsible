@@ -10,7 +10,7 @@
         mode: "{{ service_config.mode | default('0644') }}"
         owner: "{{ service_config.owner | default(ansible_user_id) }}"
         group: "{{ service_config.group | default('staff') }}"
-      when: 
+      when:
         - service_manager_type == 'launchd'
         - service_config is defined
 
@@ -21,7 +21,7 @@
         mode: "{{ service_config.mode | default('0644') }}"
         owner: root
         group: root
-      when: 
+      when:
         - service_manager_type == 'systemd'
         - service_config is defined
       become: true
