@@ -38,10 +38,9 @@
   when: common_packages is defined
 
 - name: Install package groups
-  ansible.builtin.include_tasks: install_package_group.yml
-  loop: "{{ common_package_groups | default([]) }}"
-  loop_control:
-    loop_var: package_group_name
+  ansible.builtin.debug:
+    msg: "Package groups installation is not implemented yet"
+  when: common_package_groups is defined and common_package_groups | length > 0
 
 - name: Verify package installation
   ansible.builtin.include_tasks: verify_packages.yml

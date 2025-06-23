@@ -7,7 +7,7 @@
       ansible.builtin.set_fact:
         mapped_packages: "{{ mapped_packages | default([]) + [package_mappings[item][platform_os]] }}"
       loop: "{{ common_packages }}"
-      when: 
+      when:
         - package_mappings[item] is defined
         - package_mappings[item][platform_os] is defined
         - package_mappings[item][platform_os] != null
@@ -25,8 +25,6 @@
       ansible.builtin.debug:
         msg: "Skipped packages not available on {{ platform_os }}: {{ skipped_packages | join(', ') }}"
       vars:
-        skipped_packages: "{{ common_packages | reject('in', package_mappings.keys()) | list + 
-                           (common_packages | select('in', package_mappings.keys()) | 
-                           select('match', '^.*$') | map('extract', package_mappings) | 
-                           map('extract', platform_os) | select('none') | list) }}"
+        skipped_packages: "{{ common_packages | reject('in', package_mappings.keys()) | list + (common_packages | select('in', package_mappings.keys()) | select('match',
+          '^.*$') | map('extract', package_mappings) | map('extract', platform_os) | select('none') | list) }}"
       when: skipped_packages | length > 0
