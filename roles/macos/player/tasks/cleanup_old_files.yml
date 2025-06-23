@@ -1,20 +1,81 @@
 ---
 # Cleanup old unused files from previous player implementations
-- name: Remove old player implementation files
-  ansible.builtin.file:
-    path: "{{ player.video_source }}/{{ item }}"
-    state: absent
-  loop:
-    - "python_video_player.py"
-    - "player.sh"
-    - "scripts/player.sh"
-  ignore_errors: true
+# NOTE: This cleanup is only for development/staging environments during migration from Python to MPV
+# It should be skipped in production environments to avoid unnecessary file operations
 
-- name: Remove old health check files if using new implementation
-  ansible.builtin.file:
-    path: "{{ player.video_source }}/{{ item }}"
-    state: absent
-  loop:
-    - "health_check.sh"
-  when: not player.legacy_health_check | default(false)
-  ignore_errors: true
+# ALWAYS stop, unload, and kill running MPV processes first for performance optimization during deployment
+- name: Stop, unload, and kill any existing MPV processes (performance optimization)
+  ansible.builtin.shell: |
+    # Kill all MPV processes to free resources for Ansible deployment
+    pkill -f "mpv.*--screen=" 2>/dev/null || true
+    pkill -f "oemplayer.sh" 2>/dev/null || true
+
+    # Stop and unload current player service
+    launchctl stop {{ player.service_name }} 2>/dev/null || true
+    launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist" 2>/dev/null || true
+
+  become: false
+  changed_when: false
+  failed_when: false
+  tags: ["player", "cleanup", "performance"]
+
+- name: Development cleanup of old player implementations
+  when:
+    - player.development_cleanup | default(false)
+    - oa_environment.name | default('') | regex_search('dev|development|staging|preprod')
+  block:
+    - name: Remove old Python/VLC player implementation files
+      ansible.builtin.file:
+        path: "{{ player.video_source }}/{{ item }}"
+        state: absent
+      loop:
+        - "oaplayer.py" # Old 727-line Python player
+        - "python_video_player.py" # Legacy Python player
+        - "player_config.json" # Old JSON configuration
+        - "player.sh" # Old shell wrapper
+        - "scripts/player.sh" # Old shell wrapper in scripts
+        - "scripts/start_player.sh" # Complex dual-screen launcher
+        - ".venv" # Python virtual environment
+      ignore_errors: true
+
+    - name: Remove old health check files if using new implementation
+      ansible.builtin.file:
+        path: "{{ player.video_source }}/{{ item }}"
+        state: absent
+      loop:
+        - "health_check.sh"
+        - "scripts/health_check.sh"
+      when: not player.legacy_health_check | default(false)
+      ignore_errors: true
+
+    - name: Remove old LaunchAgent files for previous implementations
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/Library/LaunchAgents/{{ item }}"
+        state: absent
+      loop:
+        - "com.orangead.player.plist" # Old service name
+        - "com.orangead.player.health.plist" # Old health monitoring
+      ignore_errors: true
+
+    - name: Clean up old log files with different naming
+      ansible.builtin.file:
+        path: "{{ player.video_source }}/logs/{{ item }}"
+        state: absent
+      loop:
+        - "player.log"
+        - "player.stdout.log"
+        - "player.stderr.log"
+        - "health_check.log"
+        - "health_check_error.log"
+      ignore_errors: true
+
+    - name: Log cleanup completion
+      ansible.builtin.debug:
+        msg: "Development cleanup completed for environment: {{ oa_environment.name | default('unknown') }}"
+
+- name: Skip cleanup in production
+  ansible.builtin.debug:
+    msg: "Skipping development cleanup in production environment: {{ oa_environment.name | default('production') }}"
+  when:
+    - not (player.development_cleanup | default(false))
+    - not (oa_environment.name | default('') | regex_search('dev|development|staging|preprod'))
