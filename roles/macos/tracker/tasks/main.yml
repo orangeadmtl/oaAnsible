@@ -2,10 +2,13 @@
 #SPDX-License-Identifier: MIT-0
 # tasks file for roles/macos/tracker
 
-# No longer creating a separate user - using ansible_user instead
+- name: macOS Tracker deployment
+  tags: ["tracker"]
+  block:
+    # No longer creating a separate user - using ansible_user instead
 
-# Ensure required system packages are installed
-- name: Ensure util-linux is installed
+    # Ensure required system packages are installed
+    - name: Ensure util-linux is installed
   community.general.homebrew:
     name: util-linux
     state: present
@@ -51,6 +54,7 @@
     group: staff
     mode: "0755"
   become: true
+  tags: ["tracker", "setup"]
 
 - name: Ensure tracker data directory exists
   ansible.builtin.file:
@@ -189,28 +193,30 @@
   become: true
   become_user: "{{ ansible_user }}"
 
-# Merge global and device-specific tracker configuration
-- name: Load global tracker config from group_vars
-  ansible.builtin.include_vars:
-    ansible.builtin.file: "{{ inventory_dir }}/group_vars/all.yml"
-    name: global_vars
-
-- name: Validate global tracker config exists
+# Use tracker configuration from inventory
+- name: Validate tracker config exists in inventory
   ansible.builtin.fail:
-    msg: "Global tracker configuration not found in group_vars/all.yml"
-  when: global_vars.tracker is not defined
+    msg: "Tracker configuration not found in inventory. Please define 'tracker' variables."
+  when: tracker is not defined
 
-- name: Set global tracker config
-  ansible.builtin.set_fact:
-    global_tracker_config: "{{ global_vars.tracker }}"
+- name: Validate cam_id is defined for tracker deployment
+  ansible.builtin.fail:
+    msg: |
+      ERROR: cam_id is required for tracker deployment but not defined in inventory.
+      
+      Please add cam_id to the host configuration in your inventory file:
+      
+      hosts:
+        {{ inventory_hostname }}:
+          cam_id: "your-camera-identifier"
+          # ... other host vars
+      
+      The cam_id should uniquely identify this camera/device for tracking purposes.
+  when: cam_id is not defined
 
-- name: Get device-specific tracker config
+- name: Set tracker configuration
   ansible.builtin.set_fact:
-    device_tracker_config: "{{ tracker | default({}) }}"
-
-- name: Merge global and device-specific tracker configs
-  ansible.builtin.set_fact:
-    merged_tracker_config: "{{ global_tracker_config | combine(device_tracker_config, recursive=True) }}"
+    merged_tracker_config: "{{ tracker }}"
 
 - name: Debug merged tracker configuration
   ansible.builtin.debug:
@@ -220,12 +226,10 @@
 - name: Set final git version (prioritize specific commit over branch)
   ansible.builtin.set_fact:
     final_git_version: >-
-      {%- if merged_tracker_config.git_version is defined and merged_tracker_config.git_version != global_tracker_config.git_version -%}
-        {{ merged_tracker_config.git_version }}
-      {%- elif tracker_git_branch is defined -%}
+      {%- if tracker_git_branch is defined -%}
         {{ tracker_git_branch }}
       {%- else -%}
-        {{ merged_tracker_config.git_version }}
+        {{ merged_tracker_config.git_version | default('main') }}
       {%- endif -%}
 
 # Debug git version being used
@@ -249,6 +253,7 @@
   retries: 3
   delay: 5
   until: git_clone_result is success
+  tags: ["tracker", "deploy"]
 
 # Update the tracker repository if it already exists
 - name: Update oaTracker repository
@@ -548,6 +553,7 @@
     mode: "0644"
   become: false
   register: launchd_service
+  tags: ["tracker", "service"]
 
 - name: Template API launchd service file
   ansible.builtin.template:
@@ -559,6 +565,7 @@
   become: false
   register: launchd_api_service
   when: macos_deploy_tracker_api | default(true)
+  tags: ["tracker", "service"]
 
 - name: Reload tracker service when changed
   ansible.builtin.meta: flush_handlers
