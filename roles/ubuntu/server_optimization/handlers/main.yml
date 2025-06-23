@@ -1,12 +1,12 @@
 ---
 # Ubuntu server optimization handlers
 
-- name: update grub
+- name: Update grub
   ansible.builtin.command: update-grub
   become: true
   listen: "update grub"
 
-- name: restart systemd-resolved
+- name: Restart systemd-resolved
   ansible.builtin.systemd:
     name: systemd-resolved
     state: restarted
