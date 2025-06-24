@@ -23,22 +23,21 @@
     - name: Process tag-based component selection
       ansible.builtin.set_fact:
         # Component tag mappings - allows for aliases
-        component_tags: {
-          "player": "player",
-          "tracker": "tracker", 
-          "macos-api": "macos-api",
-          "api": "macos-api",
-          "alpr": "alpr",
-          "base": "base",
-          "network": "network",
-          "security": "security",
+        component_tags:
+          "player": "player"
+          "tracker": "tracker"
+          "macos-api": "macos-api"
+          "api": "macos-api"
+          "alpr": "alpr"
+          "base": "base"
+          "network": "network"
+          "security": "security"
           "ssh": "ssh"
-        }
-        # Extract component names from provided tags  
+        # Extract component names from provided tags
         tag_components: >
           {%- set tag_map = {
             "player": "player",
-            "tracker": "tracker", 
+            "tracker": "tracker",
             "macos-api": "macos-api",
             "api": "macos-api",
             "alpr": "alpr",
@@ -46,15 +45,12 @@
             "network": "network",
             "security": "security",
             "ssh": "ssh"
-          } -%}
-          {%- set components = [] -%}
-          {%- for tag in (provided_tags | default('')).split(',') -%}
+          } -%} {%- set components = [] -%} {%- for tag in (provided_tags | default('')).split(',') -%}
             {%- set clean_tag = tag.strip() -%}
             {%- if clean_tag in tag_map -%}
               {%- set _ = components.append(tag_map[clean_tag]) -%}
             {%- endif -%}
-          {%- endfor -%}
-          {{ components | unique | list }}
+          {%- endfor -%} {{ components | unique | list }}
         # Switch to component mode if tags were provided
         execution_mode: >-
           {%- if provided_tags is defined and provided_tags | length > 0 -%}
@@ -67,7 +63,7 @@
     - name: Set components for tag-based deployment
       ansible.builtin.set_fact:
         selected_components: "{{ tag_components }}"
-      when: 
+      when:
         - provided_tags is defined
         - tag_components | length > 0
       tags: ["always"]
@@ -76,14 +72,12 @@
       ansible.builtin.set_fact:
         # Find invalid tags (tags that don't map to components)
         invalid_tags: >
-          {%- set invalid = [] -%}
-          {%- for tag in (provided_tags | default('')).split(',') -%}
+          {%- set invalid = [] -%} {%- for tag in (provided_tags | default('')).split(',') -%}
             {%- set clean_tag = tag.strip() -%}
             {%- if clean_tag and clean_tag not in component_tags -%}
               {%- set _ = invalid.append(clean_tag) -%}
             {%- endif -%}
-          {%- endfor -%}
-          {{ invalid }}
+          {%- endfor -%} {{ invalid }}
       when: provided_tags is defined
       tags: ["always"]
 
@@ -91,12 +85,12 @@
       ansible.builtin.debug:
         msg: |
           ⚠️  WARNING: Invalid/unknown tags detected: {{ invalid_tags | join(', ') }}
-          
+
           Valid component tags are:
           - Infrastructure: base, network, security, ssh
           - Applications: macos-api, api, tracker, player, alpr
           - Platform-specific: docker
-          
+
           Did you mean one of these similar tags?
           {% for invalid_tag in invalid_tags %}
           {% for valid_tag in component_tags.keys() %}
@@ -105,7 +99,7 @@
           {% endif %}
           {% endfor %}
           {% endfor %}
-      when: 
+      when:
         - provided_tags is defined
         - invalid_tags | length > 0
       tags: ["always"]
@@ -114,12 +108,12 @@
       ansible.builtin.fail:
         msg: |
           ❌ DEPLOYMENT HALTED: Invalid tags detected.
-          
+
           Invalid tags: {{ invalid_tags | join(', ') }}
-          
+
           To continue, use only valid tags or run without tags for full deployment.
           Use './scripts/run --help' to see all available tags.
-      when: 
+      when:
         - provided_tags is defined
         - invalid_tags | length > 0
         - not (force_deployment | default(false))
@@ -157,11 +151,10 @@
       when: force_platform != ""
       tags: ["always"]
 
-    - name: Initialize execution modes  
+    - name: Initialize execution modes
       ansible.builtin.include_tasks: ../tasks/execution-modes.yml
-      when: execution_mode == "full"  # Skip for tag-based deployments to improve performance
+      when: execution_mode == "full" # Skip for tag-based deployments to improve performance
       tags: ["always"]
-
 
   tasks:
     - name: Determine components to deploy from inventory configuration
@@ -174,7 +167,7 @@
             (oa_environment.deploy_player | default(false) | ternary(['player'], [])) +
             (oa_environment.deploy_alpr_service | default(false) | ternary(['alpr'], []))
           }}
-      when: 
+      when:
         - execution_mode == "full"
         - tag_components | default([]) | length == 0
 
@@ -188,7 +181,7 @@
           - deploy_alpr_service: {{ oa_environment.deploy_alpr_service | default(false) }}
 
           Final component list: {{ inventory_components | default([]) }}
-      when: 
+      when:
         - execution_mode == "full"
         - tag_components | default([]) | length == 0
 
@@ -212,7 +205,6 @@
         - detected_platform == "ubuntu"
         - tag_components | default([]) | length == 0
 
-
     - name: Advanced component-specific deployment
       when: execution_mode == "components"
 
@@ -231,22 +223,21 @@
               - By tags: ./scripts/run inventory-name -t player
               - By tags (multiple): ./scripts/run inventory-name -t base,network,player
               - By variable: --extra-vars 'selected_components=["macos-api","tracker"]'
-          when: 
+          when:
             - selected_components | default([]) | length == 0
             - tag_components | default([]) | length == 0
 
         - name: Initialize component framework
           ansible.builtin.include_tasks: ../tasks/component-framework.yml
-          when: tag_components | default([]) | length == 0  # Skip for tag-based deployments
+          when: tag_components | default([]) | length == 0 # Skip for tag-based deployments
           tags: ["always"]
 
         - name: Validate component compatibility
-          ansible.builtin.include_tasks: ../tasks/component-compatibility.yml  
-          when: tag_components | default([]) | length == 0  # Skip for tag-based deployments
+          ansible.builtin.include_tasks: ../tasks/component-compatibility.yml
+          when: tag_components | default([]) | length == 0 # Skip for tag-based deployments
           tags: ["always"]
 
-
-        - name: Execute component deployment  
+        - name: Execute component deployment
           ansible.builtin.include_tasks: ../tasks/deploy-components.yml
           vars:
             target_platform: "{{ detected_platform }}"
