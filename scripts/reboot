@@ -123,7 +123,7 @@ fi
 
 # Execute reboot command
 log_info "Executing reboot command..."
-ANSIBLE_CONFIG=ansible.cfg ansible \
+ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible \
     "$HOST_PATTERN" \
     -i "$INVENTORY_PATH" \
     --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" \
