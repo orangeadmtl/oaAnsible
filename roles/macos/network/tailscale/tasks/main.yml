@@ -6,7 +6,7 @@
       Tailscale configuration status:
       - configure.tailscale: {{ configure.tailscale | default(true) }}
       - Environment: {{ oa_environment.name | default('unknown') }}
-      
+
       {% if not (configure.tailscale | default(true)) %}
       SKIPPING: Tailscale configuration disabled in inventory.
       This is expected for production/pre-production environments where Tailscale is managed separately.
