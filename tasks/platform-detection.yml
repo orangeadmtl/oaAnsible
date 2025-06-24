@@ -62,7 +62,7 @@
       - "macos-api"
       - "tracker"
       - "alpr"
-  when: 
+  when:
     - detected_platform is not defined
     - fallback_platform_detection.stdout == "macos"
   tags: ["always"]
