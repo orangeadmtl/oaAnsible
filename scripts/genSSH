@@ -84,6 +84,9 @@ fi
 # Variables from helpers.sh
 log_debug "Attempting to view vault file: $VAULT_YML_FILE"
 
+# Set Ansible config path for ansible-vault
+export ANSIBLE_CONFIG="$(get_ansible_config_path)"
+
 # Decrypt the vault and extract the public key and passwords
 DECRYPTED_VAULT_CONTENT=$(ansible-vault view "$VAULT_YML_FILE" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE")
 if [ $? -ne 0 ]; then
