@@ -48,16 +48,6 @@
       when: ansible_distribution == "Ubuntu"
       tags: ["ubuntu"]
 
-    - name: Configure OrangePi network stack
-      block:
-        - name: Display OrangePi network configuration
-          ansible.builtin.debug:
-            msg: "OrangePi network configuration will be implemented in Phase 5"
-      when:
-        - ansible_distribution in ["Debian", "Ubuntu"]
-        - ansible_architecture in ["aarch64", "armv7l", "arm64"]
-      tags: ["orangepi"]
-
   post_tasks:
     - name: Verify network configuration
       ansible.builtin.import_tasks: ../tasks/verify.yml

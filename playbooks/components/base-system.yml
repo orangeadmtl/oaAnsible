@@ -59,16 +59,6 @@
       when: ansible_distribution == "Ubuntu"
       tags: ["ubuntu"]
 
-    - name: Configure OrangePi base system
-      block:
-        - name: Display OrangePi configuration
-          ansible.builtin.debug:
-            msg: "OrangePi base configuration will be implemented in Phase 5"
-      when:
-        - ansible_distribution in ["Debian", "Ubuntu"]
-        - ansible_architecture in ["aarch64", "armv7l", "arm64"]
-      tags: ["orangepi"]
-
   post_tasks:
     - name: Verify base system configuration
       ansible.builtin.import_tasks: ../tasks/verify.yml

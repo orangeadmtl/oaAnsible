@@ -1,6 +1,6 @@
 # macOS API for OrangeAd
 
-This API provides system health, metrics, screenshots, and status information for macOS devices in the OrangeAd ecosystem. It's designed to be compatible with the dashboard interface and mirrors the functionality of the opi-setup API for OrangePi devices.
+This API provides system health, metrics, screenshots, and status information for macOS devices in the OrangeAd ecosystem. It's designed to be compatible with the dashboard interface.
 
 ## Features
 
