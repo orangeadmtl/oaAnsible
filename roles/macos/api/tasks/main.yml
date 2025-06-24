@@ -1,7 +1,7 @@
 ---
 # Tasks for deploying the macOS API
 
-- name: macOS API deployment
+- name: MacOS API deployment
   tags: ["macos-api", "api"]
   block:
     - name: Ensure orangead directories exist in user's home
