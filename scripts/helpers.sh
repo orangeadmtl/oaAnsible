@@ -1,8 +1,20 @@
 #!/bin/bash
 
 # Get the absolute path to the oaAnsible root directory
-# This assumes helpers.sh is in oaAnsible/scripts/
-OA_ANSIBLE_ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# This file is always at oaAnsible/scripts/helpers.sh, so we get absolute path and go up one level
+if [ -n "${BASH_SOURCE[0]}" ]; then
+  SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
+  SCRIPTS_DIR="$(dirname "$SCRIPT_PATH")"
+  OA_ANSIBLE_ROOT_DIR="$(dirname "$SCRIPTS_DIR")"
+else
+  # Fallback for interactive sourcing - assume we're in the oaAnsible directory
+  OA_ANSIBLE_ROOT_DIR="$(pwd)"
+  # Verify this is actually the oaAnsible directory
+  if [ ! -f "$OA_ANSIBLE_ROOT_DIR/ansible.cfg" ] || [ ! -d "$OA_ANSIBLE_ROOT_DIR/playbooks" ]; then
+    echo "Warning: helpers.sh sourced interactively from wrong directory. Please run from oaAnsible root."
+    OA_ANSIBLE_ROOT_DIR="$(pwd)"
+  fi
+fi
 export OA_ANSIBLE_ROOT_DIR
 
 # Define other common directories relative to the root
@@ -14,6 +26,7 @@ OA_ANSIBLE_GROUP_VARS_DIR="$OA_ANSIBLE_ROOT_DIR/group_vars"
 OA_ANSIBLE_VAULT_PASSWORD_FILE="$OA_ANSIBLE_ROOT_DIR/vault_password_file"
 OA_ANSIBLE_LOG_DIR="$OA_ANSIBLE_ROOT_DIR/logs"       # New log directory
 OA_ANSIBLE_LOG_FILE="$OA_ANSIBLE_LOG_DIR/script.log" # New log file path
+OA_ANSIBLE_CONFIG="${OA_ANSIBLE_CONFIG:-$OA_ANSIBLE_ROOT_DIR/ansible.cfg}"
 VAULT_YML_FILE="$OA_ANSIBLE_GROUP_VARS_DIR/all/vault.yml"
 
 export OA_ANSIBLE_SCRIPTS_DIR
@@ -24,6 +37,7 @@ export OA_ANSIBLE_GROUP_VARS_DIR
 export OA_ANSIBLE_VAULT_PASSWORD_FILE
 export OA_ANSIBLE_LOG_DIR
 export OA_ANSIBLE_LOG_FILE
+export OA_ANSIBLE_CONFIG
 export VAULT_YML_FILE
 
 # Ensure log directory exists
@@ -135,6 +149,21 @@ check_yq_installed() {
 # Function to check if ssh is installed
 check_ssh_installed() {
   check_command_installed "ssh" "Please ensure OpenSSH client is installed."
+}
+
+# Function to get the Ansible configuration file path
+# Returns the path specified in OA_ANSIBLE_CONFIG (defaults to $OA_ANSIBLE_ROOT_DIR/ansible.cfg)
+get_ansible_config_path() {
+  # OA_ANSIBLE_CONFIG is set with a sensible default, just verify the file exists
+  if [ -f "$OA_ANSIBLE_CONFIG" ]; then
+    echo "$OA_ANSIBLE_CONFIG"
+    return 0
+  else
+    log_warn "Ansible config file not found: $OA_ANSIBLE_CONFIG"
+    log_warn "Falling back to 'ansible.cfg'"
+    echo "ansible.cfg"
+    return 0
+  fi
 }
 
 # Function to check if vault password file exists
@@ -484,6 +513,7 @@ find_closest_venv() {
     return 1
 }
 
+
 # Function to get the appropriate Python executable
 # First tries to find a virtual environment, then falls back to system Python
 # Sets global variables: VENV_PATH and PYTHON_BIN
@@ -579,7 +609,7 @@ run_ansible_playbook_with_ssh() {
     
     # Run the playbook with all remaining arguments
     # Add explicit vault loading to ensure inventory templates can resolve vault variables
-    ANSIBLE_CONFIG=ansible.cfg ansible-playbook "$playbook" -i "$inventory" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" --extra-vars "@$VAULT_YML_FILE" "$@"
+    ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible-playbook "$playbook" -i "$inventory" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" --extra-vars "@$VAULT_YML_FILE" "$@"
     
     return $?
 }
@@ -630,7 +660,7 @@ run_playbook_with_vault() {
     
     # Run the playbook with all remaining arguments
     # Add explicit vault loading to ensure inventory templates can resolve vault variables
-    ANSIBLE_CONFIG=ansible.cfg ansible-playbook "$playbook" -i "$inventory" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" --extra-vars "@$VAULT_YML_FILE" "$@"
+    ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible-playbook "$playbook" -i "$inventory" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" --extra-vars "@$VAULT_YML_FILE" "$@"
     
     return $?
 }
