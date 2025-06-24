@@ -4,16 +4,16 @@
   gather_facts: false
   tasks:
     - name: Debug all vault variables
-      debug:
+      ansible.builtin.debug:
         var: vault_sudo_passwords
       when: vault_sudo_passwords is defined
-    
+
     - name: Check if become password is set
-      debug:
+      ansible.builtin.debug:
         var: ansible_become_password
       when: ansible_become_password is defined
-    
+
     - name: Debug vault_sudo_passwords key for this host
-      debug:
+      ansible.builtin.debug:
         var: vault_sudo_passwords[inventory_hostname]
       when: vault_sudo_passwords is defined and inventory_hostname in vault_sudo_passwords
