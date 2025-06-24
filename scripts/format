@@ -230,6 +230,9 @@ install_prettier() {
 # Function to run ansible-lint automatic fixes
 run_ansible_lint_fixes() {
     log_info "Running ansible-lint automatic fixes..."
+    
+    # Set Ansible config path for ansible-lint
+    export ANSIBLE_CONFIG="$(get_ansible_config_path)"
 
     if [ -f "$VENV_PATH/bin/ansible-lint" ]; then
         log_info "Applying automatic fixes with ansible-lint from virtual environment..."
