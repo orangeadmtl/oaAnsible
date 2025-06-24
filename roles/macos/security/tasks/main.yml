@@ -1,7 +1,7 @@
 ---
 # Tasks for macOS security configuration
 
-- name: macOS Security configuration
+- name: MacOS Security configuration
   tags: ["security"]
   block:
     - name: Configure macOS Firewall
@@ -14,8 +14,8 @@
           # Changed if it wasn't already off. stdout for "off" can be "Firewall is disabled. (State = 0)" or just empty if already off.
           # stderr might say "Firewall already disabled." if it was already off.
           changed_when: >
-            firewall_global_state_result.rc == 0 and "already disabled" not in (firewall_global_state_result.stderr | default('')) and "Firewall is disabled" not in
-            (firewall_global_state_result.stdout | default(''))
+            firewall_global_state_result.rc == 0 and "already disabled" not in (firewall_global_state_result.stderr | default('')) and "Firewall is disabled"
+            not in (firewall_global_state_result.stdout | default(''))
           failed_when: false # Don't fail if it's already off or other benign messages
 
         - name: Allow SSH connections
@@ -50,17 +50,15 @@
       ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /usr/local/bin/tailscaled
       become: true
       register: tailscaled_unblock_result
-      changed_when:
-        tailscaled_unblock_result.rc == 0 and "not blocked" not in (tailscaled_unblock_result.stdout | default('') + tailscaled_unblock_result.stderr |
-        default(''))
+      changed_when: tailscaled_unblock_result.rc == 0 and "not blocked" not in (tailscaled_unblock_result.stdout | default('') +
+        tailscaled_unblock_result.stderr | default(''))
       failed_when: false # It's okay if it wasn't blocked
 
     - name: Unblock Tailscale Daemon (tailscaled) - user compiled path
       ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp {{ ansible_user_dir }}/go/bin/tailscaled
       become: true
       register: tailscaled_user_unblock_result
-      changed_when:
-        tailscaled_user_unblock_result.rc == 0 and "not blocked" not in (tailscaled_user_unblock_result.stdout | default('') +
+      changed_when: tailscaled_user_unblock_result.rc == 0 and "not blocked" not in (tailscaled_user_unblock_result.stdout | default('') +
         tailscaled_user_unblock_result.stderr | default(''))
       failed_when: false # It's okay if it wasn't blocked or doesn't exist
 
