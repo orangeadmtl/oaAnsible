@@ -1,414 +1,287 @@
-# TODO - oaAnsible: Multi-Platform Orchestration System Enhancement
+# TODO - oaAnsible: Project-Based Multi-Platform Orchestration System
 
-**Overall Goal:** Transform oaAnsible into a production-ready, server-runnable, multi-platform orchestration system with comprehensive efficiency improvements,
-advanced flexibility features, server integration capabilities, and complete multi-platform support.
+**Overall Goal:** Complete the transformation of oaAnsible into a flexible, project-based orchestration system with streamlined tooling, video player
+capabilities, and modern inventory management.
 
 **Key:**
 
 - `[ ]` ToDo
 - `[P]` Priority Task
-- `[A]` oaAnsible Task
+- `[✓]` Complete
 - `[S]` Structure/Architecture Task
-- `[E]` Efficiency Task
-- `[F]` Flexibility Task
-- `[I]` Integration Task
-- `[M]` Multi-Platform Task
+- `[F]` Feature Task
+- `[T]` Testing Task
 - `[D]` Documentation Task
-- `[TEST]` Testing Task
-- `[V]` Verification Task
 
 ---
 
-## Phase 1: Architecture & Structure Foundation - COMPLETE ✅
+## Phase 1: Core Infrastructure Modernization - COMPLETE ✅
 
-### 1.1. Multi-Platform Playbook Architecture - COMPLETE ✅
+### 1.1. Project-Based Inventory System - COMPLETE ✅
 
-- `[S]` `[P]` `[✓]` **Platform-Agnostic Main Playbooks:**
+- `[S]` `[P]` `[✓]` **New Inventory Structure:**
+  - `[✓]` Created `inventory/f1-staging.yml` for F1 project staging environment
+  - `[✓]` Created `inventory/f1-preprod.yml` for F1 project pre-production environment
+  - `[✓]` Created `inventory/f1-prod.yml` for F1 project production environment
+  - `[✓]` Added project-specific configuration variables (project_name, video_player settings)
+  - `[✓]` Maintained backward compatibility with existing environment structure
 
-  - `[✓]` Create `playbooks/platform-detection.yml` for automatic OS detection
-  - `[✓]` Create `playbooks/universal.yml` as main entry point with platform routing
-  - `[✓]` Create `playbooks/macos-full.yml` (migrated from main.yml)
-  - `[✓]` Create `playbooks/ubuntu-full.yml` for Ubuntu server support
-  - `[✓]` Create `playbooks/orangepi-full.yml` for OrangePi device support
+### 1.2. Enhanced Helper System - COMPLETE ✅
 
-- `[S]` `[P]` `[✓]` **Component-Specific Playbooks:**
-  - `[✓]` Create `playbooks/components/macos-api-only.yml`
-  - `[✓]` Create `playbooks/components/macos-tracker-only.yml`
-  - `[✓]` Create `playbooks/components/alpr-only.yml`
-  - `[✓]` Create `playbooks/components/base-system.yml`
-  - `[✓]` Create `playbooks/components/network-stack.yml`
+- `[S]` `[P]` `[✓]` **Flexible Inventory Management:**
+  - `[✓]` Added `discover_inventories()` function for dynamic inventory detection
+  - `[✓]` Added `get_inventory_path()` function supporting both old and new formats
+  - `[✓]` Updated `select_target_host()` to work with any inventory structure
+  - `[✓]` Enhanced `find_host_by_name()` with multi-group and multi-platform support
+  - `[✓]` Updated `list_all_hosts()` and `run_environment_playbook()` for new structure
 
-### 1.2. Inventory & Configuration Structure - COMPLETE ✅
+### 1.3. Streamlined Script System - COMPLETE ✅
 
-- `[S]` `[✓]` **Enhanced Inventory Structure:**
-  - `[✓]` Create `inventory/platforms/` directory structure
-  - `[✓]` Create platform-specific configurations (macos, ubuntu, orangepi)
-  - `[✓]` Create `inventory/components/` for component-specific variables
-  - `[✓]` Create component configurations (macos-api, tracker, alpr)
+- `[S]` `[P]` `[✓]` **Essential Scripts Only:**
+  - `[✓]` Enhanced `reboot` script with flexible inventory support and production safety
+  - `[✓]` Maintained `genSSH` script with improved multi-group support
+  - `[✓]` Kept `format` script for code quality and linting
+  - `[✓]` Created `sync` script for inventory management and validation
+  - `[✓]` Created unified `run` script replacing multiple `run-*` scripts
 
-### 1.3. Flexible Execution System - COMPLETE ✅
+### 1.4. Documentation Cleanup - COMPLETE ✅
 
-- `[F]` `[P]` `[✓]` **New Execution Scripts:**
-  - `[✓]` Create `scripts/run-component` for selective deployment
-  - `[✓]` Create `scripts/run-platform` for platform-specific deployment
-  - `[✓]` Create `scripts/run-environment` for environment-based deployment
-  - `[✓]` Create `scripts/run-verify` for post-deployment validation
-
-### 1.4. Enhanced Task Framework - COMPLETE ✅
-
-- `[S]` `[✓]` **Component Deployment Logic:**
-  - `[✓]` Create `tasks/deploy-components.yml` for intelligent component routing
-  - `[✓]` Update `main.yml` as backward-compatible wrapper
-
-### 1.5. Documentation - COMPLETE ✅
-
-- `[D]` `[✓]` **Comprehensive Documentation:**
-  - `[✓]` Create `README-NEW.md` with complete architecture documentation
-  - `[✓]` Create `EXAMPLES.md` with practical usage scenarios
-  - `[✓]` Create `RESTRUCTURE-SUMMARY.md` with implementation details
-  - `[✓]` Update `README.md` with migration guidance
+- `[D]` `[✓]` **Streamlined Documentation:**
+  - `[✓]` Evaluated all documentation files in `docs/` directory
+  - `[✓]` Kept essential docs: SCRIPT_USAGE.md, QUICK_REFERENCE.md, WIFI_SETUP.md, components.md, server-api.md, README.md
+  - `[✓]` Removed redundant/missing documentation files
+  - `[✓]` Maintained documentation quality and usefulness
 
 ---
 
-## Phase 2: Efficiency & Idempotency Improvements - COMPLETE ✅
+## Phase 2: Video Player Component Implementation - COMPLETE ✅
 
-### 2.1. Comprehensive Idempotency Audit - COMPLETE ✅
+### 2.1. Video Player Role Development - COMPLETE ✅
 
-- `[E]` `[P]` `[✓]` **Task Optimization:**
+- `[F]` `[P]` `[✓]` **Dual-Screen Video Player:**
+  - `[✓]` Created `roles/macos/video_player` role structure
+  - `[✓]` Implemented dual-screen video playback using ffplay
+  - `[✓]` Added configurable video sources and display management
+  - `[✓]` Created health monitoring and automatic restart capabilities
+  - `[✓]` Integrated with LaunchAgent for service management
 
-  - `[A]` `[✓]` Audit all `command` and `shell` tasks for proper `creates`/`removes`/`when` conditions
-  - `[A]` `[✓]` Implement state checking before expensive operations (Homebrew, Python installations)
-  - `[A]` `[✓]` Add `changed_when` conditions to prevent unnecessary change reports
-  - `[A]` `[✓]` Create reusable fact-gathering tasks for system state detection
-  - `[TEST]` `[✓]` Test: Repeated playbook runs show minimal changes on configured systems
+### 2.2. Video Player Configuration - COMPLETE ✅
 
-- `[E]` `[✓]` **Service State Management:**
-  - `[A]` `[✓]` Implement LaunchAgent/SystemD service state checking
-  - `[A]` `[✓]` Add configuration drift detection for service files
-  - `[A]` `[✓]` Create service restart handlers with proper conditions
-  - `[TEST]` `[✓]` Test: Services only restart when configuration actually changes
+- `[F]` `[✓]` **Advanced Configuration Options:**
+  - `[✓]` Added support for different video files per screen
+  - `[✓]` Implemented volume, loop mode, and display positioning controls
+  - `[✓]` Created sample video generation for testing
+  - `[✓]` Added backup and video file management capabilities
+  - `[✓]` Configured F1 project-specific video settings in inventories
 
-### 2.2. Performance Optimization - COMPLETE ✅
+### 2.3. Service Integration - COMPLETE ✅
 
-- `[E]` `[✓]` **Parallel Execution Enhancement:**
-
-  - `[A]` `[✓]` Implement `strategy: free` for independent role execution
-  - `[A]` `[✓]` Add fact caching configuration for multi-run scenarios
-  - `[A]` `[✓]` Optimize package installation with batch operations
-  - `[A]` `[✓]` Create smart dependency checking to skip unnecessary installations
-  - `[TEST]` `[✓]` Test: Deployment time reduced by 30-50% on subsequent runs
-
-- `[E]` `[✓]` **Resource Optimization:**
-  - `[A]` `[✓]` Implement gathering_facts optimization (gather_subset)
-  - `[A]` `[✓]` Add conditional execution based on platform capabilities
-  - `[A]` `[✓]` Optimize file operations with proper change detection
-  - `[TEST]` `[✓]` Test: Memory and CPU usage during deployment is optimized
-
-### 2.3. Enhanced State Management - COMPLETE ✅
-
-- `[E]` `[✓]` **State Detection Framework:**
-  - `[A]` `[✓]` Create `tasks/state-detection.yml` for comprehensive system state
-  - `[A]` `[✓]` Implement configuration version tracking
-  - `[A]` `[✓]` Add rollback capabilities for failed deployments
-  - `[A]` `[✓]` Create state validation checkpoints
-  - `[TEST]` `[✓]` Test: System state is accurately detected and managed
-
-### 2.4. Implementation Artifacts - COMPLETE ✅
-
-- `[A]` `[✓]` **Created Enhanced Task Files:**
-  - `[✓]` `tasks/state-detection.yml` - Comprehensive system state detection
-  - `[✓]` `tasks/idempotency-patterns.yml` - Reusable idempotency patterns
-  - `[✓]` `roles/macos/python/tasks/main-improved.yml` - Enhanced Python role
-  - `[✓]` `roles/macos/api/tasks/main-improved.yml` - Enhanced API role
-  - `[✓]` `ansible-performance.cfg` - Performance-optimized configuration
-  - `[✓]` `scripts/measure-performance` - Performance measurement tool
+- `[F]` `[✓]` **Robust Service Management:**
+  - `[✓]` Created comprehensive LaunchAgent configuration
+  - `[✓]` Implemented health monitoring with automatic restart
+  - `[✓]` Added logging and verification systems
+  - `[✓]` Created handlers for service restart and management
+  - `[✓]` Integrated with existing oaAnsible component framework
 
 ---
 
-## Phase 3: Flexibility & Advanced Features - COMPLETE ✅
+## Phase 3: Testing & Validation - PLANNED 🧪
 
-### 3.1. Advanced Component Selection - COMPLETE ✅
+### 3.1. Inventory Migration Testing
 
-- `[F]` `[P]` `[✓]` **Enhanced Component Framework:**
-  - `[A]` `[✓]` Implement component dependency resolution with conflict detection
-  - `[A]` `[✓]` Create component compatibility matrix validation
-  - `[A]` `[✓]` Add component health checking and status reporting
-  - `[A]` `[ ]` Implement component update and rollback capabilities
+- `[T]` `[ ]` **Migration Validation:**
+  - `[T]` `[ ]` Test migration from old inventory structure to new project-based format
+  - `[T]` `[ ]` Validate `sync migrate` command functionality
+  - `[T]` `[ ]` Test backward compatibility with existing scripts
+  - `[T]` `[ ]` Verify all inventory validation features work correctly
 
-### 3.2. Execution Modes & Validation - COMPLETE ✅
+### 3.2. Video Player Testing
 
-- `[F]` `[✓]` **Advanced Execution Options:**
-  - `[A]` `[✓]` Implement comprehensive `--dry-run` mode for all playbooks
-  - `[A]` `[✓]` Create `--check-mode` with detailed reporting and change preview
-  - `[A]` `[✓]` Add `--diff` mode for configuration change visualization
-  - `[A]` `[✓]` Implement `--force` mode for overriding safety checks
+- `[T]` `[ ]` **Component Validation:**
+  - `[T]` `[ ]` Test video player deployment on F1 project devices
+  - `[T]` `[ ]` Validate dual-screen functionality on multi-monitor setups
+  - `[T]` `[ ]` Test health monitoring and automatic restart features
+  - `[T]` `[ ]` Verify video file management and backup systems
 
-### 3.3. Enhanced Verification System - COMPLETE ✅
+### 3.3. Script System Testing
 
-- `[F]` `[✓]` **Comprehensive Validation:**
-  - `[A]` `[✓]` Expand validation with platform-specific checks via compatibility matrix
-  - `[A]` `[✓]` Create component-level health checking via framework
-  - `[A]` `[✓]` Implement continuous validation via execution modes
-  - `[A]` `[✓]` Add performance requirements validation via compatibility matrix
-
-### 3.4. Implementation Artifacts - COMPLETE ✅
-
-- `[A]` `[✓]` **Created Advanced Framework Files:**
-  - `[✓]` `tasks/component-framework.yml` - Core component selection and dependency resolution
-  - `[✓]` `tasks/resolve-single-component.yml` - Recursive dependency resolver
-  - `[✓]` `tasks/component-compatibility.yml` - Advanced compatibility validation
-  - `[✓]` `tasks/execution-modes.yml` - Comprehensive execution mode support
-  - `[✓]` Updated `playbooks/universal.yml` - Integration with advanced framework
-  - `[✓]` Enhanced `scripts/run-component` - Advanced execution capabilities
+- `[T]` `[ ]` **Unified Script Validation:**
+  - `[T]` `[ ]` Test new `run` script with various inventory and component combinations
+  - `[T]` `[ ]` Validate `sync` script inventory management features
+  - `[T]` `[ ]` Test enhanced `reboot` script with project-based inventories
+  - `[T]` `[ ]` Verify `genSSH` functionality across all inventory formats
 
 ---
 
-## Phase 4: Server Integration & Remote Execution - COMPLETE ✅
+## Phase 4: Enhanced Features & Integration - PLANNED 🚀
 
-### 4.1. oaDashboard Server Integration - COMPLETE ✅
+### 4.1. Component Framework Integration
 
-- `[I]` `[P]` `[✓]` **Server-Side Execution Framework:**
-  - `[A]` `[✓]` Create `server/` directory for dashboard server integration
-  - `[A]` `[✓]` Implement Ansible execution API from oaDashboard server
-  - `[A]` `[✓]` Create job queuing and status tracking system
-  - `[A]` `[✓]` Add real-time execution monitoring and logging
+- `[F]` `[ ]` **Video Player Component:**
+  - `[F]` `[P]` `[ ]` Add video-player component to component framework system
+  - `[F]` `[ ]` Update component compatibility matrix for video player requirements
+  - `[F]` `[ ]` Add video player to component-specific playbooks
+  - `[F]` `[ ]` Create component health validation for video player
 
-### 4.2. REST API for Job Management - COMPLETE ✅
+### 4.2. Advanced Inventory Features
 
-- `[I]` `[✓]` **API Development:**
-  - `[A]` `[✓]` Create REST endpoints for deployment management
-  - `[A]` `[✓]` Implement job status tracking and result reporting
-  - `[A]` `[✓]` Add authentication and authorization for API access
-  - `[A]` `[✓]` Create client library for easy integration
+- `[F]` `[ ]` **Multi-Project Support:**
+  - `[F]` `[ ]` Add support for additional projects beyond F1 (e.g., spectra-staging.yml)
+  - `[F]` `[ ]` Create project templates for quick new project setup
+  - `[F]` `[ ]` Add project-specific variable inheritance and validation
+  - `[F]` `[ ]` Implement project-based deployment workflows
 
-### 4.3. Security & Access Control - COMPLETE ✅
+### 4.3. Enhanced Video Player Features
 
-- `[I]` `[✓]` **Remote Execution Security:**
-  - `[A]` `[✓]` Implement secure credential management for server execution
-  - `[A]` `[✓]` Add execution logging and comprehensive audit trails
-  - `[A]` `[✓]` Create role-based access control for remote Ansible execution
-  - `[A]` `[✓]` Implement job management with user permissions
+- `[F]` `[ ]` **Advanced Video Management:**
+  - `[F]` `[ ]` Add video content synchronization from remote sources
+  - `[F]` `[ ]` Implement video playlist management for multiple content rotation
+  - `[F]` `[ ]` Add video quality adaptation based on display capabilities
+  - `[F]` `[ ]` Create video content validation and integrity checking
 
-### 4.4. Implementation Artifacts - COMPLETE ✅
+### 4.4. Monitoring & Analytics
 
-- `[A]` `[✓]` **Created Server Infrastructure:**
-  - `[✓]` `server/api/deployment_api.py` - FastAPI server with comprehensive endpoints
-  - `[✓]` `server/jobs/job_manager.py` - SQLite-based job queuing and tracking
-  - `[✓]` `server/auth/auth_manager.py` - JWT authentication with dashboard integration
-  - `[✓]` `server/utils/ansible_executor.py` - Ansible execution engine with framework integration
-  - `[✓]` `server/config/server_config.py` - Environment-based configuration management
-  - `[✓]` `server/client/oaansible_client.py` - Python client library for integration
-  - `[✓]` `scripts/run-server` - Server launcher with development support
-  - `[✓]` `scripts/demo-server` - Server demonstration and usage examples
+- `[F]` `[ ]` **System Monitoring:**
+  - `[F]` `[ ]` Add video player metrics collection for oaDashboard integration
+  - `[F]` `[ ]` Create video playback health status reporting
+  - `[F]` `[ ]` Implement display status monitoring and alerting
+  - `[F]` `[ ]` Add performance metrics for video playback optimization
 
 ---
 
-## Phase 5: Multi-Platform Expansion & Optimization - COMPLETE ✅
+## Phase 5: Production Hardening & Optimization - PLANNED 🛡️
 
-### 5.1. Ubuntu Server Platform Completion - COMPLETE ✅
+### 5.1. Security Enhancements
 
-- `[M]` **Complete Ubuntu Support:**
-  - `[A]` `[✓]` Expand `roles/ubuntu/` with comprehensive server capabilities
-  - `[A]` `[✓]` Create Ubuntu-specific service deployment (systemd optimization)
-  - `[A]` `[✓]` Add Ubuntu package management optimization and caching
-  - `[A]` `[✓]` Implement Ubuntu security hardening and compliance
+- `[S]` `[ ]` **Security Hardening:**
+  - `[S]` `[ ]` Add video player security controls and sandboxing
+  - `[S]` `[ ]` Implement secure video content delivery and validation
+  - `[S]` `[ ]` Add inventory access controls and permissions
+  - `[S]` `[ ]` Create security auditing for video player deployments
 
-### 5.2. OrangePi Embedded Platform Development - COMPLETE ✅
+### 5.2. Performance Optimization
 
-- `[M]` **OrangePi Platform Implementation:**
-  - `[A]` `[✓]` Create complete `roles/orangepi/` role structure
-  - `[A]` `[✓]` Implement OrangePi system optimization for embedded hardware
-  - `[A]` `[✓]` Add OrangePi hardware-specific configurations (GPIO, display)
-  - `[A]` `[✓]` Create OrangePi service management and monitoring
+- `[S]` `[ ]` **Performance Tuning:**
+  - `[S]` `[ ]` Optimize video player resource usage and GPU acceleration
+  - `[S]` `[ ]` Add deployment performance monitoring and optimization
+  - `[S]` `[ ]` Implement smart caching for video content and configurations
+  - `[S]` `[ ]` Create performance benchmarking and regression testing
 
-### 5.3. Cross-Platform Optimization - COMPLETE ✅
+### 5.3. Reliability & Resilience
 
-- `[M]` **Platform Abstraction:**
-  - `[A]` `[✓]` Create `roles/common/` for truly cross-platform tasks
-  - `[A]` `[✓]` Implement platform-neutral package management abstraction
-  - `[A]` `[✓]` Add cross-platform service management framework
-  - `[A]` `[✓]` Create unified monitoring and health checking
-
----
-
-## Phase 6: Testing & Quality Assurance - PLANNED 🧪
-
-### 6.1. Comprehensive Testing Framework
-
-- `[TEST]` **Testing Infrastructure:**
-  - `[A]` `[ ]` Create `tests/` directory with Molecule testing framework
-  - `[A]` `[ ]` Implement platform-specific test scenarios
-  - `[A]` `[ ]` Add component-level testing and validation
-  - `[A]` `[ ]` Create integration test suites for multi-component deployments
-
-### 6.2. Continuous Integration
-
-- `[TEST]` **CI/CD Integration:**
-  - `[A]` `[ ]` Create GitHub Actions workflows for automated testing
-  - `[A]` `[ ]` Implement multi-platform testing matrix
-  - `[A]` `[ ]` Add performance regression testing
-  - `[A]` `[ ]` Create automated documentation generation and validation
-
-### 6.3. Validation & Quality Gates
-
-- `[TEST]` **Quality Assurance:**
-  - `[A]` `[ ]` Enhanced `tasks/verify.yml` with comprehensive platform checks
-  - `[A]` `[ ]` Create component health verification and benchmarking
-  - `[A]` `[ ]` Implement automated rollback on validation failure
-  - `[A]` `[ ]` Add performance metrics and SLA validation
+- `[S]` `[ ]` **High Availability:**
+  - `[S]` `[ ]` Add graceful degradation for single-screen fallback
+  - `[S]` `[ ]` Implement video content failover and redundancy
+  - `[S]` `[ ]` Create disaster recovery procedures for video player systems
+  - `[S]` `[ ]` Add comprehensive logging and debugging capabilities
 
 ---
 
-## Phase 7: Documentation & User Experience - PLANNED 📚
+## Phase 6: Documentation & User Experience - PLANNED 📚
 
-### 7.1. Enhanced Documentation
+### 6.1. Comprehensive Documentation
 
-- `[D]` **Comprehensive Documentation:**
-  - `[A]` `[ ]` Create detailed component deployment guides
-  - `[A]` `[ ]` Add troubleshooting documentation with common scenarios
-  - `[A]` `[ ]` Create video tutorials and interactive guides
-  - `[A]` `[ ]` Implement documentation versioning and maintenance
+- `[D]` `[ ]` **User Guides:**
+  - `[D]` `[ ]` Create video player deployment and management guide
+  - `[D]` `[ ]` Document project-based inventory management workflows
+  - `[D]` `[ ]` Add troubleshooting guide for video player issues
+  - `[D]` `[ ]` Create best practices guide for multi-project deployments
 
-### 7.2. User Experience Improvements
+### 6.2. Developer Documentation
 
-- `[D]` **Usability Enhancement:**
-  - `[A]` `[ ]` Create interactive component selection tool
-  - `[A]` `[ ]` Add progress indicators and detailed status reporting
-  - `[A]` `[ ]` Implement helpful error messages with suggested solutions
-  - `[A]` `[ ]` Create configuration validation and recommendation tools
+- `[D]` `[ ]` **Technical Documentation:**
+  - `[D]` `[ ]` Document video player role architecture and customization
+  - `[D]` `[ ]` Create component integration guide for new features
+  - `[D]` `[ ]` Add API documentation for video player management
+  - `[D]` `[ ]` Document inventory migration and management procedures
 
----
+### 6.3. Training Materials
 
-## Phase 8: Migration & Production Hardening - PLANNED 🚀
-
-### 8.1. Production Readiness
-
-- `[A]` **Production Optimization:**
-  - `[A]` `[ ]` Create production deployment best practices guide
-  - `[A]` `[ ]` Implement monitoring and alerting integration
-  - `[A]` `[ ]` Add backup and disaster recovery procedures
-  - `[A]` `[ ]` Create capacity planning and scaling guidelines
-
-### 8.2. Legacy Migration & Cleanup
-
-- `[A]` **Migration Completion:**
-  - `[A]` `[ ]` Create automated migration tools from legacy structure
-  - `[A]` `[ ]` Implement configuration upgrade and validation tools
-  - `[A]` `[ ]` Clean up deprecated files and configurations
-  - `[A]` `[ ]` Finalize backward compatibility removal timeline
+- `[D]` `[ ]` **Learning Resources:**
+  - `[D]` `[ ]` Create video tutorials for common deployment scenarios
+  - `[D]` `[ ]` Add interactive examples and walkthroughs
+  - `[D]` `[ ]` Create quick-start guides for new projects
+  - `[D]` `[ ]` Develop troubleshooting decision trees
 
 ---
 
-## Current Status: Phase 5 Complete 🎯
+## Current Status: Phase 2 Complete 🎯
 
-**✅ Phase 1 Complete**: Multi-platform architecture foundation established
-**✅ Phase 2 Complete**: Efficiency and idempotency improvements implemented  
-**✅ Phase 3 Complete**: Advanced component framework and execution modes implemented
-**✅ Phase 4 Complete**: Server integration and remote execution capabilities implemented
-**✅ Phase 5 Complete**: Multi-platform expansion and optimization with Ubuntu, OrangePi, and cross-platform abstractions
-**🔄 Phase 9 Ready**: ALPR integration and enhancement
-**📋 Phases 6-8**: Detailed roadmap for testing, documentation, and production readiness
+**✅ Phase 1 Complete**: Core infrastructure modernization with project-based inventories, enhanced helpers, and streamlined scripts **✅ Phase 2 Complete**:
+Video player component implementation with dual-screen support, health monitoring, and F1 project integration **🔄 Phase 3 Ready**: Testing and validation of
+new systems **📋 Phases 4-6**: Detailed roadmap for enhanced features, production hardening, and documentation
 
-### Phase 5 Achievements
+### Phase 2 Achievements
 
-1. **✅ Ubuntu Platform**: Complete Ubuntu server support with Docker, monitoring, and optimization
-2. **✅ OrangePi Platform**: Embedded platform deployment with opi-setup service integration
-3. **✅ Cross-Platform Framework**: Common roles for package management, service management, and monitoring
-4. **✅ Platform Abstraction**: Unified interfaces that adapt to target platforms automatically
-5. **✅ Multi-Platform Playbooks**: Enhanced ubuntu-full.yml and orangepi-full.yml with complete functionality
+1. **✅ Project-Based Inventories**: Created F1 project inventories (staging, preprod, prod) with video player configuration
+2. **✅ Enhanced Helper System**: Dynamic inventory discovery, flexible path resolution, multi-platform host management
+3. **✅ Streamlined Scripts**: Essential scripts only (run, reboot, genSSH, format, sync) with unified functionality
+4. **✅ Video Player Role**: Complete dual-screen video player with health monitoring and service management
+5. **✅ Documentation Cleanup**: Maintained essential documentation, removed redundant files
 
-### Next Immediate Actions
+### Immediate Next Actions
 
-1. **Start Phase 9.1**: Integrate ALPR stack deployment with existing monitor application
-2. **ALPR Enhancement**: Update ALPR role to support complete stack (Docker + Python monitor)
-3. **Phase 6**: Implement comprehensive testing framework with Molecule
-4. **Performance Enhancement**: Continue optimizing deployment performance
+1. **Start Phase 3.1**: Test inventory migration and validation features
+2. **Video Player Testing**: Deploy and validate video player on F1 project devices
+3. **Script Integration**: Test unified `run` script with video player component
+4. **Component Framework**: Integrate video player into existing component system
 
-### Success Metrics
+### Key Features Delivered
 
-- **Phase 2**: ✅ 50% reduction in repeated deployment time achieved
-- **Phase 3**: ✅ Advanced execution modes fully functional
-- **Phase 4**: ✅ Server integration with REST API and job management complete
-- **Phase 5**: ✅ All three platforms (macOS, Ubuntu, OrangePi) fully supported with cross-platform abstractions
-- **Phase 6**: Comprehensive testing framework and CI/CD integration
-- **Phase 7**: Production-ready documentation and user experience
-- **Phase 8**: Production deployment and migration tools complete
-- **Phase 9**: ✅ ALPR integration with complete stack deployment
+- **Flexible Inventory Management**: Support for both old and new inventory structures
+- **Project-Based Configuration**: F1 project with video player settings and environment-specific controls
+- **Dual-Screen Video Player**: Complete ffplay-based video player with health monitoring
+- **Unified Deployment**: Single `run` script for all deployment scenarios
+- **Inventory Management**: `sync` script for validation, migration, and backup operations
 
 ---
 
-## Phase 9: ALPR Integration & Enhancement - COMPLETE ✅
+## Success Metrics
 
-### 9.1. ALPR Stack Integration - COMPLETE ✅
+- **Phase 1**: ✅ 100% inventory structure modernization with backward compatibility
+- **Phase 2**: ✅ Complete video player role implementation with F1 project integration
+- **Phase 3**: Comprehensive testing framework with validation coverage
+- **Phase 4**: Enhanced features with multi-project support and advanced monitoring
+- **Phase 5**: Production-ready deployment with security and performance optimization
+- **Phase 6**: Complete documentation and user experience package
 
-- `[I]` `[P]` **ALPR Project Integration:**
-  - `[A]` `[✓]` Integrate existing ALPR monitor application (`detect.py`) into oaAnsible deployment
-  - `[A]` `[✓]` Update ALPR role to deploy both PlateRecognizer Docker service AND Python monitor
-  - `[A]` `[✓]` Create ALPR environment configuration management (.env file deployment)
-  - `[A]` `[✓]` Add ALPR dependencies management (uv, Python packages from requirements.txt)
-  - `[A]` `[✓]` Create LaunchAgent for ALPR monitor service alongside Docker service
+**🎉 OrangeAd Ansible - Modern Project-Based Orchestration System with Video Player Support!** 🚀
 
-### 9.2. ALPR Role Enhancement - COMPLETE ✅
+### Project Component Matrix
 
-- `[A]` **Enhanced ALPR Service Deployment:**
-  - `[A]` `[✓]` Update `roles/macos/alpr_service` to support complete ALPR stack
-  - `[A]` `[✓]` Add Python environment setup for ALPR monitor (via existing Python role)
-  - `[A]` `[✓]` Create ALPR monitor configuration template (detections directory, camera settings)
-  - `[A]` `[✓]` Add ALPR monitor LaunchAgent (`com.orangead.alpr-monitor.plist`)
-  - `[A]` `[✓]` Integrate with existing Docker PlateRecognizer service
-  - `[A]` `[✓]` Add health checks for both Docker service and Python monitor
+| Project     | Components                       | Description                                    |
+| ----------- | -------------------------------- | ---------------------------------------------- |
+| **F1**      | macos-api, tracker               | Formula 1 project with camera tracking         |
+| **Spectra** | macos-api, tracker, player       | Spectra project with dual-screen video display |
+| **ALPR**    | macos-api, alpr                  | License plate recognition project              |
 
-### 9.3. ALPR Configuration Management - COMPLETE ✅
+### Usage Examples
 
-- `[A]` **ALPR Environment & Config:**
-  - `[A]` `[✓]` Create ALPR configuration templates (camera settings, detection parameters)
-  - `[A]` `[✓]` Add ALPR secret management (PlateRecognizer API credentials via Vault)
-  - `[A]` `[✓]` Create ALPR data directory structure (detections, logs, config)
-  - `[A]` `[✓]` Add ALPR log rotation and management
-  - `[A]` `[✓]` Create ALPR service interdependency management (monitor depends on Docker service)
+```bash
+# List all available inventories and hosts
+./scripts/sync list
 
-### 9.4. ALPR Component Integration - COMPLETE ✅
+# Deploy F1 project (macos-api + tracker)
+./scripts/run f1-staging
+./scripts/run f1-prod -l f1-ca-001
 
-- `[F]` **Component Framework Integration:**
-  - `[A]` `[✓]` Update component framework to support ALPR as complex multi-service component
-  - `[A]` `[✓]` Add ALPR dependency resolution (requires docker, python, camera permissions)
-  - `[A]` `[✓]` Create ALPR-specific platform compatibility checks
-  - `[A]` `[✓]` Add ALPR component health validation and status reporting
+# Deploy Spectra project (macos-api + tracker + player)
+./scripts/run spectra-staging
+./scripts/run spectra-prod --dry-run
 
-### 9.5. ALPR Management & Operations - COMPLETE ✅
+# Deploy ALPR project (macos-api + alpr)
+./scripts/run alpr-staging
+./scripts/run alpr-prod -l alpr-device-001
 
-- `[I]` **ALPR Management Tools:**
-  - `[A]` `[✓]` Create comprehensive ALPR management script (alpr_manager.sh)
-  - `[A]` `[✓]` Add ALPR health monitoring with automated checks (every 5 minutes)
-  - `[A]` `[✓]` Create ALPR statistics and monitoring capabilities
-  - `[A]` `[✓]` Add automated cleanup and maintenance features
-  - `[A]` `[✓]` Implement log rotation and disk space management
+# Deploy specific components
+./scripts/run f1-staging macos-api
+./scripts/run spectra-staging player
+./scripts/run alpr-staging alpr
 
----
+# Reboot machines with production safety
+./scripts/reboot f1-prod
+./scripts/reboot spectra-staging f1-ca-001
 
-## Current Status: Phase 9 Complete 🎯
-
-**✅ Phase 1 Complete**: Multi-platform architecture foundation established
-**✅ Phase 2 Complete**: Efficiency and idempotency improvements implemented  
-**✅ Phase 3 Complete**: Advanced component framework and execution modes implemented
-**✅ Phase 4 Complete**: Server integration and remote execution capabilities implemented
-**✅ Phase 5 Complete**: Multi-platform expansion and optimization with Ubuntu, OrangePi, and cross-platform abstractions
-**✅ Phase 9 Complete**: ALPR integration with complete stack deployment and enhanced management
-
-### Phase 9 Achievements
-
-1. **✅ Complete ALPR Stack**: Integrated Docker PlateRecognizer service with Python monitor application
-2. **✅ Enhanced Management**: Comprehensive alpr_manager.sh script for all operations
-3. **✅ Health Monitoring**: Automated health checks every 5 minutes with detailed reporting
-4. **✅ Log Management**: Automatic log rotation and cleanup with 7-day retention
-5. **✅ Statistics & Monitoring**: Detection statistics and system monitoring capabilities
-6. **✅ Service Integration**: Seamless LaunchAgent integration for both Docker and monitor services
-
-### Next Priority Actions
-
-1. **Phase 6**: Implement comprehensive testing framework with Molecule
-2. **Phase 7**: Create production-ready documentation and user experience improvements  
-3. **Phase 8**: Develop production deployment and migration tools
-4. **Integration Testing**: Test all platforms (macOS, Ubuntu, OrangePi) with real deployments
-
-**🎉 OrangeAd Ansible - Production Ready Multi-Platform Orchestration System Complete!** 🚀
+# Validate all inventory files
+./scripts/sync validate
+```
