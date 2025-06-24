@@ -2,9 +2,9 @@
 # Ubuntu Docker role defaults
 
 # Docker installation
-docker_install_method: "repository"  # repository, convenience, manual
-docker_version: "latest"  # Specific version or 'latest'
-docker_channel: "stable"  # stable, test, edge
+docker_install_method: "repository" # repository, convenience, manual
+docker_version: "latest" # Specific version or 'latest'
+docker_channel: "stable" # stable, test, edge
 docker_install_compose: true
 docker_compose_version: "v2.24.6"
 
@@ -62,7 +62,7 @@ docker_security_options:
 
 # Docker system cleanup
 docker_prune_enabled: true
-docker_prune_schedule: "0 3 * * 0"  # Weekly at 3 AM on Sunday
+docker_prune_schedule: "0 3 * * 0" # Weekly at 3 AM on Sunday
 
 # Performance tuning
 docker_performance_tuning:
