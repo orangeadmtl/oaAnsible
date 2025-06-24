@@ -24,7 +24,8 @@
       - "macos-api"
       - "tracker"
       - "alpr"
-  when: ansible_distribution == "MacOSX"
+  when: ansible_os_family == "Darwin" or ansible_system == "Darwin" or ansible_distribution == "MacOSX"
+  tags: ["always"]
 
 - name: Detect Ubuntu platform
   ansible.builtin.set_fact:
@@ -35,33 +36,36 @@
       - "docker"
       - "server"
   when: ansible_distribution == "Ubuntu"
+  tags: ["always"]
 
-- name: Detect OrangePi (Armbian/Debian-based)
-  ansible.builtin.set_fact:
-    detected_platform: "orangepi"
-    platform_capabilities:
-      - "systemd"
-      - "apt"
-      - "gpio"
-      - "embedded"
-      - "opi-setup"
-  when:
-    - ansible_distribution in ["Debian", "Ubuntu"]
-    - ansible_architecture in ["aarch64", "armv7l", "arm64"]
-    - ansible_board_name is defined and "orange" in ansible_board_name.lower()
+- name: Fallback platform detection using command
+  ansible.builtin.shell: |
+    if [ -d "/Applications" ] && [ -d "/System" ]; then
+      echo "macos"
+    elif [ -f "/etc/os-release" ]; then
+      echo "ubuntu"
+    else
+      echo "unknown"
+    fi
+  register: fallback_platform_detection
+  changed_when: false
+  when: detected_platform is not defined
+  tags: ["always"]
 
-- name: Detect generic ARM device (fallback for OrangePi)
+- name: Set fallback platform from command detection
   ansible.builtin.set_fact:
-    detected_platform: "orangepi"
+    detected_platform: "{{ fallback_platform_detection.stdout }}"
     platform_capabilities:
-      - "systemd"
-      - "apt"
-      - "embedded"
-      - "opi-setup"
-  when:
+      - "gui"
+      - "launchd"
+      - "homebrew"
+      - "macos-api"
+      - "tracker"
+      - "alpr"
+  when: 
     - detected_platform is not defined
-    - ansible_distribution in ["Debian", "Ubuntu"]
-    - ansible_architecture in ["aarch64", "armv7l", "arm64"]
+    - fallback_platform_detection.stdout == "macos"
+  tags: ["always"]
 
 - name: Set fallback platform for unrecognized systems
   ansible.builtin.set_fact:
@@ -69,6 +73,7 @@
     platform_capabilities:
       - "basic"
   when: detected_platform is not defined
+  tags: ["always"]
 
 - name: Display detected platform
   ansible.builtin.debug:
@@ -80,6 +85,6 @@
   ansible.builtin.fail:
     msg: |
       Unsupported platform detected: {{ detected_platform }}
-      This playbook supports: macOS, Ubuntu, OrangePi
+      This playbook supports: macOS, Ubuntu
       Detected system: {{ ansible_distribution }} {{ ansible_distribution_version }}
   when: detected_platform == "generic"
