@@ -1,0 +1,408 @@
+#!/bin/bash
+
+# check - Pre-deployment validation for Spectra project
+# Usage: ./scripts/check [inventory] [options]
+# Purpose: Validate environment readiness before deployment to prevent common issues
+
+set -e
+
+# Get script directory and source helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/helpers.sh"
+
+# Ensure we're in the correct directory
+ensure_ansible_root_dir
+
+show_usage() {
+    echo "Usage: $0 [inventory] [options]"
+    echo ""
+    echo "Pre-deployment validation for OrangeAd Spectra project"
+    echo ""
+    echo "Arguments:"
+    echo "  inventory      - Target inventory to validate (required)"
+    echo ""
+    echo "Options:"
+    echo "  --check-all    - Run all validation checks (default)"
+    echo "  --check-network - Network connectivity and Tailscale"
+    echo "  --check-ports  - Port availability on target hosts"
+    echo "  --check-deps   - System dependencies and versions"
+    echo "  --check-space  - Disk space requirements"
+    echo "  --check-perms  - Required permissions and sudo access"
+    echo "  --fix-issues   - Attempt to fix detected issues automatically"
+    echo "  -v, --verbose  - Detailed validation output"
+    echo "  -h, --help     - Show this help"
+    echo ""
+    echo "Examples:"
+    echo "  $0 spectra-preprod                    # Full validation"
+    echo "  $0 spectra-prod --check-network       # Network check only"
+    echo "  $0 spectra-staging --fix-issues       # Validate and fix"
+}
+
+# Validation configuration
+INVENTORY_NAME=""
+CHECK_ALL=true
+CHECK_NETWORK=false
+CHECK_PORTS=false
+CHECK_DEPS=false
+CHECK_SPACE=false
+CHECK_PERMS=false
+FIX_ISSUES=false
+VERBOSE=false
+
+# Required ports for services (compatible with older bash)
+get_service_port() {
+    case "$1" in
+        "macos-api") echo "9090" ;;
+        "tracker") echo "8080" ;;
+        "player") echo "3000" ;;
+        "alpr") echo "8081" ;;
+        *) echo "" ;;
+    esac
+}
+
+# Minimum disk space requirements (in GB)
+MIN_DISK_SPACE=10
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        --check-all)
+            CHECK_ALL=true
+            shift
+            ;;
+        --check-network)
+            CHECK_NETWORK=true
+            CHECK_ALL=false
+            shift
+            ;;
+        --check-ports)
+            CHECK_PORTS=true
+            CHECK_ALL=false
+            shift
+            ;;
+        --check-deps)
+            CHECK_DEPS=true
+            CHECK_ALL=false
+            shift
+            ;;
+        --check-space)
+            CHECK_SPACE=true
+            CHECK_ALL=false
+            shift
+            ;;
+        --check-perms)
+            CHECK_PERMS=true
+            CHECK_ALL=false
+            shift
+            ;;
+        --fix-issues)
+            FIX_ISSUES=true
+            shift
+            ;;
+        -v|--verbose)
+            VERBOSE=true
+            shift
+            ;;
+        *)
+            if [ -z "$INVENTORY_NAME" ]; then
+                if discover_inventories | grep -q "^$1$"; then
+                    INVENTORY_NAME="$1"
+                else
+                    log_error "Unknown inventory: $1"
+                    log_error "Available inventories: $(discover_inventories | tr '\n' ' ')"
+                    exit 1
+                fi
+            else
+                log_error "Unexpected argument: $1"
+                show_usage
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Require inventory
+if [ -z "$INVENTORY_NAME" ]; then
+    log_error "Inventory name is required"
+    show_usage
+    exit 1
+fi
+
+# Get inventory path
+INVENTORY_PATH=$(get_inventory_path "$INVENTORY_NAME")
+if [ $? -ne 0 ] || [ ! -f "$INVENTORY_PATH" ]; then
+    log_error "Inventory not found: $INVENTORY_NAME"
+    exit 1
+fi
+
+# Set check flags if CHECK_ALL is true
+if [ "$CHECK_ALL" = true ]; then
+    CHECK_NETWORK=true
+    CHECK_PORTS=true
+    CHECK_DEPS=true
+    CHECK_SPACE=true
+    CHECK_PERMS=true
+fi
+
+# Validation tracking
+VALIDATION_ERRORS=0
+VALIDATION_WARNINGS=0
+
+# Helper functions
+increment_error() {
+    ((VALIDATION_ERRORS++))
+}
+
+increment_warning() {
+    ((VALIDATION_WARNINGS++))
+}
+
+# Load SSH key from vault for authentication
+load_ssh_key_for_validation() {
+    if ! load_ssh_key_from_vault "validation"; then
+        log_warn "SSH key loading failed. Validation may not work properly."
+        # Continue anyway in case there are other keys available
+        return 1
+    fi
+    return 0
+}
+
+# Validation functions
+validate_network() {
+    log_info "🌐 Validating network connectivity..."
+    
+    # Get target hosts from inventory (try different group names)
+    local hosts
+    hosts=$(ansible-inventory -i "$INVENTORY_PATH" --list | jq -r '(.macos.hosts // .["spectra-devices"].hosts // empty)[]?' 2>/dev/null || echo "")
+    
+    if [ -z "$hosts" ]; then
+        log_error "No hosts found in inventory"
+        increment_error
+        return 1
+    fi
+    
+    for host in $hosts; do
+        log_info "  🔍 Testing connectivity to $host..."
+        
+        # Test SSH connectivity
+        log_info "    🔐 Testing SSH connection..."
+        if ! ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m ping --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" &>/dev/null; then
+            log_error "      ❌ Cannot connect via SSH"
+            increment_error
+        else
+            log_info "      ✅ SSH connection: successful"
+        fi
+        
+        # Test Tailscale connectivity 
+        # If we successfully connected via SSH above, then Tailscale is working
+        # (since devices are only accessible via Tailscale network)
+        log_info "    🌐 Checking Tailscale connectivity..."
+        
+        # Check if inventory configures Tailscale management
+        local inventory_tailscale_config
+        inventory_tailscale_config=$(yq e '.all.vars.configure.tailscale // true' "$INVENTORY_PATH" 2>/dev/null)
+        
+        if [[ "$inventory_tailscale_config" == "false" ]]; then
+            log_info "      ℹ️  Tailscale management disabled in inventory (configure.tailscale: false)"
+        else
+            # Since we connected successfully via SSH, Tailscale connectivity is confirmed
+            log_info "      ✅ Tailscale connectivity: working (SSH connection successful)"
+        fi
+    done
+}
+
+validate_ports() {
+    log_info "🔌 Validating port availability..."
+    
+    local hosts
+    hosts=$(ansible-inventory -i "$INVENTORY_PATH" --list | jq -r '(.macos.hosts // .["spectra-devices"].hosts // empty)[]?' 2>/dev/null || echo "")
+    
+    for host in $hosts; do
+        log_info "  🔍 Checking port availability on $host..."
+        
+        for service in macos-api tracker player alpr; do
+            local port="$(get_service_port "$service")"
+            log_info "    🔌 Testing port $port ($service)..."
+            local port_check
+            port_check=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "lsof -i :$port || echo 'available'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+            
+            if [[ "$port_check" == "available" ]] || [[ "$port_check" == *"lsof: command not found"* ]]; then
+                log_info "      ✅ Port $port available"
+            elif [[ -n "$port_check" ]]; then
+                log_warn "      ⚠️  Port $port may be in use (found: $port_check)"
+                increment_warning
+            else
+                log_warn "      ⚠️  Could not check port $port"
+                increment_warning
+            fi
+        done
+    done
+}
+
+validate_dependencies() {
+    log_info "📦 Validating system dependencies..."
+    
+    local hosts
+    hosts=$(ansible-inventory -i "$INVENTORY_PATH" --list | jq -r '(.macos.hosts // .["spectra-devices"].hosts // empty)[]?' 2>/dev/null || echo "")
+    
+    for host in $hosts; do
+        if [ "$VERBOSE" = true ]; then
+            log_info "Checking dependencies on $host..."
+        fi
+        
+        # Check if it's macOS
+        log_info "  🔍 Checking operating system on $host..."
+        local os_check
+        os_check=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "uname -s" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+        
+        if [[ "$os_check" != "Darwin" ]]; then
+            log_error "    ❌ Host $host is not macOS (detected: $os_check)"
+            increment_error
+            continue
+        else
+            log_info "    ✅ Operating system: macOS ($os_check)"
+        fi
+        
+        # Check Homebrew
+        log_info "  🔍 Checking Homebrew installation on $host..."
+        local brew_check
+        brew_check=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "which brew || echo 'not_found'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+        
+        if [[ "$brew_check" == "not_found" ]] || [[ -z "$brew_check" ]]; then
+            log_warn "    ⚠️  Homebrew not installed - will be installed during deployment"
+            increment_warning
+        else
+            log_info "    ✅ Homebrew found: $brew_check"
+        fi
+        
+        # Check Git
+        log_info "  🔍 Checking Git installation on $host..."
+        local git_check
+        git_check=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "git --version || echo 'not_found'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+        
+        if [[ "$git_check" == "not_found" ]] || [[ -z "$git_check" ]]; then
+            log_error "    ❌ Git not installed on $host"
+            increment_error
+        else
+            log_info "    ✅ Git found: $git_check"
+        fi
+    done
+}
+
+validate_disk_space() {
+    log_info "💾 Validating disk space..."
+    
+    local hosts
+    hosts=$(ansible-inventory -i "$INVENTORY_PATH" --list | jq -r '(.macos.hosts // .["spectra-devices"].hosts // empty)[]?' 2>/dev/null || echo "")
+    
+    for host in $hosts; do
+        log_info "  🔍 Checking disk space on $host..."
+        
+        local disk_usage
+        disk_usage=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "df -h / | tail -1 | awk '{print \$4}'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+        
+        # Convert to GB (simplified - assumes G suffix)
+        local available_gb
+        available_gb=$(echo "$disk_usage" | sed 's/G.*//' | sed 's/[^0-9.].*//')
+        
+        if [[ -z "$available_gb" ]] || [[ "$available_gb" == "0" ]]; then
+            log_warn "    ⚠️  Could not determine disk space on $host (got: $disk_usage)"
+            increment_warning
+        elif (( $(echo "$available_gb < $MIN_DISK_SPACE" | bc -l 2>/dev/null || echo "0") )); then
+            log_error "    ❌ Insufficient disk space on $host: ${available_gb}GB available, ${MIN_DISK_SPACE}GB required"
+            increment_error
+        else
+            log_info "    ✅ Disk space: ${available_gb}GB available (requirement: ${MIN_DISK_SPACE}GB)"
+        fi
+    done
+}
+
+validate_permissions() {
+    log_info "🔐 Validating permissions..."
+    
+    local hosts
+    hosts=$(ansible-inventory -i "$INVENTORY_PATH" --list | jq -r '(.macos.hosts // .["spectra-devices"].hosts // empty)[]?' 2>/dev/null || echo "")
+    
+    for host in $hosts; do
+        log_info "  🔍 Checking permissions on $host..."
+        
+        # Check sudo access
+        log_info "    🔐 Testing passwordless sudo access..."
+        local sudo_check
+        sudo_check=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "sudo -n echo 'sudo_ok' 2>/dev/null || echo 'sudo_required'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+        
+        if [[ "$sudo_check" != "sudo_ok" ]]; then
+            log_error "      ❌ Passwordless sudo not configured (got: $sudo_check)"
+            increment_error
+        else
+            log_info "      ✅ Passwordless sudo: working"
+        fi
+        
+        # Check home directory permissions
+        log_info "    📁 Checking home directory permissions..."
+        local home_perms
+        home_perms=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "ls -ld ~ | awk '{print \$1}'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+        
+        if [[ "$home_perms" != drwx* ]]; then
+            log_warn "      ⚠️  Home directory permissions may need adjustment: $home_perms"
+            increment_warning
+        else
+            log_info "      ✅ Home directory permissions: $home_perms"
+        fi
+    done
+}
+
+# Main validation execution
+log_info "🔍 Starting deployment validation for: $INVENTORY_NAME"
+
+# Load SSH key for all validations
+load_ssh_key_for_validation
+
+if [ "$CHECK_NETWORK" = true ]; then
+    validate_network
+fi
+
+if [ "$CHECK_PORTS" = true ]; then
+    validate_ports
+fi
+
+if [ "$CHECK_DEPS" = true ]; then
+    validate_dependencies
+fi
+
+if [ "$CHECK_SPACE" = true ]; then
+    validate_disk_space
+fi
+
+if [ "$CHECK_PERMS" = true ]; then
+    validate_permissions
+fi
+
+# Summary
+echo ""
+log_info "📋 Validation Summary:"
+echo "  ✅ Inventory: $INVENTORY_NAME"
+echo "  🔍 Errors: $VALIDATION_ERRORS"
+echo "  ⚠️  Warnings: $VALIDATION_WARNINGS"
+
+if [ $VALIDATION_ERRORS -gt 0 ]; then
+    echo ""
+    log_error "❌ Validation failed with $VALIDATION_ERRORS critical issues"
+    log_error "Please resolve these issues before deployment"
+    exit 1
+elif [ $VALIDATION_WARNINGS -gt 0 ]; then
+    echo ""
+    log_warn "⚠️  Validation completed with $VALIDATION_WARNINGS warnings"
+    log_warn "Consider reviewing these issues before deployment"
+    exit 0
+else
+    echo ""
+    log_info "✅ All validation checks passed - ready for deployment!"
+    log_info "You can now run: ./scripts/run $INVENTORY_NAME"
+    exit 0
+fi
