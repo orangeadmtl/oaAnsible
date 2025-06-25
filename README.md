@@ -1,233 +1,207 @@
-# oaAnsible - Advanced Multi-Platform Orchestration System
+# oaAnsible - Infrastructure Automation for OrangeAd Devices
 
-A production-ready, server-integrated Ansible orchestration system for OrangeAd devices. Part of the `oaPangaea` monorepo, providing comprehensive device
-management across macOS and Ubuntu platforms with advanced automation capabilities.
+Comprehensive Ansible automation system for deploying and managing OrangeAd infrastructure across macOS and Ubuntu platforms. Part of the `oaPangaea` monorepo
+ecosystem.
 
 ## 🚀 Overview
 
-oaAnsible has evolved into a sophisticated orchestration system that combines traditional Ansible automation with modern server-side execution, intelligent
-component frameworks, and seamless integration capabilities.
+oaAnsible provides infrastructure automation for the OrangeAd ecosystem, focusing on:
+
+- **macOS Device Management**: Mac Mini deployment with `macos-api` and `oaTracker`
+- **Ubuntu Server Configuration**: Docker environments and system optimization
+- **Network Configuration**: Tailscale VPN setup and DNS management
+- **Service Deployment**: Automated LaunchAgent/SystemD service management
 
 ### Key Features
 
-- **🌐 Multi-Platform Support**: macOS and Ubuntu devices
-- **🧠 Intelligent Component Framework**: Automatic dependency resolution and conflict detection
-- **🔄 Advanced Execution Modes**: Dry-run, check, diff, and force modes with safety checks
-- **⚡ Server Integration**: REST API for remote execution and job management
-- **📊 Real-time Monitoring**: Job tracking, health checking, and status reporting
-- **🔒 Secure Authentication**: JWT-based auth with oaDashboard integration
-- **🔧 Comprehensive Tooling**: Enhanced scripts and client libraries
+- **🌐 Multi-Platform Support**: macOS Mac Minis and Ubuntu servers
+- **🏷️ Tag-Based Deployment**: Deploy specific components with `--tags`
+- **🔒 Security Management**: TCC permissions, firewall, and access control
+- **📦 Service Orchestration**: LaunchAgent and SystemD service management
+- **🛡️ Idempotent Operations**: Safe to run multiple times
+- **⚡ Performance Optimized**: Fast execution with intelligent state detection
 
-## 🏗️ Architecture
-
-### Phase 1-4 Implementation Complete
-
-**✅ Multi-Platform Foundation** - Universal playbook routing and platform detection  
-**✅ Efficiency & Idempotency** - Smart state management and performance optimization  
-**✅ Advanced Component Framework** - Dependency resolution and compatibility validation  
-**✅ Server Integration** - REST API with job management and authentication
-
-### System Components
+## 🏗️ Project Structure
 
 ```bash
 oaAnsible/
-├── 📁 playbooks/           # Platform-agnostic and component-specific playbooks
-│   ├── universal.yml       # Main entry point with intelligent routing
-│   ├── platform-detection.yml # Automatic OS and capability detection
-│   └── components/         # Individual component playbooks
-├── 📁 tasks/               # Advanced framework tasks
-│   ├── component-framework.yml      # Dependency resolution engine
-│   ├── component-compatibility.yml  # Compatibility validation matrix
-│   ├── execution-modes.yml         # Advanced execution capabilities
-│   └── state-detection.yml        # Comprehensive system state analysis
-├── 📁 server/              # Server-side execution framework
-│   ├── api/               # FastAPI REST endpoints
-│   ├── jobs/              # Job queuing and tracking
-│   ├── auth/              # Authentication and authorization
-│   ├── utils/             # Ansible execution engine
-│   ├── config/            # Configuration management
-│   └── client/            # Python client library
-├── 📁 scripts/            # Enhanced execution scripts
-│   ├── run-component      # Component-specific deployment
-│   ├── run-server         # Server launcher
-│   ├── demo-framework     # Framework demonstration
-│   └── demo-server        # Server API demonstration
-├── 📁 roles/              # Platform and service-specific roles
-├── 📁 inventory/          # Environment-specific configurations
-└── 📁 docs/               # Comprehensive documentation
-    ├── SCRIPT_USAGE.md      # Complete script usage guide
-    ├── QUICK_REFERENCE.md   # Quick command reference
-    ├── WIFI_SETUP.md        # WiFi configuration guide
-    └── ...
+├── 📁 playbooks/           # Deployment playbooks
+│   ├── universal.yml       # Main entry point with platform detection
+│   ├── macos-full.yml      # Complete macOS setup
+│   ├── ubuntu-full.yml     # Complete Ubuntu setup
+│   ├── deploy-macos-api.yml # macOS API deployment
+│   ├── deploy-macos-tracker.yml # oaTracker deployment
+│   └── components/         # Component-specific playbooks
+├── 📁 roles/               # Ansible roles organized by platform
+│   ├── macos/             # macOS-specific roles
+│   │   ├── api/           # macOS API service
+│   │   ├── tracker/       # oaTracker deployment
+│   │   ├── network/       # Tailscale and networking
+│   │   ├── security/      # TCC permissions and firewall
+│   │   ├── python/        # Python runtime management
+│   │   └── settings/      # System configuration
+│   ├── ubuntu/            # Ubuntu-specific roles
+│   │   ├── base/          # Base system setup
+│   │   ├── docker/        # Docker environment
+│   │   └── network/       # Network configuration
+│   └── common/            # Shared roles
+├── 📁 inventory/          # Environment configurations
+│   ├── spectra-prod.yml   # Production Spectra environment
+│   ├── spectra-preprod.yml # Pre-production Spectra
+│   ├── f1-prod.yml        # F1 production environment
+│   └── platforms/         # Platform-specific variables
+├── 📁 scripts/            # Management scripts
+│   ├── run               # Main deployment script
+│   ├── sync              # Sync configurations
+│   ├── check             # Health checks
+│   └── helpers.sh        # Common functions
+├── 📁 macos-api/         # macOS API source code
+│   ├── macos_api/        # API implementation
+│   ├── requirements.txt  # Python dependencies
+│   └── main.py           # Entry point
+├── 📁 server/            # Server-side execution (optional)
+│   ├── api/              # REST API endpoints
+│   ├── jobs/             # Job management
+│   └── client/           # Python client
+└── 📁 docs/              # Documentation
+    ├── server-api.md     # API documentation
+    └── PERFORMANCE_AUDIT.md # Performance analysis
 ```
 
 ## 🚀 Quick Start
 
-> **📖 For comprehensive script usage examples covering all platforms and use cases, see [SCRIPT_USAGE.md](docs/SCRIPT_USAGE.md)**
+### Prerequisites
+
+1. **Ansible Installed**: Ensure Ansible Core is installed
+2. **Vault Password**: Set up vault password file for encrypted variables
+3. **SSH Access**: Configure SSH keys for target devices
+4. **Tailscale**: Devices should be connected to Tailscale network
 
 ### Essential Commands
 
 ```bash
-# Deploy full stack to staging
-./scripts/run-staging -l hostname
+# Deploy to specific environment with tags
+./scripts/run spectra-preprod -t macos-api -l hostname
 
-# Deploy specific components
-./scripts/run-component staging macos-api tracker -l hostname
+# Full deployment to environment
+./scripts/run spectra-preprod
 
-# Deploy to all production devices
-./scripts/run-prod
+# Dry run to preview changes
+./scripts/run spectra-preprod -t tracker --dry-run
 
-# Check what would be deployed (dry run)
-./scripts/run-staging -l hostname --check
+# Deploy to production (requires confirmation)
+./scripts/run spectra-prod -t player
 ```
 
-### 1. Component Deployment (Recommended)
+### Component-Based Deployment
 
-Deploy specific components with automatic dependency resolution:
+Deploy specific components using tags:
 
 ```bash
-# Deploy macOS API with dependencies (base-system → python → macos-api)
-./scripts/run-component staging macos-api
+# Deploy macOS API service
+./scripts/run spectra-preprod -t macos-api
 
-# Deploy tracking system with full dependency chain
-./scripts/run-component staging macos-tracker
+# Deploy tracking system
+./scripts/run spectra-preprod -t tracker
 
-# Deploy video player for digital signage
-./scripts/run-component staging player
+# Deploy video player
+./scripts/run spectra-preprod -t player
 
-# Dry-run mode to preview changes
-./scripts/run-component staging macos-api --dry-run
+# Deploy multiple components
+./scripts/run spectra-preprod -t "macos-api,tracker"
 
-# Multiple components with conflict detection
-./scripts/run-component staging macos-api network-stack --check
-
-# Deploy Spectra project stack (API + Tracker + Player)
-./scripts/run-component staging macos-api macos-tracker player
+# Infrastructure only
+./scripts/run spectra-preprod -t "base,network,security"
 ```
 
-### 2. Server-Side Execution
-
-Start the server for remote execution via oaDashboard:
-
-```bash
-# Start development server
-./scripts/run-server --dev
-
-# Production server with custom settings
-OAANSIBLE_API_PORT=8001 ./scripts/run-server
-```
-
-### 3. Traditional Full Deployment
+### Direct Ansible Execution
 
 ```bash
 # Universal playbook with platform auto-detection
-ansible-playbook playbooks/universal.yml -i inventory/staging/hosts.yml
+ansible-playbook playbooks/universal.yml -i inventory/spectra-preprod.yml
 
-# Platform-specific full deployment
-ansible-playbook playbooks/universal.yml -i inventory/production/hosts.yml \
-  --extra-vars "execution_mode=full"
+# Deploy specific components via playbook
+ansible-playbook playbooks/deploy-macos-api.yml -i inventory/spectra-preprod.yml
+
+# macOS full deployment
+ansible-playbook playbooks/macos-full.yml -i inventory/spectra-preprod.yml
 ```
 
-## 📦 Component System
+## 📦 Available Components
 
-### Available Components
+### macOS Platform Tags
 
-**macOS Platform:**
+- **`macos-api`** / **`api`** - Device monitoring and management API
+- **`tracker`** - AI tracking and analysis system (oaTracker)
+- **`player`** - Video player for digital signage
+- **`alpr`** - Automatic License Plate Recognition
 
-- `macos-api` - Device monitoring and management API
-- `macos-tracker` - AI tracking and analysis system
-- `player` - Flexible video player for digital signage and content display
-- `alpr` - License plate recognition (conflicts with tracker)
+### Infrastructure Tags
 
-**Universal Components:**
+- **`base`** - Core system setup, shell configuration, cleanup
+- **`network`** - Tailscale VPN, DNS configuration
+- **`security`** - Firewall, TCC permissions, system hardening
+- **`ssh`** - SSH configuration and key management
 
-- `base-system` - Foundation system configuration
-- `python` - Python runtime with pyenv management
-- `node` - Node.js runtime with nvm management
-- `network-stack` - Tailscale VPN and network configuration
+### Ubuntu Platform Tags
 
-**Ubuntu Platform:**
+- **`docker`** - Docker environment setup (Ubuntu only)
 
-- `ubuntu-docker` - Docker environment setup
+## 🛠️ Management Scripts
 
-### Intelligent Features
+### Core Scripts
 
-**Dependency Resolution:**
+- **`./scripts/run`** - Main deployment script with tag support
+- **`./scripts/sync`** - Sync configurations and update remote files
+- **`./scripts/check`** - Health checks and validation
+- **`./scripts/reboot`** - Controlled device reboot operations
+- **`./scripts/genSSH`** - SSH key generation and distribution
 
-```bash
-# Requesting 'macos-tracker' automatically resolves and deploys:
-# 1. base-system (foundation)
-# 2. python (runtime requirement)
-# 3. macos-api (service dependency)
-# 4. macos-tracker (requested component)
-./scripts/run-component staging macos-tracker
+### Script Features
+
+- **Interactive Mode**: Select inventory if not specified
+- **Safety Checks**: Production confirmation required
+- **Verbose Output**: Debug mode with `-v` flag
+- **Dry Run Support**: Preview changes with `--dry-run`
+- **Host Limiting**: Target specific devices with `-l hostname`
+
+## 🌐 Environment Management
+
+### Available Environments
+
+- **`spectra-prod`** - Production Spectra devices
+- **`spectra-preprod`** - Pre-production Spectra testing
+- **`f1-prod`** - F1 project production
+- **`f1-preprod`** - F1 project staging
+- **`alpr-prod`** - ALPR production environment
+
+### Inventory Structure
+
+```yaml
+# Example: spectra-preprod.yml
+all:
+  children:
+    macos:
+      hosts:
+        spectra-ca-001:
+          ansible_host: 100.x.x.x
+          tailscale_hostname: spectra-ca-001
+        spectra-ca-002:
+          ansible_host: 100.x.x.x
+          tailscale_hostname: spectra-ca-002
+      vars:
+        ansible_user: admin
+        ansible_ssh_private_key_file: ~/.ssh/orangead_rsa
 ```
 
-**Conflict Detection:**
-
-```bash
-# This will fail with clear error - camera access conflict
-./scripts/run-component staging macos-tracker alpr
-```
-
-**Compatibility Validation:**
-
-```bash
-# This will fail - platform mismatch
-./scripts/run-component staging ubuntu-docker macos-api
-```
-
-## 🖥️ Server API
-
-### REST Endpoints
-
-**Authentication Required:**
-
-- `POST /api/deploy/components` - Deploy selected components
-- `GET /api/jobs` - List deployment jobs with pagination
-- `GET /api/jobs/{job_id}` - Get job details and status
-- `GET /api/jobs/{job_id}/logs` - Stream job execution logs
-- `DELETE /api/jobs/{job_id}` - Cancel running job
-
-**Public Endpoints:**
-
-- `GET /api/health` - Server health and component status
-- `GET /api/environments` - Available deployment environments
-- `GET /api/components` - Component definitions and requirements
-- `GET /api/docs` - Interactive API documentation
-
-### Client Library Usage
-
-```python
-from server.client import create_client
-
-# Async client
-async with create_client("http://localhost:8001", token) as client:
-    # Deploy components
-    job = await client.deploy_components("staging", ["macos-api"])
-
-    # Monitor progress
-    async for log_entry in client.stream_job_logs(job["job_id"]):
-        print(f"[{job['job_id']}] {log_entry}")
-
-    # Wait for completion
-    result = await client.wait_for_job(job["job_id"])
-    print(f"Deployment {'✅ succeeded' if result['status'] == 'completed' else '❌ failed'}")
-
-# Sync client for simple operations
-from server.client import create_sync_client
-client = create_sync_client("http://localhost:8001", token)
-health = client.health_check()
-```
-
-## 🔧 Advanced Execution Modes
+## 🔧 Execution Modes
 
 ### Dry-Run Mode
 
 Preview changes without execution:
 
 ```bash
-./scripts/run-component staging macos-api --dry-run
+./scripts/run spectra-preprod -t macos-api --dry-run
 ```
 
 ### Check Mode
@@ -235,7 +209,7 @@ Preview changes without execution:
 Validate configuration and show potential changes:
 
 ```bash
-./scripts/run-component staging macos-tracker --check --verbose
+./scripts/run spectra-preprod -t tracker --check
 ```
 
 ### Force Mode
@@ -243,212 +217,215 @@ Validate configuration and show potential changes:
 Skip safety checks and confirmations:
 
 ```bash
-./scripts/run-component production macos-api --force
+./scripts/run spectra-prod -t player --force
 ```
 
-### Diff Mode
+### Verbose Mode
 
-Show detailed differences for all changes:
+Detailed output for debugging:
 
 ```bash
-./scripts/run-component staging network-stack --diff
+./scripts/run spectra-preprod -t network -v
 ```
 
-## 🌐 Multi-Platform Support
+## 🌐 Platform Support
 
-### macOS (Production Ready)
+### macOS (Mac Mini)
 
-- **Services**: macOS API, oaTracker, ALPR
-- **Runtimes**: Python (pyenv), Node.js (nvm)
-- **Network**: Tailscale VPN with DNS management
-- **Security**: TCC permissions, firewall configuration
-- **Management**: LaunchAgent services, automatic startup
+**Deployed Services:**
 
-### Ubuntu (Server Focus)
+- **macOS API**: Device monitoring and management (`port 9090`)
+- **oaTracker**: AI tracking system (`port 8080`)
+- **Video Player**: Digital signage player
 
-- **Services**: Docker environment, system monitoring
-- **Runtimes**: Python, Node.js, system packages
-- **Network**: Tailscale, firewall (ufw)
-- **Management**: SystemD services
+**System Management:**
 
-## 📊 Monitoring & Observability
+- **LaunchAgent Services**: User-level service management
+- **Python Runtime**: pyenv-managed Python installations
+- **Tailscale**: VPN connectivity and device discovery
+- **TCC Permissions**: Camera and automation access
+- **Security**: Firewall and system hardening
 
-### Job Management
+### Ubuntu (Server)
 
-- **Real-time Status**: Track deployment progress and logs
-- **Job Queuing**: Handle multiple concurrent deployments
-- **History Tracking**: Complete audit trail of all deployments
-- **Performance Metrics**: Execution times and resource usage
+**Deployed Services:**
 
-### Health Monitoring
+- **Docker Environment**: Container runtime setup
+- **System Monitoring**: Health checks and performance
 
-- **Component Health**: Service status and endpoint availability
-- **System State**: Resource usage and platform capabilities
-- **Network Status**: Connectivity and Tailscale integration
-- **Security Status**: TCC permissions and firewall configuration
+**System Management:**
 
-### Logging & Debugging
+- **SystemD Services**: System-level service management
+- **Network Configuration**: Tailscale and firewall (ufw)
+- **Runtime Management**: Python and Node.js environments
 
-```bash
-# Enhanced logging with job tracking
-OAANSIBLE_LOG_LEVEL=DEBUG ./scripts/run-server
-
-# Component deployment with verbose output
-./scripts/run-component staging macos-api --verbose
-
-# Server logs for troubleshooting
-tail -f /tmp/oaansible.log
-```
-
-## 🔒 Security & Authentication
-
-### Authentication Methods
-
-- **JWT Tokens**: For programmatic access and integration
-- **oaDashboard Integration**: SSO with existing user accounts
-- **API Keys**: For service-to-service authentication
-- **Role-Based Access**: Admin and user permission levels
+## 🔒 Security & Configuration
 
 ### Security Features
 
-- **Network Security**: Tailscale-based access control
-- **Input Validation**: Comprehensive request validation
-- **Audit Logging**: Complete deployment and access logs
-- **Resource Limits**: Job timeout and concurrency controls
+- **Tailscale Network**: All devices connected via secure VPN
+- **SSH Key Management**: Automated key distribution and rotation
+- **Vault Encryption**: Sensitive data encrypted with Ansible Vault
+- **TCC Permissions**: Automated macOS privacy permissions
+- **Firewall Configuration**: Platform-specific firewall rules
 
-### Configuration
+### Configuration Management
 
 ```bash
-# Environment variables for security
-export OAANSIBLE_SECRET_KEY="your-secure-secret-key"
-export OADASHBOARD_API_URL="http://localhost:8000"
-export OADASHBOARD_API_KEY="your-dashboard-api-key"
+# Vault password file (required)
+echo "your-vault-password" > vault_password_file
+
+# Ansible configuration
+export ANSIBLE_HOST_KEY_CHECKING=False
+export ANSIBLE_VAULT_PASSWORD_FILE=vault_password_file
+
+# SSH configuration
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/orangead_rsa
+```
+
+### Environment Variables
+
+```bash
+# Deployment configuration
+export OA_ANSIBLE_INVENTORY_DIR="./inventory"
+export ANSIBLE_CONFIG="./ansible.cfg"
+
+# Tailscale configuration (in vault)
+tailscale_auth_key: "tskey-auth-xxxx"
+tailscale_hostname: "device-name"
 ```
 
 ## 🛠️ Development & Testing
 
-### Framework Testing
+### Testing Deployments
 
 ```bash
-# Test component framework
-./scripts/demo-framework
+# Dry-run deployment to test changes
+./scripts/run spectra-preprod -t macos-api --dry-run
 
-# Test server API
-./scripts/demo-server
+# Check mode for validation
+./scripts/run spectra-preprod -t tracker --check
 
-# Dry-run all components
-./scripts/run-component staging macos-api macos-tracker --dry-run
+# Verbose output for debugging
+./scripts/run spectra-preprod -t network -v
 ```
-
-### Development Server
-
-```bash
-# Start with auto-reload
-./scripts/run-server --dev --port 8001
-
-# Test API endpoints
-curl http://localhost:8001/api/health
-curl http://localhost:8001/api/components
-```
-
-### Performance Measurement
-
-```bash
-# Measure deployment performance
-./scripts/measure-performance staging baseline
-./scripts/measure-performance staging improved
-./scripts/measure-performance staging comparison
-```
-
-## 🔄 Migration & Upgrade
-
-### From Legacy oaAnsible
-
-The new system maintains backward compatibility while providing enhanced capabilities:
-
-1. **Existing Scripts**: Legacy scripts continue to work
-2. **Inventory Compatibility**: Existing inventory files are supported
-3. **Gradual Migration**: Adopt new features incrementally
-4. **Enhanced Performance**: 50% reduction in repeated deployment time
-
-### Recommended Migration Path
-
-1. **Start with Components**: Use `./scripts/run-component` for new deployments
-2. **Test Server Integration**: Deploy server API for remote execution
-3. **Enable Advanced Features**: Adopt dry-run, check, and diff modes
-4. **Integrate with Dashboard**: Connect to oaDashboard for centralized management
-
-## 📈 Performance & Scalability
-
-### Achieved Improvements
-
-- **⚡ 50% Faster**: Reduced deployment time through intelligent state detection
-- **🧠 Smarter Execution**: Skip unnecessary tasks with comprehensive idempotency
-- **🔄 Concurrent Jobs**: Handle multiple deployments simultaneously
-- **📊 Real-time Monitoring**: Live progress tracking and logging
-
-### Scalability Features
-
-- **Job Queuing**: SQLite-based job management with concurrent execution
-- **Resource Management**: CPU, memory, and disk space monitoring
-- **Performance Metrics**: Execution time tracking and optimization
-- **Caching**: Fact caching and state detection optimization
-
-## 🤝 Contributing
-
-oaAnsible follows a comprehensive development framework:
-
-1. **Component Development**: Add new components to the framework
-2. **Platform Support**: Extend to additional platforms
-3. **Server Features**: Enhance API capabilities and integrations
-4. **Documentation**: Maintain comprehensive guides and examples
 
 ### Development Workflow
 
+1. **Test Changes**: Use `--dry-run` to preview changes
+2. **Validate Configuration**: Use `--check` mode for syntax validation
+3. **Target Single Host**: Use `-l hostname` for focused testing
+4. **Monitor Output**: Use `-v` for detailed logging
+
+### Common Development Tasks
+
 ```bash
-# Test changes with dry-run
-./scripts/run-component staging your-component --dry-run
+# Format Ansible files
+./scripts/format
 
-# Validate with check mode
-./scripts/run-component staging your-component --check
+# Check Ansible syntax
+./scripts/check
 
-# Run server tests
-./scripts/demo-server
+# Generate SSH keys for new environment
+./scripts/genSSH
+
+# Sync configuration files
+./scripts/sync
+```
+
+## 📈 Performance & Best Practices
+
+### Performance Features
+
+- **Idempotent Operations**: Safe to run multiple times without side effects
+- **Fact Caching**: Reduced gather time on subsequent runs
+- **Tag-Based Deployment**: Deploy only what's needed
+- **Parallel Execution**: Multiple hosts deployed simultaneously
+
+### Best Practices
+
+1. **Use Tags**: Deploy specific components instead of full stack
+2. **Test First**: Always use `--dry-run` for production changes
+3. **Limit Scope**: Use `-l hostname` for targeted deployments
+4. **Monitor Progress**: Use verbose mode (`-v`) for troubleshooting
+5. **Vault Security**: Keep sensitive data in encrypted vault files
+
+## 🤝 Contributing
+
+### Development Guidelines
+
+1. **Test Changes**: Always use `--dry-run` before applying changes
+2. **Role Development**: Follow Ansible best practices for role structure
+3. **Idempotency**: Ensure all tasks can be run multiple times safely
+4. **Documentation**: Update README and role documentation for changes
+5. **Security**: Use Ansible Vault for sensitive data
+
+### Adding New Roles
+
+```bash
+# Create new role structure
+mkdir -p roles/platform/new-role/{tasks,handlers,templates,defaults}
+
+# Add role to appropriate playbook
+# Update universal.yml or create specific playbook
+```
+
+### Testing Contributions
+
+```bash
+# Test role changes
+./scripts/run spectra-preprod -t your-role --dry-run
+
+# Validate syntax
+./scripts/check
+
+# Format code
+./scripts/format
 ```
 
 ## 📚 Documentation
 
-### Essential Guides
+### Available Documentation
 
-| Guide                                          | Description                                       | Use Case                           |
-| ---------------------------------------------- | ------------------------------------------------- | ---------------------------------- |
-| **[Script Usage Guide](docs/SCRIPT_USAGE.md)** | Complete examples for all platforms and scenarios | New users, comprehensive reference |
-| **[Quick Reference](docs/QUICK_REFERENCE.md)** | Common commands and quick examples                | Daily operations, quick lookup     |
-| **[WiFi Setup Guide](docs/WIFI_SETUP.md)**     | Complete WiFi configuration walkthrough           | Network configuration              |
+- **[Server API](docs/server-api.md)** - REST API documentation
+- **[Performance Audit](docs/PERFORMANCE_AUDIT.md)** - Performance analysis and optimization
 
-### Additional Documentation
+### Role Documentation
 
-- [Environment System](docs/ENVIRONMENT_SYSTEM.md) - Environment and inventory management
-- [Component Framework](docs/components.md) - Component system architecture
-- [Server API](docs/server-api.md) - REST API documentation
-- [ALPR Integration](docs/alpr-integration.md) - License plate recognition setup
-- [System Architecture](docs/SYSTEM.md) - Overall system design
-- [Workflow Guide](docs/WORKFLOW.md) - Development and deployment workflows
+Each role includes its own README with:
 
-### Quick Links
+- Purpose and functionality
+- Variables and configuration options
+- Dependencies and requirements
+- Usage examples
+
+### Quick Help
 
 ```bash
-# 📖 Complete script examples
-cat docs/SCRIPT_USAGE.md
+# Show script usage and examples
+./scripts/run --help
 
-# ⚡ Quick command reference
-cat docs/QUICK_REFERENCE.md
-
-# 📡 WiFi configuration guide
-cat docs/WIFI_SETUP.md
+# List available inventories and tags
+./scripts/run
 ```
+
+## 🎯 Use Cases
+
+### Common Deployment Scenarios
+
+1. **New Device Setup**: Deploy full stack to new Mac Mini
+2. **Service Updates**: Update specific services like `macos-api`
+3. **Security Hardening**: Apply security configurations
+4. **Network Configuration**: Set up Tailscale and DNS
+5. **Troubleshooting**: Deploy with verbose logging
+
+### Integration with oaPangaea
+
+- **oaDashboard**: Monitors deployed services and device health
+- **opi-setup**: Complementary system for OrangePi devices
+- **oaTracker**: AI tracking system deployed via oaAnsible
 
 ---
 
-**oaAnsible** - Advanced Multi-Platform Orchestration System  
-Part of the OrangeAd Pangaea Project | Phase 4 Complete ✅
+**oaAnsible** - Infrastructure Automation for OrangeAd Devices  
+Part of the OrangeAd Pangaea Project
