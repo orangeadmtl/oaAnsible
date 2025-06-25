@@ -203,14 +203,14 @@
   ansible.builtin.fail:
     msg: |
       ERROR: cam_id is required for tracker deployment but not defined in inventory.
-      
+
       Please add cam_id to the host configuration in your inventory file:
-      
+
       hosts:
         {{ inventory_hostname }}:
           cam_id: "your-camera-identifier"
           # ... other host vars
-      
+
       The cam_id should uniquely identify this camera/device for tracking purposes.
   when: cam_id is not defined
 
