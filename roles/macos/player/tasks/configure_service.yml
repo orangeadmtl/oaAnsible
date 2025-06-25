@@ -86,6 +86,6 @@
     - name: Fail if player is not running correctly
       ansible.builtin.fail:
         msg: "MPV player service is not running correctly. Check logs at {{ player.log_file }}"
-      when: 
+      when:
         - service_status.stdout == 'not loaded' or mpv_count.stdout|int < 1
         - not ansible_check_mode
