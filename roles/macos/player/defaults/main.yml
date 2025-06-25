@@ -6,7 +6,7 @@ player:
   enabled: false
   video_source: "{{ ansible_user_dir }}/orangead/videos"
   loop_mode: true
-  dual_screen: true  # Default to dual-screen kiosk mode
+  dual_screen: true # Default to dual-screen kiosk mode
   health_check: true
   restart_on_failure: true
   autostart: true
@@ -30,7 +30,7 @@ player:
   #   loop: false
 
   # Display configuration - Always fullscreen for kiosk mode
-  fullscreen: true  # Always fullscreen, no windowed fallback
+  fullscreen: true # Always fullscreen, no windowed fallback
 
   # Player settings - MPV specific
   player_binary: "/opt/homebrew/bin/mpv"
@@ -97,8 +97,8 @@ project_configs:
         display: 2
         enabled: true
         loop: true
-    dual_screen: true  # Kiosk mode
-    fullscreen: true  # Always fullscreen
+    dual_screen: true # Kiosk mode
+    fullscreen: true # Always fullscreen
     system_volume_muted: true # System-wide mute (handled by base role)
     hide_cursor: true # Hide cursor for kiosk mode (handled by base role)
     black_background: true # Set desktop to black (handled by base role)
@@ -111,5 +111,5 @@ project_configs:
         display: 1
         enabled: true
         loop: true
-    dual_screen: true  # Default to dual-screen kiosk mode
-    fullscreen: true  # Always fullscreen
+    dual_screen: true # Default to dual-screen kiosk mode
+    fullscreen: true # Always fullscreen
