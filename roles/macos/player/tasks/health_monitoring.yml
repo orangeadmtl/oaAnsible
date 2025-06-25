@@ -50,7 +50,7 @@
       failed_when: false
       register: plist_validation
 
-    - name: Report plist validation issues  
+    - name: Report plist validation issues
       ansible.builtin.debug:
         msg: "WARNING: Health LaunchAgent plist has syntax issues - {{ plist_validation.stderr }}"
       when: plist_validation.rc != 0
@@ -86,7 +86,7 @@
     - name: Handle health monitoring setup failure
       ansible.builtin.debug:
         msg: "Health monitoring setup failed - continuing without health checks"
-      
+
     - name: Log health monitoring failure
       ansible.builtin.lineinfile:
         path: "{{ player.log_file | dirname }}/setup_errors.log"
