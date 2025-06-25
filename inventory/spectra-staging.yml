@@ -51,7 +51,6 @@ all:
           - fish
           - orbstack
           - lsd
-          - ffmpeg # Required for video player
 
     # Tracker configuration
     tracker:
@@ -69,25 +68,20 @@ all:
       video_selection_strategy: "sequential"
       health_check: true
       restart_on_failure: true
-      volume: 0.8
+      volume: 0.0
 
-      # Videos configuration - flexible array for Spectra demo content
+      # Videos configuration - Jazz video for both screens
       videos:
-        - name: "spectra-demo-1.mp4"
+        - name: "Jazz_video.webm"
           display: 1
           enabled: true
           loop: true
-          volume: 0.8
-        - name: "spectra-demo-2.mp4"
+          volume: 0.0
+        - name: "Jazz_video.webm"
           display: 2
           enabled: true
           loop: true
-          volume: 0.8
-        - name: "Jazz_video.webm" # Fallback video deployed from role files
-          display: 1
-          enabled: false
-          loop: true
-          volume: 0.8
+          volume: 0.0
 
   children:
     macos:
@@ -98,7 +92,3 @@ all:
           ansible_port: 22
           ansible_become_password: "{{ vault_sudo_passwords['spectra-ca-001'] }}"
           cam_id: "22222222-2222-2222-2222-222222222222"
-
-    ubuntu_servers:
-      hosts:
-        # Placeholder for Ubuntu servers if needed
