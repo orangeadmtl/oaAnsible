@@ -18,7 +18,7 @@ all:
 
     # Feature toggles
     configure:
-      tailscale: false  # Pre-production - Tailscale managed separately
+      tailscale: false # Pre-production - Tailscale managed separately
       pyenv: true
       node: true
 
@@ -30,8 +30,8 @@ all:
       allow_server_optimizations: true
       allow_destructive_operations: false
       # Spectra project components: macos-api, tracker, video-player
-      deploy_macos_api: false
-      deploy_tracker: false
+      deploy_macos_api: true
+      deploy_tracker: true
       deploy_alpr_service: false
       deploy_player: true
 
@@ -50,7 +50,6 @@ all:
           - util-linux
           - fish
           - lsd
-          - ffmpeg # Required for video player
 
     # Tracker configuration
     tracker:
@@ -68,7 +67,7 @@ all:
       video_selection_strategy: "sequential"
       health_check: true
       restart_on_failure: true
-      volume: 0.9
+      volume: 0.0
 
       # Videos configuration - Jazz video for both screens
       videos:
@@ -92,7 +91,3 @@ all:
           ansible_port: 22
           ansible_become_password: "{{ vault_sudo_passwords['spectra-ca-001'] }}"
           cam_id: "22222222-2222-2222-2222-222222222222"
-
-    ubuntu_servers:
-      hosts:
-        # Placeholder for Ubuntu servers if needed
