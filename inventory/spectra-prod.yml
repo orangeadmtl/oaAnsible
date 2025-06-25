@@ -18,7 +18,7 @@ all:
 
     # Feature toggles
     configure:
-      tailscale: false  # Production - Tailscale managed separately
+      tailscale: false # Production - Tailscale managed separately
       pyenv: true
       node: true
 
@@ -45,7 +45,6 @@ all:
           - jq
           - curl
           - lsd
-          - ffmpeg # Required for video player
 
     # Tracker configuration
     tracker:
@@ -55,7 +54,7 @@ all:
       default_model: "yolo12s.pt"
       server_port: 8080
 
-    # Player configuration for Spectra project (Production)
+    # Player configuration for Spectra project (Pre-production)
     player:
       enabled: true
       loop_mode: true
@@ -63,25 +62,20 @@ all:
       video_selection_strategy: "sequential"
       health_check: true
       restart_on_failure: true
-      volume: 1.0
+      volume: 0.0
 
-      # Videos configuration - production Spectra content
+      # Videos configuration - Jazz video for both screens
       videos:
-        - name: "spectra-official-1.mp4"
+        - name: "Jazz_video.webm"
           display: 1
           enabled: true
           loop: true
-          volume: 1.0
-        - name: "spectra-official-2.mp4"
+          volume: 0.0
+        - name: "Jazz_video.webm"
           display: 2
           enabled: true
           loop: true
-          volume: 1.0
-        - name: "Jazz_video.webm" # Fallback video deployed from role files
-          display: 1
-          enabled: false
-          loop: true
-          volume: 1.0
+          volume: 0.0
 
   children:
     macos:
@@ -92,7 +86,3 @@ all:
           ansible_port: 22
           ansible_become_password: "{{ vault_sudo_passwords['spectra-ca-001'] }}"
           cam_id: "22222222-2222-2222-2222-222222222222"
-
-    ubuntu_servers:
-      hosts:
-        # Placeholder for Ubuntu servers if needed
