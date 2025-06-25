@@ -1,0 +1,272 @@
+#!/bin/bash
+
+# stop - Ultimate service stopper for debugging Spectra deployment
+# Usage: ./scripts/stop [inventory/host] [options]
+# Purpose: Quickly stop all OrangeAd services for debugging and troubleshooting
+
+set -e
+
+# Get script directory and source helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/helpers.sh"
+
+# Ensure we're in the correct directory
+ensure_ansible_root_dir
+
+# Check dependencies
+check_ansible_installed
+check_vault_password_file
+
+show_usage() {
+    echo "Usage: $0 [inventory|host] [options]"
+    echo ""
+    echo "Ultimate service stopper for debugging OrangeAd deployments"
+    echo ""
+    echo "Arguments:"
+    echo "  inventory      - Target inventory (e.g., spectra-preprod, spectra-prod)"
+    echo "  host           - Direct host target (e.g., spectra-ca-001)"
+    echo ""
+    echo "Options:"
+    echo "  --all          - Stop all services (default)"
+    echo "  --api          - Stop only macOS API service"
+    echo "  --tracker      - Stop only tracker service"  
+    echo "  --player       - Stop only player service"
+    echo "  --alpr         - Stop only ALPR service"
+    echo "  -l, --limit HOST - Limit to specific host(s) in inventory"
+    echo "  --status       - Show service status after stopping"
+    echo "  -v, --verbose  - Detailed output"
+    echo "  -h, --help     - Show this help"
+    echo ""
+    echo "Available Inventories:"
+    discover_inventories | sed 's/^/  - /'
+    echo ""
+    echo "Examples:"
+    echo "  $0 spectra-preprod                    # Stop all services on all hosts in inventory"
+    echo "  $0 spectra-ca-001                     # Stop services on specific host"
+    echo "  $0 spectra-prod --api --tracker       # Stop specific services on inventory"
+    echo "  $0 spectra-prod -l spectra-ca-001     # Stop services on specific host in inventory"
+    echo "  $0 spectra-preprod --all --status     # Stop all and show status"
+}
+
+# Service definitions (compatible with older bash)
+get_service_id() {
+    case "$1" in
+        "api") echo "com.orangead.macosapi" ;;
+        "tracker") echo "com.orangead.tracker" ;;
+        "player") echo "com.orangead.oemplayer" ;;
+        "alpr") echo "com.orangead.alpr" ;;
+        *) echo "" ;;
+    esac
+}
+
+# Parse arguments
+TARGET=""
+STOP_API=false
+STOP_TRACKER=false
+STOP_PLAYER=false
+STOP_ALPR=false
+STOP_ALL=true
+LIMIT=""
+SHOW_STATUS=false
+VERBOSE=false
+ANSIBLE_EXTRA_ARGS=()
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        --api)
+            STOP_API=true
+            STOP_ALL=false
+            shift
+            ;;
+        --tracker)
+            STOP_TRACKER=true
+            STOP_ALL=false
+            shift
+            ;;
+        --player)
+            STOP_PLAYER=true
+            STOP_ALL=false
+            shift
+            ;;
+        --alpr)
+            STOP_ALPR=true
+            STOP_ALL=false
+            shift
+            ;;
+        --all)
+            STOP_ALL=true
+            shift
+            ;;
+        -l|--limit)
+            LIMIT="$2"
+            shift 2
+            ;;
+        --status)
+            SHOW_STATUS=true
+            shift
+            ;;
+        -v|--verbose)
+            VERBOSE=true
+            ANSIBLE_EXTRA_ARGS+=("-v")
+            shift
+            ;;
+        *)
+            if [ -z "$TARGET" ]; then
+                TARGET="$1"
+            else
+                log_error "Unknown option: $1"
+                show_usage
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Require target (inventory or host)
+if [ -z "$TARGET" ]; then
+    log_error "Target inventory or host is required"
+    show_usage
+    exit 1
+fi
+
+
+
+# Determine target type and build commands
+if discover_inventories | grep -q "^$TARGET$"; then
+    # Target is an inventory
+    INVENTORY_PATH=$(get_inventory_path "$TARGET")
+    if [ $? -ne 0 ] || [ ! -f "$INVENTORY_PATH" ]; then
+        log_error "Inventory not found: $TARGET"
+        exit 1
+    fi
+    
+    TARGET_TYPE="inventory"
+    CONTEXT="$TARGET inventory"
+    
+    # Build ansible command for inventory
+    if [ -n "$LIMIT" ]; then
+        ANSIBLE_EXTRA_ARGS+=("-l" "$LIMIT")
+        CONTEXT="$CONTEXT (limited to $LIMIT)"
+    fi
+    
+else
+    # Target is a direct host
+    TARGET_TYPE="host"
+    CONTEXT="host $TARGET"
+fi
+
+# Build service stop command based on selected services
+STOP_CMD=""
+if [ "$STOP_ALL" = false ]; then
+    if [ "$STOP_API" = true ]; then STOP_CMD="$STOP_CMD,api"; fi
+    if [ "$STOP_TRACKER" = true ]; then STOP_CMD="$STOP_CMD,tracker"; fi
+    if [ "$STOP_PLAYER" = true ]; then STOP_CMD="$STOP_CMD,player"; fi
+    if [ "$STOP_ALPR" = true ]; then STOP_CMD="$STOP_CMD,alpr"; fi
+    STOP_CMD=$(echo "$STOP_CMD" | sed 's/^,//')  # Remove leading comma
+else
+    STOP_CMD="all"
+fi
+
+# Build the remote script command
+REMOTE_SCRIPT_CMD="
+# Stop services script
+stop_service() {
+    local service_name=\"\$1\"
+    local service_id=\"\$2\"
+    local plist_path=\"\$HOME/Library/LaunchAgents/\${service_id}.plist\"
+    
+    if launchctl list | grep -q \"\$service_id\" 2>/dev/null; then
+        echo \"Stopping \$service_name (\$service_id)...\"
+        launchctl unload \"\$plist_path\" 2>/dev/null || true
+        echo \"+ Unloaded \$service_name\"
+    else
+        echo \"- \$service_name was not running\"
+    fi
+    
+    # Force kill any remaining processes
+    pkill -f \"\$service_id\" 2>/dev/null || true
+}
+
+show_service_status() {
+    local service_name=\"\$1\"
+    local service_id=\"\$2\"
+    
+    if launchctl list | grep -q \"\$service_id\" 2>/dev/null; then
+        echo \"  [RUNNING] \$service_name: RUNNING\"
+    else
+        echo \"  [STOPPED] \$service_name: STOPPED\"
+    fi
+}
+
+echo \"[STOP] Stopping OrangeAd services on \$(hostname)...\"
+
+# Stop requested services
+if [[ \"$STOP_CMD\" == \"all\" || \"$STOP_CMD\" == *\"api\"* ]]; then
+    stop_service \"macOS API\" \"com.orangead.macosapi\"
+fi
+
+if [[ \"$STOP_CMD\" == \"all\" || \"$STOP_CMD\" == *\"tracker\"* ]]; then
+    stop_service \"Tracker\" \"com.orangead.tracker\"
+fi
+
+if [[ \"$STOP_CMD\" == \"all\" || \"$STOP_CMD\" == *\"player\"* ]]; then
+    stop_service \"Player\" \"com.orangead.oemplayer\"
+fi
+
+if [[ \"$STOP_CMD\" == \"all\" || \"$STOP_CMD\" == *\"alpr\"* ]]; then
+    stop_service \"ALPR\" \"com.orangead.alpr\"
+fi
+
+# Show status if requested
+if [ \"$SHOW_STATUS\" = true ]; then
+    echo \"\"
+    echo \"Service Status:\"
+    if [[ \"$STOP_CMD\" == \"all\" || \"$STOP_CMD\" == *\"api\"* ]]; then
+        show_service_status \"macOS API\" \"com.orangead.macosapi\"
+    fi
+    if [[ \"$STOP_CMD\" == \"all\" || \"$STOP_CMD\" == *\"tracker\"* ]]; then
+        show_service_status \"Tracker\" \"com.orangead.tracker\"
+    fi
+    if [[ \"$STOP_CMD\" == \"all\" || \"$STOP_CMD\" == *\"player\"* ]]; then
+        show_service_status \"Player\" \"com.orangead.oemplayer\"
+    fi
+    if [[ \"$STOP_CMD\" == \"all\" || \"$STOP_CMD\" == *\"alpr\"* ]]; then
+        show_service_status \"ALPR\" \"com.orangead.alpr\"
+    fi
+fi
+
+echo \"[DONE] Service stop operation completed on \$(hostname)\"
+"
+
+# Load SSH key from vault for authentication
+if ! load_ssh_key_from_vault "stop-services"; then
+    log_warn "SSH key loading failed. Operations may not work properly."
+    # Continue anyway in case there are other keys available
+fi
+
+# Execute based on target type
+log_info "Stopping OrangeAd services on: $CONTEXT"
+
+if [ "$TARGET_TYPE" = "inventory" ]; then
+    # Use ansible to execute on all hosts in inventory with vault integration
+    ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible all -i "$INVENTORY_PATH" -m shell -a "$REMOTE_SCRIPT_CMD" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" "${ANSIBLE_EXTRA_ARGS[@]}"
+    
+elif [ "$TARGET_TYPE" = "host" ]; then
+    # For direct host, we need to use inventory-based approach since SSH key is vault-managed
+    log_warn "Direct host SSH requires proper Tailscale hostname resolution."
+    log_warn "Consider using inventory-based approach: ./scripts/stop <inventory> -l $TARGET"
+    
+    # Try direct SSH anyway
+    ssh "$TARGET" "$REMOTE_SCRIPT_CMD"
+    
+else
+    log_error "Invalid target type"
+    exit 1
+fi
+
+log_info "Stop operation completed"
