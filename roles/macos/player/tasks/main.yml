@@ -1,5 +1,5 @@
 ---
-- name: macOS MPV Player deployment
+- name: MacOS MPV Player deployment
   when: player.enabled | default(false)
   tags: ["player"]
   block:
@@ -36,11 +36,11 @@
           restart_attempts: 3
           restart_delay: 10
       tags: ["player", "config"]
-      
+
     - name: Clean up old unused player files
       ansible.builtin.include_tasks: cleanup_old_files.yml
       tags: ["player", "cleanup"]
-      
+
     - name: Ensure MPV dependencies are installed
       ansible.builtin.include_tasks: install_dependencies.yml
       tags: ["player", "dependencies"]
@@ -55,7 +55,7 @@
 
     - name: Setup health monitoring
       ansible.builtin.include_tasks: health_monitoring.yml
-      when: 
+      when:
         - player.health_check | default(true)
-        - not (oa_environment.name | default('') | regex_search('preprod|staging'))  # Disable for development
+        - not (oa_environment.name | default('') | regex_search('preprod|staging')) # Disable for development
       tags: ["player", "monitoring"]
