@@ -18,7 +18,7 @@ all:
 
     # Feature toggles
     configure:
-      tailscale: false  # Production - Tailscale managed separately
+      tailscale: false # Production - Tailscale managed separately
       pyenv: true
       node: true
 
