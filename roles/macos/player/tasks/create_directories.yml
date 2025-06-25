@@ -39,9 +39,3 @@
       register: video_files_check
       loop: "{{ player.videos | selectattr('enabled', 'equalto', true) | list }}"
       when: player.videos is defined
-
-    - name: Create Jazz video file if none exist
-      ansible.builtin.include_tasks: create_sample_videos.yml
-      when: 
-        - player.videos is defined
-        - video_files_check.results | selectattr('stat.exists', 'equalto', true) | list | length == 0
