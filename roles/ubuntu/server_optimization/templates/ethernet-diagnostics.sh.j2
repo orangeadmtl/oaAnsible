@@ -1,0 +1,174 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# Ethernet Diagnostics Script for OrangeAd Infrastructure
+# Comprehensive ethernet troubleshooting and information gathering
+
+set -euo pipefail
+
+echo "═══════════════════════════════════════════════════════════"
+echo "          OrangeAd Ethernet Diagnostics Report"
+echo "═══════════════════════════════════════════════════════════"
+echo "Server: {{ inventory_hostname }} ({{ ansible_host | default('unknown') }})"
+echo "Generated: $(date)"
+echo "═══════════════════════════════════════════════════════════"
+
+echo
+echo "🔍 HARDWARE DETECTION"
+echo "─────────────────────"
+echo "PCI Ethernet Controllers:"
+lspci | grep -i ethernet || echo "No ethernet controllers found in lspci"
+
+echo
+echo "Realtek Controllers:"
+lspci | grep -i realtek || echo "No Realtek controllers detected"
+
+echo
+echo "🌐 NETWORK INTERFACES"
+echo "─────────────────────"
+{% if ethernet_interfaces %}
+{% for interface in ethernet_interfaces %}
+echo "Interface: {{ interface }}"
+echo "  Status: $(cat /sys/class/net/{{ interface }}/operstate 2>/dev/null || echo 'unknown')"
+echo "  Carrier: $(cat /sys/class/net/{{ interface }}/carrier 2>/dev/null || echo 'unknown')"
+echo "  Address: $(cat /sys/class/net/{{ interface }}/address 2>/dev/null || echo 'unknown')"
+if command -v ethtool >/dev/null 2>&1; then
+    echo "  Speed/Duplex:"
+    ethtool {{ interface }} 2>/dev/null | grep -E "Speed|Duplex|Auto-negotiation|Link detected" | sed 's/^/    /'
+fi
+echo
+{% endfor %}
+{% else %}
+echo "No ethernet interfaces detected"
+{% endif %}
+
+echo
+echo "⚙️  DRIVER INFORMATION"
+echo "─────────────────────"
+{% if ethernet_interfaces %}
+{% for interface in ethernet_interfaces %}
+echo "{{ interface }} driver info:"
+if command -v ethtool >/dev/null 2>&1; then
+    ethtool -i {{ interface }} 2>/dev/null | sed 's/^/  /' || echo "  Unable to get driver info"
+else
+    echo "  ethtool not available"
+fi
+echo
+{% endfor %}
+{% endif %}
+
+echo "Loaded network modules:"
+lsmod | grep -E "r8169|r8168|8139|ethernet" | sed 's/^/  /' || echo "  No relevant network modules found"
+
+echo
+echo "📊 ETHERNET STATISTICS"
+echo "─────────────────────"
+{% if ethernet_interfaces %}
+{% for interface in ethernet_interfaces %}
+echo "{{ interface }} error statistics:"
+if command -v ethtool >/dev/null 2>&1; then
+    ethtool -S {{ interface }} 2>/dev/null | grep -E "error|drop|crc|collision|carrier" | sed 's/^/  /' || echo "  No error statistics available"
+else
+    echo "  ethtool not available"
+fi
+echo
+{% endfor %}
+{% endif %}
+
+echo
+echo "🔧 DRIVER CONFIGURATION"
+echo "──────────────────────"
+if [ -f /etc/modprobe.d/r8169-orangead.conf ]; then
+    echo "OrangeAd r8169 driver configuration:"
+    cat /etc/modprobe.d/r8169-orangead.conf | sed 's/^/  /'
+else
+    echo "No OrangeAd driver configuration found"
+fi
+
+echo
+echo "All modprobe configurations affecting r8169:"
+find /etc/modprobe.d/ -name "*.conf" -exec grep -l "r8169" {} \; 2>/dev/null | while read file; do
+    echo "  $file:"
+    grep "r8169" "$file" | sed 's/^/    /'
+done || echo "  No r8169 configurations found"
+
+echo
+echo "⚡ POWER MANAGEMENT"
+echo "─────────────────────"
+{% if ethernet_interfaces %}
+{% for interface in ethernet_interfaces %}
+echo "{{ interface }} power management:"
+if command -v ethtool >/dev/null 2>&1; then
+    ethtool {{ interface }} 2>/dev/null | grep -E "Wake-on|Power" | sed 's/^/  /' || echo "  No power management info available"
+fi
+{% endfor %}
+{% endif %}
+
+echo
+echo "Power management service status:"
+if systemctl is-active ethernet-pm-disable >/dev/null 2>&1; then
+    echo "  ethernet-pm-disable.service: ACTIVE"
+    systemctl status ethernet-pm-disable --no-pager -l | tail -n 5 | sed 's/^/    /'
+else
+    echo "  ethernet-pm-disable.service: INACTIVE or NOT INSTALLED"
+fi
+
+echo
+echo "🌍 CONNECTIVITY TEST"
+echo "───────────────────"
+echo "Internet connectivity:"
+if ping -c 3 -W 2 8.8.8.8 >/dev/null 2>&1; then
+    echo "  ✓ Internet: OK"
+else
+    echo "  ✗ Internet: FAILED"
+fi
+
+{% if ethernet_optimization.monitoring.monitor_tailscale %}
+echo "Tailscale connectivity:"
+if command -v tailscale >/dev/null 2>&1; then
+    if tailscale status >/dev/null 2>&1; then
+        echo "  ✓ Tailscale: CONNECTED"
+        tailscale status --self | head -n 1 | sed 's/^/    /'
+    else
+        echo "  ✗ Tailscale: DISCONNECTED"
+    fi
+else
+    echo "  - Tailscale: NOT INSTALLED"
+fi
+{% endif %}
+
+echo
+echo "📈 RECENT MONITORING DATA"
+echo "────────────────────────"
+MONITOR_LOG="{{ ethernet_optimization.monitoring.log_path }}/network.log"
+if [ -f "$MONITOR_LOG" ]; then
+    echo "Last 10 monitoring entries:"
+    tail -n 10 "$MONITOR_LOG" | sed 's/^/  /'
+else
+    echo "No monitoring log found at $MONITOR_LOG"
+fi
+
+echo
+echo "🔧 TROUBLESHOOTING COMMANDS"
+echo "──────────────────────────"
+echo "Quick fixes to try:"
+echo "  1. Reset auto-negotiation:"
+{% if ethernet_interfaces %}
+{% for interface in ethernet_interfaces %}
+echo "     sudo ethtool -s {{ interface }} autoneg on"
+{% endfor %}
+{% endif %}
+echo "  2. Disable Wake-on-LAN:"
+{% if ethernet_interfaces %}
+{% for interface in ethernet_interfaces %}
+echo "     sudo ethtool -s {{ interface }} wol d"
+{% endfor %}
+{% endif %}
+echo "  3. Restart networking:"
+echo "     sudo systemctl restart systemd-networkd"
+echo "  4. Reload network driver:"
+echo "     sudo modprobe -r r8169 && sudo modprobe r8169"
+
+echo
+echo "═══════════════════════════════════════════════════════════"
+echo "            End of Ethernet Diagnostics Report"
+echo "═══════════════════════════════════════════════════════════"

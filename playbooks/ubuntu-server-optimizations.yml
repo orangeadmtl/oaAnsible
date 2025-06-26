@@ -1,0 +1,113 @@
+---
+# Ubuntu Server Optimization Playbook
+# Applies performance and stability optimizations to existing Ubuntu servers
+# Including ethernet optimization for Realtek controllers
+
+- name: Apply Ubuntu Server Optimizations
+  hosts: "{{ target_host | default('ubuntu_servers') }}"
+  gather_facts: true
+  become: false
+  vars_files:
+    - ../group_vars/all/vault.yml
+
+  pre_tasks:
+    - name: Display optimization start banner
+      ansible.builtin.debug:
+        msg: |
+          ═══════════════════════════════════════════════════════════
+            Ubuntu Server Optimization Started
+          ═══════════════════════════════════════════════════════════
+          Target: {{ inventory_hostname }} ({{ ansible_host }})
+          User: {{ ansible_user }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+
+          This playbook will apply comprehensive server optimizations:
+          ✓ Kernel parameter tuning
+          ✓ System limits optimization
+          ✓ Service optimization
+          ✓ Network performance tuning
+          ✓ Ethernet stability (Realtek controllers)
+          ✓ Storage optimization
+          ✓ Security hardening
+
+          Existing configurations will be backed up automatically.
+          ═══════════════════════════════════════════════════════════
+
+    - name: Verify connection to target
+      ansible.builtin.ping:
+
+    - name: Gather comprehensive system information
+      ansible.builtin.setup:
+        gather_subset:
+          - "all"
+
+    - name: Verify Ubuntu distribution
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+        fail_msg: "This playbook is designed for Ubuntu systems only"
+        success_msg: "✓ Ubuntu {{ ansible_distribution_version }} detected and compatible"
+
+    - name: Display system information
+      ansible.builtin.debug:
+        msg: |
+          System Information:
+          - Hostname: {{ ansible_hostname }}
+          - Architecture: {{ ansible_architecture }}
+          - Kernel: {{ ansible_kernel }}
+          - Memory: {{ (ansible_memtotal_mb / 1024) | round(1) }}GB
+          - CPU cores: {{ ansible_processor_vcpus }}
+          - Primary IP: {{ ansible_default_ipv4.address }}
+
+  roles:
+    - role: ubuntu/server_optimization
+      tags: ["optimization", "performance", "network", "ethernet", "security"]
+      vars:
+        role_name: "Ubuntu Server Optimization Suite"
+
+  post_tasks:
+    - name: Check if any reboots are required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Gather ethernet interface information for summary
+      ansible.builtin.setup:
+        gather_subset:
+          - "network"
+
+    - name: Check for Realtek controllers for summary
+      ansible.builtin.shell: lspci | grep -i ethernet | grep -i realtek
+      register: realtek_summary
+      failed_when: false
+      changed_when: false
+
+    - name: Display completion banner
+      ansible.builtin.debug:
+        msg: |
+          ═══════════════════════════════════════════════════════════
+          🎉 Ubuntu Server Optimization Completed Successfully!
+          ═══════════════════════════════════════════════════════════
+
+          Server: {{ inventory_hostname }} ({{ ansible_host }})
+
+            Optimizations Applied:
+          ├─ Kernel Parameters: Network, memory, and file system tuning
+          ├─ System Limits: Increased file handles and process limits
+          ├─ Service Management: Disabled unnecessary services
+          ├─ Network Optimization: DNS and TCP performance tuning
+          ├─ Ethernet Stability: {{ 'Realtek controller optimized' if realtek_summary.rc == 0 else 'No Realtek controller detected' }}
+          ├─ Storage Optimization: SSD trim and cleanup automation
+          ├─ Security Hardening: Automatic updates and kernel hardening
+          └─ Performance Monitoring: Baseline collection and monitoring
+
+          {% if realtek_summary.rc == 0 %}
+          🌐 Ethernet Controller: {{ realtek_summary.stdout }}
+          📊 Monitoring: /home/{{ ansible_user }}/orangead/network-monitor/
+          🔧 Diagnostics: Run ethernet-diagnostics.sh for detailed info
+          {% endif %}
+
+          {{ 'WARNING:  REBOOT REQUIRED for kernel parameter changes' if reboot_required.stat.exists else '  No reboot required' }}
+
+            Server is now optimized for OrangeAd infrastructure!
+          ═══════════════════════════════════════════════════════════

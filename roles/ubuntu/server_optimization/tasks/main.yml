@@ -144,6 +144,12 @@
   when: network_optimization.enabled
   notify: restart systemd-resolved
 
+# Ethernet Optimization
+- name: Optimize ethernet interfaces for stability and performance
+  include_tasks: ethernet_optimization.yml
+  when: ethernet_optimization.enabled
+  tags: ["ethernet", "network", "optimization"]
+
 # Security Hardening
 - name: Configure unattended upgrades
   ansible.builtin.apt:

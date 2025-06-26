@@ -178,3 +178,51 @@ performance_monitoring:
 
   # Performance baseline collection
   collect_baseline: true
+
+# Ethernet optimization
+ethernet_optimization:
+  enabled: true
+  
+  # Hardware detection
+  detect_realtek: true
+  realtek_chip_patterns:
+    - "RTL8111"
+    - "RTL8168"
+    - "RTL8211"
+    - "RTL8411"
+  
+  # Driver configuration
+  driver_options:
+    r8169:
+      use_dac: 1
+      eee_enable: 0  # Disable Energy Efficient Ethernet
+      debug: 0
+  
+  # Power management
+  power_management:
+    disable_wol: true
+    disable_interface_pm: true
+    create_service: true
+  
+  # Speed optimization
+  speed_optimization:
+    enabled: true
+    force_autoneg: true
+    expected_speed: "1000Mb/s"
+    fallback_speed: "100Mb/s"
+    verify_after_config: true
+  
+  # Network monitoring
+  monitoring:
+    enabled: true
+    interval_minutes: 2
+    log_retention_days: 7
+    monitor_tailscale: true
+    monitor_internet: true
+    log_path: "/home/{{ ansible_user }}/orangead/network-monitor"
+  
+  # Troubleshooting
+  diagnostics:
+    create_scripts: true
+    include_ethtool_stats: true
+    include_driver_info: true

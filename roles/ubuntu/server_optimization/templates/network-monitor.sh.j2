@@ -1,0 +1,68 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# Network and Ethernet Connection Monitor for OrangeAd Infrastructure
+# Monitors ethernet stability, Tailscale connectivity, and internet access
+
+# Configuration
+LOGFILE="{{ ethernet_optimization.monitoring.log_path }}/network.log"
+RETENTION_DAYS={{ ethernet_optimization.monitoring.log_retention_days }}
+TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+
+# Get ethernet interface status
+{% if ethernet_interfaces %}
+{% for interface in ethernet_interfaces %}
+{{ interface | upper }}_STATUS=$(cat /sys/class/net/{{ interface }}/operstate 2>/dev/null || echo "unknown")
+{{ interface | upper }}_CARRIER=$(cat /sys/class/net/{{ interface }}/carrier 2>/dev/null || echo "0")
+{{ interface | upper }}_SPEED=$(ethtool {{ interface }} 2>/dev/null | grep Speed | awk '{print $2}' || echo "unknown")
+{% endfor %}
+{% endif %}
+
+# Check internet connectivity
+if ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then
+    INTERNET="OK"
+else
+    INTERNET="FAILED"
+fi
+
+{% if ethernet_optimization.monitoring.monitor_tailscale %}
+# Check Tailscale status
+if command -v tailscale >/dev/null 2>&1 && tailscale status >/dev/null 2>&1; then
+    TS_STATUS="CONNECTED"
+    TS_IP=$(tailscale status --self 2>/dev/null | grep -o '100\.[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1 || echo "unknown")
+else
+    TS_STATUS="DISCONNECTED"
+    TS_IP="N/A"
+fi
+{% endif %}
+
+# Collect ethernet statistics
+{% if ethernet_interfaces %}
+{% for interface in ethernet_interfaces %}
+{{ interface | upper }}_ERRORS=$(ethtool -S {{ interface }} 2>/dev/null | grep -E 'error|drop|crc' | wc -l || echo "0")
+{% endfor %}
+{% endif %}
+
+# Log comprehensive status
+echo "$TIMESTAMP - {% for interface in ethernet_interfaces %}{{ interface | upper }}: ${%raw%}{{ {{ interface | upper }}_STATUS }}{%endraw%}/${%raw%}{{ {{ interface | upper }}_CARRIER }}{%endraw%} (${%raw%}{{ {{ interface | upper }}_SPEED }}{%endraw%}, ${%raw%}{{ {{ interface | upper }}_ERRORS }}{%endraw%} errs) | {% endfor %}Internet: $INTERNET{% if ethernet_optimization.monitoring.monitor_tailscale %} | Tailscale: $TS_STATUS ($TS_IP){% endif %}" >> "$LOGFILE"
+
+# Rotate log file to prevent unlimited growth
+if [ -f "$LOGFILE" ]; then
+    # Keep only the last N days worth of logs (approximately)
+    LINES_TO_KEEP=$((RETENTION_DAYS * 24 * 60 / {{ ethernet_optimization.monitoring.interval_minutes }}))
+    tail -n "$LINES_TO_KEEP" "$LOGFILE" > "$LOGFILE.tmp" && mv "$LOGFILE.tmp" "$LOGFILE"
+fi
+
+# Alert on critical issues (optional - for future enhancement)
+{% if ethernet_interfaces %}
+{% for interface in ethernet_interfaces %}
+if [ "${%raw%}{{ {{ interface | upper }}_CARRIER }}{%endraw%}" = "0" ] && [ "${%raw%}{{ {{ interface | upper }}_STATUS }}{%endraw%}" = "up" ]; then
+    echo "$TIMESTAMP - WARNING: {{ interface }} shows up but no carrier detected" >> "$LOGFILE"
+fi
+{% endfor %}
+{% endif %}
+
+{% if ethernet_optimization.monitoring.monitor_tailscale %}
+if [ "$TS_STATUS" = "DISCONNECTED" ] && [ "$INTERNET" = "OK" ]; then
+    echo "$TIMESTAMP - WARNING: Internet OK but Tailscale disconnected" >> "$LOGFILE"
+fi
+{% endif %}

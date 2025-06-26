@@ -1,0 +1,193 @@
+# {{ ansible_managed }}
+# Ethernet Troubleshooting Guide for {{ inventory_hostname }}
+
+## Server Information
+- **Hostname**: {{ inventory_hostname }}
+- **IP Address**: {{ ansible_host | default('unknown') }}
+- **OS**: {{ ansible_distribution }} {{ ansible_distribution_version }}
+- **Applied**: {{ ansible_date_time.iso8601 }}
+
+## Hardware Detected
+{% if has_realtek %}
+- **Ethernet Controller**: {{ realtek_info }}
+- **Optimization Applied**: Yes
+{% else %}
+- **Ethernet Controller**: Non-Realtek or not detected
+- **Optimization Applied**: No
+{% endif %}
+
+## Applied Configurations
+
+### Driver Options
+{% if ethernet_optimization.driver_options.r8169 %}
+- **r8169 driver options**:
+{% for key, value in ethernet_optimization.driver_options.r8169.items() %}
+  - `{{ key }}={{ value }}`
+{% endfor %}
+{% endif %}
+
+### Power Management
+- **Wake-on-LAN**: {{ 'Disabled' if ethernet_optimization.power_management.disable_wol else 'Default' }}
+- **Interface PM**: {{ 'Optimized' if ethernet_optimization.power_management.disable_interface_pm else 'Default' }}
+
+### Monitoring
+- **Network Monitor**: {{ 'Enabled' if ethernet_optimization.monitoring.enabled else 'Disabled' }}
+- **Monitor Interval**: {{ ethernet_optimization.monitoring.interval_minutes }} minutes
+- **Log Location**: `{{ ethernet_optimization.monitoring.log_path }}/network.log`
+
+## Common Issues and Solutions
+
+### Issue: Ethernet Speed Downshift (100Mbps instead of 1000Mbps)
+
+**Symptoms:**
+- `ethtool` shows "100Mb/s" and "(downshifted)" in logs
+- Slower than expected network performance
+
+**Solutions (in order of likelihood):**
+1. **Replace ethernet cable** - Most common cause
+   ```bash
+   # Test with known good Cat6/Cat6a cable
+   ```
+
+2. **Try different switch/router port**
+   ```bash
+   # Move cable to different port on switch/router
+   ```
+
+3. **Reset auto-negotiation**
+   ```bash
+{% if ethernet_interfaces %}
+{% for interface in ethernet_interfaces %}
+   sudo ethtool -s {{ interface }} autoneg on
+{% endfor %}
+{% endif %}
+   ```
+
+4. **Check cable quality and connections**
+   - Ensure cable is Cat5e or better
+   - Check for bent pins or damaged connectors
+   - Test cable with cable tester if available
+
+### Issue: Random Disconnections
+
+**Symptoms:**
+- Tailscale shows "network unreachable" errors
+- Interface goes down intermittently
+- "LinkChange: all links down" in logs
+
+**Solutions:**
+1. **Power management already disabled** by this configuration
+
+2. **Check driver configuration**
+   ```bash
+   cat /etc/modprobe.d/r8169-orangead.conf
+   ```
+
+3. **Monitor interface status**
+   ```bash
+   tail -f {{ ethernet_optimization.monitoring.log_path }}/network.log
+   ```
+
+4. **Run diagnostics**
+   ```bash
+   {{ ethernet_optimization.monitoring.log_path }}/ethernet-diagnostics.sh
+   ```
+
+### Issue: No Internet After Configuration
+
+**Immediate Recovery:**
+1. **Restart networking**
+   ```bash
+   sudo systemctl restart systemd-networkd
+   ```
+
+2. **Reset to auto-negotiation**
+   ```bash
+{% if ethernet_interfaces %}
+{% for interface in ethernet_interfaces %}
+   sudo ethtool -s {{ interface }} autoneg on
+{% endfor %}
+{% endif %}
+   ```
+
+3. **Reload network driver**
+   ```bash
+   sudo modprobe -r r8169 && sudo modprobe r8169
+   ```
+
+## Diagnostic Commands
+
+### Check Current Status
+```bash
+# Interface status
+{% if ethernet_interfaces %}
+{% for interface in ethernet_interfaces %}
+cat /sys/class/net/{{ interface }}/operstate
+cat /sys/class/net/{{ interface }}/carrier
+ethtool {{ interface }}
+{% endfor %}
+{% endif %}
+
+# Driver information
+{% if ethernet_interfaces %}
+{% for interface in ethernet_interfaces %}
+ethtool -i {{ interface }}
+{% endfor %}
+{% endif %}
+
+# Error statistics
+{% if ethernet_interfaces %}
+{% for interface in ethernet_interfaces %}
+ethtool -S {{ interface }} | grep -E 'error|drop|crc'
+{% endfor %}
+{% endif %}
+```
+
+### Monitor Real-time
+```bash
+# Watch network log
+tail -f {{ ethernet_optimization.monitoring.log_path }}/network.log
+
+# Watch interface status
+{% if ethernet_interfaces %}
+watch -n 1 'cat /sys/class/net/{{ ethernet_interfaces[0] }}/operstate /sys/class/net/{{ ethernet_interfaces[0] }}/carrier'
+{% endif %}
+```
+
+## Hardware Solutions
+
+### USB Ethernet Adapter (Backup)
+If onboard Realtek continues to have issues:
+- **Recommended**: TP-Link UE300 USB 3.0 to Gigabit Ethernet
+- **Cost**: ~$15-25
+- **Benefit**: Bypasses problematic onboard controller
+
+### Network Infrastructure
+- **Cable**: Use Cat6 or Cat6a cables
+- **Switch**: Ensure switch supports Gigabit on all ports
+- **Router**: Check if router ethernet ports support Gigabit
+
+## Files Created by This Configuration
+
+{% if ethernet_optimization.power_management.create_service %}
+- `/etc/systemd/system/ethernet-pm-disable.service` - Power management service
+{% endif %}
+- `/etc/modprobe.d/r8169-orangead.conf` - Driver configuration
+{% if ethernet_optimization.monitoring.enabled %}
+- `{{ ethernet_optimization.monitoring.log_path }}/monitor.sh` - Monitoring script
+- `{{ ethernet_optimization.monitoring.log_path }}/network.log` - Connection log
+{% endif %}
+{% if ethernet_optimization.diagnostics.create_scripts %}
+- `{{ ethernet_optimization.monitoring.log_path }}/ethernet-diagnostics.sh` - Diagnostic script
+{% endif %}
+- `{{ ethernet_optimization.monitoring.log_path }}/troubleshooting-guide.md` - This file
+
+## Next Steps
+
+1. **Monitor for 24-48 hours** to verify stability
+2. **Check logs** for any remaining issues
+3. **Test different cables** if speed issues persist
+4. **Contact support** if problems continue after hardware changes
+
+---
+*Generated by oaAnsible ubuntu/server_optimization role*

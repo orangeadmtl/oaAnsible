@@ -1,0 +1,17 @@
+# {{ ansible_managed }}
+# Realtek r8169 driver optimization for OrangeAd infrastructure
+# Applied to: {{ inventory_hostname }} ({{ ansible_host | default('unknown') }})
+# Hardware: {{ realtek_info | default('Realtek ethernet controller') }}
+
+{% if ethernet_optimization.driver_options.r8169 %}
+# Driver options for stability and performance
+options r8169 {% for key, value in ethernet_optimization.driver_options.r8169.items() %}{{ key }}={{ value }} {% endfor %}
+
+{% endif %}
+# Configuration details:
+# use_dac=1     - Use 64-bit DMA addressing for better performance
+# eee_enable=0  - Disable Energy Efficient Ethernet to prevent link drops
+# debug=0       - Disable verbose debugging (default: 0)
+
+# Applied on: {{ ansible_date_time.iso8601 }}
+# By: oaAnsible ubuntu/server_optimization role

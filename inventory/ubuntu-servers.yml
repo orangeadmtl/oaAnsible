@@ -1,0 +1,63 @@
+---
+# Ubuntu Servers Inventory
+# Dedicated inventory for Ubuntu server infrastructure management
+
+all:
+  vars:
+    # Environment identification
+    target_env: "ubuntu-servers"
+    environment: "infrastructure" 
+    project_name: "orangead-infrastructure"
+    
+    # Ansible configuration
+    ansible_python_interpreter: "/usr/bin/python3"
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+    
+    # Tailscale configuration
+    tailscale_auth_key: "{{ vault_tailscale_auth_key }}"
+    tailscale_enable_ssh: true
+    tailscale_advertise_routes:
+      - "192.168.1.0/24"
+    tailscale_tags:
+      - "tag:oa-ubuntu"
+      - "tag:oa-server"
+    
+    # Platform configuration
+    platform_type: "ubuntu"
+    deployment_mode: "server"
+    
+    # Component configuration
+    configure:
+      base: true
+      security: true
+      shell: true
+      optimization: true  # Includes ethernet optimization
+      network: true
+      tailscale: true
+      docker: false  # Not needed for basic servers
+      monitoring: true
+
+  children:
+    ubuntu_servers:
+      hosts:
+        kampus-rig:
+          ansible_host: "192.168.1.247"  # Local IP when on same network
+          ansible_user: "kai"
+          ansible_port: 22
+          
+          # Host-specific configuration
+          host_description: "Development and testing Ubuntu server"
+          host_location: "Local Network"
+          host_purpose: "ethernet-optimization-testing"
+          
+          # Tailscale hostname
+          tailscale_hostname: "kampus-rig"
+          
+          # Optimization settings
+          ethernet_optimization_priority: "high"  # This host specifically needs ethernet fixes
+          
+          # Hardware info (for reference)
+          hardware_info:
+            ethernet_controller: "Realtek RTL8111/8168"
+            known_issues: "Random disconnections, speed downshift to 100Mbps"
+            target_speed: "1000Mbps"
