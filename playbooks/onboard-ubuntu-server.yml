@@ -78,6 +78,11 @@
       vars:
         role_name: "NVIDIA Driver Configuration"
 
+    - role: ubuntu/server_optimization
+      tags: ["optimization", "performance", "ethernet"]
+      vars:
+        role_name: "Server Optimization (including Ethernet)"
+
     - role: ubuntu/network/tailscale
       tags: ["network", "tailscale"]
       vars:
@@ -102,6 +107,7 @@
           ├─ Base System: Essential packages and user setup
           ├─ Security: Passwordless sudo, SSH hardening, firewall
           ├─ Shell: Zsh with Oh My Zsh (bash-compatible)
+          ├─ Optimization: Performance tuning and ethernet stability
           ├─ NVIDIA: {{ 'Drivers configured' if ansible_lspci is search('NVIDIA') else 'No GPU detected' }}
           └─ Tailscale: VPN with subnet routing (192.168.1.0/24)
 
