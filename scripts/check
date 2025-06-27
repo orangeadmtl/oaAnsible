@@ -16,36 +16,48 @@ ensure_ansible_root_dir
 show_usage() {
     echo "Usage: $0 [inventory] [options]"
     echo ""
-    echo "Pre-deployment validation for OrangeAd Spectra project"
+    echo "Deployment validation for OrangeAd Spectra project"
     echo ""
     echo "Arguments:"
     echo "  inventory      - Target inventory to validate (required)"
     echo ""
     echo "Options:"
+    echo "  -l HOSTS       - Limit to specific hosts (comma-separated)"
+    echo "  -m, --mode MODE - Validation mode: pre, post, auto (default: auto)"
     echo "  --check-all    - Run all validation checks (default)"
     echo "  --check-network - Network connectivity and Tailscale"
     echo "  --check-ports  - Port availability on target hosts"
     echo "  --check-deps   - System dependencies and versions"
     echo "  --check-space  - Disk space requirements"
     echo "  --check-perms  - Required permissions and sudo access"
+    echo "  --check-health - Service health checks (post-deployment only)"
     echo "  --fix-issues   - Attempt to fix detected issues automatically"
     echo "  -v, --verbose  - Detailed validation output"
     echo "  -h, --help     - Show this help"
     echo ""
+    echo "Deployment Modes:"
+    echo "  pre   - Pre-deployment: Check prerequisites (ports should be free)"
+    echo "  post  - Post-deployment: Validate services (ports should be in use)"
+    echo "  auto  - Auto-detect: Determine mode based on service presence"
+    echo ""
     echo "Examples:"
-    echo "  $0 spectra-preprod                    # Full validation"
-    echo "  $0 spectra-prod --check-network       # Network check only"
-    echo "  $0 spectra-staging --fix-issues       # Validate and fix"
+    echo "  $0 spectra-preprod --mode pre              # Pre-deployment check"
+    echo "  $0 spectra-prod -m post                    # Post-deployment validation"
+    echo "  $0 spectra-prod                            # Auto-detect mode"
+    echo "  $0 spectra-prod -l spectra-ca-001          # Check only one host"
 }
 
 # Validation configuration
 INVENTORY_NAME=""
+LIMIT_HOSTS=""
+DEPLOYMENT_MODE="auto"
 CHECK_ALL=true
 CHECK_NETWORK=false
 CHECK_PORTS=false
 CHECK_DEPS=false
 CHECK_SPACE=false
 CHECK_PERMS=false
+CHECK_HEALTH=false
 FIX_ISSUES=false
 VERBOSE=false
 
@@ -69,6 +81,34 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             show_usage
             exit 0
+            ;;
+        -l)
+            shift
+            if [[ $# -gt 0 ]]; then
+                LIMIT_HOSTS="$1"
+                shift
+            else
+                log_error "Option -l requires a value"
+                exit 1
+            fi
+            ;;
+        -m|--mode)
+            shift
+            if [[ $# -gt 0 ]]; then
+                case "$1" in
+                    pre|post|auto)
+                        DEPLOYMENT_MODE="$1"
+                        shift
+                        ;;
+                    *)
+                        log_error "Invalid deployment mode: $1. Valid options: pre, post, auto"
+                        exit 1
+                        ;;
+                esac
+            else
+                log_error "Option -m/--mode requires a value"
+                exit 1
+            fi
             ;;
         --check-all)
             CHECK_ALL=true
@@ -96,6 +136,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --check-perms)
             CHECK_PERMS=true
+            CHECK_ALL=false
+            shift
+            ;;
+        --check-health)
+            CHECK_HEALTH=true
             CHECK_ALL=false
             shift
             ;;
@@ -147,6 +192,10 @@ if [ "$CHECK_ALL" = true ]; then
     CHECK_DEPS=true
     CHECK_SPACE=true
     CHECK_PERMS=true
+    # Only include health checks for post-deployment mode
+    if [ "$DEPLOYMENT_MODE" = "post" ]; then
+        CHECK_HEALTH=true
+    fi
 fi
 
 # Validation tracking
@@ -160,6 +209,160 @@ increment_error() {
 
 increment_warning() {
     ((VALIDATION_WARNINGS++))
+}
+
+# Get list of hosts from inventory, optionally filtered by LIMIT_HOSTS
+get_target_hosts() {
+    # Get all hosts from inventory (try different group names)
+    local all_hosts
+    all_hosts=$(ansible-inventory -i "$INVENTORY_PATH" --list | jq -r '(.macos.hosts // .["spectra-devices"].hosts // empty)[]?' 2>/dev/null || echo "")
+    
+    if [ -z "$all_hosts" ]; then
+        return 1
+    fi
+    
+    # If LIMIT_HOSTS is set, filter the hosts
+    if [ -n "$LIMIT_HOSTS" ]; then
+        local filtered_hosts=""
+        # Convert comma-separated list to space-separated for iteration
+        local limit_list
+        limit_list=$(echo "$LIMIT_HOSTS" | tr ',' ' ')
+        
+        for limit_host in $limit_list; do
+            for host in $all_hosts; do
+                if [ "$host" = "$limit_host" ]; then
+                    filtered_hosts="$filtered_hosts $host"
+                    break
+                fi
+            done
+        done
+        
+        if [ -z "$filtered_hosts" ]; then
+            log_error "None of the specified hosts ($LIMIT_HOSTS) found in inventory"
+            log_error "Available hosts: $(echo $all_hosts | tr '\n' ' ')"
+            return 1
+        fi
+        
+        echo "$filtered_hosts"
+    else
+        echo "$all_hosts"
+    fi
+}
+
+# Detect if services are deployed on a host (for auto mode)
+detect_deployment_status() {
+    local host="$1"
+    local services_found=0
+    
+    # Check for macos-api service via launchctl
+    local macos_api_status
+    macos_api_status=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "launchctl list | grep com.orangead.macosapi || echo 'not_found'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+    
+    if [[ "$macos_api_status" != "not_found" ]]; then
+        ((services_found++))
+    fi
+    
+    # Check for tracker service via launchctl
+    local tracker_status
+    tracker_status=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "launchctl list | grep com.orangead.tracker || echo 'not_found'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+    
+    if [[ "$tracker_status" != "not_found" ]]; then
+        ((services_found++))
+    fi
+    
+    # Check for running processes as a fallback
+    local process_check
+    process_check=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "pgrep -f 'macos-api|tracker' | wc -l" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//' | tr -d '[:space:]')
+    
+    if [[ "$process_check" =~ ^[0-9]+$ ]] && [[ "$process_check" -gt 0 ]]; then
+        ((services_found++))
+    fi
+    
+    # Return deployment status
+    if [ $services_found -gt 0 ]; then
+        echo "deployed"
+    else
+        echo "not_deployed"
+    fi
+}
+
+# Get expected service name for a port
+get_expected_service_name() {
+    local service="$1"
+    case "$service" in
+        "macos-api") echo "python.*macos" ;;
+        "tracker") echo "python.*tracker" ;;
+        "player") echo "player|node" ;;
+        "alpr") echo "alpr|python.*alpr" ;;
+        *) echo "$service" ;;
+    esac
+}
+
+# Check if the correct service is using a port
+check_service_on_port() {
+    local host="$1"
+    local port="$2" 
+    local expected_service="$3"
+    
+    # Get lsof output for the port
+    local port_info
+    port_info=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "lsof -i :$port 2>/dev/null || echo 'available'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+    
+    if [[ "$port_info" == "available" ]]; then
+        echo "available"
+        return 0
+    fi
+    
+    # Convert literal \n to actual newlines and extract data from the second line
+    local process_name
+    local pid
+    local data_line
+    data_line=$(echo "$port_info" | tr '\\n' '\n' | tail -1)
+    
+    # Extract process name and PID from the data line
+    process_name=$(echo "$data_line" | awk '{print $1}')
+    pid=$(echo "$data_line" | awk '{print $2}')
+    
+    # If process name is empty, something went wrong with parsing
+    if [[ -z "$process_name" ]]; then
+        echo "parsing_error:$port_info"
+        return 0
+    fi
+    
+    # If we have a PID and the process is python, get the full command line
+    if [[ "$process_name" =~ ^python ]] && [[ -n "$pid" ]]; then
+        local full_command
+        full_command=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "ps -p $pid -o command= 2>/dev/null || echo 'unknown'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+        
+        # Check if the command line contains the expected service
+        case "$expected_service" in
+            "macos-api")
+                if echo "$full_command" | grep -q "macos-api\|uvicorn.*main:app"; then
+                    echo "correct_service:$process_name (macos-api)"
+                    return 0
+                fi
+                ;;
+            "tracker")
+                if echo "$full_command" | grep -q "tracker"; then
+                    echo "correct_service:$process_name (tracker)"
+                    return 0
+                fi
+                ;;
+        esac
+        
+        # If we couldn't match by command line, fall back to process name
+        echo "wrong_service:$process_name (unknown python process)"
+    else
+        # For non-python processes, use the original logic
+        local expected_pattern
+        expected_pattern=$(get_expected_service_name "$expected_service")
+        
+        if echo "$process_name" | grep -qE "$expected_pattern"; then
+            echo "correct_service:$process_name"
+        else
+            echo "wrong_service:$process_name"
+        fi
+    fi
 }
 
 # Load SSH key from vault for authentication
@@ -176,14 +379,14 @@ load_ssh_key_for_validation() {
 validate_network() {
     log_info "🌐 Validating network connectivity..."
     
-    # Get target hosts from inventory (try different group names)
+    # Get target hosts from inventory
     local hosts
-    hosts=$(ansible-inventory -i "$INVENTORY_PATH" --list | jq -r '(.macos.hosts // .["spectra-devices"].hosts // empty)[]?' 2>/dev/null || echo "")
+    hosts=$(get_target_hosts)
     
-    if [ -z "$hosts" ]; then
+    if [ $? -ne 0 ] || [ -z "$hosts" ]; then
         log_error "No hosts found in inventory"
         increment_error
-        return 1
+        return 0
     fi
     
     for host in $hosts; do
@@ -217,29 +420,53 @@ validate_network() {
 }
 
 validate_ports() {
-    log_info "🔌 Validating port availability..."
+    if [ "$DEPLOYMENT_MODE" = "pre" ]; then
+        log_info "🔌 Validating port availability (pre-deployment: ports should be free)..."
+    else
+        log_info "🔌 Validating service ports (post-deployment: correct services should be running)..."
+    fi
     
     local hosts
-    hosts=$(ansible-inventory -i "$INVENTORY_PATH" --list | jq -r '(.macos.hosts // .["spectra-devices"].hosts // empty)[]?' 2>/dev/null || echo "")
+    hosts=$(get_target_hosts)
     
     for host in $hosts; do
-        log_info "  🔍 Checking port availability on $host..."
+        log_info "  🔍 Checking ports on $host..."
         
         for service in macos-api tracker player alpr; do
             local port="$(get_service_port "$service")"
             log_info "    🔌 Testing port $port ($service)..."
-            local port_check
-            port_check=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "lsof -i :$port || echo 'available'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
             
-            if [[ "$port_check" == "available" ]] || [[ "$port_check" == *"lsof: command not found"* ]]; then
-                log_info "      ✅ Port $port available"
-            elif [[ -n "$port_check" ]]; then
-                log_warn "      ⚠️  Port $port may be in use (found: $port_check)"
-                increment_warning
-            else
-                log_warn "      ⚠️  Could not check port $port"
-                increment_warning
-            fi
+            local service_status
+            service_status=$(check_service_on_port "$host" "$port" "$service")
+            
+            case "$service_status" in
+                "available")
+                    if [ "$DEPLOYMENT_MODE" = "pre" ]; then
+                        log_info "      ✅ Port $port available (ready for deployment)"
+                    else
+                        log_warn "      ⚠️  Port $port available (expected $service to be running)"
+                        increment_warning
+                    fi
+                    ;;
+                "correct_service:"*)
+                    local process_name="${service_status#correct_service:}"
+                    if [ "$DEPLOYMENT_MODE" = "pre" ]; then
+                        log_warn "      ⚠️  Port $port in use by $process_name (may conflict with deployment)"
+                        increment_warning
+                    else
+                        log_info "      ✅ Port $port correctly used by $service ($process_name)"
+                    fi
+                    ;;
+                "wrong_service:"*)
+                    local process_name="${service_status#wrong_service:}"
+                    log_error "      ❌ Port $port used by unexpected service: $process_name (expected $service)"
+                    increment_error
+                    ;;
+                *)
+                    log_warn "      ⚠️  Could not determine port $port status"
+                    increment_warning
+                    ;;
+            esac
         done
     done
 }
@@ -248,7 +475,7 @@ validate_dependencies() {
     log_info "📦 Validating system dependencies..."
     
     local hosts
-    hosts=$(ansible-inventory -i "$INVENTORY_PATH" --list | jq -r '(.macos.hosts // .["spectra-devices"].hosts // empty)[]?' 2>/dev/null || echo "")
+    hosts=$(get_target_hosts)
     
     for host in $hosts; do
         if [ "$VERBOSE" = true ]; then
@@ -263,7 +490,7 @@ validate_dependencies() {
         if [[ "$os_check" != "Darwin" ]]; then
             log_error "    ❌ Host $host is not macOS (detected: $os_check)"
             increment_error
-            continue
+            # Continue checking other aspects even if not macOS
         else
             log_info "    ✅ Operating system: macOS ($os_check)"
         fi
@@ -298,7 +525,7 @@ validate_disk_space() {
     log_info "💾 Validating disk space..."
     
     local hosts
-    hosts=$(ansible-inventory -i "$INVENTORY_PATH" --list | jq -r '(.macos.hosts // .["spectra-devices"].hosts // empty)[]?' 2>/dev/null || echo "")
+    hosts=$(get_target_hosts)
     
     for host in $hosts; do
         log_info "  🔍 Checking disk space on $host..."
@@ -326,7 +553,7 @@ validate_permissions() {
     log_info "🔐 Validating permissions..."
     
     local hosts
-    hosts=$(ansible-inventory -i "$INVENTORY_PATH" --list | jq -r '(.macos.hosts // .["spectra-devices"].hosts // empty)[]?' 2>/dev/null || echo "")
+    hosts=$(get_target_hosts)
     
     for host in $hosts; do
         log_info "  🔍 Checking permissions on $host..."
@@ -357,11 +584,120 @@ validate_permissions() {
     done
 }
 
+validate_health() {
+    log_info "🏥 Validating service health (post-deployment checks)..."
+    
+    local hosts
+    hosts=$(get_target_hosts)
+    
+    for host in $hosts; do
+        log_info "  🔍 Checking service health on $host..."
+        
+        # Check macos-api service status
+        log_info "    🔍 Checking macos-api service..."
+        local macos_api_status
+        macos_api_status=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "launchctl list | grep com.orangead.macosapi || echo 'not_found'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+        
+        if [[ "$macos_api_status" == "not_found" ]]; then
+            log_warn "      ⚠️  macos-api service not found in launchctl"
+            increment_warning
+        else
+            log_info "      ✅ macos-api service found: $macos_api_status"
+            
+            # Test API endpoint if service is running
+            log_info "    🌐 Testing macos-api endpoint..."
+            local api_test
+            api_test=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "curl -s -o /dev/null -w '%{http_code}' http://localhost:9090/health || echo 'failed'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+            
+            if [[ "$api_test" == "200" ]]; then
+                log_info "      ✅ macos-api endpoint responding (HTTP $api_test)"
+            else
+                log_warn "      ⚠️  macos-api endpoint not responding (got: $api_test)"
+                increment_warning
+            fi
+        fi
+        
+        # Check tracker service status
+        log_info "    🔍 Checking tracker service..."
+        local tracker_status
+        tracker_status=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "launchctl list | grep com.orangead.tracker || echo 'not_found'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+        
+        if [[ "$tracker_status" == "not_found" ]]; then
+            log_warn "      ⚠️  tracker service not found in launchctl"
+            increment_warning
+        else
+            log_info "      ✅ tracker service found: $tracker_status"
+            
+            # Test tracker API endpoint if service is running
+            log_info "    🌐 Testing tracker endpoint..."
+            local tracker_test
+            tracker_test=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/stats || echo 'failed'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+            
+            if [[ "$tracker_test" == "200" ]]; then
+                log_info "      ✅ tracker endpoint responding (HTTP $tracker_test)"
+            else
+                log_warn "      ⚠️  tracker endpoint not responding (got: $tracker_test)"
+                increment_warning
+            fi
+        fi
+    done
+}
+
 # Main validation execution
 log_info "🔍 Starting deployment validation for: $INVENTORY_NAME"
 
+# Validate target hosts and show what will be checked
+TARGET_HOSTS=$(get_target_hosts)
+if [ $? -ne 0 ] || [ -z "$TARGET_HOSTS" ]; then
+    log_error "No valid target hosts found - cannot continue"
+    exit 1
+fi
+
+if [ -n "$LIMIT_HOSTS" ]; then
+    log_info "📋 Limiting validation to hosts: $LIMIT_HOSTS"
+fi
+log_info "🎯 Target hosts: $(echo $TARGET_HOSTS | tr ' ' ',')"
+
 # Load SSH key for all validations
 load_ssh_key_for_validation
+
+# Auto-detect deployment mode if set to auto
+if [ "$DEPLOYMENT_MODE" = "auto" ]; then
+    log_info "🔍 Auto-detecting deployment mode..."
+    
+    deployed_hosts=0
+    total_hosts=0
+    
+    for host in $TARGET_HOSTS; do
+        ((total_hosts++))
+        status=$(detect_deployment_status "$host")
+        if [ "$status" = "deployed" ]; then
+            ((deployed_hosts++))
+            if [ "$VERBOSE" = true ]; then
+                log_info "  📦 $host: Services detected (deployed)"
+            fi
+        else
+            if [ "$VERBOSE" = true ]; then
+                log_info "  📋 $host: No services detected (not deployed)"
+            fi
+        fi
+    done
+    
+    # Determine mode based on majority
+    if [ $deployed_hosts -gt 0 ]; then
+        DEPLOYMENT_MODE="post"
+        log_info "🎯 Auto-detected mode: post-deployment ($deployed_hosts/$total_hosts hosts have services)"
+        # Enable health checks for post-deployment
+        if [ "$CHECK_ALL" = true ]; then
+            CHECK_HEALTH=true
+        fi
+    else
+        DEPLOYMENT_MODE="pre"
+        log_info "🎯 Auto-detected mode: pre-deployment (no services detected)"
+    fi
+else
+    log_info "🎯 Deployment mode: $DEPLOYMENT_MODE"
+fi
 
 if [ "$CHECK_NETWORK" = true ]; then
     validate_network
@@ -383,26 +719,51 @@ if [ "$CHECK_PERMS" = true ]; then
     validate_permissions
 fi
 
+if [ "$CHECK_HEALTH" = true ]; then
+    validate_health
+fi
+
 # Summary
 echo ""
 log_info "📋 Validation Summary:"
 echo "  ✅ Inventory: $INVENTORY_NAME"
+echo "  🎯 Mode: $DEPLOYMENT_MODE"
 echo "  🔍 Errors: $VALIDATION_ERRORS"
 echo "  ⚠️  Warnings: $VALIDATION_WARNINGS"
 
-if [ $VALIDATION_ERRORS -gt 0 ]; then
-    echo ""
-    log_error "❌ Validation failed with $VALIDATION_ERRORS critical issues"
-    log_error "Please resolve these issues before deployment"
-    exit 1
-elif [ $VALIDATION_WARNINGS -gt 0 ]; then
-    echo ""
-    log_warn "⚠️  Validation completed with $VALIDATION_WARNINGS warnings"
-    log_warn "Consider reviewing these issues before deployment"
-    exit 0
+# Provide mode-specific recommendations
+echo ""
+if [ "$DEPLOYMENT_MODE" = "pre" ]; then
+    if [ $VALIDATION_ERRORS -gt 0 ]; then
+        log_error "❌ Pre-deployment validation found $VALIDATION_ERRORS critical issues"
+        log_error "Please resolve these issues before deployment"
+    elif [ $VALIDATION_WARNINGS -gt 0 ]; then
+        log_warn "⚠️  Pre-deployment validation completed with $VALIDATION_WARNINGS warnings"
+        log_warn "Consider reviewing these issues before deployment"
+    else
+        log_info "✅ All pre-deployment checks passed - ready for deployment!"
+        log_info "You can now run: ./scripts/run $INVENTORY_NAME"
+    fi
+elif [ "$DEPLOYMENT_MODE" = "post" ]; then
+    if [ $VALIDATION_ERRORS -gt 0 ]; then
+        log_error "❌ Post-deployment validation found $VALIDATION_ERRORS critical issues"
+        log_error "Services may not be functioning correctly"
+    elif [ $VALIDATION_WARNINGS -gt 0 ]; then
+        log_warn "⚠️  Post-deployment validation completed with $VALIDATION_WARNINGS warnings"
+        log_warn "Some services may need attention"
+    else
+        log_info "✅ All post-deployment checks passed - services are healthy!"
+    fi
 else
-    echo ""
-    log_info "✅ All validation checks passed - ready for deployment!"
-    log_info "You can now run: ./scripts/run $INVENTORY_NAME"
-    exit 0
+    # Auto mode
+    if [ $VALIDATION_ERRORS -gt 0 ]; then
+        log_error "❌ Validation found $VALIDATION_ERRORS critical issues"
+    elif [ $VALIDATION_WARNINGS -gt 0 ]; then
+        log_warn "⚠️  Validation completed with $VALIDATION_WARNINGS warnings"
+    else
+        log_info "✅ All validation checks passed!"
+    fi
 fi
+
+# Always exit 0 - script is informative, not blocking
+exit 0

@@ -182,6 +182,7 @@
           Do you want to continue? (yes/no)
         echo: true
       register: deployment_confirmation
+      run_once: true
 
     - name: Validate confirmation
       ansible.builtin.fail:
@@ -189,6 +190,7 @@
           ERROR: Deployment cancelled by user.
           To skip confirmation, use --extra-vars "execution_mode=force"
       when: deployment_confirmation.user_input | lower != 'yes'
+      run_once: true
 
 - name: Create configuration backup
   when:
