@@ -80,6 +80,11 @@ alias ll='ls -alhF'
 alias lsa='ls -lah'
 alias lt='lsd --tree'
 
+# Source profile for PATH and environment variables
+if [ -f "$HOME/.zprofile" ]; then
+    source "$HOME/.zprofile"
+fi
+
 # Preserve existing PATH configuration
 EOL
 
@@ -91,8 +96,14 @@ fi
 
 # Merge existing PATH and environment settings with new enhanced config
 if [ -f "$HOME/.zshrc" ]; then
-  echo "Merging existing PATH and environment settings..."
+  echo "Merging existing PATH and environment settings from .zshrc..."
   grep -E "export PATH=|eval \"\$\(.*shellenv\)|PYENV_ROOT|NVM_DIR" "$HOME/.zshrc" >> "$HOME/.zshrc.enhanced"
+fi
+
+# Also check .zprofile for PATH settings (which is where the base role puts them)
+if [ -f "$HOME/.zprofile" ]; then
+  echo "Merging existing PATH and environment settings from .zprofile..."
+  grep -E "export PATH=|eval \"\$\(.*shellenv\)|PYENV_ROOT|NVM_DIR" "$HOME/.zprofile" >> "$HOME/.zshrc.enhanced"
 fi
 
 # Move enhanced config to .zshrc
