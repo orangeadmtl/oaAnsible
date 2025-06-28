@@ -9,79 +9,79 @@
 
     # Ensure required system packages are installed
     - name: Ensure util-linux is installed
-  community.general.homebrew:
-    name: util-linux
-    state: present
-  register: util_linux_install
-  become: true
-  become_user: "{{ ansible_user }}"
+      community.general.homebrew:
+        name: util-linux
+        state: present
+      register: util_linux_install
+      become: true
+      become_user: "{{ ansible_user }}"
 
-- name: Debug util-linux installation
-  ansible.builtin.debug:
-    msg: "util-linux installation result: {{ util_linux_install }}"
+    - name: Debug util-linux installation
+      ansible.builtin.debug:
+        msg: "util-linux installation result: {{ util_linux_install }}"
 
-# Ensure util-linux binaries are in PATH
-- name: Add util-linux to shell profiles
-  ansible.builtin.blockinfile:
-    path: "{{ item }}"
-    create: true
-    mode: "0644"
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - util-linux"
-    block: |
-      # Add util-linux to PATH
-      export PATH="/opt/homebrew/opt/util-linux/bin:$PATH"
-      export PATH="/opt/homebrew/opt/util-linux/sbin:$PATH"
-      # For compilers
-      export LDFLAGS="-L/opt/homebrew/opt/util-linux/lib"
-      export CPPFLAGS="-I/opt/homebrew/opt/util-linux/include"
-      export PKG_CONFIG_PATH="/opt/homebrew/opt/util-linux/lib/pkgconfig"
-  changed_when: false
-  loop:
-    - "{{ ansible_user_dir }}/.zshrc"
-    - "{{ ansible_user_dir }}/.bashrc"
-    - "{{ ansible_user_dir }}/.bash_profile"
-  become: true
-  become_user: "{{ ansible_user }}"
-  register: shell_profile_result
-  failed_when: false
+    # Ensure util-linux binaries are in PATH
+    - name: Add util-linux to shell profiles
+      ansible.builtin.blockinfile:
+        path: "{{ item }}"
+        create: true
+        mode: "0644"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - util-linux"
+        block: |
+          # Add util-linux to PATH
+          export PATH="/opt/homebrew/opt/util-linux/bin:$PATH"
+          export PATH="/opt/homebrew/opt/util-linux/sbin:$PATH"
+          # For compilers
+          export LDFLAGS="-L/opt/homebrew/opt/util-linux/lib"
+          export CPPFLAGS="-I/opt/homebrew/opt/util-linux/include"
+          export PKG_CONFIG_PATH="/opt/homebrew/opt/util-linux/lib/pkgconfig"
+      changed_when: false
+      loop:
+        - "{{ ansible_user_dir }}/.zshrc"
+        - "{{ ansible_user_dir }}/.bashrc"
+        - "{{ ansible_user_dir }}/.bash_profile"
+      become: true
+      become_user: "{{ ansible_user }}"
+      register: shell_profile_result
+      failed_when: false
 
-# Create directory structure in ansible_user's home directory
-- name: Ensure tracker directory exists
-  ansible.builtin.file:
-    path: "{{ ansible_user_dir }}/orangead/tracker"
-    state: directory
-    owner: "{{ ansible_user }}"
-    group: staff
-    mode: "0755"
-  become: true
-  tags: ["tracker", "setup"]
+    # Create directory structure in ansible_user's home directory
+    - name: Ensure tracker directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: staff
+        mode: "0755"
+      become: true
+      tags: ["tracker", "setup"]
 
-- name: Ensure tracker data directory exists
-  ansible.builtin.file:
-    path: "{{ ansible_user_dir }}/orangead/tracker/data"
-    state: directory
-    owner: "{{ ansible_user }}"
-    group: staff
-    mode: "0755"
-  become: true
+    - name: Ensure tracker data directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker/data"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: staff
+        mode: "0755"
+      become: true
 
-- name: Ensure tracker logs directory exists
-  ansible.builtin.file:
-    path: "{{ ansible_user_dir }}/orangead/tracker/logs"
-    state: directory
-    owner: "{{ ansible_user }}"
-    group: staff
-    mode: "0755"
-  become: true
+    - name: Ensure tracker logs directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker/logs"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: staff
+        mode: "0755"
+      become: true
 
-- name: Ensure models directory exists
-  ansible.builtin.file:
-    path: "{{ ansible_user_dir }}/orangead/tracker/models"
-    state: directory
-    owner: "{{ ansible_user }}"
-    group: staff
-    mode: "0755"
-  become: true
+    - name: Ensure models directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/orangead/tracker/models"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: staff
+        mode: "0755"
+      become: true
 
 # Check if tracker directory exists and is not empty
 - name: Check if tracker directory exists
