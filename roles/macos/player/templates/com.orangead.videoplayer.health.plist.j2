@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{ player.service_name }}.health</string>
+    
+    <key>Program</key>
+    <string>{{ player.video_source }}/scripts/health_check.sh</string>
+    
+    <key>WorkingDirectory</key>
+    <string>{{ player.video_source }}</string>
+    
+    <key>StandardOutPath</key>
+    <string>{{ player.video_source }}/logs/health_check.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>{{ player.video_source }}/logs/health_check.log</string>
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>StartInterval</key>
+    <integer>{{ player.health_check_interval | default(60) }}</integer>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>{{ ansible_user_dir }}</string>
+        <key>USER</key>
+        <string>{{ ansible_user }}</string>
+    </dict>
+    
+    <!-- Limit to user session -->
+    <key>LimitLoadToSessionType</key>
+    <array>
+        <string>Aqua</string>
+    </array>
+    
+    <!-- Low priority background task -->
+    <key>ProcessType</key>
+    <string>Background</string>
+    
+    <!-- Set nice level for background operation -->
+    <key>Nice</key>
+    <integer>5</integer>
+    
+    <!-- Enable low priority I/O for background task -->
+    <key>LowPriorityIO</key>
+    <true/>
+    
+    <!-- Timeout settings for health check -->
+    <key>ExitTimeOut</key>
+    <integer>30</integer>
+    
+    <!-- Resource limits for health monitoring -->
+    <key>HardResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>64</integer>
+    </dict>
+    
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>32</integer>
+    </dict>
+</dict>
+</plist>
