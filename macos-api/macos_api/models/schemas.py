@@ -98,10 +98,10 @@ class HealthResponse(BaseModel):
     metrics: SystemMetrics
     deployment: Dict
     tracker: TrackerStatus  # Using tracker instead of player for Mac devices
-    health_scores: HealthScore
     device_info: DeviceInfo
     system: Optional[MacOSSystemInfo] = None
     display: Optional[DisplayInfo] = None
+    capabilities: Dict[str, bool]
     _cache_info: Optional[Dict] = None
 
     class Config:
