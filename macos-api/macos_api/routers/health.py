@@ -8,8 +8,15 @@ from fastapi.responses import JSONResponse
 from ..core.config import APP_VERSION, CACHE_TTL
 from ..models.schemas import ErrorResponse, HealthResponse
 from ..services.display import get_display_info
-from ..services.health import calculate_health_score, get_health_summary
+from ..services.health import get_health_summary
 from ..services.system import get_device_info, get_system_metrics, get_version_info
+from ..services.standardized_metrics import (
+    get_standardized_health_metrics,
+    get_standardized_system_info,
+    get_standardized_device_info,
+    get_standardized_version_info,
+    get_standardized_capabilities
+)
 from ..services.temperature import get_temperature_metrics
 from ..services.tracker import check_tracker_status, get_deployment_info
 from ..services.utils import cache_with_ttl
@@ -35,10 +42,16 @@ def get_cached_deployment_info() -> Dict:
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Get comprehensive system health status and metrics."""
+    """Get comprehensive system health status and raw metrics using standardized schemas."""
     try:
-        # Use cached versions of expensive operations
-        metrics = get_cached_metrics()
+        # Get standardized metrics
+        standardized_metrics = get_standardized_health_metrics()
+        standardized_system = get_standardized_system_info()
+        standardized_device = get_standardized_device_info()
+        standardized_version = get_standardized_version_info()
+        standardized_capabilities = get_standardized_capabilities()
+        
+        # Use cached versions of expensive operations for additional data
         deployment = get_cached_deployment_info()
         display_info = get_cached_display_info()
         tracker = check_tracker_status()  # Don't cache this as it needs to be real-time
@@ -47,58 +60,25 @@ async def health_check():
         # Get current time in UTC
         now = datetime.now(timezone.utc)
 
-        # Calculate health scores
-        health_scores = calculate_health_score(metrics, tracker, display_info)
-
-        # Determine overall status
+        # Determine basic status from tracker health (for backward compatibility)
         status = "online"
         if not tracker["healthy"]:
             status = (
                 "maintenance" if tracker["service_status"] == "active" else "offline"
             )
 
-        # Get macOS version info for system details
-        version_info = get_version_info()
-
-        # Prepare system information
-        system_info = {
-            "os_version": version_info.get("macos_version", platform.release()),
-            "kernel_version": platform.release(),
-            "uptime": version_info.get("uptime", {}).get("formatted", "Unknown"),
-            "uptime_human": version_info.get("uptime", {}).get("formatted", "Unknown"),
-            "boot_time": version_info.get("uptime", {}).get("seconds", 0),
-            "hostname": device["hostname"],
-            "cpu_model": version_info.get("processor", platform.processor()),
-            "cpu_cores": metrics.get("cpu", {}).get("cores", 0),
-            "memory_total": metrics.get("memory", {}).get("total", 0),
-            "architecture": version_info.get("machine_type", platform.machine()),
-            "model": version_info.get("product_name", "Mac"),
-        }
-
-        # Format response to match oaDashboard expectations
+        # Format response using standardized schemas while maintaining backward compatibility
         return {
             "status": status,
-            "hostname": device["hostname"],
+            "hostname": standardized_device.hostname,
             "timestamp": now.isoformat(),
             "timestamp_epoch": int(now.timestamp()),
-            "version": {
-                "api": APP_VERSION,
-                "python": platform.python_version(),
-                "tailscale": version_info.get("tailscale_version"),
-                "system": {
-                    "platform": platform.system(),
-                    "release": platform.release(),
-                    "os": f"{platform.system()} {platform.release()}",
-                    "type": device["type"],
-                    "series": device["series"],
-                },
-            },
-            "metrics": metrics,
+            "version": standardized_version.dict(),
+            "metrics": standardized_metrics.dict(),
             "deployment": deployment,
             "tracker": tracker,  # Using tracker instead of player for Mac devices
-            "health_scores": health_scores,
-            "device_info": device,  # Device info with headless status
-            "system": system_info,  # Detailed system information
+            "device_info": standardized_device.dict(),  # Standardized device info
+            "system": standardized_system.dict(),  # Standardized system information
             "display": {
                 "connected_displays": len(display_info.get("displays", [])),
                 "main_display": display_info.get("main_display", {}),
@@ -110,13 +90,7 @@ async def health_check():
                     else None
                 ),
             },
-            "capabilities": {
-                "supports_camera_stream": True,
-                "supports_tracker_restart": True,
-                "supports_reboot": True,
-                "supports_ssh": True,
-                "device_has_camera_support": True,
-            },
+            "capabilities": standardized_capabilities.dict(),
             "_cache_info": {
                 "metrics": get_cached_metrics.cache_info(),
                 "display": get_cached_display_info.cache_info(),
