@@ -102,7 +102,7 @@ Configure encrypted secrets in `inventory/group_vars/all/vault.yml`:
 
 ```yaml
 # Ansible Vault encrypted file
-vault_tailscale_auth_key: "tskey-your-auth-key-here"
+vault_tailscale_auth_key: "tskey-auth-xxxxxxxxxxxxxxxxxxxxxxxxx"
 vault_ssh_private_key: |
   -----BEGIN OPENSSH PRIVATE KEY-----
   your-ssh-private-key-content
