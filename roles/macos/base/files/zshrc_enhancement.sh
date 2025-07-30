@@ -48,8 +48,21 @@ plugins=(
   history-substring-search
 )
 
+# Fix bracketed paste mode issues that cause problems with pasted content
+# This prevents Oh My Zsh magic functions from interfering with paste operations
+DISABLE_MAGIC_FUNCTIONS=true
+
+# Limit autosuggestion buffer size to prevent slow pasting of large content
+# This improves paste performance when zsh-autosuggestions plugin is active
+ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=20
+
 # Source Oh My Zsh
 source $ZSH/oh-my-zsh.sh
+
+# Additional fix for bracketed paste mode issues
+# Completely disable bracketed paste mode as a fallback solution
+# This prevents terminal escape sequences from appearing in pasted content
+unset zle_bracketed_paste
 
 # Key bindings for better navigation
 # bindkey '^[[A' history-substring-search-up
