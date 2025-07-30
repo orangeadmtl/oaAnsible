@@ -1,0 +1,68 @@
+---
+# macOS ML Workstation Role Defaults
+# macOS-specific settings for ML development and training
+
+# macOS-specific Python configuration
+macos_python_version: "{{ python_version | default('3.11') }}"
+use_homebrew_python: false  # Prefer pyenv for version management
+install_xcode_tools: true
+
+# Apple Silicon optimizations
+apple_silicon_optimizations:
+  enable_mps: true  # Metal Performance Shaders
+  optimize_memory: true
+  use_accelerate_blas: true
+  tensorflow_metal: false  # Optional TensorFlow Metal plugin
+
+# Development tools for macOS
+macos_dev_tools:
+  homebrew_packages:
+    - git
+    - cmake
+    - pkg-config
+    - jpeg-turbo
+    - libpng
+    - libtiff
+    - openexr
+    - eigen
+    - tbb
+    - openblas
+  python_build_deps:
+    - zlib
+    - bzip2
+    - readline
+    - sqlite3
+    - openssl
+    - xz
+    - libffi
+
+# macOS-specific ML frameworks
+macos_ml_extras:
+  coreml_tools: true
+  createml: false  # Requires Xcode (commercial license)
+  metal_performance_shaders: true
+
+# Performance tuning
+macos_performance:
+  increase_file_limits: true
+  optimize_network: true
+  disable_spotlight_indexing: false  # Keep false for development
+  energy_saver_mode: false
+
+# Development environment
+macos_dev_env:
+  install_iterm2_integration: false
+  setup_vscode_python: false
+  create_desktop_shortcuts: true
+
+# Monitoring and logging
+macos_monitoring:
+  enable_activity_monitor: true
+  log_gpu_usage: true
+  monitor_thermal_state: true
+  
+# Security settings
+macos_security:
+  allow_camera_access: false  # Only if computer vision work needed
+  allow_microphone_access: false
+  disable_firewall_for_ml: false

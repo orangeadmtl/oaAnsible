@@ -1,0 +1,145 @@
+---
+# Ubuntu Python Environment Setup
+
+- name: Update apt package cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  become: yes
+  tags: [python, packages]
+
+- name: Install Python development packages
+  apt:
+    name: "{{ dev_packages }}"
+    state: present
+  become: yes
+  when: install_dev_packages
+  tags: [python, packages]
+
+- name: Install system Python and pip
+  apt:
+    name:
+      - python3
+      - python3-pip
+      - python3-venv
+    state: present
+  become: yes
+  when: install_system_python
+  tags: [python, packages]
+
+- name: Install PyEnv dependencies
+  apt:
+    name:
+      - make
+      - build-essential
+      - libssl-dev
+      - zlib1g-dev
+      - libbz2-dev
+      - libreadline-dev
+      - libsqlite3-dev
+      - wget
+      - curl
+      - llvm
+      - libncursesw5-dev
+      - xz-utils
+      - tk-dev
+      - libxml2-dev
+      - libxmlsec1-dev
+      - libffi-dev
+      - liblzma-dev
+    state: present
+  become: yes
+  when: install_pyenv
+  tags: [python, pyenv]
+
+- name: Check if PyEnv is already installed
+  stat:
+    path: "{{ pyenv_root }}/bin/pyenv"
+  register: pyenv_check
+  tags: [python, pyenv]
+
+- name: Install PyEnv
+  shell: |
+    curl https://pyenv.run | bash
+  become_user: "{{ ansible_user }}"
+  when: install_pyenv and not pyenv_check.stat.exists
+  tags: [python, pyenv]
+
+- name: Add PyEnv to shell profiles
+  blockinfile:
+    path: "{{ item }}"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - PyEnv"
+    block: |
+      # PyEnv configuration
+      export PYENV_ROOT="{{ pyenv_root }}"
+      export PATH="$PYENV_ROOT/bin:$PATH"
+      eval "$(pyenv init -)"
+      eval "$(pyenv virtualenv-init -)"
+    create: yes
+  loop: "{{ shell_profiles }}"
+  become_user: "{{ ansible_user }}"
+  when: install_pyenv and update_shell_profile
+  tags: [python, pyenv, shell]
+
+- name: Install Python versions with PyEnv
+  shell: |
+    export PYENV_ROOT="{{ pyenv_root }}"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init -)"
+    pyenv install {{ item }} || pyenv versions | grep -q {{ item }}
+  loop: "{{ pyenv_install_python_versions }}"
+  become_user: "{{ ansible_user }}"
+  when: install_pyenv
+  register: pyenv_install_result
+  changed_when: "'Installed' in pyenv_install_result.stdout"
+  tags: [python, pyenv]
+
+- name: Set global Python version
+  shell: |
+    export PYENV_ROOT="{{ pyenv_root }}"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init -)"
+    pyenv global {{ python_version }}
+  become_user: "{{ ansible_user }}"
+  when: install_pyenv
+  tags: [python, pyenv]
+
+- name: Install UV package manager
+  shell: |
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+  become_user: "{{ ansible_user }}"
+  when: install_uv
+  register: uv_install
+  changed_when: "'uv' not in ansible_env.PATH"
+  tags: [python, uv]
+
+- name: Add UV to PATH in shell profiles
+  lineinfile:
+    path: "{{ item }}"
+    line: 'export PATH="$HOME/.local/bin:$PATH"'
+    create: yes
+  loop: "{{ shell_profiles }}"
+  become_user: "{{ ansible_user }}"
+  when: install_uv
+  tags: [python, uv, shell]
+
+- name: Verify Python installation
+  shell: |
+    export PYENV_ROOT="{{ pyenv_root }}"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init -)"
+    python --version
+  become_user: "{{ ansible_user }}"
+  register: python_version_check
+  changed_when: false
+  tags: [python, verify]
+
+- name: Display Python setup results
+  debug:
+    msg:
+      - "🐍 Python Environment Setup Complete"
+      - "Python Version: {{ python_version_check.stdout }}"
+      - "PyEnv Root: {{ pyenv_root }}"
+      - "UV Package Manager: {{ 'Installed' if install_uv else 'Skipped' }}"
+      - "Development Packages: {{ 'Installed' if install_dev_packages else 'Skipped' }}"
+  tags: [python, summary]

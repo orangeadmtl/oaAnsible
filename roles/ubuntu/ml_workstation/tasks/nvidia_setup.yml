@@ -1,0 +1,77 @@
+---
+# NVIDIA GPU Setup for ML Training
+
+- name: Display GPU information
+  debug:
+    msg:
+      - "🎮 Setting up NVIDIA GPU for ML training"
+      - "GPU: {{ nvidia_check.stdout_lines[0] if nvidia_check.stdout_lines else 'Detection in progress...' }}"
+  tags: [gpu, nvidia]
+
+- name: Install NVIDIA drivers using ubuntu/nvidia role
+  include_role:
+    name: ubuntu/nvidia
+  tags: [gpu, nvidia, drivers]
+
+- name: Install CUDA toolkit
+  apt:
+    name:
+      - nvidia-cuda-toolkit
+      - nvidia-cuda-dev
+    state: present
+  become: yes
+  when: nvidia_config.install_cuda
+  tags: [gpu, cuda]
+
+- name: Install cuDNN (if available in repos)
+  apt:
+    name:
+      - libcudnn8
+      - libcudnn8-dev
+    state: present
+  become: yes
+  ignore_errors: yes  # May not be available in all Ubuntu versions
+  when: nvidia_config.install_cudnn
+  tags: [gpu, cudnn]
+
+- name: Add CUDA to PATH and LD_LIBRARY_PATH
+  blockinfile:
+    path: "{{ ansible_user_dir }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED - CUDA Environment"
+    block: |
+      # CUDA Environment Variables
+      export CUDA_HOME=/usr/local/cuda
+      export PATH=$CUDA_HOME/bin:$PATH
+      export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+    create: yes
+  become_user: "{{ ansible_user }}"
+  tags: [gpu, cuda, environment]
+
+- name: Install GPU monitoring tools
+  apt:
+    name:
+      - nvidia-ml-py3
+      - gpustat
+    state: present
+  become: yes
+  tags: [gpu, monitoring]
+
+- name: Install GPU monitoring script
+  template:
+    src: gpu_monitor.sh.j2
+    dest: "{{ oasentinel_install_dir }}/scripts/gpu_monitor.sh"
+    owner: "{{ ansible_user }}"
+    mode: '0755'
+  tags: [gpu, monitoring]
+
+- name: Verify GPU setup
+  shell: |
+    nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader || echo "Reboot required for GPU drivers"
+  register: gpu_verification
+  changed_when: false
+  tags: [gpu, verify]
+
+- name: Display GPU verification results
+  debug:
+    msg: "{{ gpu_verification.stdout_lines }}"
+  tags: [gpu, verify]

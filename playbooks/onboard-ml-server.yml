@@ -1,0 +1,208 @@
+---
+# Ubuntu ML Training Server Onboarding Playbook
+# Sets up oaSentinel ML training environment on Ubuntu servers
+
+- name: Setup Ubuntu ML Training Server
+  hosts: ubuntu
+  gather_facts: yes
+  become: yes
+  
+  vars:
+    # Role execution control
+    execute_base_setup: true
+    execute_nvidia_setup: true
+    execute_docker_setup: true
+    execute_ml_setup: true
+    execute_monitoring_setup: true
+    
+    # Server configuration
+    is_gpu_server: true
+    enable_remote_access: true
+    
+  pre_tasks:
+    - name: Verify Ubuntu platform
+      fail:
+        msg: "This playbook is designed for Ubuntu hosts only"
+      when: ansible_distribution != "Ubuntu"
+      tags: [always]
+    
+    - name: Check Ubuntu version compatibility
+      fail:
+        msg: "Ubuntu 18.04+ required, found {{ ansible_distribution_version }}"
+      when: ansible_distribution_version is version('18.04', '<')
+      tags: [always]
+    
+    - name: Display setup information
+      debug:
+        msg:
+          - "🚀 Setting up Ubuntu ML Training Server"
+          - "Host: {{ inventory_hostname }}"
+          - "Distribution: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Architecture: {{ ansible_architecture }}"
+          - "User: {{ ansible_user }}"
+          - "GPU Server: {{ is_gpu_server }}"
+      tags: [always]
+    
+    - name: Check for NVIDIA GPU
+      shell: lspci | grep -i nvidia
+      register: nvidia_gpu_check
+      ignore_errors: yes
+      changed_when: false
+      tags: [always]
+    
+    - name: GPU detection results
+      debug:
+        msg: "{{ 'NVIDIA GPU detected - GPU acceleration will be configured' if nvidia_gpu_check.rc == 0 else 'No NVIDIA GPU found - CPU-only setup' }}"
+      tags: [always]
+    
+    - name: Check available disk space
+      shell: df -h / | tail -1 | awk '{print $4}' | sed 's/G//'
+      register: disk_space
+      changed_when: false
+      tags: [always]
+    
+    - name: Verify sufficient disk space
+      fail:
+        msg: "Insufficient disk space. Need at least 50GB free for ML server, found {{ disk_space.stdout }}G"
+      when: disk_space.stdout | int < 50
+      tags: [always]
+
+  tasks:
+    - name: Update system packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+        autoremove: yes
+      tags: [system, update]
+    
+    - name: Setup Ubuntu base environment
+      include_role:
+        name: ubuntu/base
+      when: execute_base_setup
+      tags: [base, setup]
+    
+    - name: Setup NVIDIA drivers and CUDA
+      include_role:
+        name: ubuntu/nvidia
+      when: execute_nvidia_setup and nvidia_gpu_check.rc == 0
+      tags: [nvidia, gpu, setup]
+    
+    - name: Setup Docker with GPU support
+      include_role:
+        name: ubuntu/docker
+      when: execute_docker_setup
+      tags: [docker, setup]
+    
+    - name: Setup Python development environment
+      include_role:
+        name: ubuntu/python
+      tags: [python, setup]
+    
+    - name: Setup ML workstation (common components)
+      include_role:
+        name: common/ml_workstation
+      tags: [ml, setup]
+    
+    - name: Setup Ubuntu-specific ML optimizations  
+      include_role:
+        name: ubuntu/ml_workstation
+      tags: [ml, ubuntu, setup]
+    
+    - name: Setup system monitoring
+      include_role:
+        name: ubuntu/monitoring
+      when: execute_monitoring_setup
+      tags: [monitoring, setup]
+    
+    - name: Configure security settings
+      include_role:
+        name: ubuntu/security
+      tags: [security, setup]
+
+  post_tasks:
+    - name: Reboot system if required
+      reboot:
+        reboot_timeout: 300
+      when: nvidia_gpu_check.rc == 0 and execute_nvidia_setup
+      tags: [reboot]
+    
+    - name: Wait for system to come back online
+      wait_for_connection:
+        timeout: 300
+      when: nvidia_gpu_check.rc == 0 and execute_nvidia_setup
+      tags: [reboot]
+    
+    - name: Run post-reboot verification
+      shell: |
+        nvidia-smi || echo "GPU drivers not ready"
+        cd "{{ oasentinel_install_dir }}"
+        source .venv/bin/activate
+        python -c "
+        import torch
+        print('CUDA Available:', torch.cuda.is_available())
+        if torch.cuda.is_available():
+            print('GPU Count:', torch.cuda.device_count())
+        "
+      become_user: "{{ ansible_user }}"
+      register: post_reboot_check
+      ignore_errors: yes
+      when: nvidia_gpu_check.rc == 0
+      tags: [verify]
+    
+    - name: Run final ML environment verification
+      shell: |
+        cd "{{ oasentinel_install_dir }}"
+        source .venv/bin/activate
+        python src/cli.py info
+        python scripts/ml_health_check.sh
+      become_user: "{{ ansible_user }}"
+      register: final_verification
+      tags: [verify]
+    
+    - name: Create completion marker
+      file:
+        path: "{{ ansible_user_dir }}/.ml_server_setup_complete"
+        state: touch
+        owner: "{{ ansible_user }}"
+      tags: [setup]
+    
+    - name: Setup completion summary
+      debug:
+        msg:
+          - "🎉 Ubuntu ML Training Server Setup Complete!"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "📁 oaSentinel: {{ oasentinel_install_dir }}"
+          - "🚀 Platform: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "🎮 GPU Support: {{ 'Enabled' if nvidia_gpu_check.rc == 0 else 'CPU Only' }}"
+          - "🐳 Docker: {{ 'Enabled' if execute_docker_setup else 'Disabled' }}"
+          - "📊 Monitoring: {{ 'Enabled' if execute_monitoring_setup else 'Disabled' }}"
+          - ""
+          - "🔧 Server Access:"
+          - "  • SSH: ssh {{ ansible_user }}@{{ inventory_hostname }}"
+          - "  • Jupyter: http://{{ inventory_hostname }}:8888 (if enabled)"
+          - ""
+          - "🚀 Quick Start Commands:"
+          - "  • Check status: mlstatus"
+          - "  • Monitor GPU: gpu-watch"
+          - "  • Start training: train-gpu"
+          - "  • Screen session: train-screen"
+          - ""
+          - "📚 Next Steps:"
+          - "  1. Download dataset: mlcli download --dataset crowdhuman"
+          - "  2. Process data: mlprocess"
+          - "  3. Start GPU training: train-gpu"
+          - "  4. Monitor with: gpu-watch"
+          - ""
+          - "💡 For help: mlcli --help"
+      tags: [summary]
+
+  handlers:
+    - name: Restart networking
+      service:
+        name: networking
+        state: restarted
+    
+    - name: Source bash configuration
+      shell: source {{ ansible_user_dir }}/.bashrc
+      become_user: "{{ ansible_user }}"
+      ignore_errors: yes

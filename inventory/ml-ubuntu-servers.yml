@@ -1,0 +1,104 @@
+---
+# ML Ubuntu Training Server Inventory
+# For setting up oaSentinel training on Ubuntu GPU servers
+
+all:
+  children:
+    ubuntu:
+      hosts:
+        # Add your Ubuntu ML training servers here
+        # Example GPU server:
+        # ml-server-01:
+        #   ansible_host: ml-server-01.example.com
+        #   ansible_user: ubuntu
+        #   ansible_ssh_private_key_file: ~/.ssh/ml-servers-key
+        #   gpu_count: 2
+        #   gpu_type: "RTX 4090"
+        
+        # Example configuration (commented out)
+        # ml-workstation:
+        #   ansible_host: 192.168.1.200
+        #   ansible_user: mluser
+        #   ansible_ssh_private_key_file: ~/.ssh/id_rsa
+        #   gpu_count: 1
+        #   gpu_type: "RTX 3080"
+        
+      vars:
+        # Platform identification
+        ansible_distribution: Ubuntu
+        
+        # Server configuration
+        is_gpu_server: true
+        enable_remote_access: true
+        
+        # Role execution control
+        execute_base_setup: true
+        execute_nvidia_setup: true
+        execute_docker_setup: true
+        execute_ml_setup: true
+        execute_monitoring_setup: true
+        
+        # oaSentinel specific settings
+        oasentinel_repo_branch: main
+        python_version: "3.11"
+        
+        # NVIDIA/CUDA Configuration
+        nvidia_config:
+          install_drivers: true
+          install_cuda: true
+          install_cudnn: true
+          cuda_version: "12.1"
+          driver_version: "latest"
+        
+        # Ubuntu ML optimization
+        ubuntu_ml_optimization:
+          increase_shared_memory: true
+          optimize_swap: true
+          increase_file_limits: true
+          install_build_essentials: true
+          enable_performance_governor: true
+        
+        # Training server features
+        training_server:
+          enable_jupyter: true
+          jupyter_port: 8888
+          enable_tensorboard: true
+          tensorboard_port: 6006
+          setup_screen_sessions: true
+        
+        # Data management
+        data_management:
+          create_datasets_dir: true
+          datasets_path: "/data/ml-datasets"
+          optimize_io: true
+        
+        # Docker ML configuration
+        docker_ml_config:
+          install_nvidia_runtime: true
+          enable_gpu_support: true
+        
+        # Training configuration for servers
+        training_config:
+          default_epochs: 100
+          default_batch_size: 32  # Higher for GPU servers
+          auto_device_detection: true
+          mixed_precision: true
+        
+        # ML frameworks
+        ml_frameworks:
+          pytorch: true
+          ultralytics: true
+          opencv: true
+          jupyter: true
+          wandb: true  # Enable for server training
+        
+        # Performance optimization
+        performance_optimization:
+          enable_gpu_monitoring: true
+          optimize_memory: true
+          enable_profiling: true
+        
+        # Remote access settings
+        remote_access:
+          monitoring_dashboard: true
+          setup_reverse_tunnel: false

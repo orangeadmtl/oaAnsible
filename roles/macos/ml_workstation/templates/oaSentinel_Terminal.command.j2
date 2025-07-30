@@ -1,0 +1,33 @@
+#!/bin/bash
+# oaSentinel Terminal Launcher
+# Double-click to open Terminal with ML environment
+
+# Change to oaSentinel directory and activate environment
+cd "{{ oasentinel_install_dir }}"
+source .venv/bin/activate
+
+# Load macOS ML environment
+source "{{ ansible_user_dir }}/.ml_env_macos"
+
+# Welcome message
+echo "🎯 oaSentinel ML Development Environment"
+echo "========================================="
+echo "Directory: $(pwd)"
+echo "Python: $(python --version)"
+echo "Virtual Environment: Active"
+echo ""
+echo "Quick Commands:"
+echo "  mlstatus    - Check system status"
+echo "  mltrain     - Start training"
+echo "  mlcli       - Access CLI"
+echo "  mllog       - View logs"
+echo ""
+{% if is_apple_silicon %}
+echo "🍎 Apple Silicon GPU acceleration enabled"
+{% else %}
+echo "🍎 Intel Mac CPU optimization enabled"
+{% endif %}
+echo ""
+
+# Keep terminal open
+exec $SHELL

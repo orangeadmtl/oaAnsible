@@ -1,0 +1,37 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: yes
+  become: false
+  vars:
+    ansible_user: "{{ lookup('env', 'USER') }}"
+    # oaSentinel Configuration
+    oasentinel_repo_url: "https://github.com/oa-device/oaSentinel.git"
+    oasentinel_repo_branch: "main"
+    oasentinel_install_dir: "{{ ansible_user_dir }}/orangead/oaSentinel"
+    oasentinel_data_dir: "{{ oasentinel_install_dir }}/data"
+    oasentinel_models_dir: "{{ oasentinel_install_dir }}/models"
+    oasentinel_logs_dir: "{{ oasentinel_install_dir }}/logs"
+    
+    # Python Environment
+    python_version: "3.11"
+    python_venv_dir: "{{ oasentinel_install_dir }}/.venv"
+    
+    # Development settings
+    create_dev_aliases: true
+    enable_health_checks: true
+    
+  tasks:
+    - name: Display system information
+      debug:
+        msg:
+          - "🍎 Testing ML Setup on macOS"
+          - "Host: {{ inventory_hostname }}"
+          - "User: {{ ansible_user }}"
+          - "Home: {{ ansible_user_dir }}"
+          - "oaSentinel will be installed to: {{ oasentinel_install_dir }}"
+    
+    - name: Setup ML workstation (common components)
+      include_role:
+        name: common/ml_workstation
+      tags: [ml, setup]
