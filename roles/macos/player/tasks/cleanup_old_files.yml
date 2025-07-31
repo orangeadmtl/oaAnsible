@@ -6,14 +6,41 @@
 # ALWAYS stop, unload, and kill running MPV processes first for performance optimization during deployment
 - name: Stop, unload, and kill any existing MPV processes (performance optimization)
   ansible.builtin.shell: |
-    # Kill all MPV processes to free resources for Ansible deployment
+    # Fast process cleanup - immediate termination
     pkill -f "mpv.*--screen=" 2>/dev/null || true
     pkill -f "oemplayer.sh" 2>/dev/null || true
-
-    # Stop and unload current player service
-    launchctl stop {{ player.service_name }} 2>/dev/null || true
-    launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist" 2>/dev/null || true
-
+    
+    # macOS-compatible service cleanup without timeout dependency
+    SERVICE_PLIST="{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist"
+    
+    # Only attempt service operations if plist exists
+    if [ -f "$SERVICE_PLIST" ]; then
+      # Check if service is loaded before attempting operations
+      if launchctl list | grep -q "{{ player.service_name }}" 2>/dev/null; then
+        # Service is loaded - attempt quick stop and unload with background execution
+        (launchctl stop {{ player.service_name }} 2>/dev/null; launchctl unload "$SERVICE_PLIST" 2>/dev/null) &
+        LAUNCHCTL_PID=$!
+        
+        # Give launchctl a brief moment to complete, then move on
+        sleep 1
+        
+        # If launchctl is still running after 1 second, kill it to prevent hanging
+        if kill -0 $LAUNCHCTL_PID 2>/dev/null; then
+          kill $LAUNCHCTL_PID 2>/dev/null || true
+          echo "launchctl operations timed out - terminated to prevent hanging"
+        fi
+        wait $LAUNCHCTL_PID 2>/dev/null || true
+      else
+        echo "Service {{ player.service_name }} not loaded - skipping launchctl operations"
+      fi
+    else
+      echo "Service plist not found - skipping launchctl operations"
+    fi
+    
+    # Force kill any remaining processes as final cleanup
+    pkill -9 -f "mpv.*--screen=" 2>/dev/null || true
+    pkill -9 -f "oemplayer.sh" 2>/dev/null || true
+    
   become: false
   changed_when: false
   failed_when: false

@@ -60,15 +60,17 @@
         - player.dual_screen | default(false)
         - display_count.stdout | int < 2
 
-    - name: Check Spectra dual-screen requirements
+    - name: Check dual-screen requirements for project
       ansible.builtin.debug:
-        msg: "INFO: Spectra project requires dual-screen setup. Detected {{ display_count.stdout }} display(s)."
+        msg: "INFO: {{ oa_environment.project | default('default') | title }} project configured for dual-screen. Detected {{ display_count.stdout }} display(s)."
       when:
-        - oa_environment.project | default('default') == 'spectra'
+        - player.dual_screen | default(false)
+        - (player.videos | selectattr('display', 'equalto', 2) | list | length) > 0
 
-    - name: Fail if Spectra project lacks dual displays
+    - name: Fail if dual-screen configured but insufficient displays
       ansible.builtin.fail:
-        msg: "ERROR: Spectra project requires exactly 2 displays, but {{ display_count.stdout }} detected. Please connect a second display."
+        msg: "ERROR: {{ oa_environment.project | default('default') | title }} project requires dual-screen setup ({{ (player.videos | selectattr('display', 'equalto', 2) | list | length) + (player.videos | selectattr('display', 'equalto', 1) | list | length) }} screens configured), but only {{ display_count.stdout }} detected. Please connect additional display(s)."
       when:
-        - oa_environment.project | default('default') == 'spectra'
-        - display_count.stdout | int != 2
+        - player.dual_screen | default(false)
+        - (player.videos | selectattr('display', 'equalto', 2) | list | length) > 0
+        - display_count.stdout | int < 2

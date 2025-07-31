@@ -1,17 +1,19 @@
 ---
 - name: Configure MPV player service
   block:
-    - name: Deploy video files from role
+    - name: Deploy only required video files based on inventory configuration
       ansible.builtin.copy:
-        src: "{{ item }}"
-        dest: "{{ player.video_source }}/{{ item | basename }}"
+        src: "{{ role_path }}/files/{{ video_item.name }}"
+        dest: "{{ player.video_source }}/{{ video_item.name }}"
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user_group | default('staff') }}"
         mode: "0644"
-      with_fileglob:
-        - "{{ role_path }}/files/*"
+      loop: "{{ player.videos | selectattr('enabled', 'equalto', true) | list }}"
+      loop_control:
+        loop_var: video_item
       when:
-        - item | regex_search('\.(webm|mp4|mov|avi|mkv)$')
+        - player.videos is defined
+        - video_item.name | regex_search('\.(webm|mp4|mov|avi|mkv)$')
 
     - name: Deploy OrangeAd MPV player script
       ansible.builtin.template:
@@ -35,9 +37,9 @@
       become: false
       changed_when: true
 
-    - name: Wait for auto-started service to initialize
+    - name: Wait for auto-started service to initialize (includes display detection)
       ansible.builtin.pause:
-        seconds: 5
+        seconds: 15
 
     - name: Verify MPV player service is running
       ansible.builtin.shell: |
@@ -83,9 +85,44 @@
           Recent Log Entries:
           {{ recent_logs.stdout }}
 
+    - name: Check if service is still initializing
+      ansible.builtin.shell: |
+        # Check if oemplayer.sh process is running (service initializing)
+        pgrep -f "oemplayer.sh" | wc -l
+      register: initializing_count
+      changed_when: false
+      failed_when: false
+
+    - name: Wait additional time if service is still initializing
+      ansible.builtin.pause:
+        seconds: 10
+      when: initializing_count.stdout|int > 0 and mpv_count.stdout|int < 1
+
+    - name: Re-check MPV processes after additional wait
+      ansible.builtin.shell: |
+        pgrep -f "mpv.*--screen=" | wc -l || echo "0"
+      register: mpv_count_recheck
+      changed_when: false
+      failed_when: false
+      when: initializing_count.stdout|int > 0 and mpv_count.stdout|int < 1
+
+    - name: Set final MPV count for validation
+      ansible.builtin.set_fact:
+        final_mpv_count: "{{ mpv_count_recheck.stdout | default(mpv_count.stdout) }}"
+
+    - name: Display final validation status
+      ansible.builtin.debug:
+        msg: |
+          Final Validation Status:
+          - LaunchAgent: {{ 'LOADED' if service_status.stdout != 'not loaded' else 'NOT LOADED' }}
+          - MPV processes: {{ final_mpv_count }}
+          - Expected processes: {{ '2' if player.dual_screen | default(true) else '1' }}
+          - Service initializing: {{ 'YES' if initializing_count.stdout|int > 0 else 'NO' }}
+
     - name: Fail if player is not running correctly
       ansible.builtin.fail:
         msg: "MPV player service is not running correctly. Check logs at {{ player.log_file }}"
       when:
-        - service_status.stdout == 'not loaded' or mpv_count.stdout|int < 1
+        - service_status.stdout == 'not loaded' or final_mpv_count|int < 1
+        - initializing_count.stdout|int == 0  # Only fail if not currently initializing
         - not ansible_check_mode

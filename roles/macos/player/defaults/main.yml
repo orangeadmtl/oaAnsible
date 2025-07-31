@@ -29,7 +29,7 @@ player:
   #   enabled: false
   #   loop: false
 
-  # Display configuration - Always fullscreen for kiosk mode
+  # Display configuration - Always fullscreen for kiosk mode``
   fullscreen: true # Always fullscreen, no windowed fallback
 
   # Player settings - MPV specific
@@ -47,6 +47,10 @@ player:
   health_check_interval: 60 # seconds - less aggressive for MPV
   restart_attempts: 3
   restart_delay: 10 # seconds
+  
+  # Display initialization (important for boot-time dual screen setup)
+  display_wait_timeout: 60 # seconds to wait for displays during boot
+  screen_launch_delay: 3 # seconds delay between launching screen 0 and screen 1
 
 # Video file management
 video_files:
