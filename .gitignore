@@ -31,3 +31,12 @@ group_vars/all/vault.yml
 
 # Temporary files
 git_diff.txt
+
+# Video files - stored separately
+*.webm
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.flv
+*.wmv
