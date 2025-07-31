@@ -1,107 +1,271 @@
 #!/bin/bash
-# OrangeAd MPV Player - Simple dual-screen video player
-# Uses MPV with native macOS dual-screen support
+# OrangeAd MPV Player - Simple and effective dual-screen player
+# Detects displays and deploys the right number of instances
 
 set -e
 
+# Set proper PATH for LaunchAgent environment
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:$PATH"
+
 PLAYER_DIR="{{ player.video_source }}"
 LOGS_DIR="${PLAYER_DIR}/logs"
-VIDEO_FILE="${PLAYER_DIR}/{{ player.videos[0].name }}"
 LOG_FILE="${LOGS_DIR}/player.log"
 
-# MPV common arguments for kiosk mode - optimized for performance (macOS compatible)
-# MPV_ARGS="--loop --fullscreen --no-audio --no-border --ontop --no-input-default-bindings --no-input-cursor --no-osd-bar --hwdec=auto --vo=libmpv --video-sync=audio --cache=yes --demuxer-max-bytes=50M --demuxer-readahead-secs=20"
+# Video file configuration per display
+{% set display1_videos = player.videos | selectattr('display', 'equalto', 1) | selectattr('enabled', 'equalto', true) | list %}
+{% set display2_videos = player.videos | selectattr('display', 'equalto', 2) | selectattr('enabled', 'equalto', true) | list %}
+{% if display1_videos %}
+VIDEO_FILE_DISPLAY1="${PLAYER_DIR}/{{ display1_videos[0].name }}"
+{% else %}
+VIDEO_FILE_DISPLAY1="${PLAYER_DIR}/{{ player.videos[0].name }}"
+{% endif %}
+{% if display2_videos %}
+VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/{{ display2_videos[0].name }}"
+{% else %}
+VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/{{ player.videos[0].name }}"
+{% endif %}
+
+# MPV arguments
 MPV_ARGS="--loop --fullscreen --no-audio --no-border --ontop --no-input-default-bindings --no-input-cursor --no-osd-bar"
+
+# Global variables
+MPV_PID_1=""
+MPV_PID_2=""
+DUAL_RUNNING=false
 
 # Ensure logs directory exists
 mkdir -p "$LOGS_DIR"
 
 # Function to log messages
 log_message() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+    local level="${2:-INFO}"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $1" >> "$LOG_FILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $1"
 }
 
-# Function to start MPV on specified screen
+# Simple and effective display detection
+detect_displays() {
+    if command -v system_profiler >/dev/null 2>&1; then
+        display_count=$(system_profiler SPDisplaysDataType 2>/dev/null | grep -c "Resolution:" || echo "0")
+        if [ "$display_count" -eq 0 ]; then
+            # Fallback: try counting displays via system_profiler differently
+            display_count=$(system_profiler SPDisplaysDataType 2>/dev/null | grep -c "Display Type:" || echo "1")
+        fi
+    else
+        display_count="1"
+    fi
+    echo "$display_count"
+}
+
+# Simple MPV startup - sets global PID variable
 start_mpv() {
     local screen_num="$1"
-    mpv --screen="$screen_num" $MPV_ARGS "$VIDEO_FILE" &
+    local video_file="$2"
+    local pid_var="$3"
+    
+    log_message "Starting MPV on screen $screen_num: $(basename "$video_file")" "START"
+    
+    # Start MPV and get its PID
+    mpv --screen="$screen_num" $MPV_ARGS "$video_file" &
+    local mpv_pid=$!
+    
+    # Simple verification - just check if process exists
+    sleep 2
+    if kill -0 $mpv_pid 2>/dev/null; then
+        log_message "✓ MPV started successfully on screen $screen_num, PID: $mpv_pid" "SUCCESS"
+        # Set the global variable
+        if [ "$pid_var" = "MPV_PID_1" ]; then
+            MPV_PID_1=$mpv_pid
+        elif [ "$pid_var" = "MPV_PID_2" ]; then
+            MPV_PID_2=$mpv_pid
+        fi
+        return 0
+    else
+        log_message "✗ MPV failed to start on screen $screen_num" "ERROR"
+        return 1
+    fi
 }
 
-# Function to cleanup processes on exit
+# Async MPV startup for parallel execution
+start_mpv_async() {
+    local screen_num="$1"
+    local video_file="$2"
+    
+    log_message "Starting MPV on screen $screen_num: $(basename "$video_file")" "START"
+    
+    # Start MPV and get its PID
+    mpv --screen="$screen_num" $MPV_ARGS "$video_file" &
+    local mpv_pid=$!
+    
+    # Quick verification
+    sleep 1
+    if kill -0 $mpv_pid 2>/dev/null; then
+        log_message "✓ MPV started on screen $screen_num, PID: $mpv_pid" "SUCCESS"
+        # Set the appropriate global variable
+        if [ "$screen_num" = "0" ]; then
+            MPV_PID_1=$mpv_pid
+        elif [ "$screen_num" = "1" ]; then
+            MPV_PID_2=$mpv_pid
+        fi
+        return 0
+    else
+        log_message "✗ MPV failed on screen $screen_num" "ERROR"
+        return 1
+    fi
+}
+
+# Cleanup function
 cleanup() {
-    log_message "Cleaning up MPV processes..."
+    log_message "Cleaning up MPV processes..." "SHUTDOWN"
     pkill -f "mpv.*--screen=" || true
+    sleep 1
+    pkill -9 -f "mpv.*--screen=" 2>/dev/null || true
+    log_message "Player shutdown complete" "EXIT"
     exit 0
 }
 
-# Set up signal handlers for graceful shutdown
+# Set up signal handlers
 trap cleanup SIGTERM SIGINT
 
-# Validate video file exists
-if [[ ! -f "$VIDEO_FILE" ]]; then
-    log_message "ERROR: Video file not found: $VIDEO_FILE"
+# Start player
+log_message "=== OrangeAd MPV Player Starting ===" "SYSTEM"
+log_message "Hostname: $(hostname)" "SYSTEM"
+log_message "User: $(whoami)" "SYSTEM"
+
+# Validate video files exist
+if [[ ! -f "$VIDEO_FILE_DISPLAY1" ]]; then
+    log_message "ERROR: Primary video file not found: $VIDEO_FILE_DISPLAY1" "ERROR"
     exit 1
 fi
 
-log_message "Starting OrangeAd MPV Player"
-log_message "Video file: $VIDEO_FILE"
-log_message "Dual screen: {{ player.dual_screen | default(true) }}"
+{% if display2_videos %}
+if [[ ! -f "$VIDEO_FILE_DISPLAY2" ]]; then
+    log_message "ERROR: Secondary video file not found: $VIDEO_FILE_DISPLAY2" "ERROR"
+    exit 1
+fi
+{% endif %}
 
 # Clean up any existing MPV processes
+log_message "Cleaning up existing MPV processes..." "CLEANUP"
 pkill -f "mpv.*--screen=" || true
 sleep 1
 
-# Start MPV player(s) based on configuration
-{% if player.dual_screen | default(true) %}
-log_message "Starting dual-screen playback"
+# Detect displays
+DISPLAY_COUNT=$(detect_displays)
+log_message "Detected $DISPLAY_COUNT display(s)" "DISPLAY"
 
-# Start MPV on screen 0 (primary display)
-start_mpv 0
-MPV_PID_1=$!
-log_message "Started MPV on screen 0, PID: $MPV_PID_1"
-
-# Start MPV on screen 1 (secondary display)
-start_mpv 1
-MPV_PID_2=$!
-log_message "Started MPV on screen 1, PID: $MPV_PID_2"
-
-log_message "Both MPV instances started successfully"
+# Deploy based on display count
+if [ "$DISPLAY_COUNT" -ge 2 ]; then
+    log_message "=== DUAL-SCREEN MODE ===" "MODE"
+    
+    # Start both displays truly simultaneously - no delays
+    log_message "Starting both displays simultaneously..." "START"
+    
+    # Launch both MPV instances at exactly the same time
+    mpv --screen=0 $MPV_ARGS "$VIDEO_FILE_DISPLAY1" &
+    MPV_PID_1=$!
+    
+{% if display2_videos %}
+    mpv --screen=1 $MPV_ARGS "$VIDEO_FILE_DISPLAY2" &
+    MPV_PID_2=$!
 {% else %}
-log_message "Starting single-screen playback"
-
-# Start MPV on primary screen only
-start_mpv 0
-MPV_PID_1=$!
-log_message "Started MPV on screen 0, PID: $MPV_PID_1"
+    mpv --screen=1 $MPV_ARGS "$VIDEO_FILE_DISPLAY1" &
+    MPV_PID_2=$!
 {% endif %}
+    
+    log_message "Both MPV instances launched (PIDs: $MPV_PID_1, $MPV_PID_2)" "START"
+    
+    # Quick verification after a brief moment
+    sleep 2
+    
+    PRIMARY_SUCCESS=false
+    SECONDARY_SUCCESS=false
+    
+    if kill -0 $MPV_PID_1 2>/dev/null; then
+        log_message "✓ Primary display running (PID: $MPV_PID_1)" "SUCCESS"
+        PRIMARY_SUCCESS=true
+    else
+        log_message "✗ Primary display failed to start" "ERROR"
+    fi
+    
+    if kill -0 $MPV_PID_2 2>/dev/null; then
+        log_message "✓ Secondary display running (PID: $MPV_PID_2)" "SUCCESS"
+        SECONDARY_SUCCESS=true
+    else
+        log_message "✗ Secondary display failed to start" "ERROR"
+    fi
+    
+    # Check results
+    if [ "$PRIMARY_SUCCESS" = false ]; then
+        log_message "CRITICAL: Primary display failed" "ERROR"
+        exit 1
+    fi
+    
+    if [ "$SECONDARY_SUCCESS" = true ]; then
+        log_message "✓ DUAL-SCREEN: Both displays running simultaneously (PIDs: $MPV_PID_1, $MPV_PID_2)" "SUCCESS"
+        DUAL_RUNNING=true
+    else
+        log_message "⚠ Secondary display failed - continuing with primary only" "WARNING"
+        DUAL_RUNNING=false
+    fi
+else
+    log_message "=== SINGLE-SCREEN MODE ===" "MODE"
+    
+    # Start single display (screen 0)
+    if start_mpv 0 "$VIDEO_FILE_DISPLAY1" "MPV_PID_1"; then
+        log_message "✓ SINGLE-SCREEN: Running (PID: $MPV_PID_1)" "SUCCESS"
+        DUAL_RUNNING=false
+    else
+        log_message "CRITICAL: Display failed" "ERROR"
+        exit 1
+    fi
+fi
 
-# Keep the script running and monitor MPV processes
+# Monitor processes
+log_message "Starting monitoring loop..." "MONITOR"
+MONITOR_COUNT=0
+
 while true; do
-    {% if player.dual_screen | default(true) %}
-    # Check if both MPV processes are still running
+    MONITOR_COUNT=$((MONITOR_COUNT + 1))
+    
+    # Check primary display
     if ! kill -0 $MPV_PID_1 2>/dev/null; then
-        log_message "MPV screen 0 process died, restarting..."
-        start_mpv 0
-        MPV_PID_1=$!
-        log_message "Restarted MPV on screen 0, PID: $MPV_PID_1"
+        log_message "Primary display died - restarting..." "RESTART"
+        if start_mpv 0 "$VIDEO_FILE_DISPLAY1" "MPV_PID_1"; then
+            log_message "Primary display restarted (PID: $MPV_PID_1)" "RESTART"
+        else
+            log_message "CRITICAL: Primary display restart failed" "ERROR"
+        fi
     fi
     
-    if ! kill -0 $MPV_PID_2 2>/dev/null; then
-        log_message "MPV screen 1 process died, restarting..."
-        start_mpv 1
-        MPV_PID_2=$!
-        log_message "Restarted MPV on screen 1, PID: $MPV_PID_2"
+    # Check secondary display if dual-screen
+    if [ "$DUAL_RUNNING" = true ] && ! kill -0 $MPV_PID_2 2>/dev/null; then
+        log_message "Secondary display died - restarting..." "RESTART"
+{% if display2_videos %}
+        if start_mpv 1 "$VIDEO_FILE_DISPLAY2" "MPV_PID_2"; then
+            log_message "Secondary display restarted (PID: $MPV_PID_2)" "RESTART"
+        else
+            log_message "Secondary display restart failed" "ERROR"
+            DUAL_RUNNING=false
+        fi
+{% else %}
+        if start_mpv 1 "$VIDEO_FILE_DISPLAY1" "MPV_PID_2"; then
+            log_message "Secondary display restarted (PID: $MPV_PID_2)" "RESTART"
+        else
+            log_message "Secondary display restart failed" "ERROR"
+            DUAL_RUNNING=false
+        fi
+{% endif %}
     fi
-    {% else %}
-    # Check if single MPV process is still running
-    if ! kill -0 $MPV_PID_1 2>/dev/null; then
-        log_message "MPV process died, restarting..."
-        start_mpv 0
-        MPV_PID_1=$!
-        log_message "Restarted MPV on screen 0, PID: $MPV_PID_1"
-    fi
-    {% endif %}
     
-    # Wait before checking again
+    # Health check every 10 cycles
+    if [ $((MONITOR_COUNT % 10)) -eq 0 ]; then
+        if [ "$DUAL_RUNNING" = true ]; then
+            log_message "HEALTH #$MONITOR_COUNT: Dual-screen (PIDs: $MPV_PID_1, $MPV_PID_2)" "HEALTH"
+        else
+            log_message "HEALTH #$MONITOR_COUNT: Single-screen (PID: $MPV_PID_1)" "HEALTH"
+        fi
+    fi
+    
     sleep {{ player.health_check_interval | default(30) }}
 done
