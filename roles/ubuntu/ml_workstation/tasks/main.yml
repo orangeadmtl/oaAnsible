@@ -20,21 +20,21 @@
   apt:
     update_cache: yes
     cache_valid_time: 3600
-  become: yes
+  become: true
   tags: [setup, packages]
 
 - name: Install essential system packages
   apt:
     name: "{{ ubuntu_ml_packages.system_packages }}"
     state: present
-  become: yes
+  become: true
   tags: [setup, packages]
 
 - name: Install monitoring and development packages
   apt:
     name: "{{ ubuntu_ml_packages.monitoring_packages }}"
     state: present
-  become: yes
+  become: true
   tags: [setup, packages, monitoring]
 
 # System optimizations for ML training
@@ -43,7 +43,7 @@
     path: /etc/fstab
     line: "tmpfs /dev/shm tmpfs defaults,size=8G 0 0"
     backup: yes
-  become: yes
+  become: true
   when: ubuntu_ml_optimization.increase_shared_memory
   tags: [setup, optimization]
 
@@ -56,7 +56,7 @@
   loop:
     - { key: "vm.swappiness", value: "10" }
     - { key: "vm.vfs_cache_pressure", value: "50" }
-  become: yes
+  become: true
   when: ubuntu_ml_optimization.optimize_swap
   tags: [setup, optimization]
 
@@ -70,7 +70,7 @@
     - "* hard nofile 65536"
     - "{{ ansible_user }} soft nofile 65536"
     - "{{ ansible_user }} hard nofile 65536"
-  become: yes
+  become: true
   when: ubuntu_ml_optimization.increase_file_limits
   tags: [setup, optimization]
 
@@ -99,8 +99,8 @@
     state: directory
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
-    mode: '0755'
-  become: yes
+    mode: "0755"
+  become: true
   when: data_management.create_datasets_dir
   tags: [setup, data]
 
@@ -117,17 +117,17 @@
 - name: Set CPU governor to performance
   shell: |
     echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-  become: yes
+  become: true
   when: ubuntu_ml_optimization.enable_performance_governor
   tags: [setup, performance]
 
 - name: Make performance governor persistent
   cron:
     name: "Set CPU governor to performance"
-    special_time: reboot  
+    special_time: reboot
     job: "echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor"
     user: root
-  become: yes
+  become: true
   when: ubuntu_ml_optimization.enable_performance_governor
   tags: [setup, performance]
 
@@ -137,7 +137,7 @@
     src: ml_training_screen.sh.j2
     dest: "{{ ansible_user_dir }}/start_ml_training.sh"
     owner: "{{ ansible_user }}"
-    mode: '0755'
+    mode: "0755"
   when: training_server.setup_screen_sessions
   tags: [setup, training]
 
@@ -146,7 +146,7 @@
     src: jupyter_config.py.j2
     dest: "{{ ansible_user_dir }}/.jupyter/jupyter_lab_config.py"
     owner: "{{ ansible_user }}"
-    mode: '0644'
+    mode: "0644"
   when: training_server.enable_jupyter
   tags: [setup, jupyter]
 
@@ -155,7 +155,7 @@
     src: start_jupyter.sh.j2
     dest: "{{ ansible_user_dir }}/start_jupyter.sh"
     owner: "{{ ansible_user }}"
-    mode: '0755'
+    mode: "0755"
   when: training_server.enable_jupyter
   tags: [setup, jupyter]
 
@@ -165,7 +165,7 @@
     src: gpu_monitor.sh.j2
     dest: "{{ oasentinel_install_dir }}/scripts/gpu_monitor.sh"
     owner: "{{ ansible_user }}"
-    mode: '0755'
+    mode: "0755"
   when: nvidia_check.rc == 0
   tags: [setup, monitoring]
 
@@ -174,7 +174,7 @@
     src: ubuntu_training_config.yaml.j2
     dest: "{{ oasentinel_install_dir }}/configs/ubuntu_gpu.yaml"
     owner: "{{ ansible_user }}"
-    mode: '0644'
+    mode: "0644"
   tags: [setup, config]
 
 # Training aliases and environment
@@ -186,24 +186,24 @@
       # Ubuntu ML Training Environment
       export CUDA_VISIBLE_DEVICES=0  # Adjust for multi-GPU setup
       export TOKENIZERS_PARALLELISM=false  # Avoid tokenizer warnings
-      
+
       # Training aliases
       alias train-gpu="cd $OASENTINEL_HOME && source .venv/bin/activate && python scripts/train.sh --config configs/ubuntu_gpu.yaml"
       alias gpu-watch="watch -n 1 'nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits'"
       alias gpu-top="gpustat -i 1"
       alias train-screen="screen -S ml-training ./start_ml_training.sh"
       alias jupyter-start="./start_jupyter.sh"
-      
+
       # Training functions
       gpu-status() {
           echo "🚀 GPU Status:"
           nvidia-smi --query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits
       }
-      
+
       training-log() {
           tail -f $OASENTINEL_HOME/logs/training/*.log 2>/dev/null || echo "No training logs found"
       }
-      
+
     create: yes
   tags: [setup, aliases]
 

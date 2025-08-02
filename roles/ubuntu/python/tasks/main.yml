@@ -5,14 +5,14 @@
   apt:
     update_cache: yes
     cache_valid_time: 3600
-  become: yes
+  become: true
   tags: [python, packages]
 
 - name: Install Python development packages
   apt:
     name: "{{ dev_packages }}"
     state: present
-  become: yes
+  become: true
   when: install_dev_packages
   tags: [python, packages]
 
@@ -23,7 +23,7 @@
       - python3-pip
       - python3-venv
     state: present
-  become: yes
+  become: true
   when: install_system_python
   tags: [python, packages]
 
@@ -48,21 +48,40 @@
       - libffi-dev
       - liblzma-dev
     state: present
-  become: yes
+  become: true
   when: install_pyenv
   tags: [python, pyenv]
 
 - name: Check if PyEnv is already installed
   stat:
-    path: "{{ pyenv_root }}/bin/pyenv"
+    path: "{{ pyenv_root }}"
   register: pyenv_check
   tags: [python, pyenv]
 
 - name: Install PyEnv
-  shell: |
-    curl https://pyenv.run | bash
-  become_user: "{{ ansible_user }}"
-  when: install_pyenv and not pyenv_check.stat.exists
+  block:
+    - name: Check if PyEnv directory exists for user
+      stat:
+        path: "{{ pyenv_root }}"
+      become: true
+      become_user: "{{ ansible_user }}"
+      register: pyenv_dir_check
+      
+    - name: Install PyEnv for user
+      shell: |
+        export HOME="{{ ansible_user_dir }}"
+        export USER="{{ ansible_user }}"
+        cd "{{ ansible_user_dir }}"
+        curl https://pyenv.run | bash
+      become: true
+      become_user: "{{ ansible_user }}"
+      when: not pyenv_dir_check.stat.exists
+      register: pyenv_install_result
+      
+    - name: Display PyEnv installation status
+      debug:
+        msg: "PyEnv {{ 'installed successfully' if not pyenv_dir_check.stat.exists else 'already present' }} at {{ pyenv_root }}"
+  when: install_pyenv
   tags: [python, pyenv]
 
 - name: Add PyEnv to shell profiles
@@ -76,8 +95,10 @@
       eval "$(pyenv init -)"
       eval "$(pyenv virtualenv-init -)"
     create: yes
+    owner: "{{ ansible_user }}"
+    mode: "0644"
   loop: "{{ shell_profiles }}"
-  become_user: "{{ ansible_user }}"
+  become: true
   when: install_pyenv and update_shell_profile
   tags: [python, pyenv, shell]
 
@@ -118,8 +139,10 @@
     path: "{{ item }}"
     line: 'export PATH="$HOME/.local/bin:$PATH"'
     create: yes
+    owner: "{{ ansible_user }}"
+    mode: "0644"
   loop: "{{ shell_profiles }}"
-  become_user: "{{ ansible_user }}"
+  become: true
   when: install_uv
   tags: [python, uv, shell]
 

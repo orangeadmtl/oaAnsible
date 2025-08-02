@@ -19,7 +19,7 @@
       - nvidia-cuda-toolkit
       - nvidia-cuda-dev
     state: present
-  become: yes
+  become: true
   when: nvidia_config.install_cuda
   tags: [gpu, cuda]
 
@@ -29,8 +29,8 @@
       - libcudnn8
       - libcudnn8-dev
     state: present
-  become: yes
-  ignore_errors: yes  # May not be available in all Ubuntu versions
+  become: true
+  ignore_errors: yes # May not be available in all Ubuntu versions
   when: nvidia_config.install_cudnn
   tags: [gpu, cudnn]
 
@@ -53,7 +53,7 @@
       - nvidia-ml-py3
       - gpustat
     state: present
-  become: yes
+  become: true
   tags: [gpu, monitoring]
 
 - name: Install GPU monitoring script
@@ -61,7 +61,7 @@
     src: gpu_monitor.sh.j2
     dest: "{{ oasentinel_install_dir }}/scripts/gpu_monitor.sh"
     owner: "{{ ansible_user }}"
-    mode: '0755'
+    mode: "0755"
   tags: [gpu, monitoring]
 
 - name: Verify GPU setup
