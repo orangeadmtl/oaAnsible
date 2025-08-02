@@ -1,0 +1,89 @@
+---
+all:
+  vars:
+    # Ansible connection configuration
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_connection: ssh
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    ansible_ssh_pipelining: true
+    ansible_become_method: sudo
+
+    # Runtime versions (standardized structure)
+    runtime:
+      python:
+        version: "3.11.11"
+      node:
+        version: "22.11.0"
+
+    # Feature toggles
+    configure:
+      tailscale: false # Pre-production - Tailscale managed separately
+      pyenv: true
+      node: true
+
+    # Environment configuration (standardized single source of truth)
+    oa_environment:
+      name: "evenko-preprod"
+      project: "evenko"
+      stage: "preprod"
+      allow_experimental: false
+      allow_server_optimizations: false # Conservative for stability - prevents SSH disconnections
+      allow_destructive_operations: false
+      # Evenko preprod project components: player only
+      deploy_macos_api: false
+      deploy_tracker: false
+      deploy_alpr_service: false
+      deploy_player: true
+
+    # Custom wallpaper deployment
+    deploy_custom_wallpaper: true
+
+    # System packages (minimal for production-like testing)
+    system:
+      homebrew:
+        packages:
+          - go
+          - git
+          - wget
+          - jq
+          - curl
+          - lsd
+          - mpv # Required for video player
+
+    # Player configuration for Evenko project (dual-screen kiosk mode)
+    player:
+      enabled: true
+      loop_mode: true
+      dual_screen: true
+      video_selection_strategy: "sequential"
+      health_check: true
+      restart_on_failure: true
+      volume: 0.0
+      fullscreen: true
+      hide_cursor: true
+      black_background: true
+      disable_screensaver: true
+      system_volume_muted: true
+      hide_desktop_icons: true
+
+      # Videos configuration - Evenko slideshow for both screens (compressed)
+      videos:
+        - name: "evenko_video_v2.webm"
+          display: 1
+          enabled: true
+          loop: true
+          volume: 0.0
+        - name: "evenko_video_v2.webm"
+          display: 2
+          enabled: true
+          loop: true
+          volume: 0.0
+
+  children:
+    macos:
+      hosts:
+        f1-ca-001:
+          ansible_host: 100.103.229.95
+          ansible_user: studio
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-001'] }}"

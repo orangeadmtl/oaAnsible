@@ -1,0 +1,119 @@
+---
+all:
+  vars:
+    target_env: evenko-prod
+    project_name: evenko
+    deployment_environment: production
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_connection: ssh
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    ansible_ssh_pipelining: true
+    ansible_become_method: sudo
+
+    # Runtime versions
+    python:
+      version: "3.11.11"
+    node:
+      version: "22.11.0"
+
+    # Feature toggles
+    configure:
+      tailscale: false # Production - Tailscale managed separately
+      pyenv: true
+      node: true
+
+    # Environment-specific features (Production settings)
+    oa_environment:
+      name: "evenko-prod"
+      project: "evenko"
+      allow_experimental: false
+      allow_server_optimizations: false # Conservative for production
+      allow_destructive_operations: false
+      # Evenko project components: dual-screen player only
+      deploy_macos_api: false
+      deploy_tracker: false
+      deploy_alpr_service: false
+      deploy_player: true
+
+    # Custom wallpaper deployment
+    deploy_custom_wallpaper: true
+
+    # System packages (minimal for production)
+    system:
+      homebrew:
+        packages:
+          - go
+          - git
+          - wget
+          - jq
+          - curl
+          - lsd
+          - mpv # Required for video player
+
+    # Player configuration for Evenco project (dual-screen kiosk mode)
+    player:
+      enabled: true
+      loop_mode: true
+      dual_screen: true
+      video_selection_strategy: "sequential"
+      health_check: true
+      restart_on_failure: true
+      volume: 0.0
+      fullscreen: true
+      hide_cursor: true
+      black_background: true
+      disable_screensaver: true
+      system_volume_muted: true
+      hide_desktop_icons: true
+
+      # Videos configuration - Evenko slideshow for both screens (compressed)
+      videos:
+        - name: "evenko_video_v2_compressed.webm"
+          display: 1
+          enabled: true
+          loop: true
+          volume: 0.0
+        - name: "evenko_video_v2_compressed.webm"
+          display: 2
+          enabled: true
+          loop: true
+          volume: 0.0
+
+  children:
+    macos:
+      hosts:
+        f1-ca-002:
+          ansible_host: 100.122.121.83
+          ansible_user: ek003
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-002'] }}"
+        f1-ca-003:
+          ansible_host: 100.114.173.58
+          ansible_user: ek002
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-003'] }}"
+        f1-ca-005:
+          ansible_host: 100.120.130.91
+          ansible_user: ek000
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-005'] }}"
+        f1-ca-007:
+          ansible_host: 100.78.224.4
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-007'] }}"
+        f1-ca-011:
+          ansible_host: 100.108.127.23
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-011'] }}"
+        f1-ca-012:
+          ansible_host: 100.67.135.111
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-012'] }}"
+        f1-ca-016:
+          ansible_host: 100.68.254.108
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-016'] }}"
