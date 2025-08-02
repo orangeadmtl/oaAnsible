@@ -99,6 +99,14 @@ log_error() {
 log_debug() {
   _log "$_LOG_LEVEL_DEBUG" "DEBUG" "$_COLOR_BLUE" "$1"
 }
+
+log_header() {
+  echo -e "\n${_COLOR_BLUE}===== $1 =====${_COLOR_RESET}"
+}
+
+log_success() {
+  _log "$_LOG_LEVEL_INFO" "SUCCESS" "$_COLOR_GREEN" "$1"
+}
 # --- End Logging ---
 
 # Function to check if a command is installed
