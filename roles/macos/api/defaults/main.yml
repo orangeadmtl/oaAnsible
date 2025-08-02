@@ -16,4 +16,4 @@ macos_api_group: staff
 
 # Python configuration
 macos_python:
-  version: "{{ python.version | default('3.11.11') }}"
+  version: "{{ runtime.python.version | default('3.11.11') }}"

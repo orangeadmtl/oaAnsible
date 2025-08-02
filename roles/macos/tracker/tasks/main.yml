@@ -90,6 +90,7 @@
   register: tracker_dir
   become: true
   become_user: "{{ ansible_user }}"
+  tags: ["tracker"]
 
 # Check if git repository already exists
 - name: Check if tracker repository exists
@@ -98,6 +99,7 @@
   register: tracker_git_repo
   become: true
   become_user: "{{ ansible_user }}"
+  tags: ["tracker"]
 
 # Check if directory exists and is not empty
 - name: Check if directory exists and has content
@@ -112,6 +114,7 @@
   changed_when: false
   become: true
   become_user: "{{ ansible_user }}"
+  tags: ["tracker"]
 
 # Check if directory is a git repository
 - name: Check if directory is a git repository
@@ -127,6 +130,7 @@
   become: true
   become_user: "{{ ansible_user }}"
   failed_when: false
+  tags: ["tracker"]
 
 # Backup and clean non-empty directory that is not a git repository (preserve logs)
 - name: Backup and clean non-empty directory that is not a git repository
@@ -355,7 +359,7 @@
 # Use standardized Python version from group_vars
 - name: Set required Python version from group_vars
   ansible.builtin.set_fact:
-    tracker_python_version: "{{ python.version }}"
+    tracker_python_version: "{{ runtime.python.version | default('3.11.11') }}"
 
 - name: Debug required Python version
   ansible.builtin.debug:
@@ -582,6 +586,16 @@
     - Unload existing API launchd service
     - Load API launchd service
     - Start API launchd service
+
+# Restart tracker service when code is updated
+- name: Restart tracker service when code changes
+  ansible.builtin.meta: flush_handlers
+  when: (git_clone_result is defined and git_clone_result.changed) or (git_update_result is defined and git_update_result.changed)
+  notify:
+    - Unload existing launchd service
+    - Load launchd service
+    - Start launchd service
+  tags: ["tracker", "service"]
 
 # Additional verification and troubleshooting tasks
 # Detect server port from config if available
