@@ -1,0 +1,109 @@
+---
+all:
+  vars:
+    # Ansible connection configuration
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_connection: ssh
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    ansible_ssh_pipelining: true
+    ansible_become_method: sudo
+
+    # Runtime versions (standardized structure)
+    runtime:
+      python:
+        version: "3.11.11"
+      node:
+        version: "22.11.0"
+
+    # Feature toggles
+    configure:
+      tailscale: false # Pre-production - Tailscale managed separately
+      pyenv: true
+      node: false # Not needed for CamGuard
+
+    # Environment configuration (CamGuard testing environment)
+    oa_environment:
+      name: "camguard-test"
+      project: "camguard"
+      stage: "test"
+      allow_experimental: true
+      allow_server_optimizations: false
+      allow_destructive_operations: false
+      # CamGuard test project components: CamGuard only
+      deploy_macos_api: true # Needed for CamGuard monitoring endpoints
+      deploy_tracker: false
+      deploy_alpr_service: false
+      deploy_player: false
+      deploy_camguard: true
+
+    # Custom wallpaper deployment
+    deploy_custom_wallpaper: false
+
+    # System packages (minimal for CamGuard testing)
+    system:
+      homebrew:
+        packages:
+          - go
+          - git
+          - wget
+          - jq
+          - curl
+          - lsd
+          - ffmpeg # Required for CamGuard
+
+    # CamGuard configuration for testing
+    camguard:
+      enabled: true
+
+      # Recording settings optimized for testing (reduced file size while maintaining quality)
+      recording:
+        resolution: "1920x1080" # 1080p recording
+        framerate: "30.000030" # Exact camera framerate (avoids NTSC conversion)
+        bitrate: "1.8M" # Reduced from 4M to 1.8M (target ~100MB for 10min instead of 300MB)
+        chunk_duration: 300 # 5 minutes per chunk for testing (shorter than default)
+        format: "mp4"
+        codec: "h264_videotoolbox" # Hardware acceleration on macOS
+        # Additional quality optimization settings
+        crf: 23 # Constant Rate Factor for better quality/size balance (18-28 range, 23 is good balance)
+        preset: "medium" # Better compression than "fast" (was using "fast" before)
+        profile: "main" # More efficient than high profile for this use case
+        level: "4.0" # Optimized for 1080p30
+
+
+      # Camera settings
+      camera:
+        device_id: "0" # Default camera device
+        input_format: "avfoundation" # macOS camera input
+
+      # Storage settings (no retention - keep all weekend recordings)
+      storage:
+        recordings_dir: "{{ ansible_user_dir }}/orangead/camguard/recordings"
+        logs_dir: "{{ ansible_user_dir }}/orangead/camguard/logs"
+        retention_days: 0 # No retention - keep all recordings
+        max_size_gb: 0 # No size limit
+
+      # Service settings
+      service:
+        name: "com.orangead.camguard"
+        user: "{{ ansible_user }}"
+        keep_alive: true
+        run_at_load: true
+        restart_on_failure: true
+        log_level: "info"
+
+      # Health monitoring
+      health:
+        enabled: true
+        check_interval: 300 # 5 minutes
+        max_failures: 3
+        restart_delay: 30
+
+
+  children:
+    macos:
+      hosts:
+        f1-ca-001:
+          ansible_host: 100.103.229.95
+          ansible_user: studio
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-001'] }}"

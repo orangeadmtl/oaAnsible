@@ -1,0 +1,111 @@
+---
+all:
+  vars:
+    # Ansible connection configuration
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_connection: ssh
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    ansible_ssh_pipelining: true
+    ansible_become_method: sudo
+
+    # Runtime versions (standardized structure)
+    runtime:
+      python:
+        version: "3.11.11"
+      node:
+        version: "22.11.0"
+
+    # Feature toggles
+    configure:
+      tailscale: false # Production - Tailscale managed separately
+      pyenv: true
+      node: false # Not needed for CamGuard
+
+    # Environment configuration (CamGuard production environment)
+    oa_environment:
+      name: "evenko-camguard-prod"
+      project: "evenko"
+      stage: "production"
+      allow_experimental: false
+      allow_server_optimizations: false # Conservative for production
+      allow_destructive_operations: false
+      # Evenko CamGuard project components: CamGuard and API only
+      deploy_macos_api: true # Needed for CamGuard monitoring endpoints
+      deploy_tracker: false
+      deploy_alpr_service: false
+      deploy_player: false
+      deploy_camguard: true
+
+    # Custom wallpaper deployment
+    deploy_custom_wallpaper: false
+
+    # System packages (minimal for CamGuard production)
+    system:
+      homebrew:
+        packages:
+          - go
+          - git
+          - wget
+          - jq
+          - curl
+          - lsd
+          - ffmpeg # Required for CamGuard
+
+    # CamGuard configuration for production
+    camguard:
+      enabled: true
+
+      # Recording settings optimized for production
+      recording:
+        resolution: "1920x1080" # 1080p recording
+        framerate: "30.000030" # Exact camera framerate (avoids NTSC conversion)
+        bitrate: "4M" # 4 Mbps for high quality
+        chunk_duration: 900 # 15 minutes per chunk for production (longer than test)
+        format: "mp4"
+        codec: "h264_videotoolbox" # Hardware acceleration on macOS
+
+
+      # Camera settings
+      camera:
+        device_id: "0" # Default camera device
+        input_format: "avfoundation" # macOS camera input
+
+      # Storage settings (production-grade)
+      storage:
+        recordings_dir: "{{ ansible_user_dir }}/orangead/camguard/recordings"
+        logs_dir: "{{ ansible_user_dir }}/orangead/camguard/logs"
+        retention_days: 7 # Keep recordings for 7 days in production
+        max_size_gb: 50 # Maximum storage usage in GB (increased for production)
+
+      # Service settings
+      service:
+        name: "com.orangead.camguard"
+        user: "{{ ansible_user }}"
+        keep_alive: true
+        run_at_load: true
+        restart_on_failure: true
+        log_level: "info"
+
+      # Health monitoring (production-grade)
+      health:
+        enabled: true
+        check_interval: 600 # 10 minutes (longer interval for production)
+        max_failures: 5 # More tolerance for production
+        restart_delay: 60 # Longer delay between restarts
+
+
+  children:
+    macos:
+      hosts:
+        f1-ca-013:
+          ansible_host: 100.100.39.53
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-013'] }}"
+          cam_id: "e1109807-d70b-4f79-ad2e-88b439903235"
+        f1-ca-017:
+          ansible_host: 100.83.231.37
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-017'] }}"
+          cam_id: "979d9cc5-a8b4-45bb-a6cf-8d988ab2f1eb"
