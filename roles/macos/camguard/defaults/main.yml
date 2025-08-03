@@ -1,0 +1,58 @@
+---
+# CamGuard Role Defaults
+# Video recording service for macOS
+
+camguard_defaults:
+  enabled: false
+  
+  # Recording settings
+  recording:
+    resolution: "1920x1080"  # 1080p recording
+    framerate: 30
+    bitrate: "4M"  # 4 Mbps for high quality
+    chunk_duration: 600  # 10 minutes per chunk (in seconds)
+    format: "mp4"
+    codec: "h264_videotoolbox"  # Hardware acceleration on macOS
+    
+  # Camera settings
+  camera:
+    device_id: "0"  # Default camera device
+    input_format: "avfoundation"  # macOS camera input
+    
+  # Live streaming settings
+  streaming:
+    enabled: true  # Enable live RTSP streaming
+    rtsp_port: 8554  # RTSP server port
+    stream_path: "live"  # RTSP stream path (/live)
+    server_host: "127.0.0.1"  # MediaMTX server host
+    low_latency: true  # Optimize for low latency streaming
+    
+  # Storage settings
+  storage:
+    recordings_dir: "{{ ansible_user_dir }}/orangead/camguard/recordings"
+    logs_dir: "{{ ansible_user_dir }}/orangead/camguard/logs"
+    retention_days: 0  # No retention - keep all recordings
+    max_size_gb: 0     # No size limit
+    
+  # Recording schedule (weekend only)
+  schedule:
+    friday_start_hour: 12    # Start recording Friday at 12 PM (noon)
+    monday_end_hour: 12      # Stop recording Monday at 12 PM (noon)
+    
+  # Service settings
+  service:
+    name: "com.orangead.camguard"
+    user: "{{ ansible_user }}"
+    keep_alive: true
+    run_at_load: true
+    restart_on_failure: true
+    log_level: "info"
+    restart_delay: 30
+    
+  # Health monitoring
+  health:
+    enabled: true
+    check_interval: 300  # 5 minutes
+    max_failures: 3
+    restart_delay: 30
+

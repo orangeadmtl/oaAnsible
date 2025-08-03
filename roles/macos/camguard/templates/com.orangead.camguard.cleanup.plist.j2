@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{ camguard.service.name }}.cleanup</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>{{ ansible_user_dir }}/orangead/camguard/scripts/camguard_cleanup.sh</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>{{ ansible_user_dir }}/orangead/camguard</string>
+    
+    <key>StandardOutPath</key>
+    <string>{{ camguard.storage.logs_dir }}/camguard_cleanup.stdout.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>{{ camguard.storage.logs_dir }}/camguard_cleanup.stderr.log</string>
+    
+    <key>StartInterval</key>
+    <integer>3600</integer>  <!-- Run every hour -->
+    
+    <key>RunAtLoad</key>
+    <false/>
+    
+    <key>ProcessType</key>
+    <string>Background</string>
+    
+    <!-- Environment variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>{{ ansible_user_dir }}</string>
+        <key>USER</key>
+        <string>{{ ansible_user }}</string>
+    </dict>
+    
+    <!-- Resource limits -->
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>512</integer>
+        <key>NumberOfProcesses</key>
+        <integer>10</integer>
+    </dict>
+    
+    <!-- Nice level (low priority background task) -->
+    <key>Nice</key>
+    <integer>10</integer>
+    
+    <!-- Security -->
+    <key>UserName</key>
+    <string>{{ camguard.service.user }}</string>
+</dict>
+</plist>

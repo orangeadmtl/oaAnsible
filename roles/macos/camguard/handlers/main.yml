@@ -1,0 +1,26 @@
+---
+- name: restart camguard service
+  ansible.builtin.shell: |
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/{{ camguard.service.name }}.plist 2>/dev/null || true
+    sleep 2
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/{{ camguard.service.name }}.plist
+  become: false
+  listen: "restart camguard service"
+
+- name: restart camguard cleanup service
+  ansible.builtin.shell: |
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/{{ camguard.service.name }}.cleanup.plist 2>/dev/null || true
+    sleep 1
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/{{ camguard.service.name }}.cleanup.plist
+  become: false
+  listen: "restart camguard cleanup service"
+
+- name: restart mediamtx service
+  ansible.builtin.shell: |
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.mediamtx.plist 2>/dev/null || true
+    sleep 2
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.mediamtx.plist
+  become: false
+  when: camguard.streaming.enabled | default(true)
+  listen: "restart mediamtx service"
+

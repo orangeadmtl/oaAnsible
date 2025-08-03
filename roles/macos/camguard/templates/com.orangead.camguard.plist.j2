@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{ camguard.service.name }}</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>{{ ansible_user_dir }}/orangead/camguard/scripts/camguard.sh</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>{{ ansible_user_dir }}/orangead/camguard</string>
+    
+    <key>StandardOutPath</key>
+    <string>{{ camguard.storage.logs_dir }}/camguard.stdout.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>{{ camguard.storage.logs_dir }}/camguard.stderr.log</string>
+    
+    <key>KeepAlive</key>
+    <{{ camguard.service.keep_alive | lower }}/>
+    
+    <key>RunAtLoad</key>
+    <{{ camguard.service.run_at_load | lower }}/>
+    
+    <key>ProcessType</key>
+    <string>Background</string>
+    
+    <key>ThrottleInterval</key>
+    <integer>{{ camguard.service.restart_delay | default(30) }}</integer>
+    
+    <!-- Environment variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>{{ ansible_user_dir }}</string>
+        <key>USER</key>
+        <string>{{ ansible_user }}</string>
+        <key>CAMGUARD_CONFIG</key>
+        <string>{{ ansible_user_dir }}/orangead/camguard</string>
+    </dict>
+    
+    <!-- Resource limits -->
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>2048</integer>
+        <key>NumberOfProcesses</key>
+        <integer>256</integer>
+    </dict>
+    
+    <!-- Nice level (lower priority to not interfere with other processes) -->
+    <key>Nice</key>
+    <integer>5</integer>
+    
+    <!-- Security -->
+    <key>UserName</key>
+    <string>{{ camguard.service.user }}</string>
+    
+</dict>
+</plist>
