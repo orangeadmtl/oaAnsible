@@ -29,6 +29,7 @@
           "macos-api": "macos-api"
           "api": "macos-api"
           "alpr": "alpr"
+          "camguard": "camguard"
           "base": "base"
           "network": "network"
           "security": "security"
@@ -41,6 +42,7 @@
             "macos-api": "macos-api",
             "api": "macos-api",
             "alpr": "alpr",
+            "camguard": "camguard",
             "base": "base",
             "network": "network",
             "security": "security",
@@ -88,7 +90,7 @@
 
           Valid component tags are:
           - Infrastructure: base, network, security, ssh
-          - Applications: macos-api, api, tracker, player, alpr
+          - Applications: macos-api, api, tracker, player, alpr, camguard
           - Platform-specific: docker
 
           Did you mean one of these similar tags?
@@ -216,7 +218,7 @@
 
               Available component tags:
               - Infrastructure: base, network, security, ssh
-              - Applications: macos-api (or 'api'), tracker, player, alpr
+              - Applications: macos-api (or 'api'), tracker, player, alpr, camguard
               - Platform-specific: components, setup
 
               Usage Examples:

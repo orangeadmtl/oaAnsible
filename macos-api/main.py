@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from macos_api.core.config import APP_VERSION, TAILSCALE_SUBNET
 from macos_api.middleware import TailscaleSubnetMiddleware
-from macos_api.routers import actions, camera, health, tracker
+from macos_api.routers import actions, camera, camguard, health, tracker
 
 # Initialize FastAPI app
 app = FastAPI(title="macOS Health Check API", version=APP_VERSION)
@@ -27,6 +27,7 @@ app.include_router(health.router, tags=["health"])
 app.include_router(camera.router, tags=["camera"])
 app.include_router(actions.router, tags=["actions"])
 app.include_router(tracker.router, tags=["tracker"])
+app.include_router(camguard.router, tags=["camguard"])
 
 
 @app.get("/")
@@ -53,6 +54,14 @@ async def root():
                 "status": "/tracker/status",
                 "stream": "/tracker/stream",
                 "mjpeg": "/tracker/mjpeg",
+            },
+            "camguard": {
+                "status": "/camguard/status",
+                "stream_url": "/camguard/stream_url",
+                "recordings": "/camguard/recordings",
+                "storage": "/camguard/storage",
+                "restart": "/camguard/actions/restart",
+                "cleanup": "/camguard/actions/cleanup",
             },
         },
     }

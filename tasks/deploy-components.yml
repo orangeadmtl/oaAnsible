@@ -7,7 +7,7 @@
 
 - name: Check macOS component compatibility
   ansible.builtin.set_fact:
-    compatible_components: "{{ compatible_components + ['macos-api', 'tracker', 'alpr', 'player', 'base', 'network', 'security', 'ssh'] }}"
+    compatible_components: "{{ compatible_components + ['macos-api', 'tracker', 'alpr', 'player', 'camguard', 'base', 'network', 'security', 'ssh'] }}"
   when: target_platform == "macos"
 
 - name: Check Ubuntu component compatibility
@@ -122,6 +122,14 @@
     - target_platform == "macos"
     - "'player' in deployment_components | default(selected_components)"
   tags: ["player"]
+
+- name: Deploy CamGuard component
+  ansible.builtin.include_role:
+    name: macos/camguard
+  when:
+    - target_platform == "macos"
+    - "'camguard' in deployment_components | default(selected_components)"
+  tags: ["camguard"]
 
 # Ubuntu-specific components
 - name: Deploy Docker component
