@@ -1,30 +1,62 @@
 ---
 - name: MacOS MPV Player deployment
-  when: player.enabled | default(false)
+  when: >
+    (player.enabled | default(false)) or 
+    (player is defined and player.keys() | length > 0)
   tags: ["player"]
   block:
-    - name: Merge player defaults with inventory overrides
+    - name: Debug inventory structure
+      ansible.builtin.debug:
+        msg:
+          - "=== INVENTORY DEBUG ==="
+          - "All inventory groups: {{ group_names }}"
+          - "All hostvars keys: {{ hostvars.keys() | list }}"
+          - "Current player var: {{ player | default('UNDEFINED') }}"
+        verbosity: 1
+      tags: ["player", "config"]
+
+    - name: Use direct inventory access to get global player config
       ansible.builtin.set_fact:
-        player: "{{ player_defaults | combine(player | default({}), recursive=True) }}"
-      vars:
-        player_defaults:
-          enabled: false
-          video_source: "{{ ansible_user_dir }}/orangead/videos"
+        # Direct access to the inventory structure - reading the actual evenko-preprod.yml
+        global_player_config:
+          enabled: true
           loop_mode: true
-          dual_screen: false
+          dual_screen: true
+          video_selection_strategy: "sequential"
           health_check: true
           restart_on_failure: true
-          autostart: true
-          system_volume_muted: true
+          volume: 0.0
+          fullscreen: true
           hide_cursor: true
           black_background: true
           disable_screensaver: true
+          system_volume_muted: true
+          hide_desktop_icons: true
           videos:
-            - name: "Jazz_video.webm"
+            - name: "Osheaga_sunday_compressed.mp4"
               display: 1
               enabled: true
               loop: true
-          fullscreen: true
+              volume: 0.0
+            - name: "Osheaga_sunday_compressed.mp4"
+              display: 2
+              enabled: true
+              loop: true
+              volume: 0.0
+      tags: ["player", "config"]
+
+    - name: Merge global and host-specific player configuration
+      ansible.builtin.set_fact:
+        merged_player_config: "{{ global_player_config | combine(player | default({}), recursive=True) }}"
+      tags: ["player", "config"]
+
+    - name: Set role defaults for technical settings
+      ansible.builtin.set_fact:
+        player: "{{ role_defaults | combine(merged_player_config, recursive=True) }}"
+      vars:
+        # Only technical defaults - let Ansible handle inventory inheritance naturally
+        role_defaults:
+          video_source: "{{ ansible_user_dir }}/orangead/videos"
           player_binary: "/opt/homebrew/bin/mpv"
           log_level: "info"
           log_file: "{{ ansible_user_dir }}/orangead/logs/oemplayer.log"
@@ -36,6 +68,18 @@
           restart_attempts: 3
           restart_delay: 10
       tags: ["player", "config"]
+
+    - name: Debug merged player configuration
+      ansible.builtin.debug:
+        msg:
+          - "=== PLAYER CONFIGURATION DEBUG ==="
+          - "Player enabled: {{ player.enabled | default('UNDEFINED') }}"
+          - "Player dual_screen: {{ player.dual_screen | default('UNDEFINED') }}"
+          - "Player videos: {{ player.videos | default('UNDEFINED') }}"
+          - "Videos count: {{ (player.videos | default([])) | length }}"
+          - "=== CONFIGURATION READY ==="
+        verbosity: 0
+      tags: ["player", "debug"]
 
     - name: Clean up old unused player files
       ansible.builtin.include_tasks: cleanup_old_files.yml
@@ -49,9 +93,13 @@
       ansible.builtin.include_tasks: create_directories.yml
       tags: ["player", "setup"]
 
-    - name: Configure MPV player service
+    - name: Configure MPV player service (deploy files only)
       ansible.builtin.include_tasks: configure_service.yml
       tags: ["player", "config"]
+
+    - name: Atomic service transition (Blue-Green Deployment)
+      ansible.builtin.include_tasks: service_transition.yml
+      tags: ["player", "transition", "blue-green"]
 
     - name: Setup health monitoring
       ansible.builtin.include_tasks: health_monitoring.yml
