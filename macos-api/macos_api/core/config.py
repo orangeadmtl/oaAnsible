@@ -1,4 +1,5 @@
 import os
+import socket
 from pathlib import Path
 
 # API Version
@@ -60,3 +61,11 @@ HEALTH_SCORE_THRESHOLDS = {"critical": 50, "warning": 80}
 # Screenshot settings
 SCREENSHOT_MAX_HISTORY = 50  # Maximum number of screenshot files to keep
 SCREENSHOT_RATE_LIMIT = 1  # seconds
+
+
+def get_hostname():
+    """Get the system hostname"""
+    try:
+        return socket.gethostname()
+    except Exception:
+        return "localhost"
