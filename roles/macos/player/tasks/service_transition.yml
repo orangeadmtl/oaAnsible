@@ -1,0 +1,94 @@
+---
+# Blue-green service transition - atomic switch from old to new service
+# This happens AFTER new files are deployed to minimize downtime
+
+- name: Pre-transition validation
+  ansible.builtin.debug:
+    msg: |
+      Starting atomic service transition:
+      - Old service will be stopped
+      - New service will be started immediately
+      - Estimated downtime: 2-3 seconds
+
+- name: Verify new video files are ready
+  ansible.builtin.stat:
+    path: "{{ player.video_source }}/{{ video_item.name }}"
+  loop: "{{ player.videos | default([]) | selectattr('enabled', 'equalto', true) | list }}"
+  loop_control:
+    loop_var: video_item
+  register: new_video_files_check
+  when: player.videos is defined and player.videos | length > 0
+
+- name: Fail if any video files are missing
+  ansible.builtin.fail:
+    msg: "Required video file missing: {{ file_check.video_item.name }}"
+  loop: "{{ new_video_files_check.results | default([]) }}"
+  loop_control:
+    loop_var: file_check
+  when: 
+    - new_video_files_check.results is defined
+    - not file_check.stat.exists
+
+- name: Verify new player script is ready
+  ansible.builtin.stat:
+    path: "{{ player.video_source }}/oemplayer.sh"
+  register: new_script_check
+  failed_when: not new_script_check.stat.exists
+
+- name: Fast atomic service transition (brutal and immediate)
+  ansible.builtin.shell: |
+    echo "=== BRUTAL SERVICE TRANSITION ==="
+    
+    # IMMEDIATE KILL - No mercy, no waiting
+    pkill -9 -f "mpv.*--screen=" 2>/dev/null || true
+    pkill -9 -f "oemplayer.sh" 2>/dev/null || true
+    
+    # IMMEDIATE SERVICE STOP - No waiting for graceful shutdown
+    launchctl stop {{ player.service_name }} 2>/dev/null || true
+    launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist" 2>/dev/null || true
+    
+    # IMMEDIATE SERVICE START - Start new service right away
+    launchctl load "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist" 2>/dev/null || true
+    
+    echo "=== TRANSITION COMPLETE ==="
+  register: transition_result
+  changed_when: false
+  failed_when: false
+  tags: ["player", "transition", "brutal"]
+
+- name: Brief pause for service startup
+  ansible.builtin.pause:
+    seconds: 2
+
+- name: Verify new service is running
+  ansible.builtin.shell: |
+    launchctl list | grep "{{ player.service_name }}" || echo "not loaded"
+  register: new_service_status
+  changed_when: false
+  failed_when: false
+
+- name: Check new MPV processes
+  ansible.builtin.shell: |
+    pgrep -f "mpv.*--screen=" | wc -l || echo "0"
+  register: new_mpv_count
+  changed_when: false
+  failed_when: false
+
+- name: Validate successful transition
+  ansible.builtin.fail:
+    msg: |
+      Service transition failed!
+      - Service status: {{ new_service_status.stdout }}
+      - MPV processes: {{ new_mpv_count.stdout }}
+      - Expected processes: {{ '2' if player.dual_screen | default(true) else '1' }}
+  when:
+    - new_service_status.stdout == 'not loaded' or new_mpv_count.stdout|int < 1
+
+- name: Log successful transition
+  ansible.builtin.debug:
+    msg: |
+      ✅ Blue-green service transition completed successfully!
+      - Service: {{ player.service_name }} ({{ 'LOADED' if new_service_status.stdout != 'not loaded' else 'NOT LOADED' }})
+      - MPV processes: {{ new_mpv_count.stdout }}
+      - Expected: {{ '2' if player.dual_screen | default(true) else '1' }}
+      - Downtime: ~2-3 seconds (minimal impact)
