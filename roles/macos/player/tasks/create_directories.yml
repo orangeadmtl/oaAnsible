@@ -37,5 +37,5 @@
       ansible.builtin.stat:
         path: "{{ player.video_source }}/{{ item.name }}"
       register: video_files_check
-      loop: "{{ player.videos | selectattr('enabled', 'equalto', true) | list }}"
-      when: player.videos is defined
+      loop: "{{ player.videos | default([]) | selectattr('enabled', 'equalto', true) | list }}"
+      when: player.videos is defined and player.videos | length > 0

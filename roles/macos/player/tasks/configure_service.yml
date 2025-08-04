@@ -8,11 +8,11 @@
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user_group | default('staff') }}"
         mode: "0644"
-      loop: "{{ player.videos | selectattr('enabled', 'equalto', true) | list }}"
+      loop: "{{ player.videos | default([]) | selectattr('enabled', 'equalto', true) | list }}"
       loop_control:
         loop_var: video_item
       when:
-        - player.videos is defined
+        - player.videos is defined and player.videos | length > 0
         - video_item.name | regex_search('\.(webm|mp4|mov|avi|mkv)$')
 
     - name: Deploy OrangeAd MPV player script
@@ -31,98 +31,30 @@
         group: "{{ ansible_user_group | default('staff') }}"
         mode: "0644"
 
-    - name: Load new MPV player LaunchAgent (auto-starts via RunAtLoad)
-      ansible.builtin.shell: |
-        launchctl load "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist"
-      become: false
-      changed_when: true
+    - name: Log file deployment completion
+      ansible.builtin.debug:
+        msg: |
+          File deployment completed successfully:
+          - Video files: {{ player.videos | default([]) | selectattr('enabled', 'equalto', true) | list | length }} deployed
+          - Player script: oemplayer.sh deployed  
+          - LaunchAgent plist: {{ player.service_name }}.plist ready
+          - Service transition will happen next (minimal downtime)
 
-    - name: Wait for auto-started service to initialize (includes display detection)
-      ansible.builtin.pause:
-        seconds: 15
-
-    - name: Verify MPV player service is running
-      ansible.builtin.shell: |
-        launchctl list | grep "{{ player.service_name }}" || echo "not loaded"
-      register: service_status
-      changed_when: false
-      failed_when: false
-
-    - name: Check for running MPV processes
-      ansible.builtin.shell: |
-        pgrep -f "mpv.*--screen=" | wc -l || echo "0"
-      register: mpv_count
-      changed_when: false
-      failed_when: false
-
-    - name: Verify video files exist
+    - name: Verify all required files are in place
       ansible.builtin.stat:
         path: "{{ player.video_source }}/{{ video_item.name }}"
-      loop: "{{ player.videos }}"
+      loop: "{{ player.videos | default([]) | selectattr('enabled', 'equalto', true) | list }}"
       loop_control:
         loop_var: video_item
-      register: video_files_check
+      register: video_files_final_check
+      when: player.videos is defined and player.videos | length > 0
 
-    - name: Display MPV player status
-      ansible.builtin.debug:
-        msg: |
-          MPV Player Service Status:
-          - LaunchAgent: {{ service_status.stdout if service_status.stdout != 'not loaded' else 'Not loaded' }}
-          - MPV processes: {{ mpv_count.stdout }}
-          - Expected processes: {{ '2' if player.dual_screen | default(true) else '1' }}
-          - Service: {{ player.service_name }}
-          - Video files: {{ video_files_check.results | selectattr('stat.exists') | list | length }}/{{ video_files_check.results | length }}
-
-    - name: Read recent log entries
-      ansible.builtin.shell: |
-        tail -n 10 "{{ player.log_file }}" 2>/dev/null || echo "No log entries yet"
-      register: recent_logs
-      changed_when: false
-
-    - name: Display recent log entries
-      ansible.builtin.debug:
-        msg: |
-          Recent Log Entries:
-          {{ recent_logs.stdout }}
-
-    - name: Check if service is still initializing
-      ansible.builtin.shell: |
-        # Check if oemplayer.sh process is running (service initializing)
-        pgrep -f "oemplayer.sh" | wc -l
-      register: initializing_count
-      changed_when: false
-      failed_when: false
-
-    - name: Wait additional time if service is still initializing
-      ansible.builtin.pause:
-        seconds: 10
-      when: initializing_count.stdout|int > 0 and mpv_count.stdout|int < 1
-
-    - name: Re-check MPV processes after additional wait
-      ansible.builtin.shell: |
-        pgrep -f "mpv.*--screen=" | wc -l || echo "0"
-      register: mpv_count_recheck
-      changed_when: false
-      failed_when: false
-      when: initializing_count.stdout|int > 0 and mpv_count.stdout|int < 1
-
-    - name: Set final MPV count for validation
-      ansible.builtin.set_fact:
-        final_mpv_count: "{{ mpv_count_recheck.stdout | default(mpv_count.stdout) }}"
-
-    - name: Display final validation status
-      ansible.builtin.debug:
-        msg: |
-          Final Validation Status:
-          - LaunchAgent: {{ 'LOADED' if service_status.stdout != 'not loaded' else 'NOT LOADED' }}
-          - MPV processes: {{ final_mpv_count }}
-          - Expected processes: {{ '2' if player.dual_screen | default(true) else '1' }}
-          - Service initializing: {{ 'YES' if initializing_count.stdout|int > 0 else 'NO' }}
-
-    - name: Fail if player is not running correctly
+    - name: Validate file deployment readiness
       ansible.builtin.fail:
-        msg: "MPV player service is not running correctly. Check logs at {{ player.log_file }}"
-      when:
-        - service_status.stdout == 'not loaded' or final_mpv_count|int < 1
-        - initializing_count.stdout|int == 0  # Only fail if not currently initializing
-        - not ansible_check_mode
+        msg: "Required video file missing: {{ video_item.video_item.name }}"
+      loop: "{{ video_files_final_check.results | default([]) }}"
+      loop_control:
+        loop_var: video_item
+      when: 
+        - video_files_final_check.results is defined
+        - not video_item.stat.exists
