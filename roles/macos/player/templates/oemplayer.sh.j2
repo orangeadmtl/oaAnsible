@@ -11,18 +11,48 @@ PLAYER_DIR="{{ player.video_source }}"
 LOGS_DIR="${PLAYER_DIR}/logs"
 LOG_FILE="${LOGS_DIR}/player.log"
 
-# Video file configuration per display
-{% set display1_videos = player.videos | selectattr('display', 'equalto', 1) | selectattr('enabled', 'equalto', true) | list %}
-{% set display2_videos = player.videos | selectattr('display', 'equalto', 2) | selectattr('enabled', 'equalto', true) | list %}
-{% if display1_videos %}
+# Bulletproof video configuration with comprehensive fallbacks
+{% if player.videos is defined and player.videos %}
+  {% if player.dual_screen | default(true) %}
+    # Dual-screen mode: use explicit display assignments
+    {% set display1_videos = player.videos | selectattr('display', 'equalto', 1) | selectattr('enabled', 'equalto', true) | list %}
+    {% set display2_videos = player.videos | selectattr('display', 'equalto', 2) | selectattr('enabled', 'equalto', true) | list %}
+    
+    # Fallback if no display-specific videos found
+    {% if not display1_videos %}
+      {% set display1_videos = player.videos | selectattr('enabled', 'equalto', true) | list %}
+    {% endif %}
+    {% if not display2_videos and display1_videos %}
+      {% set display2_videos = display1_videos %}
+    {% endif %}
+  {% else %}
+    # Single-screen mode: use first enabled video for display 1 only
+    {% set all_enabled_videos = player.videos | selectattr('enabled', 'equalto', true) | list %}
+    {% if all_enabled_videos %}
+      {% set display1_videos = [all_enabled_videos[0]] %}
+    {% else %}
+      {% set display1_videos = [player.videos[0]] %}
+    {% endif %}
+    {% set display2_videos = [] %}
+  {% endif %}
+{% else %}
+  # NO VIDEOS DEFINED - Exit with error rather than using hardcoded fallback
+  {% set display1_videos = [] %}
+  {% set display2_videos = [] %}
+{% endif %}
+
+# Set video file paths - no fallbacks, proper inventory-driven configuration
+{% if display1_videos and display1_videos[0].name is defined %}
 VIDEO_FILE_DISPLAY1="${PLAYER_DIR}/{{ display1_videos[0].name }}"
 {% else %}
-VIDEO_FILE_DISPLAY1="${PLAYER_DIR}/{{ player.videos[0].name }}"
+echo "ERROR: No videos configured in inventory for display 1"
+exit 1
 {% endif %}
-{% if display2_videos %}
+
+{% if display2_videos and display2_videos[0].name is defined %}
 VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/{{ display2_videos[0].name }}"
 {% else %}
-VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/{{ player.videos[0].name }}"
+VIDEO_FILE_DISPLAY2=""
 {% endif %}
 
 # MPV arguments
@@ -139,7 +169,7 @@ if [[ ! -f "$VIDEO_FILE_DISPLAY1" ]]; then
 fi
 
 {% if display2_videos %}
-if [[ ! -f "$VIDEO_FILE_DISPLAY2" ]]; then
+if [[ -n "$VIDEO_FILE_DISPLAY2" && ! -f "$VIDEO_FILE_DISPLAY2" ]]; then
     log_message "ERROR: Secondary video file not found: $VIDEO_FILE_DISPLAY2" "ERROR"
     exit 1
 fi
@@ -166,8 +196,13 @@ if [ "$DISPLAY_COUNT" -ge 2 ]; then
     MPV_PID_1=$!
     
 {% if display2_videos %}
-    mpv --screen=1 $MPV_ARGS "$VIDEO_FILE_DISPLAY2" &
-    MPV_PID_2=$!
+    if [[ -n "$VIDEO_FILE_DISPLAY2" ]]; then
+        mpv --screen=1 $MPV_ARGS "$VIDEO_FILE_DISPLAY2" &
+        MPV_PID_2=$!
+    else
+        mpv --screen=1 $MPV_ARGS "$VIDEO_FILE_DISPLAY1" &
+        MPV_PID_2=$!
+    fi
 {% else %}
     mpv --screen=1 $MPV_ARGS "$VIDEO_FILE_DISPLAY1" &
     MPV_PID_2=$!
@@ -242,11 +277,20 @@ while true; do
     if [ "$DUAL_RUNNING" = true ] && ! kill -0 $MPV_PID_2 2>/dev/null; then
         log_message "Secondary display died - restarting..." "RESTART"
 {% if display2_videos %}
-        if start_mpv 1 "$VIDEO_FILE_DISPLAY2" "MPV_PID_2"; then
-            log_message "Secondary display restarted (PID: $MPV_PID_2)" "RESTART"
+        if [[ -n "$VIDEO_FILE_DISPLAY2" ]]; then
+            if start_mpv 1 "$VIDEO_FILE_DISPLAY2" "MPV_PID_2"; then
+                log_message "Secondary display restarted (PID: $MPV_PID_2)" "RESTART"
+            else
+                log_message "Secondary display restart failed" "ERROR"
+                DUAL_RUNNING=false
+            fi
         else
-            log_message "Secondary display restart failed" "ERROR"
-            DUAL_RUNNING=false
+            if start_mpv 1 "$VIDEO_FILE_DISPLAY1" "MPV_PID_2"; then
+                log_message "Secondary display restarted (PID: $MPV_PID_2)" "RESTART"
+            else
+                log_message "Secondary display restart failed" "ERROR"
+                DUAL_RUNNING=false
+            fi
         fi
 {% else %}
         if start_mpv 1 "$VIDEO_FILE_DISPLAY1" "MPV_PID_2"; then
