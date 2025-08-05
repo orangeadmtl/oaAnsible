@@ -44,6 +44,9 @@ terminal_access=$($USE_SUDO sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE
 # Check camera permissions for SSH
 ssh_access=$($USE_SUDO sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND client='/usr/libexec/sshd-keygen-wrapper' AND auth_value=2;" 2>/dev/null || echo "0")
 
+# Check camera permissions for ffmpeg binary (needed for CamGuard video recording)
+ffmpeg_access=$($USE_SUDO sqlite3 "$TCC_DB" "SELECT COUNT(*) FROM access WHERE service='kTCCServiceCamera' AND client='/opt/homebrew/bin/ffmpeg' AND auth_value=2;" 2>/dev/null || echo "0")
+
 # Check for shared memory files
 shared_memory_exists=0
 tracker_running=0
@@ -65,4 +68,4 @@ if [ -f "/tmp/cam.shm" ]; then
 fi
 
 # Output as JSON
-echo "{\"api_access\": $api_access, \"tracker_access\": $tracker_access, \"setsid_access\": $setsid_access, \"nohup_access\": $nohup_access, \"bash_access\": $bash_access, \"tailscale_access\": $tailscale_access, \"terminal_access\": $terminal_access, \"ssh_access\": $ssh_access, \"shared_memory_exists\": $shared_memory_exists, \"tracker_running\": $tracker_running, \"tracker_accessible\": $tracker_accessible}"
+echo "{\"api_access\": $api_access, \"tracker_access\": $tracker_access, \"setsid_access\": $setsid_access, \"nohup_access\": $nohup_access, \"bash_access\": $bash_access, \"tailscale_access\": $tailscale_access, \"terminal_access\": $terminal_access, \"ssh_access\": $ssh_access, \"ffmpeg_access\": $ffmpeg_access, \"shared_memory_exists\": $shared_memory_exists, \"tracker_running\": $tracker_running, \"tracker_accessible\": $tracker_accessible}"

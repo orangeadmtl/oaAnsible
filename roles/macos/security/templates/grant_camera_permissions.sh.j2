@@ -47,6 +47,10 @@ client_types+=(1)
 apps+=("com.apple.Terminal")
 client_types+=(0)
 
+# Add direct ffmpeg binary for CamGuard video recording
+apps+=("/opt/homebrew/bin/ffmpeg")
+client_types+=(1)
+
 # Function to grant permissions to a TCC database
 grant_permissions_to_db() {
     local tcc_db="$1"

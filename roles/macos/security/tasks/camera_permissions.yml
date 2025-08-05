@@ -120,6 +120,10 @@
         type: 1 # Executable path
       - name: "com.apple.Terminal"
         type: 0 # Bundle ID
+      - name: "/opt/homebrew/bin/ffmpeg"
+        type: 1 # Executable path (for CamGuard video recording)
+      - name: "/usr/local/bin/ffmpeg"
+        type: 1 # Executable path (alternative ffmpeg location)
 
 # Check camera permissions using template
 - name: Create script to check camera permissions
@@ -173,6 +177,10 @@
   ansible.builtin.set_fact:
     ssh_access_status: "{% if camera_status.ssh_access | int > 0 %}Granted{% else %}Not granted{% endif %}"
 
+- name: Set ffmpeg access status
+  ansible.builtin.set_fact:
+    ffmpeg_access_status: "{% if camera_status.ffmpeg_access | int > 0 %}Granted{% else %}Not granted{% endif %}"
+
 - name: Set shared memory status
   ansible.builtin.set_fact:
     shared_memory_status: "{% if camera_status.shared_memory_exists | int > 0 %}Yes{% else %}No{% endif %}"
@@ -197,6 +205,7 @@
       - Tailscale: {{ tailscale_access_status }}
       - Terminal: {{ terminal_access_status }}
       - SSH: {{ ssh_access_status }}
+      - ffmpeg: {{ ffmpeg_access_status }}
 
       Shared memory status:
       - Shared memory file exists: {{ shared_memory_status }}
@@ -236,10 +245,14 @@
   ansible.builtin.set_fact:
     ssh_access_missing: "{% if camera_status.ssh_access | int == 0 %}true{% else %}false{% endif %}"
 
+- name: Check if ffmpeg access is missing
+  ansible.builtin.set_fact:
+    ffmpeg_access_missing: "{% if camera_status.ffmpeg_access | int == 0 %}true{% else %}false{% endif %}"
+
 - name: Check if camera permissions need to be granted
   ansible.builtin.set_fact:
     need_camera_permissions: "{{ api_access_missing == 'true' or tracker_access_missing == 'true' or setsid_access_missing == 'true' or nohup_access_missing == 'true'
-      or bash_access_missing == 'true' or tailscale_access_missing == 'true' or terminal_access_missing == 'true' or ssh_access_missing == 'true' }}"
+      or bash_access_missing == 'true' or tailscale_access_missing == 'true' or terminal_access_missing == 'true' or ssh_access_missing == 'true' or ffmpeg_access_missing == 'true' }}"
 
 # Grant Full Disk Access first (required for TCC database access)
 - name: Create script to grant Full Disk Access
@@ -292,7 +305,7 @@
   ansible.builtin.set_fact:
     camera_permissions_granted: "{{ api_access_status == 'Granted' and tracker_access_status == 'Granted' and setsid_access_status == 'Granted' and nohup_access_status
       == 'Granted' and bash_access_status == 'Granted' and tailscale_access_status == 'Granted' and terminal_access_status == 'Granted' and ssh_access_status == 'Granted'
-      }}"
+      and ffmpeg_access_status == 'Granted' }}"
 
 - name: Debug camera permissions granted status
   ansible.builtin.debug:
@@ -307,6 +320,7 @@
       - Tailscale: {{ tailscale_access_status }}
       - Terminal: {{ terminal_access_status }}
       - SSH: {{ ssh_access_status }}
+      - ffmpeg: {{ ffmpeg_access_status }}
 
 - name: Create script to verify camera access
   ansible.builtin.template:
