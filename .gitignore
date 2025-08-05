@@ -29,9 +29,6 @@ logs/
 vault_password_file
 group_vars/all/vault.yml
 
-# Temporary files
-git_diff.txt
-
 # Video files - stored separately
 *.webm
 *.mp4
