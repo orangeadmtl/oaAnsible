@@ -39,37 +39,73 @@ check_ssh_installed
 
 # --- Main Script ---
 # Check if arguments are provided for non-interactive mode
-if [ $# -eq 3 ]; then
-  # Non-interactive mode: genSSH <ip> <user> <password>
+if [ $# -ge 2 ]; then
+  # Non-interactive mode: genSSH <ip> <user> [password]
   TARGET_CONNECT_HOST="$1"
   TARGET_CONNECT_USER="$2"
-  SSH_PASSWORD="$3"
+  SSH_PASSWORD="${3:-}"  # Optional password parameter
   
-  # Determine inventory and host alias based on IP
-  TARGET_INVENTORY_PATH="$OA_ANSIBLE_INVENTORY_DIR/staging/hosts.yml"
-  # Find the host alias for this IP across all host groups
+  # Search across all available inventories to find the host
   TARGET_HOST_ALIAS=""
+  TARGET_HOST_GROUP=""
+  TARGET_INVENTORY_PATH=""
   
-  # Search in macos group
-  MACOS_HOST=$(yq e ".all.children.macos.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$TARGET_INVENTORY_PATH")
-  if [ -n "$MACOS_HOST" ] && [ "$MACOS_HOST" != "null" ]; then
-    TARGET_HOST_ALIAS="$MACOS_HOST"
-    TARGET_HOST_GROUP="macos"
-  fi
+  log_info "Searching for host with IP $TARGET_CONNECT_HOST across all inventories..."
   
-  # Search in ubuntu_servers group if not found in macos
-  if [ -z "$TARGET_HOST_ALIAS" ]; then
-    UBUNTU_HOST=$(yq e ".all.children.ubuntu_servers.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$TARGET_INVENTORY_PATH")
+  # Get list of all inventories
+  inventories=()
+  while IFS= read -r inv; do
+    inventories+=("$inv")
+  done < <(discover_inventories)
+  
+  # Search through all inventories
+  for inventory_name in "${inventories[@]}"; do
+    inventory_path=$(get_inventory_path "$inventory_name")
+    if [ $? -ne 0 ] || [ ! -f "$inventory_path" ]; then
+      continue
+    fi
+    
+    log_debug "Searching in inventory: $inventory_name ($inventory_path)"
+    
+    # Search in macos group
+    MACOS_HOST=$(yq e ".all.children.macos.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$inventory_path" 2>/dev/null)
+    if [ -n "$MACOS_HOST" ] && [ "$MACOS_HOST" != "null" ]; then
+      TARGET_HOST_ALIAS="$MACOS_HOST"
+      TARGET_HOST_GROUP="macos"
+      TARGET_INVENTORY_PATH="$inventory_path"
+      log_info "Found host $TARGET_HOST_ALIAS in inventory $inventory_name (macOS group)"
+      break
+    fi
+    
+    # Search in ubuntu_servers group
+    UBUNTU_HOST=$(yq e ".all.children.ubuntu_servers.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$inventory_path" 2>/dev/null)
     if [ -n "$UBUNTU_HOST" ] && [ "$UBUNTU_HOST" != "null" ]; then
       TARGET_HOST_ALIAS="$UBUNTU_HOST"
       TARGET_HOST_GROUP="ubuntu_servers"
+      TARGET_INVENTORY_PATH="$inventory_path"
+      log_info "Found host $TARGET_HOST_ALIAS in inventory $inventory_name (ubuntu_servers group)"
+      break
     fi
-  fi
+    
+    # Search in ubuntu group (alternative naming)
+    UBUNTU_HOST=$(yq e ".all.children.ubuntu.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$inventory_path" 2>/dev/null)
+    if [ -n "$UBUNTU_HOST" ] && [ "$UBUNTU_HOST" != "null" ]; then
+      TARGET_HOST_ALIAS="$UBUNTU_HOST"
+      TARGET_HOST_GROUP="ubuntu"
+      TARGET_INVENTORY_PATH="$inventory_path"
+      log_info "Found host $TARGET_HOST_ALIAS in inventory $inventory_name (ubuntu group)"
+      break
+    fi
+  done
   
   if [ -z "$TARGET_HOST_ALIAS" ]; then
-    log_error "No host found with IP $TARGET_CONNECT_HOST in staging inventory"
+    log_error "No host found with IP $TARGET_CONNECT_HOST in any available inventory"
+    log_error "Available inventories: $(echo "${inventories[@]}" | tr ' ' '\n' | head -5 | tr '\n' ' ')..."
     exit 1
   fi
+  
+  # Set TARGET_CONNECT_PORT from inventory
+  TARGET_CONNECT_PORT=$(yq e ".all.children.${TARGET_HOST_GROUP}.hosts.\"$TARGET_HOST_ALIAS\".ansible_port // 22" "$TARGET_INVENTORY_PATH")
   
   log_info "Non-interactive mode: deploying SSH key to $TARGET_HOST_ALIAS ($TARGET_CONNECT_HOST) as $TARGET_CONNECT_USER [group: $TARGET_HOST_GROUP]"
 else
@@ -114,7 +150,7 @@ if [ -z "$HOST_PASSWORD" ]; then
   log_debug "No host-specific password found for $TARGET_HOST_ALIAS"
   
   # For Ubuntu servers, try the Ubuntu-specific password first
-  if [ "${TARGET_HOST_GROUP:-}" == "ubuntu_servers" ]; then
+  if [ "${TARGET_HOST_GROUP:-}" == "ubuntu_servers" ] || [ "${TARGET_HOST_GROUP:-}" == "ubuntu" ]; then
     log_debug "Trying Ubuntu server password from vault"
     HOST_PASSWORD=$(echo "$DECRYPTED_VAULT_CONTENT" | yq -r '.vault_ubuntu_sudo_password')
     if [ "$HOST_PASSWORD" != "null" ] && [ -n "$HOST_PASSWORD" ]; then

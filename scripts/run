@@ -35,6 +35,7 @@ show_usage() {
     echo "Options:"
     echo "  -t, --tags TAGS     - Deploy specific components by tag (comma-separated)"
     echo "  -l, --limit HOST    - Limit deployment to specific host(s)"
+    echo "  --extra-vars VARS   - Pass extra variables to Ansible (key=value format)"
     echo "  --dry-run          - Preview changes without executing (safe mode)"
     echo "  --check            - Validation mode - check configuration only"
     echo "  --force            - Skip safety checks and confirmations"
@@ -47,6 +48,11 @@ show_usage() {
     echo "  $0 spectra-preprod -t macos-api        # Deploy macOS API only"
     echo "  $0 spectra-preprod -t api              # Same as above (alias)"
     echo "  $0 spectra-preprod -t tracker,security # Deploy tracker + security"
+    echo "  $0 ml-remote-server -t health               # Fast GPU health check"
+    echo "  $0 ml-remote-server -t nvidia               # Install/fix NVIDIA drivers"
+    echo "  $0 ml-remote-server -t nvidia,ml            # Full ML workstation setup"
+    echo "  $0 ml-remote-server -t oasentinel-setup     # Setup oaSentinel project"
+    echo "  $0 ml-remote-server -t oasentinel-full      # Complete oaSentinel automation"
     echo "  $0 prod -t network --dry-run           # Safe preview of network changes"
     echo ""
     echo "🔧 Full Stack Examples:"
@@ -76,6 +82,16 @@ show_usage() {
     echo ""
     echo "  🐧 Platform-specific:"
     echo "     docker     - Container runtime (Ubuntu only)"
+    echo "     nvidia     - NVIDIA GPU drivers (Ubuntu servers)"
+    echo "     ml         - ML workstation setup (Ubuntu servers)"
+    echo "     health     - GPU health check and validation"
+    echo ""
+    echo "  🎯 oaSentinel (AI Training):"
+    echo "     oasentinel-setup - Clone and configure oaSentinel project"  
+    echo "     oasentinel-data  - Download and process training datasets"
+    echo "     oasentinel-train - Start automated training session"
+    echo "     oasentinel-full  - Complete end-to-end automation"
+    echo "     oasentinel       - Alias for oasentinel-full"
     echo ""
     echo "💡 Pro Tips:"
     echo "  • Use --dry-run first to preview changes safely"
@@ -121,6 +137,10 @@ while [[ $# -gt 0 ]]; do
             EXECUTION_MODE="force"
             ANSIBLE_EXTRA_ARGS+=("--extra-vars" "force_deployment=true")
             shift
+            ;;
+        --extra-vars)
+            ANSIBLE_EXTRA_ARGS+=("--extra-vars" "$2")
+            shift 2
             ;;
         -v|--verbose)
             VERBOSE=true
