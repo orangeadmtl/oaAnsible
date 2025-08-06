@@ -29,7 +29,7 @@
         - "scripts/player.sh" # Old shell wrapper in scripts
         - "scripts/start_player.sh" # Complex dual-screen launcher
         - ".venv" # Python virtual environment
-      ignore_errors: true
+      failed_when: false
 
     - name: Remove old health check files if using new implementation
       ansible.builtin.file:
@@ -39,7 +39,7 @@
         - "health_check.sh"
         - "scripts/health_check.sh"
       when: not player.legacy_health_check | default(false)
-      ignore_errors: true
+      failed_when: false
 
     - name: Remove old LaunchAgent files for previous implementations
       ansible.builtin.file:
@@ -48,7 +48,7 @@
       loop:
         - "com.orangead.player.plist" # Old service name
         - "com.orangead.player.health.plist" # Old health monitoring
-      ignore_errors: true
+      failed_when: false
 
     - name: Clean up old log files with different naming
       ansible.builtin.file:
@@ -60,7 +60,7 @@
         - "player.stderr.log"
         - "health_check.log"
         - "health_check_error.log"
-      ignore_errors: true
+      failed_when: false
 
     - name: Log cleanup completion
       ansible.builtin.debug:

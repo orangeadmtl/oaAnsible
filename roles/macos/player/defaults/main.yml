@@ -2,7 +2,7 @@
 # Player Role Defaults
 
 # Player configuration - Optimized for kiosk mode deployment
-player:
+macos_player:
   enabled: false
   video_source: "{{ ansible_user_dir }}/orangead/videos"
   loop_mode: true
@@ -47,13 +47,13 @@ player:
   health_check_interval: 60 # seconds - less aggressive for MPV
   restart_attempts: 3
   restart_delay: 10 # seconds
-  
+
   # Display initialization (important for boot-time dual screen setup)
   display_wait_timeout: 60 # seconds to wait for displays during boot
   screen_launch_delay: 3 # seconds delay between launching screen 0 and screen 1
 
 # Video file management
-video_files:
+macos_video_files:
   # Auto-discover videos from role files/ directory
   auto_discover: true
   # Supported video formats
@@ -70,7 +70,7 @@ video_files:
   backup_retention_days: 7
 
 # Project-specific configurations (can be overridden in inventory)
-project_configs:
+macos_project_configs:
   f1:
     videos:
       - name: "f1-highlights.mp4"

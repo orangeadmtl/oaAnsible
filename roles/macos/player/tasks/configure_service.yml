@@ -36,7 +36,7 @@
         msg: |
           File deployment completed successfully:
           - Video files: {{ player.videos | default([]) | selectattr('enabled', 'equalto', true) | list | length }} deployed
-          - Player script: oemplayer.sh deployed  
+          - Player script: oemplayer.sh deployed
           - LaunchAgent plist: {{ player.service_name }}.plist ready
           - Service transition will happen next (minimal downtime)
 
@@ -55,6 +55,6 @@
       loop: "{{ video_files_final_check.results | default([]) }}"
       loop_control:
         loop_var: video_item
-      when: 
+      when:
         - video_files_final_check.results is defined
         - not video_item.stat.exists

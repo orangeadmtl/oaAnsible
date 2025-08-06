@@ -8,12 +8,15 @@
     sleep 3
 
     # Kill any remaining MPV processes
-    pkill -f "mpv.*--screen=" 2>/dev/null || true
-    pkill -f "oemplayer.sh" 2>/dev/null || true
+    pkill -f mpv || true
+
+    # Wait for processes to terminate
+    sleep 2
 
     # Start the service
-    launchctl start {{ player.service_name }}
+    launchctl start {{ player.service_name }} || true
   become: false
+  changed_when: false
   failed_when: false
 
 - name: Reload player
@@ -21,6 +24,7 @@
     launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist" 2>/dev/null || true
     launchctl load "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist"
   become: false
+  changed_when: false
   failed_when: false
 
 - name: Stop player
@@ -29,10 +33,12 @@
     pkill -f "mpv.*--screen=" 2>/dev/null || true
     pkill -f "oemplayer.sh" 2>/dev/null || true
   become: false
+  changed_when: false
   failed_when: false
 
 - name: Start player
   ansible.builtin.shell: |
     launchctl start {{ player.service_name }}
   become: false
+  changed_when: false
   failed_when: false

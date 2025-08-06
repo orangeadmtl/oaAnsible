@@ -19,6 +19,7 @@
 
     - name: Verify MPV installation
       ansible.builtin.shell: |
+        set -o pipefail
         export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
         mpv --version | head -1
       register: mpv_version
@@ -34,6 +35,7 @@
 
     - name: Check display configuration
       ansible.builtin.shell: |
+        set -o pipefail
         # Try multiple methods to detect displays
         if command -v system_profiler >/dev/null 2>&1; then
           display_count=$(system_profiler SPDisplaysDataType 2>/dev/null | grep -c "Resolution:" || echo "0")
@@ -69,7 +71,9 @@
 
     - name: Fail if dual-screen configured but insufficient displays
       ansible.builtin.fail:
-        msg: "ERROR: {{ oa_environment.project | default('default') | title }} project requires dual-screen setup ({{ (player.videos | default([]) | selectattr('display', 'equalto', 2) | list | length) + (player.videos | default([]) | selectattr('display', 'equalto', 1) | list | length) }} screens configured), but only {{ display_count.stdout }} detected. Please connect additional display(s)."
+        msg: "ERROR: {{ oa_environment.project | default('default') | title }} project requires dual-screen setup ({{ (player.videos | default([]) | selectattr('display',
+          'equalto', 2) | list | length) + (player.videos | default([]) | selectattr('display', 'equalto', 1) | list | length) }} screens configured), but only {{
+          display_count.stdout }} detected. Please connect additional display(s)."
       when:
         - player.dual_screen | default(false)
         - (player.videos | default([]) | selectattr('display', 'equalto', 2) | list | length) > 0

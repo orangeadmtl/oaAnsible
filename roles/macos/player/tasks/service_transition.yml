@@ -25,7 +25,7 @@
   loop: "{{ new_video_files_check.results | default([]) }}"
   loop_control:
     loop_var: file_check
-  when: 
+  when:
     - new_video_files_check.results is defined
     - not file_check.stat.exists
 
@@ -38,18 +38,18 @@
 - name: Fast atomic service transition (brutal and immediate)
   ansible.builtin.shell: |
     echo "=== BRUTAL SERVICE TRANSITION ==="
-    
+
     # IMMEDIATE KILL - No mercy, no waiting
     pkill -9 -f "mpv.*--screen=" 2>/dev/null || true
     pkill -9 -f "oemplayer.sh" 2>/dev/null || true
-    
+
     # IMMEDIATE SERVICE STOP - No waiting for graceful shutdown
     launchctl stop {{ player.service_name }} 2>/dev/null || true
     launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist" 2>/dev/null || true
-    
+
     # IMMEDIATE SERVICE START - Start new service right away
     launchctl load "{{ ansible_user_dir }}/Library/LaunchAgents/{{ player.service_name }}.plist" 2>/dev/null || true
-    
+
     echo "=== TRANSITION COMPLETE ==="
   register: transition_result
   changed_when: false
@@ -62,6 +62,7 @@
 
 - name: Verify new service is running
   ansible.builtin.shell: |
+    set -o pipefail
     launchctl list | grep "{{ player.service_name }}" || echo "not loaded"
   register: new_service_status
   changed_when: false
@@ -69,6 +70,7 @@
 
 - name: Check new MPV processes
   ansible.builtin.shell: |
+    set -o pipefail
     pgrep -f "mpv.*--screen=" | wc -l || echo "0"
   register: new_mpv_count
   changed_when: false

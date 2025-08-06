@@ -1,8 +1,7 @@
 ---
 - name: MacOS MPV Player deployment
   when: >
-    (player.enabled | default(false)) or 
-    (player is defined and player.keys() | length > 0)
+    (player.enabled | default(false)) or (player is defined and player.keys() | length > 0)
   tags: ["player"]
   block:
     - name: Debug inventory structure

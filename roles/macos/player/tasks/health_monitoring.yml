@@ -72,6 +72,7 @@
 
     - name: Verify health monitoring service is loaded
       ansible.builtin.shell: |
+        set -o pipefail
         launchctl list | grep "{{ player.service_name }}.health"
       become: false
       changed_when: false
