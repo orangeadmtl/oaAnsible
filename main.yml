@@ -1,7 +1,7 @@
 ---
 # Main Entry Point - Universal OrangeAd Infrastructure Automation
 # This serves as the primary entry point and routes to the universal playbook
-# 
+#
 # Usage Examples:
 #   ansible-playbook main.yml -i inventory/f1-prod.yml
 #   ansible-playbook main.yml -i inventory/f1-prod.yml -t macos-api

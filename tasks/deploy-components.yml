@@ -12,7 +12,8 @@
 
 - name: Check Ubuntu component compatibility
   ansible.builtin.set_fact:
-    compatible_components: "{{ compatible_components + ['base', 'network', 'security', 'docker', 'monitoring'] }}"
+    compatible_components: "{{ compatible_components + ['base', 'network', 'security', 'docker', 'monitoring', 'nvidia', 'ml', 'health', 'oasentinel-setup', 'oasentinel-data',
+      'oasentinel-train', 'oasentinel-full'] }}"
   when: target_platform == "ubuntu"
 
 - name: Validate selected components
@@ -82,6 +83,14 @@
         name: ubuntu/security
       when: target_platform == "ubuntu"
 
+- name: Deploy shell enhancements component
+  ansible.builtin.include_role:
+    name: ubuntu/shell
+  when:
+    - target_platform == "ubuntu"
+    - "'shell' in deployment_components | default(selected_components)"
+  tags: ["shell", "zsh"]
+
 - name: Deploy SSH component
   ansible.builtin.include_role:
     name: macos/ssh
@@ -139,6 +148,49 @@
     - target_platform == "ubuntu"
     - "'docker' in deployment_components | default(selected_components)"
   tags: ["docker"]
+
+# CUDA 12.8 Installation - Direct and streamlined
+- name: Install CUDA 12.8 and compatible drivers
+  ansible.builtin.include_tasks: ../roles/ubuntu/ml_workstation/tasks/nvidia_setup.yml
+  when:
+    - target_platform == "ubuntu"
+    - "'nvidia' in deployment_components | default(selected_components)"
+  tags: ["nvidia", "gpu"]
+
+- name: Deploy ML workstation component
+  ansible.builtin.include_role:
+    name: ubuntu/ml_workstation
+  when:
+    - target_platform == "ubuntu"
+    - "'ml' in deployment_components | default(selected_components)"
+  tags: ["ml"]
+
+# GPU Health Check is now integrated into the ML workstation role verification tasks
+
+# oaSentinel Components
+- name: Deploy oaSentinel setup
+  ansible.builtin.include_role:
+    name: ubuntu/ml_workstation
+  when:
+    - target_platform == "ubuntu"
+    - "'oasentinel-setup' in deployment_components | default(selected_components) or 'oasentinel-full' in deployment_components | default(selected_components)"
+  tags: ["oasentinel-setup", "oasentinel-full"]
+
+- name: Deploy oaSentinel data preparation
+  ansible.builtin.include_role:
+    name: ubuntu/ml_workstation
+  when:
+    - target_platform == "ubuntu"
+    - "'oasentinel-data' in deployment_components | default(selected_components) or 'oasentinel-full' in deployment_components | default(selected_components)"
+  tags: ["oasentinel-data", "oasentinel-full"]
+
+- name: Deploy oaSentinel training
+  ansible.builtin.include_role:
+    name: ubuntu/ml_workstation
+  when:
+    - target_platform == "ubuntu"
+    - "'oasentinel-train' in deployment_components | default(selected_components) or 'oasentinel-full' in deployment_components | default(selected_components)"
+  tags: ["oasentinel-train", "oasentinel-full"]
 
 - name: Component deployment summary
   ansible.builtin.debug:
