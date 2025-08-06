@@ -171,6 +171,7 @@
 
 - name: Check for existing ALPR Docker image
   ansible.builtin.shell: |
+    set -o pipefail
     docker images | grep -q "{{ macos_alpr_image_name | regex_escape }}" || echo "image_not_found"
   register: macos_alpr_image_check
   changed_when: false
@@ -568,6 +569,8 @@
 
 # Enhanced ALPR tasks for Python monitor deployment (conditionally executed)
 - name: Enhanced ALPR Service Deployment with Python Monitor Integration
+  when: oa_environment.deploy_alpr_service | default(false) | bool
+  tags: ["alpr-enhanced", "monitor"]
   block:
     - name: Ensure ALPR application directories exist
       ansible.builtin.file:
@@ -687,6 +690,7 @@
         user: "{{ ansible_user }}"
         state: present
       become: true
+      changed_when: false
 
     - name: Load ALPR monitor service
       ansible.builtin.shell: |
@@ -694,26 +698,29 @@
         sleep 2
         launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.alpr-monitor.plist
       become: false
+      changed_when: false
       when: not is_vm_environment | default(false)
 
     - name: Verify ALPR services status
       ansible.builtin.shell: |
+        set -o pipefail
         echo "=== ALPR Services Status ==="
         echo "Docker Service:"
         launchctl list | grep com.orangead.alpr || echo "  Not running"
         echo "Monitor Service:"
         launchctl list | grep com.orangead.alpr-monitor || echo "  Not running"
         echo "Docker Container:"
-        docker ps --filter "name={{ macos_alpr_container_name }}" --format "  {{.Names}}: {{.Status}}" || echo "  Not found"
+        docker ps --filter "name={{ macos_alpr_container_name }}" --format "  {.Names}: {.Status}" || echo "  Not found"
         echo "Port Check:"
         if nc -z localhost {{ macos_alpr_host_port }} 2>/dev/null; then
           echo "  Port {{ macos_alpr_host_port }}: OPEN"
         else
           echo "  Port {{ macos_alpr_host_port }}: CLOSED"
         fi
+        echo "\n=== Service Verification Complete ==="
       register: alpr_services_status
       changed_when: false
-      when: not is_vm_environment | default(false)
+      failed_when: false
 
     - name: Display ALPR deployment status
       ansible.builtin.debug:
@@ -757,9 +764,6 @@
 
           Phase 9 ALPR Integration: COMPLETE
 
-  when: use_enhanced_alpr | default(false)
-  tags: ["alpr-enhanced", "monitor"]
-
 # Clean up temporary script files
 - name: Clean up temporary ALPR scripts
   ansible.builtin.file:
@@ -769,5 +773,5 @@
     - "{{ ansible_user_dir }}/tmp/alpr_cleanup.sh"
     - "{{ ansible_user_dir }}/tmp/alpr_preflight_start.sh"
     - "{{ ansible_user_dir }}/tmp/alpr_image_update.sh"
-  ignore_errors: true
+  failed_when: false
   tags: ["cleanup"]

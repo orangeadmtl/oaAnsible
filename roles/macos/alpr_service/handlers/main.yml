@@ -50,4 +50,5 @@
     sleep 2
     launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.alpr-monitor.plist
   become: false
+  changed_when: false
   failed_when: false

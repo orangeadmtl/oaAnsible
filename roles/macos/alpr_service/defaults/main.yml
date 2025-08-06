@@ -33,14 +33,13 @@ macos_rosetta_install_timeout: 300 # 5 minutes for Rosetta installation
 macos_alpr_log_level: INFO
 
 # ALPR Monitor Configuration
-alpr_camera_id: 0
-alpr_max_images_per_car: 5
-alpr_frame_skip: 5
-alpr_confidence_threshold: 0.5
-alpr_region: "ca"
-alpr_country: "ca"
-alpr_log_level: "INFO"
+macos_alpr_camera_id: 0
+macos_alpr_max_images_per_car: 5
+macos_alpr_frame_skip: 5
+macos_alpr_confidence_threshold: 0.5
+macos_alpr_region: "ca"
+macos_alpr_country: "ca"
 
 # Python environment settings
-alpr_python_version: "3.12"
-alpr_python_path: "{{ ansible_user_dir }}/.pyenv/versions/{{ alpr_python_version }}/envs/alpr"
+macos_alpr_python_version: "3.12"
+macos_alpr_python_path: "{{ ansible_user_dir }}/.pyenv/versions/{{ macos_alpr_python_version }}/envs/alpr"
