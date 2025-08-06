@@ -143,6 +143,7 @@
 
     - name: Get installed Node versions
       ansible.builtin.shell: |
+        set -o pipefail
         export NVM_DIR="{{ ansible_user_dir }}/.nvm"
         [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
         nvm list --no-colors 2>/dev/null | grep -E 'v[0-9]' | sed 's/[^v0-9.]//g' || echo ""
@@ -185,6 +186,7 @@
   block:
     - name: Check LaunchAgent status for OrangeAd services
       ansible.builtin.shell: |
+        set -o pipefail
         launchctl print gui/$(id -u)/com.orangead.{{ item }} 2>/dev/null | grep -E "(state|pid)" || echo "not_loaded"
       register: launchagent_status
       changed_when: false
@@ -196,6 +198,7 @@
 
     - name: Check LaunchDaemon status for system services
       ansible.builtin.shell: |
+        set -o pipefail
         sudo launchctl print system/com.orangead.{{ item }} 2>/dev/null | grep -E "(state|pid)" || echo "not_loaded"
       register: launchdaemon_status
       changed_when: false

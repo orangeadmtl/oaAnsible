@@ -40,6 +40,7 @@
     # Homebrew example
     - name: Check installed Homebrew packages
       ansible.builtin.shell: |
+        set -o pipefail
         brew list --formula | grep -E "^({{ packages | join('|') }})$" || true
       register: installed_packages
       changed_when: false
@@ -65,6 +66,7 @@
     # macOS LaunchAgent example
     - name: Check LaunchAgent current state
       ansible.builtin.shell: |
+        set -o pipefail
         launchctl print gui/$(id -u)/{{ service_name }} 2>/dev/null | grep -E "(state|pid)" || echo "not_loaded"
       register: service_current_state
       changed_when: false
@@ -78,11 +80,13 @@
       ansible.builtin.command: launchctl load -w {{ plist_path }}
       when: not service_loaded
       register: service_load_result
+      changed_when: false
 
     - name: Start service if loaded but not running
       ansible.builtin.command: launchctl kickstart -k gui/$(id -u)/{{ service_name }}
       when: service_loaded and not service_running and service_needs_restart | default(false)
       register: service_start_result
+      changed_when: false
 
 # Pattern 4: Configuration Drift Detection
 - name: "Pattern: Configuration drift detection and correction"
@@ -144,6 +148,7 @@
         src: "{{ target_file }}"
         dest: "{{ target_file }}.backup.{{ ansible_date_time.epoch }}"
         remote_src: true
+        mode: "0644"
       when: create_backup | default(true)
       register: backup_created
 
@@ -159,12 +164,14 @@
       register: validation_result
       failed_when: validation_result.rc != 0
       when: validation_command is defined
+      changed_when: false
 
     - name: Rollback on failure
       ansible.builtin.copy:
         src: "{{ backup_created.dest }}"
         dest: "{{ target_file }}"
         remote_src: true
+        mode: "0644"
       when:
         - validation_result is defined and validation_result.failed
         - backup_created.changed
@@ -190,14 +197,22 @@
       register: git_repo_check
 
     - name: Get current repository state
-      ansible.builtin.command: git -C {{ repo_dest }} rev-parse HEAD
-      register: current_commit
+      ansible.builtin.git:
+        repo: "{{ repo_url }}"
+        dest: "{{ repo_dest }}"
+        clone: false
+        version: master
+      register: repo_state
+      when: git_repo_check.stat.exists
       changed_when: false
       failed_when: false
-      when: git_repo_check.stat.exists
 
     - name: Get remote repository latest commit
-      ansible.builtin.command: git ls-remote {{ repo_url }} {{ repo_version | default('HEAD') }}
+      ansible.builtin.git:
+        repo: "{{ repo_url }}"
+        dest: "{{ repo_dest }}"
+        ls_remote: true
+        version: "{{ repo_version | default('HEAD') }}"
       register: remote_commit
       changed_when: false
       failed_when: false
@@ -236,10 +251,7 @@
   block:
     - name: Execute task block conditionally
       when: >
-        {{
-          (execution_conditions | default([])) | map('bool') | list | all and
-          not (skip_conditions | default([])) | map('bool') | list | any
-        }}
+        (execution_conditions | default([])) | map('bool') | list | all and not (skip_conditions | default([])) | map('bool') | list | any
       block:
         - name: Conditional task execution placeholder
           ansible.builtin.debug:
@@ -264,6 +276,7 @@
       async: "{{ operation_limits.timeout }}"
       poll: "{{ poll_interval | default(10) }}"
       when: resource_command is defined
+      changed_when: false
 
 # Usage Examples and Guidelines
 - name: Display idempotency patterns usage
