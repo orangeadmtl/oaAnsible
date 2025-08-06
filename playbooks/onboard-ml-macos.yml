@@ -4,28 +4,28 @@
 
 - name: Setup macOS ML Development Workstation
   hosts: macos
-  gather_facts: yes
-  become: no
-  
+  gather_facts: true
+  become: false
+
   vars:
     # Role execution control
     execute_base_setup: true
     execute_python_setup: true
     execute_ml_setup: true
-    execute_security_setup: false  # Optional for development machines
-    
+    execute_security_setup: false # Optional for development machines
+
     # Development vs Production modes
     development_mode: true
-    
+
   pre_tasks:
     - name: Verify macOS platform
-      fail:
+      ansible.builtin.fail:
         msg: "This playbook is designed for macOS hosts only"
       when: ansible_os_family != "Darwin"
       tags: [always]
-    
+
     - name: Display setup information
-      debug:
+      ansible.builtin.debug:
         msg:
           - "🍎 Setting up macOS ML Workstation"
           - "Host: {{ inventory_hostname }}"
@@ -34,72 +34,75 @@
           - "User: {{ ansible_user }}"
           - "Mode: {{ 'Development' if development_mode else 'Production' }}"
       tags: [always]
-    
+
     - name: Check available disk space
-      shell: df -h / | tail -1 | awk '{print $4}'
+      ansible.builtin.shell: set -o pipefail && df -h / | tail -1 | awk '{print $4}'
       register: disk_space
       changed_when: false
       tags: [always]
-    
+
     - name: Display disk space
-      debug:
+      ansible.builtin.debug:
         msg: "Available disk space: {{ disk_space.stdout }}"
       tags: [always]
 
   tasks:
     - name: Setup macOS base environment
-      include_role:
+      ansible.builtin.include_role:
         name: macos/base
       when: execute_base_setup
       tags: [base, setup]
-    
+
     - name: Setup Python development environment
-      include_role:
+      ansible.builtin.include_role:
         name: macos/python
       when: execute_python_setup
       tags: [python, setup]
-    
+
     - name: Setup Node.js environment (for development tools)
-      include_role:
+      ansible.builtin.include_role:
         name: macos/node
       when: development_mode
       tags: [node, setup, dev]
-    
+
     - name: Setup ML workstation (common components)
-      include_role:
+      ansible.builtin.include_role:
         name: common/ml_workstation
       tags: [ml, setup]
-    
+
     - name: Setup macOS-specific ML optimizations
-      include_role:
+      ansible.builtin.include_role:
         name: macos/ml_workstation
       tags: [ml, macos, setup]
-    
+
     - name: Configure security settings (optional)
-      include_role:
+      ansible.builtin.include_role:
         name: macos/security
       when: execute_security_setup
       tags: [security, setup]
 
   post_tasks:
     - name: Run final verification
-      shell: |
+      ansible.builtin.shell: |
         cd "{{ oasentinel_install_dir }}"
         source .venv/bin/activate
         python src/cli.py info
+      become: true
+      changed_when: false
       become_user: "{{ ansible_user }}"
       register: final_verification
       tags: [verify]
-    
+
     - name: Create completion marker
-      file:
+      ansible.builtin.file:
         path: "{{ ansible_user_dir }}/.ml_workstation_setup_complete"
         state: touch
         owner: "{{ ansible_user }}"
+        mode: "0644"
       tags: [setup]
-    
+
     - name: Setup completion summary
-      debug:
+      ansible.builtin.debug:
         msg:
           - "🎉 macOS ML Workstation Setup Complete!"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -123,6 +126,8 @@
 
   handlers:
     - name: Source shell configuration
-      shell: source {{ ansible_user_dir }}/.zshrc
+      ansible.builtin.command: source {{ ansible_user_dir }}/.zshrc
+      become: true
       become_user: "{{ ansible_user }}"
-      ignore_errors: yes
+      changed_when: false
+      failed_when: false

@@ -2,18 +2,18 @@
 # macOS ML Workstation Setup Tasks
 
 - name: Check if running on macOS
-  fail:
+  ansible.builtin.fail:
     msg: "This role is designed for macOS systems only"
   when: ansible_os_family != "Darwin"
   tags: [always]
 
 - name: Detect Apple Silicon vs Intel
-  set_fact:
+  ansible.builtin.set_fact:
     is_apple_silicon: "{{ ansible_processor[0] is search('Apple') }}"
   tags: [always]
 
 - name: Display system information
-  debug:
+  ansible.builtin.debug:
     msg:
       - "Setting up macOS ML workstation"
       - "Platform: {{ ansible_processor[0] }}"
@@ -23,7 +23,7 @@
 
 # Xcode Command Line Tools
 - name: Install Xcode Command Line Tools
-  shell: |
+  ansible.builtin.shell: |
     if ! xcode-select -p &> /dev/null; then
       echo "Installing Xcode Command Line Tools..."
       xcode-select --install
@@ -55,86 +55,92 @@
 
 # Performance optimizations
 - name: Increase file descriptor limits
-  blockinfile:
+  ansible.builtin.blockinfile:
     path: "{{ ansible_user_dir }}/.zshrc"
     marker: "# {mark} ANSIBLE MANAGED - macOS ML Performance"
     block: |
       # macOS ML Performance Optimizations
       ulimit -n 8192
-      
+
       # Apple Silicon optimizations
       {% if is_apple_silicon %}
       export PYTORCH_ENABLE_MPS_FALLBACK=1  # Fallback for unsupported ops
       export PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0  # Optimize memory usage
       {% endif %}
-      
+
       # OpenMP settings for better performance
       export OMP_NUM_THREADS="{{ ansible_processor_vcpus }}"
       export MKL_NUM_THREADS="{{ ansible_processor_vcpus }}"
-      
+
       # ML framework optimizations
       export ACCELERATE=1  # Use Apple's Accelerate framework
       export VECLIB_MAXIMUM_THREADS="{{ ansible_processor_vcpus }}"
-      
-    create: yes
+
+    create: true
+    mode: "0644"
+  become: true
   become_user: "{{ ansible_user }}"
   when: macos_performance.increase_file_limits
   tags: [setup, performance]
 
 - name: Create ML development environment info
-  template:
+  ansible.builtin.template:
     src: macos_ml_env.sh.j2
     dest: "{{ ansible_user_dir }}/.ml_env_macos"
     owner: "{{ ansible_user }}"
-    mode: '0644'
+    mode: "0644"
   tags: [setup, environment]
 
 - name: Source ML environment in shell
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: "{{ ansible_user_dir }}/.zshrc"
     line: "source {{ ansible_user_dir }}/.ml_env_macos"
-    create: yes
+    create: true
+    mode: "0644"
+  become: true
   become_user: "{{ ansible_user }}"
   tags: [setup, environment]
 
 # GPU monitoring for Apple Silicon
 - name: Install GPU monitoring script for Apple Silicon
-  template:
+  ansible.builtin.template:
     src: macos_gpu_monitor.sh.j2
     dest: "{{ ansible_user_dir }}/orangead/scripts/gpu_monitor.sh"
     owner: "{{ ansible_user }}"
-    mode: '0755'
+    mode: "0755"
   when: is_apple_silicon and macos_monitoring.log_gpu_usage
   tags: [setup, monitoring]
 
 - name: Create Desktop shortcuts for ML development
-  template:
+  ansible.builtin.template:
     src: "{{ item.src }}"
     dest: "{{ ansible_user_dir }}/Desktop/{{ item.name }}"
     owner: "{{ ansible_user }}"
-    mode: '0755'
+    mode: "0755"
   loop:
-    - { src: 'oaSentinel_Terminal.command.j2', name: 'oaSentinel Terminal.command' }
-    - { src: 'ML_Status.command.j2', name: 'ML Status.command' }
+    - { src: "oaSentinel_Terminal.command.j2", name: "oaSentinel Terminal.command" }
+    - { src: "ML_Status.command.j2", name: "ML Status.command" }
   when: macos_dev_env.create_desktop_shortcuts
   tags: [setup, shortcuts]
 
 # Platform-specific ML framework setup
 - name: Install macOS-specific ML tools
-  pip:
+  ansible.builtin.pip:
     name:
       - coremltools
     virtualenv: "{{ python_venv_dir }}"
     virtualenv_command: "{{ python_venv_dir }}/bin/python -m venv"
+  become: true
   become_user: "{{ ansible_user }}"
   when: macos_ml_extras.coreml_tools
   tags: [setup, ml_frameworks]
 
 - name: Configure PyTorch for Apple Silicon
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: "{{ oasentinel_install_dir }}/.env"
     line: "{{ item }}"
-    create: yes
+    create: true
+    mode: "0644"
   loop:
     - "PYTORCH_ENABLE_MPS_FALLBACK=1"
     - "PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0"
@@ -142,15 +148,15 @@
   tags: [setup, pytorch]
 
 - name: Create macOS-specific training configuration
-  template:
+  ansible.builtin.template:
     src: macos_training_config.yaml.j2
     dest: "{{ oasentinel_install_dir }}/configs/macos_optimized.yaml"
     owner: "{{ ansible_user }}"
-    mode: '0644'
+    mode: "0644"
   tags: [setup, config]
 
 - name: Run macOS-specific ML verification
-  shell: |
+  ansible.builtin.shell: |
     cd "{{ oasentinel_install_dir }}"
     source .venv/bin/activate
     python -c "
@@ -168,19 +174,23 @@
     {% else %}
     print('Intel Mac - CPU training optimized')
     {% endif %}
-    print('Environment setup complete! 🚀')
+    print('=' * 40)
+    print('✅ macOS ML Environment Check Complete')
     "
-  become_user: "{{ ansible_user }}"
   register: macos_verification
+  changed_when: false
+  failed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
   tags: [verify]
 
 - name: Display verification results
-  debug:
+  ansible.builtin.debug:
     msg: "{{ macos_verification.stdout_lines }}"
   tags: [verify]
 
-- name: macOS ML setup summary
-  debug:
+- name: MacOS ML setup summary
+  ansible.builtin.debug:
     msg:
       - "🍎 macOS ML Workstation Setup Complete!"
       - "Architecture: {{ 'Apple Silicon' if is_apple_silicon else 'Intel' }}"
