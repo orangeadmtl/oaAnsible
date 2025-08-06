@@ -4,3 +4,5 @@ roles:
 
 collections:
   - name: geerlingguy.mac
+  - name: ansible.posix
+  - name: community.general

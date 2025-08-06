@@ -1,7 +1,8 @@
 ---
-- hosts: localhost
+- name: Test ML workstation setup
+  hosts: localhost
   connection: local
-  gather_facts: yes
+  gather_facts: true
   become: false
   vars:
     ansible_user: "{{ lookup('env', 'USER') }}"
@@ -12,26 +13,26 @@
     oasentinel_data_dir: "{{ oasentinel_install_dir }}/data"
     oasentinel_models_dir: "{{ oasentinel_install_dir }}/models"
     oasentinel_logs_dir: "{{ oasentinel_install_dir }}/logs"
-    
+
     # Python Environment
     python_version: "3.11"
     python_venv_dir: "{{ oasentinel_install_dir }}/.venv"
-    
+
     # Development settings
     create_dev_aliases: true
     enable_health_checks: true
-    
+
   tasks:
     - name: Display system information
-      debug:
+      ansible.builtin.debug:
         msg:
           - "🍎 Testing ML Setup on macOS"
           - "Host: {{ inventory_hostname }}"
           - "User: {{ ansible_user }}"
           - "Home: {{ ansible_user_dir }}"
           - "oaSentinel will be installed to: {{ oasentinel_install_dir }}"
-    
+
     - name: Setup ML workstation (common components)
-      include_role:
+      ansible.builtin.include_role:
         name: common/ml_workstation
       tags: [ml, setup]
