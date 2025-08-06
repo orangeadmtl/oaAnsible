@@ -3,70 +3,66 @@
 # Common settings for ML development and training environments
 
 # oaSentinel Configuration
-oasentinel_repo_url: "https://github.com/oa-device/oaSentinel.git"
-oasentinel_repo_branch: "main"
-oasentinel_install_dir: "{{ ansible_user_dir }}/orangead/oaSentinel"
-oasentinel_data_dir: "{{ oasentinel_install_dir }}/data"
-oasentinel_models_dir: "{{ oasentinel_install_dir }}/models"
-oasentinel_logs_dir: "{{ oasentinel_install_dir }}/logs"
+common_oasentinel_repo_url: "https://github.com/oa-device/oaSentinel.git"
+common_oasentinel_repo_branch: "main"
 
 # Python Environment
-python_version: "3.11"
-python_venv_dir: "{{ oasentinel_install_dir }}/.venv"
+common_python_version: "3.12.3"
+common_python_venv_dir: "{{ ansible_user_dir }}/.venv"
 
 # ML Framework Configuration
-ml_frameworks:
+common_ml_frameworks:
   pytorch: true
   ultralytics: true
   opencv: true
   jupyter: true
-  wandb: false  # Weights & Biases tracking (optional)
+  wandb: false # Weights & Biases tracking (optional)
 
 # Dataset Configuration
-enable_dataset_downloads: false  # Only download on request
-crowdhuman_enabled: true
+common_enable_dataset_downloads: true
+common_crowdhuman_enabled: true
 
 # Training Configuration
-training_config:
+common_training_config:
   default_epochs: 100
   default_batch_size: 16
   auto_device_detection: true
   mixed_precision: true
 
 # Development Tools
-dev_tools:
+common_dev_tools:
   enable_jupyter: true
   enable_tensorboard: true
   enable_code_formatting: true
   enable_testing: true
 
 # Performance Optimization
-performance_optimization:
+common_performance_optimization:
   enable_gpu_monitoring: true
   optimize_memory: true
   enable_profiling: false
 
 # Service Configuration
-ml_service_enabled: false  # API service for remote training
-ml_service_port: 8888
-ml_api_key: "{{ vault_ml_api_key | default('') }}"
+common_ml_service_enabled: true
+common_ml_service_port: 8080
+common_ml_api_key: "{{ vault_ml_api_key | default('') }}"
 
 # Logging
-log_level: "INFO"
-log_retention_days: 30
+common_log_level: "INFO"
+common_log_retention_days: 30
 
 # Security
-restrict_api_access: true
-allowed_networks:
-  - "100.64.0.0/10"  # Tailscale subnet
-  - "127.0.0.1/32"   # Localhost
+common_restrict_api_access: true
+common_allowed_networks:
+  - "100.64.0.0/10" # Tailscale subnet
+  - "127.0.0.1/32" # Localhost
 
 # Monitoring
-enable_health_checks: true
-health_check_interval: 300  # 5 minutes
-metrics_collection: true
+common_enable_health_checks: true
+common_health_check_interval: 300 # 5 minutes
+common_metrics_collection: true
 
 # Development Environment
-create_dev_aliases: true
-setup_git_config: false
-enable_shell_enhancements: true
+common_create_dev_aliases: true
+common_setup_git_config: false
+common_enable_shell_enhancements: true

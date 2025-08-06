@@ -3,72 +3,74 @@
 # Tasks that apply to both Ubuntu and macOS ML environments
 
 - name: Include platform-specific variables
-  include_vars: "{{ ansible_os_family | lower }}.yml"
-  ignore_errors: yes
+  ansible.builtin.include_vars: "{{ ansible_os_family | lower }}.yml"
+  failed_when: false
   tags: [always]
 
 - name: Ensure user directories exist
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     state: directory
     owner: "{{ ansible_user }}"
-    mode: '0755'
+    mode: "0755"
   loop:
     - "{{ ansible_user_dir }}/orangead"
     - "{{ oasentinel_data_dir }}"
-    - "{{ oasentinel_models_dir }}" 
+    - "{{ oasentinel_models_dir }}"
     - "{{ oasentinel_logs_dir }}"
   tags: [setup, directories]
 
 - name: Check if oaSentinel repository exists
-  stat:
+  ansible.builtin.stat:
     path: "{{ oasentinel_install_dir }}/.git"
   register: oasentinel_repo_check
   tags: [setup, git]
 
 - name: Clone oaSentinel repository
-  git:
+  ansible.builtin.git:
     repo: "{{ oasentinel_repo_url }}"
     dest: "{{ oasentinel_install_dir }}"
     version: "{{ oasentinel_repo_branch }}"
-    force: no
+    force: false
+  become: true
   become_user: "{{ ansible_user }}"
   when: not oasentinel_repo_check.stat.exists
-  ignore_errors: yes
+  failed_when: false
   tags: [setup, git]
 
-- name: Update existing oaSentinel repository  
-  git:
+- name: Update existing oaSentinel repository
+  ansible.builtin.git:
     repo: "{{ oasentinel_repo_url }}"
     dest: "{{ oasentinel_install_dir }}"
     version: "{{ oasentinel_repo_branch }}"
-    force: yes
+    force: true
+  become: true
   become_user: "{{ ansible_user }}"
   when: oasentinel_repo_check.stat.exists
-  ignore_errors: yes
+  failed_when: false
   tags: [update, git]
 
 - name: Ensure oaSentinel directory exists (fallback)
-  file:
+  ansible.builtin.file:
     path: "{{ oasentinel_install_dir }}"
     state: directory
     owner: "{{ ansible_user }}"
-    mode: '0755'
+    mode: "0755"
   when: not oasentinel_repo_check.stat.exists
   tags: [setup, fallback]
 
 - name: Set correct ownership for oaSentinel directory
-  file:
+  ansible.builtin.file:
     path: "{{ oasentinel_install_dir }}"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
-    recurse: yes
+    recurse: true
   tags: [setup, permissions]
 
 - name: Make oaSentinel scripts executable
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
-    mode: '0755'
+    mode: "0755"
   loop:
     - "{{ oasentinel_install_dir }}/setup.sh"
     - "{{ oasentinel_install_dir }}/scripts/download_data.sh"
@@ -76,19 +78,21 @@
     - "{{ oasentinel_install_dir }}/scripts/train.sh"
     - "{{ oasentinel_install_dir }}/scripts/evaluate.sh"
     - "{{ oasentinel_install_dir }}/scripts/export.sh"
-  ignore_errors: yes
+  failed_when: false
   tags: [setup, permissions]
 
 - name: Check if virtual environment exists
-  stat:
+  ansible.builtin.stat:
     path: "{{ python_venv_dir }}/bin/activate"
   register: venv_check
+  changed_when: false
   tags: [setup, python]
 
 - name: Setup oaSentinel Python environment
-  shell: |
+  ansible.builtin.shell: |
     cd "{{ oasentinel_install_dir }}"
     ./setup.sh --gpu {{ '--dev' if dev_tools.enable_code_formatting else '' }}
+  become: true
   become_user: "{{ ansible_user }}"
   environment:
     PATH: "{{ ansible_env.PATH }}"
@@ -96,10 +100,11 @@
   when: not venv_check.stat.exists
   register: setup_result
   failed_when: setup_result.rc != 0
+  changed_when: false
   tags: [setup, python, environment]
 
 - name: Verify oaSentinel installation
-  shell: |
+  ansible.builtin.shell: |
     cd "{{ oasentinel_install_dir }}"
     source .venv/bin/activate
     python -c "
@@ -114,22 +119,24 @@
     print(f'MPS available: {torch.backends.mps.is_available()}')
     {% endif %}
     "
+  become: true
   become_user: "{{ ansible_user }}"
   environment:
     PATH: "{{ ansible_env.PATH }}"
     HOME: "{{ ansible_user_dir }}"
   register: verification_result
   failed_when: verification_result.rc != 0
+  changed_when: false
   tags: [verify, python]
 
 - name: Display verification results
-  debug:
+  ansible.builtin.debug:
     msg: "{{ verification_result.stdout_lines }}"
   when: verification_result is defined
   tags: [verify]
 
 - name: Create ML development aliases
-  blockinfile:
+  ansible.builtin.blockinfile:
     path: "{{ ansible_user_dir }}/.zshrc"
     marker: "# {mark} ANSIBLE MANAGED BLOCK - ML Workstation"
     block: |
@@ -142,50 +149,54 @@
       alias mlexport="cd $OASENTINEL_HOME && source .venv/bin/activate && ./scripts/export.sh"
       alias mlstatus="cd $OASENTINEL_HOME && source .venv/bin/activate && python src/cli.py status"
       alias mlcli="cd $OASENTINEL_HOME && source .venv/bin/activate && python src/cli.py"
-      
+
       # ML Development Functions
       mlvenv() { cd $OASENTINEL_HOME && source .venv/bin/activate; }
       mllog() { tail -f $OASENTINEL_HOME/logs/training/*.log 2>/dev/null || echo "No training logs found"; }
       mlmodels() { ls -la $OASENTINEL_HOME/models/checkpoints/ 2>/dev/null || echo "No models found"; }
-      
-    create: yes
+
+    create: true
+    mode: "0644"
+  become: true
   become_user: "{{ ansible_user }}"
   when: create_dev_aliases
   tags: [setup, aliases]
 
 - name: Create ML workspace info file
-  template:
+  ansible.builtin.template:
     src: ml_info.txt.j2
     dest: "{{ oasentinel_install_dir }}/ML_WORKSPACE_INFO.txt"
     owner: "{{ ansible_user }}"
-    mode: '0644'
+    mode: "0644"
   tags: [setup, documentation]
 
 - name: Install ML monitoring script
-  template:
+  ansible.builtin.template:
     src: ml_health_check.sh.j2
     dest: "{{ oasentinel_install_dir }}/scripts/ml_health_check.sh"
     owner: "{{ ansible_user }}"
-    mode: '0755'
+    mode: "0755"
   when: enable_health_checks
   tags: [setup, monitoring]
 
 - name: Run initial health check
-  shell: "{{ oasentinel_install_dir }}/scripts/ml_health_check.sh"
+  ansible.builtin.command: "{{ oasentinel_install_dir }}/scripts/ml_health_check.sh"
+  become: true
   become_user: "{{ ansible_user }}"
   register: health_check_result
-  ignore_errors: yes
+  changed_when: false
+  failed_when: false
   when: enable_health_checks
   tags: [verify, health]
 
 - name: Display health check results
-  debug:
+  ansible.builtin.debug:
     msg: "{{ health_check_result.stdout_lines }}"
   when: health_check_result is defined and enable_health_checks
   tags: [verify, health]
 
 - name: Final setup summary
-  debug:
+  ansible.builtin.debug:
     msg:
       - "🎯 oaSentinel ML workstation setup complete!"
       - "📁 Installation: {{ oasentinel_install_dir }}"
