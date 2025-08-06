@@ -114,6 +114,7 @@
         # Check Python version availability after pyenv setup
         - name: Re-check Python version availability
           ansible.builtin.shell: |
+            set -o pipefail
             export PYENV_ROOT="{{ ansible_user_dir }}/.pyenv"
             export PATH="$PYENV_ROOT/bin:$PATH"
             eval "$(pyenv init -)"
@@ -148,6 +149,7 @@
 
                 pyenv install {{ python_state.target_version }}
               register: python_install_result
+              changed_when: false
               async: 900 # 15 minutes timeout
               poll: 30
               retries: 2
@@ -171,7 +173,7 @@
       block:
         - name: Install UV via curl
           ansible.builtin.shell: |
-            curl -LsSf https://astral.sh/uv/install.sh | sh
+            set -o pipefail && curl -LsSf https://astral.sh/uv/install.sh | sh
           args:
             creates: "{{ ansible_user_dir }}/.cargo/bin/uv"
           register: uv_installation
