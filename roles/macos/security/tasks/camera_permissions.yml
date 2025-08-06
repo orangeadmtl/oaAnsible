@@ -84,8 +84,10 @@
     api_python: "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3"
     tracker_python: "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python3"
     python_execs:
-      real_api: "{{ ansible_user_dir }}/.pyenv/versions/{{ runtime.python.version | default('3.11.11') }}/bin/python3.{{ (runtime.python.version | default('3.11.11')).split('.')[0] }}.{{ (runtime.python.version | default('3.11.11')).split('.')[1] }}"
-      real_tracker: "{{ ansible_user_dir }}/.pyenv/versions/{{ runtime.python.version | default('3.11.11') }}/bin/python3.{{ (runtime.python.version | default('3.11.11')).split('.')[0] }}.{{ (runtime.python.version | default('3.11.11')).split('.')[1] }}"
+      real_api: "{{ ansible_user_dir }}/.pyenv/versions/{{ runtime.python.version | default('3.11.11') }}/bin/python3.{{ (runtime.python.version | default('3.11.11')).split('.')[0]
+        }}.{{ (runtime.python.version | default('3.11.11')).split('.')[1] }}"
+      real_tracker: "{{ ansible_user_dir }}/.pyenv/versions/{{ runtime.python.version | default('3.11.11') }}/bin/python3.{{ (runtime.python.version | default('3.11.11')).split('.')[0]
+        }}.{{ (runtime.python.version | default('3.11.11')).split('.')[1] }}"
 
 # Show Python executable paths
 - name: Show Python executable paths
@@ -252,7 +254,8 @@
 - name: Check if camera permissions need to be granted
   ansible.builtin.set_fact:
     need_camera_permissions: "{{ api_access_missing == 'true' or tracker_access_missing == 'true' or setsid_access_missing == 'true' or nohup_access_missing == 'true'
-      or bash_access_missing == 'true' or tailscale_access_missing == 'true' or terminal_access_missing == 'true' or ssh_access_missing == 'true' or ffmpeg_access_missing == 'true' }}"
+      or bash_access_missing == 'true' or tailscale_access_missing == 'true' or terminal_access_missing == 'true' or ssh_access_missing == 'true' or ffmpeg_access_missing
+      == 'true' }}"
 
 # Grant Full Disk Access first (required for TCC database access)
 - name: Create script to grant Full Disk Access

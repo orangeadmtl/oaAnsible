@@ -2,7 +2,7 @@
 #SPDX-License-Identifier: MIT-0
 # tasks file for roles/macos/tracker
 
-- name: macOS Tracker deployment
+- name: MacOS Tracker deployment
   tags: ["tracker"]
   block:
     # No longer creating a separate user - using ansible_user instead
