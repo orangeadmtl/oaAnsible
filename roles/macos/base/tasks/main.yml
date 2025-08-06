@@ -325,27 +325,28 @@
       ansible.builtin.file:
         path: "{{ ansible_user_dir }}/Pictures/Wallpapers"
         state: directory
-        mode: '0755'
+        mode: "0755"
 
     - name: Copy custom desktop background (horizontal)
       ansible.builtin.copy:
         src: "desktop-background.png"
         dest: "{{ ansible_user_dir }}/Pictures/Wallpapers/desktop-background.png"
-        mode: '0644'
+        mode: "0644"
       when: deploy_custom_wallpaper | default(false)
 
     - name: Copy custom desktop background (vertical)
       ansible.builtin.copy:
         src: "desktop-background-vertical.png"
         dest: "{{ ansible_user_dir }}/Pictures/Wallpapers/desktop-background-vertical.png"
-        mode: '0644'
+        mode: "0644"
       when: deploy_custom_wallpaper | default(false)
 
     - name: Set desktop background to custom wallpaper on all displays (smart orientation detection)
       ansible.builtin.shell: |
+        set -o pipefail
         # Get display resolutions using system_profiler to determine orientation
         RESOLUTIONS=$(system_profiler SPDisplaysDataType | grep "Resolution:" | awk '{print $2 " " $4}')
-        
+
         # Check if any display is vertical (height > width)
         HAS_VERTICAL=false
         while IFS=" " read -r width height; do
@@ -354,7 +355,7 @@
             break
           fi
         done <<< "$RESOLUTIONS"
-        
+
         # Set wallpaper based on orientation detection
         if [ "$HAS_VERTICAL" = "true" ]; then
           echo "Vertical displays detected, using vertical wallpaper"
@@ -481,11 +482,11 @@
         sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool false
         sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool false
         sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool false
-        
+
         # Disable App Store auto-updates
         sudo defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool false
         sudo defaults write /Library/Preferences/com.apple.commerce AutoUpdateRestartRequired -bool false
-        
+
         # Disable software update notification client
         sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate.notificationclient SUAutomaticallyCatalogue -bool false
       become: true
@@ -495,17 +496,17 @@
       ansible.builtin.shell: |
         # Disable crash reporter dialogs
         defaults write com.apple.CrashReporter DialogType -string "none"
-        
+
         # Disable diagnostic submission prompts
         sudo defaults write /Library/Application\ Support/CrashReporter/DiagnosticMessagesHistory.plist AutoSubmit -bool false
         sudo defaults write /Library/Application\ Support/CrashReporter/DiagnosticMessagesHistory.plist ThirdPartyDataSubmit -bool false
-        
+
         # Disable first-run dialogs for applications
         defaults write com.apple.LaunchServices LSQuarantine -bool false
-        
+
         # Disable iCloud document save prompts
         defaults write NSGlobalDomain NSDocumentSaveNewDocumentsToCloud -bool false
-        
+
         # Disable Time Machine backup prompts
         defaults write com.apple.TimeMachine DoNotOfferNewDisksForBackup -bool true
       changed_when: false
@@ -514,18 +515,18 @@
       ansible.builtin.shell: |
         # Disable notification center daemon
         sudo launchctl unload -w /System/Library/LaunchAgents/com.apple.notificationcenterui.plist 2>/dev/null || true
-        
+
         # Disable user notification center (multiple possible paths)
         launchctl unload -w /System/Library/LaunchAgents/com.apple.UserNotificationCenter.plist 2>/dev/null || true
         launchctl unload -w /System/Library/CoreServices/UserNotificationCenter.app/Contents/Resources/com.apple.UserNotificationCenter.plist 2>/dev/null || true
-        
+
         # Disable software update notification manager
         launchctl unload -w /System/Library/PrivateFrameworks/SoftwareUpdate.framework/Resources/SoftwareUpdateNotificationManager.app/Contents/Resources/com.apple.SoftwareUpdateNotificationManager.plist 2>/dev/null || true
-        
+
         # Disable all notification banners
         defaults write com.apple.notificationcenterui bannerTime -int 0
         defaults write com.apple.notificationcenterui doNotDisturb -bool true
-        
+
         # Disable notification sounds
         defaults write com.apple.sound.beep.sound -string ""
         defaults write NSGlobalDomain com.apple.sound.beep.volume -float 0.0
@@ -536,17 +537,17 @@
         # Disable Spotlight suggestions and Siri
         defaults write com.apple.lookup.shared LookupSuggestionsDisabled -bool true
         defaults write com.apple.assistant.support "Assistant Enabled" -bool false
-        
+
         # Disable keyboard/trackpad setup dialogs
         defaults write com.apple.SetupAssistant DidSeeCloudSetup -bool true
         defaults write com.apple.SetupAssistant DidSeeSiriSetup -bool true
         defaults write com.apple.SetupAssistant DidSeePrivacy -bool true
-        
+
         # Disable AirDrop and HandOff notifications
         defaults write com.apple.NetworkBrowser DisableAirDrop -bool true
         defaults write com.apple.coreservices.useractivityd ActivityAdvertisingAllowed -bool false
         defaults write com.apple.coreservices.useractivityd ActivityReceivingAllowed -bool false
-        
+
         # Disable Game Center notifications
         defaults write com.apple.gamed Disabled -bool true
       changed_when: false
@@ -558,11 +559,11 @@
         pkill -f "NotificationCenter" || true
         pkill -f "UserNotificationCenter" || true
         pkill -f "Notification" || true
-        
+
         # Kill setup assistant processes
         pkill -f "Setup Assistant" || true
         pkill -f "SetupAssistant" || true
-        
+
         # Clear notification database
         rm -rf ~/Library/Application\ Support/NotificationCenter/* 2>/dev/null || true
       changed_when: false
@@ -572,7 +573,7 @@
       ansible.builtin.shell: |
         # Attempt to unload software update daemon
         sudo launchctl unload -w /System/Library/LaunchDaemons/com.apple.softwareupdated.plist 2>/dev/null || true
-        
+
         # Disable software update scheduler
         sudo launchctl unload -w /System/Library/LaunchDaemons/com.apple.softwareupdate_download_service.plist 2>/dev/null || true
       become: true
@@ -586,7 +587,7 @@
         killall Dock 2>/dev/null || true
         killall SystemUIServer 2>/dev/null || true
         killall NotificationCenter 2>/dev/null || true
-        
+
         # Clear any cached notification settings
         sudo killall -HUP mDNSResponder 2>/dev/null || true
       failed_when: false
