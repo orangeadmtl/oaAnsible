@@ -5,7 +5,7 @@
   block:
     - name: Merge camguard defaults with inventory overrides
       ansible.builtin.set_fact:
-        camguard: "{{ camguard_defaults | combine(camguard | default({}), recursive=True) }}"
+        camguard: "{{ macos_camguard_defaults | combine(camguard | default({}), recursive=True) }}"
       tags: ["camguard", "config"]
 
     - name: Validate camera access exclusivity
@@ -13,7 +13,7 @@
         msg: |
           Camera access conflict detected. CamGuard and other camera services cannot run simultaneously.
           Please ensure only one camera-using service is enabled per host.
-      when: 
+      when:
         - camguard.enabled | default(false)
         - (deploy_tracker | default(false)) or (oa_environment.deploy_tracker | default(false))
       tags: ["camguard", "validation"]
@@ -40,33 +40,38 @@
       tags: ["camguard", "dependencies", "streaming"]
 
     - name: Download and install MediaMTX
+      when:
+        - camguard.streaming.enabled | default(true)
+        - not mediamtx_check.stat.exists
+      tags: ["camguard", "dependencies", "streaming"]
       block:
         - name: Get latest MediaMTX release info
           ansible.builtin.uri:
             url: https://api.github.com/repos/bluenviron/mediamtx/releases/latest
             method: GET
           register: mediamtx_release
-          
+
         - name: Download MediaMTX binary
           ansible.builtin.get_url:
             url: "{{ mediamtx_release.json.assets | selectattr('name', 'match', '.*darwin_arm64.*') | map(attribute='browser_download_url') | first }}"
             dest: "/tmp/mediamtx.tar.gz"
-            mode: '0644'
-            
+            mode: "0644"
+
         - name: Extract MediaMTX using command
-          ansible.builtin.command:
-            cmd: tar -xzf /tmp/mediamtx.tar.gz -C /tmp
-            creates: /tmp/mediamtx
-            
+          ansible.builtin.unarchive:
+            src: /tmp/mediamtx.tar.gz
+            dest: /tmp
+            remote_src: true
+
         - name: Install MediaMTX binary
           ansible.builtin.copy:
             src: "/tmp/mediamtx"
             dest: "{{ ansible_user_dir }}/orangead/bin/mediamtx"
-            mode: '0755'
+            mode: "0755"
             owner: "{{ ansible_user }}"
             group: staff
             remote_src: true
-            
+
         - name: Clean up download files
           ansible.builtin.file:
             path: "{{ item }}"
@@ -75,16 +80,12 @@
             - "/tmp/mediamtx.tar.gz"
             - "/tmp/mediamtx"
             - "/tmp/mediamtx.yml"
-      when: 
-        - camguard.streaming.enabled | default(true)
-        - not mediamtx_check.stat.exists
-      tags: ["camguard", "dependencies", "streaming"]
 
     - name: Create CamGuard directories
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
-        mode: '0755'
+        mode: "0755"
         owner: "{{ ansible_user }}"
         group: staff
       loop:
@@ -99,7 +100,7 @@
       ansible.builtin.template:
         src: mediamtx.yml.j2
         dest: "{{ ansible_user_dir }}/orangead/camguard/config/mediamtx.yml"
-        mode: '0644'
+        mode: "0644"
         owner: "{{ ansible_user }}"
         group: staff
       when: camguard.streaming.enabled | default(true)
@@ -110,7 +111,7 @@
       ansible.builtin.template:
         src: com.orangead.mediamtx.plist.j2
         dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.mediamtx.plist"
-        mode: '0644'
+        mode: "0644"
         owner: "{{ ansible_user }}"
         group: staff
       when: camguard.streaming.enabled | default(true)
@@ -121,7 +122,7 @@
       ansible.builtin.template:
         src: camguard.sh.j2
         dest: "{{ ansible_user_dir }}/orangead/camguard/scripts/camguard.sh"
-        mode: '0755'
+        mode: "0755"
         owner: "{{ ansible_user }}"
         group: staff
       notify: restart camguard service
@@ -131,17 +132,27 @@
       ansible.builtin.template:
         src: camguard_cleanup.sh.j2
         dest: "{{ ansible_user_dir }}/orangead/camguard/scripts/camguard_cleanup.sh"
-        mode: '0755'
+        mode: "0755"
         owner: "{{ ansible_user }}"
         group: staff
       tags: ["camguard", "config"]
 
+    - name: Generate CamGuard transfer script
+      ansible.builtin.template:
+        src: camguard_transfer.sh.j2
+        dest: "{{ ansible_user_dir }}/orangead/camguard/scripts/camguard_transfer.sh"
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      when: camguard.transfer.enabled | default(false)
+      notify: restart camguard transfer service
+      tags: ["camguard", "transfer", "config"]
 
     - name: Create CamGuard LaunchAgent
       ansible.builtin.template:
         src: com.orangead.camguard.plist.j2
         dest: "{{ ansible_user_dir }}/Library/LaunchAgents/{{ camguard.service.name }}.plist"
-        mode: '0644'
+        mode: "0644"
         owner: "{{ ansible_user }}"
         group: staff
       notify: restart camguard service
@@ -151,19 +162,29 @@
       ansible.builtin.template:
         src: com.orangead.camguard.cleanup.plist.j2
         dest: "{{ ansible_user_dir }}/Library/LaunchAgents/{{ camguard.service.name }}.cleanup.plist"
-        mode: '0644'
+        mode: "0644"
         owner: "{{ ansible_user }}"
         group: staff
       notify: restart camguard cleanup service
       tags: ["camguard", "service"]
 
+    - name: Create CamGuard transfer LaunchAgent
+      ansible.builtin.template:
+        src: com.orangead.camguard.transfer.plist.j2
+        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/{{ camguard.service.name }}.transfer.plist"
+        mode: "0644"
+        owner: "{{ ansible_user }}"
+        group: staff
+      when: camguard.transfer.enabled | default(false)
+      notify: restart camguard transfer service
+      tags: ["camguard", "transfer", "service"]
 
     - name: Load and start CamGuard service
       ansible.builtin.command: >
         launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/{{ camguard.service.name }}.plist
       become: false
       register: launchctl_result
-      failed_when: 
+      failed_when:
         - launchctl_result.rc != 0
         - "'already loaded' not in launchctl_result.stderr"
       changed_when: launchctl_result.rc == 0
@@ -174,7 +195,7 @@
         launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/{{ camguard.service.name }}.cleanup.plist
       become: false
       register: cleanup_launchctl_result
-      failed_when: 
+      failed_when:
         - cleanup_launchctl_result.rc != 0
         - "'already loaded' not in cleanup_launchctl_result.stderr"
       changed_when: cleanup_launchctl_result.rc == 0
@@ -185,12 +206,24 @@
         launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.mediamtx.plist
       become: false
       register: mediamtx_launchctl_result
-      failed_when: 
+      failed_when:
         - mediamtx_launchctl_result.rc != 0
         - "'already loaded' not in mediamtx_launchctl_result.stderr"
       changed_when: mediamtx_launchctl_result.rc == 0
       when: camguard.streaming.enabled | default(true)
       tags: ["camguard", "service", "streaming"]
+
+    - name: Load and start CamGuard transfer service
+      ansible.builtin.command: >
+        launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/{{ camguard.service.name }}.transfer.plist
+      become: false
+      register: transfer_launchctl_result
+      failed_when:
+        - transfer_launchctl_result.rc != 0
+        - "'already loaded' not in transfer_launchctl_result.stderr"
+      changed_when: transfer_launchctl_result.rc == 0
+      when: camguard.transfer.enabled | default(false)
+      tags: ["camguard", "transfer", "service"]
 
     - name: Verify CamGuard service is running
       ansible.builtin.command: >
@@ -200,7 +233,6 @@
       failed_when: service_status.rc != 0
       changed_when: false
       tags: ["camguard", "verification"]
-
 
     - name: Display CamGuard deployment summary
       ansible.builtin.debug:
@@ -216,5 +248,12 @@
           {% if camguard.streaming.enabled | default(true) %}
           - Live Streaming: rtsp://{{ inventory_hostname }}:{{ camguard.streaming.rtsp_port }}/{{ camguard.streaming.stream_path }}
           - MediaMTX Service: com.orangead.mediamtx
+          {% endif %}
+          {% if camguard.transfer.enabled | default(false) %}
+          - Transfer Service: {{ camguard.service.name }}.transfer
+          - Remote Server: {{ camguard.transfer.remote_server }}
+          - Transfer Interval: Every {{ camguard.transfer.transfer_interval_hours }} hours
+          - Rate Limit: {{ camguard.transfer.rate_limit_mbps }} Mbps
+          - Delete After Transfer: {{ camguard.transfer.delete_after_transfer }}
           {% endif %}
       tags: ["camguard", "summary"]

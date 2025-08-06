@@ -64,18 +64,17 @@ all:
         format: "mp4"
         codec: "h264_videotoolbox" # Hardware acceleration on macOS
 
-
       # Camera settings
       camera:
         device_id: "0" # Default camera device
         input_format: "avfoundation" # macOS camera input
 
-      # Storage settings (production-grade)
+      # Storage settings (production-grade, weekend-only recording)
       storage:
         recordings_dir: "{{ ansible_user_dir }}/orangead/camguard/recordings"
         logs_dir: "{{ ansible_user_dir }}/orangead/camguard/logs"
-        retention_days: 7 # Keep recordings for 7 days in production
-        max_size_gb: 50 # Maximum storage usage in GB (increased for production)
+        retention_days: 0 # No retention - keep all weekend recordings
+        max_size_gb: 0 # No size limit - cleanup via transfer only
 
       # Service settings
       service:
@@ -93,6 +92,19 @@ all:
         max_failures: 5 # More tolerance for production
         restart_delay: 60 # Longer delay between restarts
 
+      # Video transfer settings (production-optimized)
+      transfer:
+        enabled: false # Disabled by default - enable when ready for production
+        remote_server: "your-server.example.com" # Replace with your production server
+        remote_path: "/path/to/video/storage" # Replace with your storage path
+        username: "your-username" # Replace with your SSH username
+        port: 22
+        rate_limit_mbps: 30 # High-speed transfer for production (7.5x recording rate)
+        transfer_interval_hours: 6 # Transfer every 6 hours
+        delete_after_transfer: true # Clean up local files after successful transfer
+        retry_attempts: 3 # Standard retry attempts
+        connection_timeout: 30
+        verify_transfer: true
 
   children:
     macos:

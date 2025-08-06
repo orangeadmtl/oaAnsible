@@ -2,43 +2,43 @@
 # CamGuard Role Defaults
 # Video recording service for macOS
 
-camguard_defaults:
+macos_camguard_defaults:
   enabled: false
-  
+
   # Recording settings
   recording:
-    resolution: "1920x1080"  # 1080p recording
+    resolution: "1920x1080" # 1080p recording
     framerate: 30
-    bitrate: "4M"  # 4 Mbps for high quality
-    chunk_duration: 600  # 10 minutes per chunk (in seconds)
+    bitrate: "4M" # 4 Mbps for high quality
+    chunk_duration: 600 # 10 minutes per chunk (in seconds)
     format: "mp4"
-    codec: "h264_videotoolbox"  # Hardware acceleration on macOS
-    
+    codec: "h264_videotoolbox" # Hardware acceleration on macOS
+
   # Camera settings
   camera:
-    device_id: "0"  # Default camera device
-    input_format: "avfoundation"  # macOS camera input
-    
+    device_id: "0" # Default camera device
+    input_format: "avfoundation" # macOS camera input
+
   # Live streaming settings
   streaming:
-    enabled: true  # Enable live RTSP streaming
-    rtsp_port: 8554  # RTSP server port
-    stream_path: "live"  # RTSP stream path (/live)
-    server_host: "127.0.0.1"  # MediaMTX server host
-    low_latency: true  # Optimize for low latency streaming
-    
+    enabled: true # Enable live RTSP streaming
+    rtsp_port: 8554 # RTSP server port
+    stream_path: "live" # RTSP stream path (/live)
+    server_host: "127.0.0.1" # MediaMTX server host
+    low_latency: true # Optimize for low latency streaming
+
   # Storage settings
   storage:
     recordings_dir: "{{ ansible_user_dir }}/orangead/camguard/recordings"
     logs_dir: "{{ ansible_user_dir }}/orangead/camguard/logs"
-    retention_days: 0  # No retention - keep all recordings
-    max_size_gb: 0     # No size limit
-    
+    retention_days: 0 # No retention - keep all recordings
+    max_size_gb: 0 # No size limit
+
   # Recording schedule (weekend only)
   schedule:
-    friday_start_hour: 12    # Start recording Friday at 12 PM (noon)
-    monday_end_hour: 12      # Stop recording Monday at 12 PM (noon)
-    
+    friday_start_hour: 12 # Start recording Friday at 12 PM (noon)
+    monday_end_hour: 12 # Stop recording Monday at 12 PM (noon)
+
   # Service settings
   service:
     name: "com.orangead.camguard"
@@ -48,11 +48,25 @@ camguard_defaults:
     restart_on_failure: true
     log_level: "info"
     restart_delay: 30
-    
+
   # Health monitoring
   health:
     enabled: true
-    check_interval: 300  # 5 minutes
+    check_interval: 300 # 5 minutes
     max_failures: 3
     restart_delay: 30
 
+  # Video transfer settings
+  transfer:
+    enabled: false # Disabled by default
+    remote_server: "" # Remote server hostname or IP
+    remote_path: "" # Remote directory path for uploads
+    username: "" # SSH username for remote server
+    port: 22 # SSH port
+    rate_limit_mbps: 10 # Bandwidth limit in Mbps to preserve VNC/SSH access
+    transfer_interval_hours: 6 # How often to run transfer (hours)
+    delete_after_transfer: true # Delete local files after successful transfer
+    retry_attempts: 3 # Number of retry attempts for failed transfers
+    ssh_key_path: "{{ ansible_user_dir }}/.ssh/id_rsa" # SSH private key path
+    connection_timeout: 30 # SSH connection timeout in seconds
+    verify_transfer: true # Verify file integrity after transfer

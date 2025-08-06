@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{ camguard.service.name }}.transfer</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>{{ ansible_user_dir }}/orangead/camguard/scripts/camguard_transfer.sh</string>
+    </array>
+    
+    <key>UserName</key>
+    <string>{{ ansible_user }}</string>
+    
+    <key>RunAtLoad</key>
+    <false/>
+    
+    <key>KeepAlive</key>
+    <false/>
+    
+    <!-- Run every {{ camguard.transfer.transfer_interval_hours }} hours -->
+    <key>StartInterval</key>
+    <integer>{{ (camguard.transfer.transfer_interval_hours * 3600) | int }}</integer>
+    
+    <!-- Environment variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
+        <key>HOME</key>
+        <string>{{ ansible_user_dir }}</string>
+        <key>USER</key>
+        <string>{{ ansible_user }}</string>
+    </dict>
+    
+    <!-- Logging -->
+    <key>StandardOutPath</key>
+    <string>{{ camguard.storage.logs_dir }}/camguard_transfer_stdout.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>{{ camguard.storage.logs_dir }}/camguard_transfer_stderr.log</string>
+    
+    <!-- Working directory -->
+    <key>WorkingDirectory</key>
+    <string>{{ camguard.storage.recordings_dir }}</string>
+    
+    <!-- Process control -->
+    <key>ExitTimeOut</key>
+    <integer>3600</integer> <!-- Allow up to 1 hour for large transfers -->
+    
+    <key>ThrottleInterval</key>
+    <integer>300</integer> <!-- Wait 5 minutes between rapid failures -->
+    
+    <!-- Resource limits (to preserve system performance) -->
+    <key>LowPriorityIO</key>
+    <true/>
+    
+    <key>Nice</key>
+    <integer>10</integer> <!-- Lower process priority -->
+    
+    <!-- Only run if network is available -->
+    <key>LaunchOnlyOnce</key>
+    <false/>
+    
+    <!-- Restart behavior -->
+    <key>SuccessfulExit</key>
+    <false/> <!-- Don't restart on successful completion -->
+</dict>
+</plist>
