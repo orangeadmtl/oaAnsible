@@ -2,7 +2,7 @@
 # Ubuntu monitoring role defaults
 
 # System monitoring tools
-monitoring_tools:
+ubuntu_monitoring_tools:
   - htop
   - iotop
   - nethogs
@@ -14,35 +14,35 @@ monitoring_tools:
   - unzip
 
 # Log management
-log_rotation_enabled: true
-log_retention_days: 30
-log_max_size: "100M"
+ubuntu_log_rotation_enabled: true
+ubuntu_log_retention_days: 30
+ubuntu_log_max_size: "100M"
 
 # System logs to monitor
-system_logs:
+ubuntu_system_logs:
   - path: "/var/log/syslog"
-    retention: "{{ log_retention_days }}"
+    retention: "{{ ubuntu_log_retention_days }}"
   - path: "/var/log/auth.log"
-    retention: "{{ log_retention_days }}"
+    retention: "{{ ubuntu_log_retention_days }}"
   - path: "/var/log/kern.log"
-    retention: "{{ log_retention_days }}"
+    retention: "{{ ubuntu_log_retention_days }}"
   - path: "/var/log/docker/*.log"
-    retention: "{{ log_retention_days }}"
+    retention: "{{ ubuntu_log_retention_days }}"
     if_exists: true
 
 # OrangeAd specific logs
-orangead_logs:
+ubuntu_orangead_logs:
   - path: "/home/{{ ansible_user }}/orangead/logs"
-    retention: "{{ log_retention_days }}"
+    retention: "{{ ubuntu_log_retention_days }}"
     if_exists: true
 
 # System health monitoring
-health_check_enabled: true
-health_check_interval: "*/5 * * * *" # Every 5 minutes
-health_check_script_path: "/home/{{ ansible_user }}/orangead/scripts"
+ubuntu_health_check_enabled: true
+ubuntu_health_check_interval: "*/5 * * * *" # Every 5 minutes
+ubuntu_health_check_script_path: "/home/{{ ansible_user }}/orangead/scripts"
 
 # Disk space monitoring
-disk_monitoring:
+ubuntu_disk_monitoring:
   enabled: true
   threshold_warning: 80 # Warning at 80% usage
   threshold_critical: 90 # Critical at 90% usage
@@ -53,13 +53,13 @@ disk_monitoring:
     - "/tmp"
 
 # Memory monitoring
-memory_monitoring:
+ubuntu_memory_monitoring:
   enabled: true
   threshold_warning: 80 # Warning at 80% usage
   threshold_critical: 90 # Critical at 90% usage
 
 # Service monitoring
-service_monitoring:
+ubuntu_service_monitoring:
   enabled: true
   services:
     - name: "docker"
@@ -70,7 +70,7 @@ service_monitoring:
       critical: true
 
 # Network monitoring
-network_monitoring:
+ubuntu_network_monitoring:
   enabled: true
   check_connectivity:
     - host: "8.8.8.8"
@@ -79,14 +79,14 @@ network_monitoring:
       timeout: 5
 
 # Alerting (basic email notifications)
-alerting:
+ubuntu_alerting:
   enabled: false # Set to true when email is configured
   email_to: "admin@orangead.local"
   email_from: "monitoring@{{ ansible_hostname }}"
   smtp_server: "localhost"
 
 # Performance monitoring
-performance_monitoring:
+ubuntu_performance_monitoring:
   enabled: true
   collect_interval: 300 # 5 minutes
   metrics_retention_days: 7

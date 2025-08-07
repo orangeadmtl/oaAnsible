@@ -9,22 +9,22 @@
 
     - name: Set monitoring tools installation flags
       ansible.builtin.set_fact:
-        monitoring_tools_installed: "{{ monitoring_tools | difference(ansible_facts.packages.keys()) | length == 0 }}"
+        ubuntu_monitoring_tools_installed: "{{ ubuntu_monitoring_tools | difference(ansible_facts.packages.keys()) | length == 0 }}"
 
 - name: Display monitoring tools status
   ansible.builtin.debug:
     msg: |
       Monitoring Tools Status:
-      - Tools needed: {{ monitoring_tools | join(', ') }}
-      - Installation status: {{ 'Already installed' if monitoring_tools_installed else 'Need installation' }}
+      - Tools needed: {{ ubuntu_monitoring_tools | join(', ') }}
+      - Installation status: {{ 'Already installed' if ubuntu_monitoring_tools_installed else 'Need installation' }}
 
 - name: Install monitoring tools
   ansible.builtin.apt:
-    name: "{{ monitoring_tools }}"
+    name: "{{ ubuntu_monitoring_tools }}"
     state: present
     update_cache: true
   become: true
-  when: not monitoring_tools_installed
+  when: not ubuntu_monitoring_tools_installed
 
 - name: Create monitoring directories
   ansible.builtin.file:
@@ -43,42 +43,42 @@
 - name: Create system health check script
   ansible.builtin.template:
     src: system_health_check.sh.j2
-    dest: "{{ health_check_script_path }}/system_health_check.sh"
+    dest: "{{ ubuntu_health_check_script_path }}/system_health_check.sh"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0755"
   become: true
-  when: health_check_enabled
+  when: ubuntu_health_check_enabled
 
 - name: Create disk monitoring script
   ansible.builtin.template:
     src: disk_monitor.sh.j2
-    dest: "{{ health_check_script_path }}/disk_monitor.sh"
+    dest: "{{ ubuntu_health_check_script_path }}/disk_monitor.sh"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0755"
   become: true
-  when: disk_monitoring.enabled
+  when: ubuntu_disk_monitoring.enabled
 
 - name: Create service monitoring script
   ansible.builtin.template:
     src: service_monitor.sh.j2
-    dest: "{{ health_check_script_path }}/service_monitor.sh"
+    dest: "{{ ubuntu_health_check_script_path }}/service_monitor.sh"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0755"
   become: true
-  when: service_monitoring.enabled
+  when: ubuntu_service_monitoring.enabled
 
 - name: Create performance metrics collection script
   ansible.builtin.template:
     src: collect_metrics.sh.j2
-    dest: "{{ health_check_script_path }}/collect_metrics.sh"
+    dest: "{{ ubuntu_health_check_script_path }}/collect_metrics.sh"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0755"
   become: true
-  when: performance_monitoring.enabled
+  when: ubuntu_performance_monitoring.enabled
 
 - name: Configure log rotation for system logs
   ansible.builtin.template:
@@ -86,52 +86,52 @@
     dest: /etc/logrotate.d/orangead-logs
     mode: "0644"
   become: true
-  when: log_rotation_enabled
+  when: ubuntu_log_rotation_enabled
 
 - name: Create health check cron job
   ansible.builtin.cron:
     name: "OrangeAd system health check"
-    job: "{{ health_check_script_path }}/system_health_check.sh >> /home/{{ ansible_user }}/orangead/monitoring/logs/health_check.log 2>&1"
-    minute: "{{ health_check_interval.split()[0] }}"
-    hour: "{{ health_check_interval.split()[1] }}"
-    day: "{{ health_check_interval.split()[2] }}"
-    month: "{{ health_check_interval.split()[3] }}"
-    weekday: "{{ health_check_interval.split()[4] }}"
+    job: "{{ ubuntu_health_check_script_path }}/system_health_check.sh >> /home/{{ ansible_user }}/orangead/monitoring/logs/health_check.log 2>&1"
+    minute: "{{ ubuntu_health_check_interval.split()[0] }}"
+    hour: "{{ ubuntu_health_check_interval.split()[1] }}"
+    day: "{{ ubuntu_health_check_interval.split()[2] }}"
+    month: "{{ ubuntu_health_check_interval.split()[3] }}"
+    weekday: "{{ ubuntu_health_check_interval.split()[4] }}"
     user: "{{ ansible_user }}"
-    state: "{{ 'present' if health_check_enabled else 'absent' }}"
+    state: "{{ 'present' if ubuntu_health_check_enabled else 'absent' }}"
   become: true
 
 - name: Create disk monitoring cron job
   ansible.builtin.cron:
     name: "OrangeAd disk monitoring"
-    job: "{{ health_check_script_path }}/disk_monitor.sh >> /home/{{ ansible_user }}/orangead/monitoring/logs/disk_monitor.log 2>&1"
+    job: "{{ ubuntu_health_check_script_path }}/disk_monitor.sh >> /home/{{ ansible_user }}/orangead/monitoring/logs/disk_monitor.log 2>&1"
     minute: "*/10"
     user: "{{ ansible_user }}"
-    state: "{{ 'present' if disk_monitoring.enabled else 'absent' }}"
+    state: "{{ 'present' if ubuntu_disk_monitoring.enabled else 'absent' }}"
   become: true
 
 - name: Create service monitoring cron job
   ansible.builtin.cron:
     name: "OrangeAd service monitoring"
-    job: "{{ health_check_script_path }}/service_monitor.sh >> /home/{{ ansible_user }}/orangead/monitoring/logs/service_monitor.log 2>&1"
+    job: "{{ ubuntu_health_check_script_path }}/service_monitor.sh >> /home/{{ ansible_user }}/orangead/monitoring/logs/service_monitor.log 2>&1"
     minute: "*/5"
     user: "{{ ansible_user }}"
-    state: "{{ 'present' if service_monitoring.enabled else 'absent' }}"
+    state: "{{ 'present' if ubuntu_service_monitoring.enabled else 'absent' }}"
   become: true
 
 - name: Create performance metrics collection cron job
   ansible.builtin.cron:
     name: "OrangeAd performance metrics"
-    job: "{{ health_check_script_path }}/collect_metrics.sh >> /home/{{ ansible_user }}/orangead/monitoring/logs/metrics.log 2>&1"
+    job: "{{ ubuntu_health_check_script_path }}/collect_metrics.sh >> /home/{{ ansible_user }}/orangead/monitoring/logs/metrics.log 2>&1"
     minute: "*/5"
     user: "{{ ansible_user }}"
-    state: "{{ 'present' if performance_monitoring.enabled else 'absent' }}"
+    state: "{{ 'present' if ubuntu_performance_monitoring.enabled else 'absent' }}"
   become: true
 
 - name: Create monitoring log cleanup script
   ansible.builtin.template:
     src: cleanup_logs.sh.j2
-    dest: "{{ health_check_script_path }}/cleanup_logs.sh"
+    dest: "{{ ubuntu_health_check_script_path }}/cleanup_logs.sh"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0755"
@@ -140,7 +140,7 @@
 - name: Create log cleanup cron job
   ansible.builtin.cron:
     name: "OrangeAd monitoring log cleanup"
-    job: "{{ health_check_script_path }}/cleanup_logs.sh"
+    job: "{{ ubuntu_health_check_script_path }}/cleanup_logs.sh"
     minute: "0"
     hour: "2"
     user: "{{ ansible_user }}"
@@ -151,9 +151,9 @@
   ansible.builtin.debug:
     msg: |-
       Ubuntu Monitoring Configuration Completed:
-      - {{ monitoring_tools | length }} monitoring tools installed
-      - Health checks: {{ 'Enabled' if health_check_enabled else 'Disabled' }}
-      - Disk monitoring: {{ 'Enabled' if disk_monitoring.enabled else 'Disabled' }}
-      - Service monitoring: {{ 'Enabled' if service_monitoring.enabled else 'Disabled' }}
-      - Performance metrics: {{ 'Enabled' if performance_monitoring.enabled else 'Disabled' }}
-      - Log rotation: {{ 'Enabled' if log_rotation_enabled else 'Disabled' }}
+      - {{ ubuntu_monitoring_tools | length }} monitoring tools installed
+      - Health checks: {{ 'Enabled' if ubuntu_health_check_enabled else 'Disabled' }}
+      - Disk monitoring: {{ 'Enabled' if ubuntu_disk_monitoring.enabled else 'Disabled' }}
+      - Service monitoring: {{ 'Enabled' if ubuntu_service_monitoring.enabled else 'Disabled' }}
+      - Performance metrics: {{ 'Enabled' if ubuntu_performance_monitoring.enabled else 'Disabled' }}
+      - Log rotation: {{ 'Enabled' if ubuntu_log_rotation_enabled else 'Disabled' }}
