@@ -3,17 +3,17 @@
 # Python environment setup for Ubuntu servers
 
 # Python version management
-python_version: "3.11"
-install_pyenv: true
-install_system_python: true
+ubuntu_python_version: "3.11"
+ubuntu_install_pyenv: true
+ubuntu_install_system_python: true
 
 # Package managers
-install_uv: true  # Fast Python package manager
-install_pip: true
+ubuntu_install_uv: true # Fast Python package manager
+ubuntu_install_pip: true
 
 # Development tools
-install_dev_packages: true
-dev_packages:
+ubuntu_install_dev_packages: true
+ubuntu_dev_packages:
   - python3-dev
   - python3-pip
   - python3-venv
@@ -32,16 +32,16 @@ dev_packages:
   - uuid-dev
 
 # PyEnv configuration
-pyenv_root: "{{ ansible_user_dir }}/.pyenv"
-pyenv_install_python_versions:
-  - "{{ python_version }}"
+ubuntu_pyenv_root: "{{ ansible_user_dir }}/.pyenv"
+ubuntu_pyenv_install_python_versions:
+  - "{{ ubuntu_python_version }}"
 
 # Virtual environment settings
-create_default_venv: false  # ML workstation role will handle this
-default_venv_name: "ml-env"
+ubuntu_create_default_venv: false # ML workstation role will handle this
+ubuntu_default_venv_name: "ml-env"
 
 # PATH configuration
-update_shell_profile: true
-shell_profiles:
+ubuntu_update_shell_profile: true
+ubuntu_shell_profiles:
   - "{{ ansible_user_dir }}/.bashrc"
   - "{{ ansible_user_dir }}/.zshrc"

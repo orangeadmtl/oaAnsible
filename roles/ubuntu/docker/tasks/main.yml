@@ -5,21 +5,21 @@
   block:
     - name: Check if Docker is already installed
       ansible.builtin.command: docker --version
-      register: docker_version_check
+      register: ubuntu_docker_version_check
       failed_when: false
       changed_when: false
 
     - name: Check if Docker Compose is already installed
       ansible.builtin.command: docker compose version
-      register: docker_compose_version_check
+      register: ubuntu_docker_compose_version_check
       failed_when: false
       changed_when: false
-      when: docker_install_compose
+      when: ubuntu_docker_install_compose
 
     - name: Set Docker installation flags
       ansible.builtin.set_fact:
-        docker_already_installed: "{{ docker_version_check.rc == 0 }}"
-        docker_compose_already_installed: "{{ docker_compose_version_check.rc == 0 if docker_install_compose else true }}"
+        docker_already_installed: "{{ ubuntu_docker_version_check.rc == 0 }}"
+        docker_compose_already_installed: "{{ ubuntu_docker_compose_version_check.rc == 0 if ubuntu_docker_install_compose else true }}"
 
 - name: Display Docker installation status
   ansible.builtin.debug:
@@ -31,75 +31,64 @@
 - name: Install Docker prerequisites
   ansible.builtin.apt:
     name:
-      - apt-transport-https
       - ca-certificates
       - curl
-      - gnupg
-      - lsb-release
-      - software-properties-common
     state: present
     update_cache: true
   become: true
   when: not docker_already_installed
 
-- name: Add Docker GPG key
-  ansible.builtin.apt_key:
-    url: https://download.docker.com/linux/ubuntu/gpg
-    state: present
-  become: true
-  when: not docker_already_installed
-
-- name: Add Docker repository
-  ansible.builtin.apt_repository:
-    repo: "deb [arch={{ ansible_architecture }}] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} {{ docker_channel }}"
-    state: present
-    update_cache: true
-  become: true
-  when: not docker_already_installed
-
-- name: Install Docker Engine
-  ansible.builtin.apt:
-    name: "{{ 'docker-ce' if docker_version == 'latest' else 'docker-ce=' + docker_version }}"
-    state: present
-    update_cache: true
-  become: true
-  when: not docker_already_installed
-  notify: restart docker
-
-- name: Install Docker CLI
-  ansible.builtin.apt:
-    name: "{{ 'docker-ce-cli' if docker_version == 'latest' else 'docker-ce-cli=' + docker_version }}"
-    state: present
-  become: true
-  when: not docker_already_installed
-
-- name: Install containerd.io
-  ansible.builtin.apt:
-    name: containerd.io
-    state: present
-  become: true
-  when: not docker_already_installed
-
-- name: Install Docker Compose
-  ansible.builtin.get_url:
-    url: "https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-{{ ansible_system }}-{{ ansible_architecture }}"
-    dest: /usr/local/bin/docker-compose
+- name: Create apt keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
     mode: "0755"
   become: true
-  when:
-    - docker_install_compose
-    - not docker_compose_already_installed
+  when: not docker_already_installed
 
-- name: Create docker-compose symlink for new plugin format
-  ansible.builtin.file:
-    src: /usr/local/bin/docker-compose
-    dest: /usr/libexec/docker/cli-plugins/docker-compose
-    state: link
-    force: true
+- name: Install Docker using convenience script (recommended for new Ubuntu releases)
+  ansible.builtin.shell: |
+    # Remove any existing Docker installations and repositories first
+    apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
+    rm -f /etc/apt/sources.list.d/*docker*.list
+    rm -f /etc/apt/keyrings/docker.*
+    apt-get update
+
+    # Download and run Docker convenience script
+    curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+    sh /tmp/get-docker.sh
+    rm -f /tmp/get-docker.sh
   become: true
-  when:
-    - docker_install_compose
-    - not docker_compose_already_installed
+  when: not docker_already_installed
+
+- name: Verify Docker packages are available
+  ansible.builtin.shell: |
+    apt-cache search docker-ce | head -5
+    echo "--- Available docker-ce packages ---"
+    apt-cache madison docker-ce | head -3
+  register: docker_packages_check
+  become: true
+  when: not docker_already_installed
+
+- name: Display available Docker packages
+  ansible.builtin.debug:
+    msg: "{{ docker_packages_check.stdout_lines }}"
+  when: not docker_already_installed
+
+- name: Install Docker packages (official method)
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+  become: true
+  when: not docker_already_installed
+
+# Docker Compose is now installed as a plugin (docker-compose-plugin) in the main installation
 
 - name: Create Docker daemon configuration directory
   ansible.builtin.file:
@@ -110,7 +99,7 @@
 
 - name: Configure Docker daemon
   ansible.builtin.copy:
-    content: "{{ docker_daemon_config | to_nice_json }}"
+    content: "{{ ubuntu_docker_daemon_config | to_nice_json }}"
     dest: /etc/docker/daemon.json
     mode: "0644"
     backup: true
@@ -123,14 +112,14 @@
     groups: docker
     append: true
   become: true
-  loop: "{{ docker_users }}"
+  loop: "{{ ubuntu_docker_users }}"
   notify: restart docker
 
 - name: Enable and start Docker service
   ansible.builtin.systemd:
     name: docker
-    enabled: "{{ docker_service_enabled }}"
-    state: "{{ docker_service_state }}"
+    enabled: "{{ ubuntu_docker_service_enabled }}"
+    state: "{{ ubuntu_docker_service_state }}"
     daemon_reload: true
   become: true
 
@@ -140,8 +129,8 @@
     driver: "{{ item.driver | default('bridge') }}"
     ipam_config: "{{ item.ipam_config | default(omit) }}"
     state: present
-  loop: "{{ docker_networks }}"
-  when: docker_networks | length > 0
+  loop: "{{ ubuntu_docker_networks }}"
+  when: ubuntu_docker_networks | length > 0
 
 - name: Create Docker volumes
   community.docker.docker_volume:
@@ -149,8 +138,8 @@
     driver: "{{ item.driver | default('local') }}"
     driver_options: "{{ item.driver_options | default(omit) }}"
     state: present
-  loop: "{{ docker_volumes }}"
-  when: docker_volumes | length > 0
+  loop: "{{ ubuntu_docker_volumes }}"
+  when: ubuntu_docker_volumes | length > 0
 
 - name: Configure Docker registry authentication
   community.docker.docker_login:
@@ -158,21 +147,21 @@
     username: "{{ item.username }}"
     password: "{{ item.password }}"
     state: present
-  loop: "{{ docker_registries }}"
-  when: docker_registries | length > 0
+  loop: "{{ ubuntu_docker_registries }}"
+  when: ubuntu_docker_registries | length > 0
   no_log: true
 
 - name: Create Docker system cleanup cron job
   ansible.builtin.cron:
     name: "Docker system prune"
     job: "docker system prune -af --volumes > /dev/null 2>&1"
-    minute: "{{ docker_prune_schedule.split()[1] }}"
-    hour: "{{ docker_prune_schedule.split()[2] }}"
-    day: "{{ docker_prune_schedule.split()[3] }}"
-    month: "{{ docker_prune_schedule.split()[4] }}"
-    weekday: "{{ docker_prune_schedule.split()[0] }}"
+    minute: "{{ ubuntu_docker_prune_schedule.split()[0] }}"
+    hour: "{{ ubuntu_docker_prune_schedule.split()[1] }}"
+    day: "{{ ubuntu_docker_prune_schedule.split()[2] }}"
+    month: "{{ ubuntu_docker_prune_schedule.split()[3] }}"
+    weekday: "{{ ubuntu_docker_prune_schedule.split()[4] }}"
     user: root
-    state: "{{ 'present' if docker_prune_enabled else 'absent' }}"
+    state: "{{ 'present' if ubuntu_docker_prune_enabled else 'absent' }}"
   become: true
 
 - name: Verify Docker installation
@@ -187,12 +176,12 @@
       ansible.builtin.command: docker compose version
       register: docker_compose_test
       changed_when: false
-      when: docker_install_compose
+      when: ubuntu_docker_install_compose
 
     - name: Display Docker verification results
       ansible.builtin.debug:
         msg: |-
           Docker Installation Verification:
           - Docker Engine: {{ 'Working' if docker_test.rc == 0 else 'Failed' }}
-          - Docker Compose: {{ 'Working' if docker_compose_test.rc == 0 else 'Failed' if docker_install_compose else 'Not installed' }}
-          - Users in docker group: {{ docker_users | join(', ') }}
+          - Docker Compose: {{ 'Working' if docker_compose_test.rc == 0 else 'Failed' if ubuntu_docker_install_compose else 'Not installed' }}
+          - Users in docker group: {{ ubuntu_docker_users | join(', ') }}
