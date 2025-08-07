@@ -15,7 +15,9 @@
         ethernet_interfaces: "{{ ansible_interfaces | select('match', '^en.*') | list }}"
 
     - name: Check for Realtek ethernet controllers
-      ansible.builtin.shell: lspci | grep -i ethernet | grep -i realtek
+      ansible.builtin.shell: |
+        set -o pipefail
+        lspci | grep -i ethernet | grep -i realtek
       register: realtek_check
       failed_when: false
       changed_when: false
@@ -24,7 +26,7 @@
       ansible.builtin.set_fact:
         has_realtek: "{{ realtek_check.rc == 0 }}"
         realtek_info: "{{ realtek_check.stdout if realtek_check.rc == 0 else 'No Realtek controller detected' }}"
-        needs_optimization: "{{ ethernet_optimization.detect_realtek and realtek_check.rc == 0 }}"
+        needs_optimization: "{{ ubuntu_ethernet_optimization.detect_realtek and realtek_check.rc == 0 }}"
 
     - name: Display ethernet hardware status
       ansible.builtin.debug:
@@ -54,7 +56,7 @@
       ansible.builtin.file:
         path: /etc/modprobe.d
         state: directory
-        mode: '0755'
+        mode: "0755"
       become: true
 
     - name: Configure r8169 driver for stability
@@ -62,7 +64,7 @@
         src: r8169-options.conf.j2
         dest: /etc/modprobe.d/r8169-orangead.conf
         backup: true
-        mode: '0644'
+        mode: "0644"
       become: true
       notify: reload network driver
 
@@ -70,19 +72,20 @@
       ansible.builtin.command: update-initramfs -u
       become: true
       when: ansible_facts['distribution_major_version'] | int >= 20
+      changed_when: false
 
 - name: Configure ethernet power management
-  when: 
+  when:
     - needs_optimization
-    - ethernet_optimization.power_management.disable_wol or ethernet_optimization.power_management.disable_interface_pm
+    - ubuntu_ethernet_optimization.power_management.disable_wol or ubuntu_ethernet_optimization.power_management.disable_interface_pm
   block:
     - name: Create ethernet power management service
       ansible.builtin.template:
         src: ethernet-pm-disable.service.j2
         dest: /etc/systemd/system/ethernet-pm-disable.service
-        mode: '0644'
+        mode: "0644"
       become: true
-      when: ethernet_optimization.power_management.create_service
+      when: ubuntu_ethernet_optimization.power_management.create_service
 
     - name: Enable ethernet power management service
       ansible.builtin.systemd:
@@ -91,22 +94,22 @@
         state: started
         daemon_reload: true
       become: true
-      when: ethernet_optimization.power_management.create_service
+      when: ubuntu_ethernet_optimization.power_management.create_service
 
     - name: Disable Wake-on-LAN immediately (if interfaces exist)
       ansible.builtin.command: "ethtool -s {{ item }} wol d"
       become: true
       loop: "{{ ethernet_interfaces }}"
-      when: 
-        - ethernet_optimization.power_management.disable_wol
+      when:
+        - ubuntu_ethernet_optimization.power_management.disable_wol
         - ethernet_interfaces | length > 0
       failed_when: false
       changed_when: true
 
 - name: Configure ethernet speed optimization
-  when: 
+  when:
     - needs_optimization
-    - ethernet_optimization.speed_optimization.enabled
+    - ubuntu_ethernet_optimization.speed_optimization.enabled
     - ethernet_interfaces | length > 0
   block:
     - name: Get current ethernet interface speeds
@@ -120,7 +123,7 @@
       ansible.builtin.command: "ethtool -s {{ item }} autoneg on"
       become: true
       loop: "{{ ethernet_interfaces }}"
-      when: ethernet_optimization.speed_optimization.force_autoneg
+      when: ubuntu_ethernet_optimization.speed_optimization.force_autoneg
       failed_when: false
       changed_when: true
 
@@ -130,79 +133,79 @@
       loop: "{{ ethernet_interfaces }}"
       failed_when: false
       changed_when: false
-      when: ethernet_optimization.speed_optimization.verify_after_config
+      when: ubuntu_ethernet_optimization.speed_optimization.verify_after_config
 
 - name: Setup network monitoring
   when:
-    - ethernet_optimization.monitoring.enabled
-    - needs_optimization or ethernet_optimization.monitoring.enabled
+    - ubuntu_ethernet_optimization.monitoring.enabled
+    - needs_optimization or ubuntu_ethernet_optimization.monitoring.enabled
   block:
     - name: Create network monitoring directory
       ansible.builtin.file:
-        path: "{{ ethernet_optimization.monitoring.log_path }}"
+        path: "{{ ubuntu_ethernet_optimization.monitoring.log_path }}"
         state: directory
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
-        mode: '0755'
+        mode: "0755"
       become: true
 
     - name: Create network monitoring script
       ansible.builtin.template:
         src: network-monitor.sh.j2
-        dest: "{{ ethernet_optimization.monitoring.log_path }}/monitor.sh"
+        dest: "{{ ubuntu_ethernet_optimization.monitoring.log_path }}/monitor.sh"
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
-        mode: '0755'
+        mode: "0755"
       become: true
 
     - name: Setup network monitoring cron job
       ansible.builtin.cron:
         name: "OrangeAd Network Monitor"
-        job: "{{ ethernet_optimization.monitoring.log_path }}/monitor.sh"
-        minute: "*/{{ ethernet_optimization.monitoring.interval_minutes }}"
+        job: "{{ ubuntu_ethernet_optimization.monitoring.log_path }}/monitor.sh"
+        minute: "*/{{ ubuntu_ethernet_optimization.monitoring.interval_minutes }}"
         user: "{{ ansible_user }}"
         state: present
       become: true
 
 - name: Create ethernet diagnostics tools
   when:
-    - ethernet_optimization.diagnostics.create_scripts
+    - ubuntu_ethernet_optimization.diagnostics.create_scripts
     - needs_optimization
   block:
     - name: Create ethernet diagnostics script
       ansible.builtin.template:
         src: ethernet-diagnostics.sh.j2
-        dest: "{{ ethernet_optimization.monitoring.log_path }}/ethernet-diagnostics.sh"
+        dest: "{{ ubuntu_ethernet_optimization.monitoring.log_path }}/ethernet-diagnostics.sh"
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
-        mode: '0755'
+        mode: "0755"
       become: true
 
     - name: Create ethernet troubleshooting guide
       ansible.builtin.template:
         src: ethernet-troubleshooting.md.j2
-        dest: "{{ ethernet_optimization.monitoring.log_path }}/troubleshooting-guide.md"
+        dest: "{{ ubuntu_ethernet_optimization.monitoring.log_path }}/troubleshooting-guide.md"
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
-        mode: '0644'
+        mode: "0644"
       become: true
 
 - name: Display ethernet optimization results
   ansible.builtin.debug:
-    msg: |
+    msg: |-
       Ethernet Optimization Completed:
       - Realtek controller detected: {{ 'Yes' if has_realtek else 'No' }}
       - Driver configuration: {{ 'Applied' if needs_optimization else 'Skipped' }}
-      - Power management: {{ 'Disabled' if ethernet_optimization.power_management.disable_wol else 'Unchanged' }}
-      - Speed optimization: {{ 'Configured' if ethernet_optimization.speed_optimization.enabled else 'Skipped' }}
-      - Monitoring: {{ 'Enabled' if ethernet_optimization.monitoring.enabled else 'Disabled' }}
-      - Diagnostics tools: {{ 'Created' if ethernet_optimization.diagnostics.create_scripts else 'Skipped' }}
-      
+      - Power management: {{ 'Disabled' if ubuntu_ethernet_optimization.power_management.disable_wol else 'Unchanged' }}
+      - Speed optimization: {{ 'Configured' if ubuntu_ethernet_optimization.speed_optimization.enabled else 'Skipped' }}
+      - Monitoring: {{ 'Enabled' if ubuntu_ethernet_optimization.monitoring.enabled else 'Disabled' }}
+      - Diagnostics tools: {{ 'Created' if ubuntu_ethernet_optimization.diagnostics.create_scripts else 'Skipped' }}
+
       {% if has_realtek %}
       Realtek Controller: {{ realtek_info }}
       {% endif %}
-      
-      {% if ethernet_optimization.monitoring.enabled %}
-      Monitor logs: {{ ethernet_optimization.monitoring.log_path }}/network.log
-      Diagnostics: {{ ethernet_optimization.monitoring.log_path }}/ethernet-diagnostics.sh
+
+      {% if ubuntu_ethernet_optimization.monitoring.enabled %}
+      Monitor logs: {{ ubuntu_ethernet_optimization.monitoring.log_path }}/network.log
+      Diagnostics: {{ ubuntu_ethernet_optimization.monitoring.log_path }}/ethernet-diagnostics.sh
       {% endif %}

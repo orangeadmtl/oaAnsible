@@ -122,7 +122,7 @@ else
     echo "  ✗ Internet: FAILED"
 fi
 
-{% if ethernet_optimization.monitoring.monitor_tailscale %}
+{% if ubuntu_ethernet_optimization.monitoring.monitor_tailscale %}
 echo "Tailscale connectivity:"
 if command -v tailscale >/dev/null 2>&1; then
     if tailscale status >/dev/null 2>&1; then
@@ -139,7 +139,7 @@ fi
 echo
 echo "📈 RECENT MONITORING DATA"
 echo "────────────────────────"
-MONITOR_LOG="{{ ethernet_optimization.monitoring.log_path }}/network.log"
+MONITOR_LOG="{{ ubuntu_ethernet_optimization.monitoring.log_path }}/network.log"
 if [ -f "$MONITOR_LOG" ]; then
     echo "Last 10 monitoring entries:"
     tail -n 10 "$MONITOR_LOG" | sed 's/^/  /'

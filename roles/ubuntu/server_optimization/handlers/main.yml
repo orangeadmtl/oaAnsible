@@ -5,6 +5,7 @@
   ansible.builtin.command: update-grub
   become: true
   listen: "update grub"
+  changed_when: false
 
 - name: Restart systemd-resolved
   ansible.builtin.systemd:
@@ -21,6 +22,7 @@
     modprobe r8169
   become: true
   listen: "reload network driver"
+  changed_when: false
 
 - name: Restart networking
   ansible.builtin.systemd:

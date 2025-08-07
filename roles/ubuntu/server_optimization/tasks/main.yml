@@ -34,10 +34,9 @@
     value: "{{ item.value }}"
     sysctl_file: /etc/sysctl.d/99-orangead-optimization.conf
     reload: true
-    state: present
-  loop: "{{ system_optimization.kernel_params | dict2items }}"
   become: true
-  when: system_optimization.enabled
+  loop: "{{ ubuntu_system_optimization.kernel_params | default({}) | dict2items }}"
+  when: ubuntu_system_optimization.kernel_params is defined and ubuntu_system_optimization.kernel_params | length > 0
 
 # System Limits Optimization
 - name: Configure system limits for server optimization
@@ -46,9 +45,9 @@
     regexp: "^{{ item.domain }}\\s+{{ item.type }}\\s+{{ item.item }}\\s+"
     line: "{{ item.domain }} {{ item.type }} {{ item.item }} {{ item.value }}"
     backup: true
-  loop: "{{ system_optimization.limits }}"
+  loop: "{{ ubuntu_system_optimization.limits }}"
   become: true
-  when: system_optimization.enabled
+  when: ubuntu_system_optimization.enabled
 
 # Service Optimization
 - name: Disable unnecessary services
@@ -56,10 +55,10 @@
     name: "{{ item }}"
     enabled: false
     state: stopped
-  loop: "{{ service_optimization.services_to_disable }}"
+  loop: "{{ ubuntu_service_optimization.services_to_disable }}"
   become: true
   when:
-    - service_optimization.enabled
+    - ubuntu_service_optimization.enabled
     - item in ansible_facts.services
   failed_when: false # Don't fail if service doesn't exist
 
@@ -68,48 +67,48 @@
     name: "{{ item }}"
     enabled: true
     state: started
-  loop: "{{ service_optimization.services_to_enable }}"
+  loop: "{{ ubuntu_service_optimization.services_to_enable }}"
   become: true
-  when: service_optimization.enabled
+  when: ubuntu_service_optimization.enabled
   failed_when: false
 
 # Package Optimization
 - name: Remove unnecessary packages
   ansible.builtin.apt:
-    name: "{{ package_optimization.packages_to_remove }}"
+    name: "{{ ubuntu_package_optimization.packages_to_remove }}"
     state: absent
     purge: true
     autoremove: true
   become: true
-  when: package_optimization.enabled
+  when: ubuntu_package_optimization.enabled
 
 - name: Install essential packages
   ansible.builtin.apt:
-    name: "{{ package_optimization.essential_packages }}"
+    name: "{{ ubuntu_package_optimization.essential_packages }}"
     state: present
     update_cache: true
   become: true
-  when: package_optimization.enabled
+  when: ubuntu_package_optimization.enabled
 
 # Boot Optimization
 - name: Configure GRUB for boot optimization
   ansible.builtin.lineinfile:
     path: /etc/default/grub
     regexp: "^GRUB_TIMEOUT="
-    line: "GRUB_TIMEOUT={{ boot_optimization.grub_timeout }}"
+    line: "GRUB_TIMEOUT={{ ubuntu_boot_optimization.grub_timeout }}"
     backup: true
   become: true
-  when: boot_optimization.enabled
+  when: ubuntu_boot_optimization.enabled
   notify: update grub
 
 - name: Configure GRUB kernel parameters
   ansible.builtin.lineinfile:
     path: /etc/default/grub
     regexp: "^GRUB_CMDLINE_LINUX_DEFAULT="
-    line: 'GRUB_CMDLINE_LINUX_DEFAULT="{{ boot_optimization.grub_cmdline_params | join(" ") }}"'
+    line: 'GRUB_CMDLINE_LINUX_DEFAULT="{{ ubuntu_boot_optimization.grub_cmdline_params | join(" ") }}"'
     backup: true
   become: true
-  when: boot_optimization.enabled
+  when: ubuntu_boot_optimization.enabled
   notify: update grub
 
 # Storage Optimization
@@ -120,34 +119,35 @@
     state: started
   become: true
   when:
-    - storage_optimization.enabled
-    - storage_optimization.enable_fstrim
+    - ubuntu_storage_optimization.enabled
+    - ubuntu_storage_optimization.enable_fstrim
 
 - name: Configure temporary directory cleanup
   ansible.builtin.cron:
     name: "Cleanup old temporary files"
-    job: "find /tmp -type f -atime +{{ storage_optimization.tmp_cleanup.max_age_days }} -delete"
+    job: "find /tmp -type f -atime +{{ ubuntu_storage_optimization.tmp_cleanup.max_age_days }} -delete"
     minute: "0"
     hour: "3"
     user: root
-    state: "{{ 'present' if storage_optimization.tmp_cleanup.enabled else 'absent' }}"
+    state: "{{ 'present' if ubuntu_storage_optimization.tmp_cleanup.enabled else 'absent' }}"
   become: true
-  when: storage_optimization.enabled
+  when: ubuntu_storage_optimization.enabled
 
 # Network Optimization
 - name: Configure DNS servers for optimization
   ansible.builtin.template:
     src: resolved.conf.j2
     dest: /etc/systemd/resolved.conf
+    mode: "0644"
     backup: true
   become: true
-  when: network_optimization.enabled
+  when: ubuntu_network_optimization.enabled
   notify: restart systemd-resolved
 
 # Ethernet Optimization
 - name: Optimize ethernet interfaces for stability and performance
-  include_tasks: ethernet_optimization.yml
-  when: ethernet_optimization.enabled
+  ansible.builtin.include_tasks: ethernet_optimization.yml
+  when: ubuntu_ethernet_optimization.enabled
   tags: ["ethernet", "network", "optimization"]
 
 # Security Hardening
@@ -157,28 +157,30 @@
     state: present
   become: true
   when:
-    - security_hardening.enabled
-    - security_hardening.unattended_upgrades.enabled
+    - ubuntu_security_hardening.enabled
+    - ubuntu_security_hardening.unattended_upgrades.enabled
 
 - name: Configure unattended upgrades settings
   ansible.builtin.template:
     src: 50unattended-upgrades.j2
     dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    mode: "0644"
     backup: true
   become: true
   when:
-    - security_hardening.enabled
-    - security_hardening.unattended_upgrades.enabled
+    - ubuntu_security_hardening.enabled
+    - ubuntu_security_hardening.unattended_upgrades.enabled
 
 - name: Enable unattended upgrades
   ansible.builtin.template:
     src: 20auto-upgrades.j2
     dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: "0644"
     backup: true
   become: true
   when:
-    - security_hardening.enabled
-    - security_hardening.unattended_upgrades.enabled
+    - ubuntu_security_hardening.enabled
+    - ubuntu_security_hardening.unattended_upgrades.enabled
 
 # Performance Baseline Collection
 - name: Create performance monitoring directory
@@ -189,7 +191,7 @@
     group: "{{ ansible_user }}"
     mode: "0755"
   become: true
-  when: performance_monitoring.enabled
+  when: ubuntu_performance_monitoring.enabled
 
 - name: Create performance baseline script
   ansible.builtin.template:
@@ -200,27 +202,27 @@
     mode: "0755"
   become: true
   when:
-    - performance_monitoring.enabled
-    - performance_monitoring.collect_baseline
+    - ubuntu_performance_monitoring.enabled
+    - ubuntu_performance_monitoring.collect_baseline
 
 - name: Run initial performance baseline collection
   ansible.builtin.command: "/home/{{ ansible_user }}/orangead/performance/collect_baseline.sh"
   become_user: "{{ ansible_user }}"
   become: true
   when:
-    - performance_monitoring.enabled
-    - performance_monitoring.collect_baseline
+    - ubuntu_performance_monitoring.enabled
+    - ubuntu_performance_monitoring.collect_baseline
   changed_when: true
 
 - name: Display server optimization results
   ansible.builtin.debug:
     msg: |-
       Ubuntu Server Optimization Completed:
-      - Kernel parameters: {{ 'Optimized' if system_optimization.enabled else 'Skipped' }}
-      - System limits: {{ 'Configured' if system_optimization.enabled else 'Skipped' }}
-      - Services: {{ 'Optimized' if service_optimization.enabled else 'Skipped' }}
-      - Boot configuration: {{ 'Optimized' if boot_optimization.enabled else 'Skipped' }}
-      - Storage optimization: {{ 'Configured' if storage_optimization.enabled else 'Skipped' }}
-      - Network optimization: {{ 'Configured' if network_optimization.enabled else 'Skipped' }}
-      - Security hardening: {{ 'Enabled' if security_hardening.enabled else 'Skipped' }}
-      - Performance monitoring: {{ 'Enabled' if performance_monitoring.enabled else 'Skipped' }}
+      - Kernel parameters: {{ 'Optimized' if ubuntu_system_optimization.enabled else 'Skipped' }}
+      - System limits: {{ 'Configured' if ubuntu_system_optimization.enabled else 'Skipped' }}
+      - Services: {{ 'Optimized' if ubuntu_service_optimization.enabled else 'Skipped' }}
+      - Boot configuration: {{ 'Optimized' if ubuntu_boot_optimization.enabled else 'Skipped' }}
+      - Storage optimization: {{ 'Configured' if ubuntu_storage_optimization.enabled else 'Skipped' }}
+      - Network optimization: {{ 'Configured' if ubuntu_network_optimization.enabled else 'Skipped' }}
+      - Security hardening: {{ 'Enabled' if ubuntu_security_hardening.enabled else 'Skipped' }}
+      - Performance monitoring: {{ 'Enabled' if ubuntu_performance_monitoring.enabled else 'Skipped' }}

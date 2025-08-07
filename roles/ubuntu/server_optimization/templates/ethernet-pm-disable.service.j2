@@ -10,14 +10,14 @@ Wants=network.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-{% if ethernet_optimization.power_management.disable_wol %}
+{% if ubuntu_ethernet_optimization.power_management.disable_wol %}
 # Disable Wake-on-LAN for all ethernet interfaces
 {% for interface in ethernet_interfaces %}
 ExecStart=/usr/sbin/ethtool -s {{ interface }} wol d
 {% endfor %}
 {% endif %}
 
-{% if ethernet_optimization.power_management.disable_interface_pm %}
+{% if ubuntu_ethernet_optimization.power_management.disable_interface_pm %}
 # Additional power management settings can be added here
 # Example: ExecStart=/usr/sbin/ethtool -s eth0 msglvl 0
 {% endif %}

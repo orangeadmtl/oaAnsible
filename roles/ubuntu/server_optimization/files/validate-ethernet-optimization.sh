@@ -213,15 +213,15 @@ fi
 
 # Summary
 echo
-echo "🏁 Validation Summary"
+echo "Validation Summary"
 echo "===================="
-echo -e "✅ Passed: ${GREEN}$PASSED${NC}"
-echo -e "❌ Failed: ${RED}$FAILED${NC}"
-echo -e "⚠️  Warnings: ${YELLOW}$WARNINGS${NC}"
+echo -e "[OK] Passed: ${GREEN}$PASSED${NC}"
+echo -e "[FAIL] Failed: ${RED}$FAILED${NC}"
+echo -e "[WARNING] Warnings: ${YELLOW}$WARNINGS${NC}"
 
 if [ $FAILED -eq 0 ]; then
     echo
-    echo -e "${GREEN}🎉 Ethernet optimization validation PASSED!${NC}"
+    echo -e "${GREEN}[OK] Ethernet optimization validation PASSED!${NC}"
     echo "All critical components are properly configured."
     if [ $WARNINGS -gt 0 ]; then
         echo -e "${YELLOW}Note: There are $WARNINGS warnings that may need attention.${NC}"
@@ -229,7 +229,7 @@ if [ $FAILED -eq 0 ]; then
     exit 0
 else
     echo
-    echo -e "${RED}❌ Ethernet optimization validation FAILED!${NC}"
+    echo -e "${RED}[FAIL] Ethernet optimization validation FAILED!${NC}"
     echo "Please review the failed checks and re-run the optimization playbook."
     exit 1
 fi

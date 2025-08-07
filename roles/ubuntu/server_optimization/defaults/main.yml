@@ -2,7 +2,7 @@
 # Ubuntu server optimization role defaults
 
 # System optimization
-system_optimization:
+ubuntu_system_optimization:
   enabled: true
 
   # Kernel parameters
@@ -53,7 +53,7 @@ system_optimization:
       value: 65536
 
 # Service optimization
-service_optimization:
+ubuntu_service_optimization:
   enabled: true
 
   # Services to disable (not needed on server)
@@ -79,7 +79,7 @@ service_optimization:
     - rsyslog
 
 # Boot optimization
-boot_optimization:
+ubuntu_boot_optimization:
   enabled: true
   grub_timeout: 2
 
@@ -93,7 +93,7 @@ boot_optimization:
     - "processor.max_cstate=1"
 
 # Package optimization
-package_optimization:
+ubuntu_package_optimization:
   enabled: true
 
   # Packages to remove (bloatware)
@@ -121,7 +121,7 @@ package_optimization:
     - lsb-release
 
 # Storage optimization
-storage_optimization:
+ubuntu_storage_optimization:
   enabled: true
 
   # Automatic filesystem trimming
@@ -141,7 +141,7 @@ storage_optimization:
     compress: true
 
 # Network optimization
-network_optimization:
+ubuntu_network_optimization:
   enabled: true
 
   # DNS optimization
@@ -154,7 +154,7 @@ network_optimization:
   network_interface_optimization: true
 
 # Security hardening
-security_hardening:
+ubuntu_security_hardening:
   enabled: true
 
   # SSH hardening (in addition to security role)
@@ -170,7 +170,7 @@ security_hardening:
     automatic_reboot_time: "02:00"
 
 # Performance monitoring
-performance_monitoring:
+ubuntu_performance_monitoring:
   enabled: true
 
   # System resource monitoring
@@ -180,9 +180,9 @@ performance_monitoring:
   collect_baseline: true
 
 # Ethernet optimization
-ethernet_optimization:
+ubuntu_ethernet_optimization:
   enabled: true
-  
+
   # Hardware detection
   detect_realtek: true
   realtek_chip_patterns:
@@ -190,20 +190,20 @@ ethernet_optimization:
     - "RTL8168"
     - "RTL8211"
     - "RTL8411"
-  
+
   # Driver configuration
   driver_options:
     r8169:
       use_dac: 1
-      eee_enable: 0  # Disable Energy Efficient Ethernet
+      eee_enable: 0 # Disable Energy Efficient Ethernet
       debug: 0
-  
+
   # Power management
   power_management:
     disable_wol: true
     disable_interface_pm: true
     create_service: true
-  
+
   # Speed optimization
   speed_optimization:
     enabled: true
@@ -211,7 +211,7 @@ ethernet_optimization:
     expected_speed: "1000Mb/s"
     fallback_speed: "100Mb/s"
     verify_after_config: true
-  
+
   # Network monitoring
   monitoring:
     enabled: true
@@ -220,7 +220,7 @@ ethernet_optimization:
     monitor_tailscale: true
     monitor_internet: true
     log_path: "/home/{{ ansible_user }}/orangead/network-monitor"
-  
+
   # Troubleshooting
   diagnostics:
     create_scripts: true

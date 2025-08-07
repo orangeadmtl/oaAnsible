@@ -4,8 +4,8 @@
 # Monitors ethernet stability, Tailscale connectivity, and internet access
 
 # Configuration
-LOGFILE="{{ ethernet_optimization.monitoring.log_path }}/network.log"
-RETENTION_DAYS={{ ethernet_optimization.monitoring.log_retention_days }}
+LOGFILE="{{ ubuntu_ethernet_optimization.monitoring.log_path }}/network.log"
+RETENTION_DAYS={{ ubuntu_ethernet_optimization.monitoring.log_retention_days }}
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
 # Get ethernet interface status
@@ -48,7 +48,7 @@ echo "$TIMESTAMP - {% for interface in ethernet_interfaces %}{{ interface | uppe
 # Rotate log file to prevent unlimited growth
 if [ -f "$LOGFILE" ]; then
     # Keep only the last N days worth of logs (approximately)
-    LINES_TO_KEEP=$((RETENTION_DAYS * 24 * 60 / {{ ethernet_optimization.monitoring.interval_minutes }}))
+    LINES_TO_KEEP=$((RETENTION_DAYS * 24 * 60 / {{ ubuntu_ethernet_optimization.monitoring.interval_minutes }}))
     tail -n "$LINES_TO_KEEP" "$LOGFILE" > "$LOGFILE.tmp" && mv "$LOGFILE.tmp" "$LOGFILE"
 fi
 
