@@ -5,6 +5,7 @@
   block:
     - name: Check service status (macOS/launchd)
       ansible.builtin.shell: |
+        set -o pipefail
         launchctl list | grep {{ item.name }} || echo "Service {{ item.name }} not found"
       register: service_status_launchd
       loop: "{{ common_services }}"

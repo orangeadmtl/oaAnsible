@@ -2,32 +2,34 @@
 # Common monitoring role defaults
 
 # Monitoring configuration
-monitoring:
+common_monitoring:
   enabled: true
+  interval: 60
+  log_retention_days: 30
 
   # Health check configuration
-  health_checks:
+  common_monitoring_health_checks:
     enabled: true
     interval: 300 # 5 minutes
     timeout: 30
     retries: 3
 
   # Metrics collection
-  metrics:
+  common_monitoring_metrics:
     enabled: true
     interval: 60 # 1 minute
     retention_days: 7
     storage_path: "/var/lib/orangead/metrics"
 
   # Log monitoring
-  logs:
+  common_monitoring_logs:
     enabled: true
     rotation: true
     max_size: "100M"
     retention_days: 30
 
 # Platform-specific monitoring tools
-monitoring_tools:
+common_monitoring_tools:
   Ubuntu:
     system:
       - htop
@@ -99,7 +101,7 @@ common_metrics:
     - process_cpu
 
 # Platform-specific metric commands
-metric_commands:
+common_metric_commands:
   Ubuntu:
     cpu_usage: "top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1"
     memory_usage: "free | grep Mem | awk '{printf \"%.2f\", $3/$2 * 100.0}'"
@@ -122,7 +124,7 @@ metric_commands:
     uptime: "uptime | awk '{print $3,$4}' | cut -d',' -f1"
 
 # Alert thresholds
-alert_thresholds:
+common_alert_thresholds:
   cpu_usage:
     warning: 80
     critical: 95
@@ -140,7 +142,7 @@ alert_thresholds:
     critical: 4.0
 
 # Log file locations
-log_locations:
+common_log_locations:
   Ubuntu:
     system: "/var/log/syslog"
     auth: "/var/log/auth.log"
@@ -160,7 +162,7 @@ log_locations:
     application: "/usr/local/var/log/orangead"
 
 # Health check endpoints
-health_endpoints:
+common_health_endpoints:
   - name: "system"
     url: "http://localhost/health/system"
     timeout: 5
@@ -172,7 +174,7 @@ health_endpoints:
       X-API-Key: "{{ vault_api_key | default('') }}"
 
 # Monitoring scripts
-monitoring_scripts:
+common_monitoring_scripts:
   health_check: "health_check.sh"
   metrics_collector: "collect_metrics.sh"
   log_analyzer: "analyze_logs.sh"

@@ -1,29 +1,29 @@
 ---
 # Common package manager role defaults
 
-# Package manager detection and configuration
-package_manager:
-  auto_detect: true
+# Package Management Configuration
+common_package_manager:
+  default: "apt"
   update_cache: true
   cache_valid_time: 3600
 
   # Platform-specific configurations
-  apt:
+  common_package_manager_apt:
     update_cache: true
     cache_valid_time: 3600
     install_recommends: false
     force_apt_get: false
 
-  homebrew:
+  common_package_manager_homebrew:
     update_homebrew: true
     upgrade_all: false
 
-  pacman:
+  common_package_manager_pacman:
     update_cache: true
     upgrade: false
 
 # Package name mappings for cross-platform compatibility
-package_mappings:
+common_package_mappings:
   # Development tools
   python3:
     Ubuntu: python3
@@ -121,7 +121,7 @@ package_mappings:
     Darwin: docker-compose
 
 # Common package groups for easy bulk installation
-package_groups:
+common_package_groups:
   essential:
     description: "Essential system packages"
     packages:
@@ -160,7 +160,7 @@ package_groups:
       - net-tools
 
 # Platform-specific package manager commands
-package_manager_commands:
+common_package_manager_commands:
   Ubuntu:
     manager: apt
     install: "apt-get install -y"
@@ -186,4 +186,4 @@ package_manager_commands:
     info: "brew info"
 
 # Default behavior for missing packages
-missing_package_behavior: "warn" # warn, skip, fail
+common_missing_package_behavior: "warn" # warn, skip, fail

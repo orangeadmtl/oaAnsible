@@ -2,7 +2,7 @@
 # Common service manager role defaults
 
 # Service management configuration
-service_manager:
+common_service_manager:
   auto_detect: true
 
   # Platform-specific configurations
@@ -15,7 +15,7 @@ service_manager:
     enable_by_default: true
 
 # Service name mappings for cross-platform compatibility
-service_mappings:
+common_service_mappings:
   # SSH service
   ssh:
     Ubuntu: ssh
@@ -58,14 +58,14 @@ service_mappings:
     Darwin: com.apple.pfctl
 
 # Service state mappings
-service_states:
+common_service_states:
   started: "started"
   stopped: "stopped"
   restarted: "restarted"
   reloaded: "reloaded"
 
 # Platform-specific service commands
-service_commands:
+common_service_commands:
   Ubuntu:
     manager: systemctl
     start: "systemctl start"
@@ -103,7 +103,7 @@ service_commands:
     is_enabled: "launchctl print-disabled"
 
 # Service configuration templates
-service_templates:
+common_service_templates:
   systemd:
     path: "/etc/systemd/system"
     extension: ".service"
@@ -116,7 +116,7 @@ service_templates:
     template: "launchd.plist.j2"
 
 # Common service patterns
-service_patterns:
+common_service_patterns:
   api_service:
     description: "API service template"
     type: "exec"
@@ -135,7 +135,7 @@ service_patterns:
     restart: "no"
 
 # Health check configuration
-health_check:
+common_health_check:
   enabled: true
   timeout: 30
   retries: 3
