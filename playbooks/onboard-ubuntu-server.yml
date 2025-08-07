@@ -61,38 +61,77 @@
     - role: ubuntu/base
       tags: ["base", "system"]
       vars:
-        role_name: "Base System Configuration"
+        base_role_name: "Base System Configuration"
 
     - role: ubuntu/security
       tags: ["security", "sudo", "ssh"]
       vars:
-        role_name: "Security Hardening"
+        security_role_name: "Security Hardening"
 
     - role: ubuntu/shell
       tags: ["shell", "zsh", "enhancement"]
       vars:
-        role_name: "Shell Enhancement (Zsh)"
+        shell_role_name: "Shell Enhancement (Zsh)"
 
     - role: ubuntu/nvidia
       tags: ["nvidia", "drivers", "gpu"]
       vars:
-        role_name: "NVIDIA Driver Configuration"
+        nvidia_role_name: "NVIDIA Driver Configuration"
 
     - role: ubuntu/server_optimization
       tags: ["optimization", "performance", "ethernet"]
       vars:
-        role_name: "Server Optimization (including Ethernet)"
+        server_optimization_role_name: "Server Optimization (including Ethernet)"
 
     - role: ubuntu/network/tailscale
       tags: ["network", "tailscale"]
       vars:
-        role_name: "Tailscale VPN Setup"
+        tailscale_role_name: "Tailscale VPN Setup"
+
+    - role: ubuntu/python
+      tags: ["python", "ml", "development"]
+      vars:
+        python_role_name: "Python Development Environment"
+      when: setup_ml_environment | default(false)
+
+    - role: common/ml_workstation
+      tags: ["ml", "workstation"]
+      vars:
+        ml_workstation_role_name: "ML Workstation (Common Components)"
+      when: setup_ml_environment | default(false)
+
+    - role: ubuntu/ml_workstation
+      tags: ["ml", "ubuntu", "workstation"]
+      vars:
+        ml_workstation_role_name: "Ubuntu ML Workstation Setup"
+      when: setup_ml_environment | default(false)
 
   post_tasks:
     - name: Check if any reboots are required
       ansible.builtin.stat:
         path: /var/run/reboot-required
       register: reboot_required
+
+    - name: Verify ML environment setup
+      ansible.builtin.shell: |
+        if [ -d "{{ ansible_user_dir }}/oaSentinel" ]; then
+          cd "{{ ansible_user_dir }}/oaSentinel"
+          if [ -f ".venv/bin/activate" ]; then
+            source .venv/bin/activate
+            python -c "import torch; print(f'PyTorch CUDA: {torch.cuda.is_available()}')"
+            echo "✅ oaSentinel environment ready"
+          else
+            echo "⚠️ Virtual environment not found"
+          fi
+        else
+          echo "⚠️ oaSentinel not installed"
+        fi
+      register: ml_environment_check
+      become: false
+      changed_when: false
+      become_user: "{{ ansible_user }}"
+      when: setup_ml_environment | default(false)
+      ignore_errors: true
 
     - name: Display completion banner
       ansible.builtin.debug:
@@ -109,12 +148,20 @@
           ├─ Shell: Zsh with Oh My Zsh (bash-compatible)
           ├─ Optimization: Performance tuning and ethernet stability
           ├─ NVIDIA: {{ 'Drivers configured' if ansible_lspci is search('NVIDIA') else 'No GPU detected' }}
-          └─ Tailscale: VPN with subnet routing (192.168.1.0/24)
+          ├─ Tailscale: VPN with subnet routing (192.168.1.0/24)
+          {% if setup_ml_environment | default(false) %}
+          └─ ML Environment: Python, PyTorch, oaSentinel ready for AI training
+          {% else %}
+          └─ ML Environment: Not configured (use -t ml for ML workstation setup)
+          {% endif %}
 
           🔗 Access Information:
           • SSH: ssh {{ ansible_user }}@{{ ansible_host }}
           • Tailscale: Connected with tags [tag:oa-server, tag:oa-ubuntu]
           • Shell: Enhanced zsh with your custom aliases
+          {% if setup_ml_environment | default(false) %}
+          • ML Environment: {{ ml_environment_check.stdout | default('Environment check not run') }}
+          {% endif %}
 
             Your Custom Aliases Available:
           • ls, l, la, ll, lsa → Modern directory listing with lsd
@@ -123,5 +170,9 @@
 
           {{ 'WARNING:  REBOOT REQUIRED for NVIDIA drivers' if reboot_required.stat.exists else '  No reboot required' }}
 
+          {% if setup_ml_environment | default(false) %}
+            Ready for AI model training with oaSentinel!
+          {% else %}
             Ready for OrangeAd infrastructure operations!
+          {% endif %}
           ═══════════════════════════════════════════════════════════

@@ -13,7 +13,6 @@
     deployment_mode: "server"
     # Components to configure - set by onboard-ubuntu script via tags
     configure_components: []
-
   pre_tasks:
     - name: Display onboarding banner
       ansible.builtin.debug:
@@ -65,7 +64,7 @@
       ansible.builtin.include_role:
         name: ubuntu/base
       vars:
-        role_name: "Base System Setup"
+        base_role_name: "Server Base Setup"
       tags: [always, base]
 
     # Security Hardening (Always Required)
@@ -73,15 +72,15 @@
       ansible.builtin.include_role:
         name: ubuntu/security
       vars:
-        role_name: "Security Hardening"
+        security_role_name: "Security Hardening"
       tags: [always, security]
 
     # Shell Enhancement
-    - name: Shell enhancement (zsh)
+    - name: Shell enhancement
       ansible.builtin.include_role:
         name: ubuntu/shell
       vars:
-        role_name: "Shell Enhancement"
+        shell_role_name: "Shell Enhancement"
       tags: [shell]
 
     # System Optimization
@@ -89,7 +88,7 @@
       ansible.builtin.include_role:
         name: ubuntu/server_optimization
       vars:
-        role_name: "Server Optimization"
+        server_optimization_role_name: "Server Optimization"
       tags: [optimization]
 
     # Network Configuration
@@ -97,7 +96,7 @@
       ansible.builtin.include_role:
         name: ubuntu/network/tailscale
       vars:
-        role_name: "Network & Tailscale Setup"
+        tailscale_role_name: "Network & Tailscale Setup"
       tags: [network, tailscale]
 
     # Docker (Development Profile)
@@ -105,7 +104,7 @@
       ansible.builtin.include_role:
         name: ubuntu/docker
       vars:
-        role_name: "Docker Container Runtime"
+        docker_role_name: "Docker Container Runtime"
       tags: [docker]
       when: deployment_mode == "development"
 
@@ -114,7 +113,7 @@
       ansible.builtin.include_role:
         name: ubuntu/python
       vars:
-        role_name: "Python Development Environment"
+        python_role_name: "Python Development Environment"
       tags: [python]
       when: deployment_mode == "ml"
 
@@ -123,7 +122,7 @@
       ansible.builtin.include_role:
         name: ubuntu/nvidia
       vars:
-        role_name: "NVIDIA GPU Drivers"
+        nvidia_role_name: "NVIDIA GPU Drivers"
       tags: [nvidia]
       when: deployment_mode == "ml"
 
@@ -132,7 +131,7 @@
       ansible.builtin.include_role:
         name: ubuntu/ml_workstation
       vars:
-        role_name: "ML Workstation Setup"
+        ml_workstation_role_name: "ML Workstation Setup"
       tags: [ml_workstation]
       when: deployment_mode == "ml"
 
@@ -141,7 +140,7 @@
       ansible.builtin.include_role:
         name: ubuntu/monitoring
       vars:
-        role_name: "System Monitoring"
+        monitoring_role_name: "System Monitoring"
       tags: [monitoring]
       when: deployment_mode != "minimal"
 
@@ -211,9 +210,9 @@
 
     - name: Generate onboarding report
       ansible.builtin.template:
-        src: ../templates/onboarding-report.md.j2
+        src: "../oaAnsible/templates/onboarding-report.md.j2"
         dest: "/tmp/ubuntu-onboarding-{{ inventory_hostname }}-{{ ansible_date_time.epoch }}.md"
-        mode: '0644'
+        mode: "0644"
       delegate_to: localhost
       vars:
         report_timestamp: "{{ ansible_date_time.iso8601 }}"
@@ -223,4 +222,6 @@
         report_user: "{{ ansible_user }}"
         report_os: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
         report_reboot_required: "{{ reboot_required.stat.exists }}"
-      ignore_errors: true
+        onboarding_role_name: "Onboarding Report Generator"
+      tags: [report]
+      failed_when: false

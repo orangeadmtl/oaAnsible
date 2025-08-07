@@ -63,7 +63,7 @@
     - role: ubuntu/server_optimization
       tags: ["optimization", "performance", "network", "ethernet", "security"]
       vars:
-        role_name: "Ubuntu Server Optimization Suite"
+        server_optimization_role_name: "Ubuntu Server Optimizations"
 
   post_tasks:
     - name: Check if any reboots are required
@@ -77,7 +77,9 @@
           - "network"
 
     - name: Check for Realtek controllers for summary
-      ansible.builtin.shell: lspci | grep -i ethernet | grep -i realtek
+      ansible.builtin.shell: |
+        set -o pipefail
+        lspci | grep -i ethernet | grep -i realtek
       register: realtek_summary
       failed_when: false
       changed_when: false
