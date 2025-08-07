@@ -5,7 +5,7 @@ c = get_config()
 
 # Network configuration for remote access
 c.ServerApp.ip = '0.0.0.0'  # Listen on all interfaces
-c.ServerApp.port = {{ training_server.jupyter_port | default(8888) }}
+c.ServerApp.port = {{ ubuntu_training_server.jupyter_port | default(8888) }}
 c.ServerApp.open_browser = False  # Don't open browser on server
 c.ServerApp.allow_remote_access = True
 
@@ -15,7 +15,7 @@ c.ServerApp.password = ''  # No password needed on private network
 c.ServerApp.disable_check_xsrf = True
 
 # Working directory
-c.ServerApp.root_dir = '{{ oasentinel_install_dir }}'
+c.ServerApp.root_dir = '{{ ubuntu_oasentinel.install_dir | default(ansible_user_dir + '/oaSentinel') }}'
 
 # Resource limits
 c.ServerApp.max_buffer_size = 268435456  # 256MB buffer
@@ -31,7 +31,7 @@ c.ServerApp.allow_credentials = True
 c.Application.log_level = 'INFO'
 
 # Auto-save settings
-c.ContentsManager.checkpoints_kwargs = {'root_dir': '{{ oasentinel_install_dir }}/.ipynb_checkpoints'}
+c.ContentsManager.checkpoints_kwargs = {'root_dir': '{{ ubuntu_oasentinel.install_dir | default(ansible_user_dir + '/oaSentinel') }}/.ipynb_checkpoints'}
 
 # Performance settings for ML workloads
 c.ZMQChannelsHandler.kernel_info_timeout = 60

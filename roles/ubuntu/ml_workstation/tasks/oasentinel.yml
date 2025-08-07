@@ -1,0 +1,509 @@
+---
+# oaSentinel Integration Tasks for Ubuntu ML Workstation
+# Handles complete oaSentinel project setup, configuration, and training automation
+
+- name: Set oaSentinel defaults
+  ansible.builtin.set_fact:
+    oasentinel_repo_url: "{{ ubuntu_oasentinel.repo_url | default('https://github.com/oa-device/oaSentinel.git') }}"
+    oasentinel_dir: "{{ ubuntu_oasentinel.install_dir | default(ansible_user_dir + '/oaSentinel') }}"
+    oasentinel_branch: "{{ ubuntu_oasentinel.branch | default('main') }}"
+    oasentinel_venv_path: "{{ ubuntu_oasentinel.install_dir | default(ansible_user_dir + '/oaSentinel') }}/.venv"
+  tags: [oasentinel-setup, oasentinel-data, oasentinel-train, oasentinel-full]
+
+- name: Display oaSentinel setup information
+  ansible.builtin.debug:
+    msg:
+      - "oaSentinel Setup Configuration"
+      - "Repository: {{ oasentinel_repo_url }}"
+      - "Install Directory: {{ oasentinel_dir }}"
+      - "Branch: {{ oasentinel_branch }}"
+      - "Python Environment: {{ oasentinel_venv_path }}"
+  tags: [oasentinel-setup, oasentinel-full]
+
+# Git repository management
+- name: Check if oaSentinel directory already exists
+  ansible.builtin.stat:
+    path: "{{ oasentinel_dir }}"
+  register: oasentinel_dir_stat
+  tags: [oasentinel-setup, oasentinel-full]
+
+- name: Clone oaSentinel repository
+  ansible.builtin.git:
+    repo: "{{ oasentinel_repo_url }}"
+    dest: "{{ oasentinel_dir }}"
+    version: "{{ oasentinel_branch }}"
+    clone: true
+    update: true
+    force: true
+  become: true
+  become_user: "{{ ansible_user }}"
+  when: not oasentinel_dir_stat.stat.exists or ubuntu_oasentinel.force_update | default(false)
+  tags: [oasentinel-setup, oasentinel-full]
+
+- name: Update existing oaSentinel repository (force update for professional structure)
+  ansible.builtin.git:
+    repo: "{{ oasentinel_repo_url }}"
+    dest: "{{ oasentinel_dir }}"
+    version: "{{ oasentinel_branch }}"
+    update: true
+    force: true # Force update to handle local modifications from cleanup
+  become: true
+  become_user: "{{ ansible_user }}"
+  when: oasentinel_dir_stat.stat.exists
+  tags: [oasentinel-setup, oasentinel-full]
+
+- name: Set oaSentinel directory ownership
+  ansible.builtin.file:
+    path: "{{ oasentinel_dir }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    recurse: true
+  become: true
+  tags: [oasentinel-setup, oasentinel-full]
+
+# Python environment setup
+- name: Check if oaSentinel virtual environment exists
+  ansible.builtin.stat:
+    path: "{{ oasentinel_venv_path }}/bin/activate"
+  register: oasentinel_venv_stat
+  tags: [oasentinel-setup, oasentinel-full]
+
+- name: Create oaSentinel virtual environment
+  ansible.builtin.shell: |
+    cd "{{ oasentinel_dir }}"
+    python3 -m venv .venv
+  become: true
+  become_user: "{{ ansible_user }}"
+  changed_when: false
+  when: not oasentinel_venv_stat.stat.exists
+  tags: [oasentinel-setup, oasentinel-full]
+
+- name: Install oaSentinel Python dependencies
+  ansible.builtin.shell: |
+    cd "{{ oasentinel_dir }}"
+    source .venv/bin/activate
+    pip install --upgrade pip uv
+    if [ -f "pyproject.toml" ]; then
+      uv pip install -e .
+    elif [ -f "requirements.txt" ]; then
+      uv pip install -r requirements.txt
+    else
+      echo "No pyproject.toml or requirements.txt found, installing core dependencies"
+      uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+      uv pip install ultralytics opencv-python wandb huggingface_hub datasets pyyaml typer rich
+    fi
+  become: true
+  become_user: "{{ ansible_user }}"
+  changed_when: false
+  args:
+    executable: /bin/bash
+  register: oasentinel_deps_install
+  tags: [oasentinel-setup, oasentinel-full]
+
+- name: Display dependency installation results
+  ansible.builtin.debug:
+    msg: "{{ oasentinel_deps_install.stdout_lines[-10:] | default(['Installation completed']) }}"
+  when: oasentinel_deps_install is defined
+  tags: [oasentinel-setup, oasentinel-full]
+
+# Project structure setup
+- name: Create oaSentinel project directories
+  ansible.builtin.file:
+    path: "{{ oasentinel_dir }}/{{ item }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+  loop:
+    - data/raw
+    - data/processed
+    - data/splits
+    - models/checkpoints
+    - models/exports
+    - logs/training
+    - outputs/visualizations
+    - configs
+  tags: [oasentinel-setup, oasentinel-full]
+
+# Configuration files
+- name: Create oaSentinel Ubuntu training configuration
+  ansible.builtin.template:
+    src: oasentinel_ubuntu_config.yaml.j2
+    dest: "{{ oasentinel_dir }}/configs/ubuntu_gpu.yaml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0644"
+  tags: [oasentinel-setup, oasentinel-full]
+
+- name: Create oaSentinel environment file
+  ansible.builtin.template:
+    src: oasentinel_env.j2
+    dest: "{{ oasentinel_dir }}/.env"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+  tags: [oasentinel-setup, oasentinel-full]
+
+# Training automation scripts
+- name: Create oaSentinel setup script
+  ansible.builtin.template:
+    src: oasentinel_setup.sh.j2
+    dest: "{{ oasentinel_dir }}/setup_training.sh"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+  tags: [oasentinel-setup, oasentinel-full]
+
+- name: Create automated training script
+  ansible.builtin.template:
+    src: oasentinel_train_auto.sh.j2
+    dest: "{{ oasentinel_dir }}/start_training_auto.sh"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+  tags: [oasentinel-setup, oasentinel-full, oasentinel-train]
+
+# Environment variables and aliases
+- name: Add oaSentinel environment to .bashrc
+  ansible.builtin.blockinfile:
+    path: "{{ ansible_user_dir }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED - oaSentinel Environment"
+    mode: "0644"
+    block: |
+      # oaSentinel Environment
+      export OASENTINEL_HOME="{{ oasentinel_dir }}"
+      export PYTHONPATH="$OASENTINEL_HOME/src:$PYTHONPATH"
+      export WANDB_PROJECT="oaSentinel"
+      export WANDB_MODE="{{ ubuntu_oasentinel.wandb_mode | default('disabled') }}"
+      export OASENTINEL_LOG_LEVEL="{{ ubuntu_oasentinel.log_level | default('INFO') }}"
+      export OASENTINEL_DATA_DIR="{{ ubuntu_oasentinel.data_dir | default('/shared/datasets') }}"
+      export OASENTINEL_MODEL_DIR="{{ ubuntu_oasentinel.model_dir | default('/shared/models') }}"
+      export OASENTINEL_EXPORT_DIR="{{ ubuntu_oasentinel.export_dir | default('/shared/models/exported') }}"
+    create: true
+  changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  tags: [oasentinel-setup, oasentinel-full]
+
+- name: Add oaSentinel aliases to .bashrc
+  ansible.builtin.blockinfile:
+    path: "{{ ansible_user_dir }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED - oaSentinel Aliases"
+    block: |
+      # oaSentinel Training Aliases
+      alias oas-train="cd $OASENTINEL_HOME && ./scripts/train.sh"
+      alias oas-train-auto="cd $OASENTINEL_HOME && ./start_training_auto.sh"
+      alias oas-eval="cd $OASENTINEL_HOME && ./scripts/evaluate.sh"
+      alias oas-export="cd $OASENTINEL_HOME && ./scripts/export.sh"
+      alias oas-status="cd $OASENTINEL_HOME && python -c 'from src.cli import app; app()' status"
+
+      # Training session management
+      alias oas-screen="screen -S oasentinel-training"
+      alias oas-screen-attach="screen -r oasentinel-training"
+      alias oas-logs="tail -f $OASENTINEL_HOME/logs/training/*.log 2>/dev/null || echo 'No training logs found'"
+
+      # Quick functions
+      oas-quick-train() {
+          cd $OASENTINEL_HOME
+          source .venv/bin/activate
+          screen -dmS oasentinel-training bash -c "./start_training_auto.sh; exec bash"
+          echo "Training started in background screen session 'oasentinel-training'"
+          echo "Attach with: screen -r oasentinel-training"
+      }
+
+      oas-info() {
+          echo "oaSentinel Environment Info"
+          echo "================================"
+          echo "Home: $OASENTINEL_HOME"
+          echo "Virtual env: $([ -f "$OASENTINEL_HOME/.venv/bin/activate" ] && echo "[OK] Ready" || echo "[FAIL] Not found")"
+          echo "GPU Status: $(command -v nvidia-smi >/dev/null && nvidia-smi --query-gpu=name --format=csv,noheader || echo "No GPU detected")"
+          echo "Training sessions: $(screen -list | grep oasentinel || echo "None")"
+      }
+    create: true
+    mode: "0644"
+  become: true
+  become_user: "{{ ansible_user }}"
+  tags: [oasentinel-setup, oasentinel-full]
+
+# Dataset preparation (oasentinel-data tag) - Updated for shared location
+- name: Create shared CrowdHuman dataset directories
+  ansible.builtin.shell: |
+    mkdir -p "{{ item }}"
+    chown {{ ansible_user }}:{{ ansible_user }} "{{ item }}"
+    chmod 755 "{{ item }}"
+  loop:
+    - "{{ ubuntu_crowdhuman_dataset.base_path }}"
+    - "{{ ubuntu_crowdhuman_dataset.raw_path }}"
+    - "{{ ubuntu_crowdhuman_dataset.processed_path }}"
+    - "{{ ubuntu_crowdhuman_dataset.config_path }}"
+  become: true
+  changed_when: false
+  tags: [oasentinel-data, oasentinel-full]
+
+- name: Check if CrowdHuman dataset is already complete in shared location
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: crowdhuman_shared_files_stat
+  loop:
+    - "{{ ubuntu_crowdhuman_dataset.raw_path }}/annotation_train.odgt"
+    - "{{ ubuntu_crowdhuman_dataset.raw_path }}/annotation_val.odgt"
+    - "{{ ubuntu_crowdhuman_dataset.raw_path }}/Images"
+  tags: [oasentinel-data, oasentinel-train, oasentinel-full]
+
+- name: Check if CrowdHuman dataset exists in old project location
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: crowdhuman_old_files_stat
+  loop:
+    - "{{ ubuntu_crowdhuman_dataset.old_project_path }}/annotation_train.odgt"
+    - "{{ ubuntu_crowdhuman_dataset.old_project_path }}/annotation_val.odgt"
+    - "{{ ubuntu_crowdhuman_dataset.old_project_path }}/Images"
+  tags: [oasentinel-data, oasentinel-train, oasentinel-full]
+
+- name: Set dataset completeness flags
+  ansible.builtin.set_fact:
+    crowdhuman_shared_complete: "{{ crowdhuman_shared_files_stat.results | selectattr('stat.exists') | list | length == 3 }}"
+    crowdhuman_old_exists: "{{ crowdhuman_old_files_stat.results | selectattr('stat.exists') | list | length > 0 }}"
+  tags: [oasentinel-data, oasentinel-train, oasentinel-full]
+
+- name: Display dataset status
+  ansible.builtin.debug:
+    msg: |
+      CrowdHuman Dataset Status:
+      - Shared Location Complete: {{ crowdhuman_shared_complete }}
+      - Shared Location: {{ ubuntu_crowdhuman_dataset.base_path }}
+      - Old Project Data Found: {{ crowdhuman_old_exists }}
+      - Old Location: {{ ubuntu_crowdhuman_dataset.old_project_path }}
+      {% if crowdhuman_shared_complete %}
+      - Using existing shared dataset
+      {% elif crowdhuman_old_exists %}
+      - Will migrate from old location to shared location
+      {% else %}
+      - Will download to shared location
+      {% endif %}
+  tags: [oasentinel-data, oasentinel-full]
+
+- name: Migrate existing dataset from old location to shared location
+  ansible.builtin.shell: |
+    cd "{{ ansible_user_dir }}"
+
+    # Copy the migration script and run it
+    cat > migrate_crowdhuman.sh << 'EOF'
+    #!/bin/bash
+    set -e
+
+    echo "🔄 Migrating CrowdHuman dataset to shared location..."
+
+    OLD_PATH="{{ ubuntu_crowdhuman_dataset.old_project_path }}"
+    NEW_RAW_PATH="{{ ubuntu_crowdhuman_dataset.raw_path }}"
+
+    if [ -d "$OLD_PATH" ]; then
+      echo "Found old dataset, migrating files..."
+
+      # Copy annotation files
+      for file in annotation_train.odgt annotation_val.odgt; do
+        if [ -f "$OLD_PATH/$file" ]; then
+          echo "Copying $file..."
+          cp "$OLD_PATH/$file" "$NEW_RAW_PATH/"
+        fi
+      done
+
+      # Copy Images directory
+      if [ -d "$OLD_PATH/Images" ]; then
+        echo "Copying Images directory..."
+        mkdir -p "$NEW_RAW_PATH/Images"
+        rsync -av --progress "$OLD_PATH/Images/" "$NEW_RAW_PATH/Images/" || cp -r "$OLD_PATH/Images/"* "$NEW_RAW_PATH/Images/"
+      fi
+
+      echo "[OK] Migration completed"
+    else
+      echo "No old dataset found at $OLD_PATH"
+    fi
+    EOF
+
+    chmod +x migrate_crowdhuman.sh
+    ./migrate_crowdhuman.sh
+    rm migrate_crowdhuman.sh
+  become: true
+  become_user: "{{ ansible_user }}"
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when: crowdhuman_old_exists and not crowdhuman_shared_complete
+  tags: [oasentinel-data, oasentinel-full]
+
+- name: Download CrowdHuman dataset to shared location with new professional executable
+  ansible.builtin.shell: |
+    cd "{{ oasentinel_dir }}"
+    source .venv/bin/activate
+
+    # Use new professional executable pointing to shared location
+    if [ -f "bin/oas-download" ]; then
+      chmod +x bin/oas-download
+      python bin/oas-download --output {{ ubuntu_crowdhuman_dataset.raw_path }} --force
+    else
+      echo "FATAL ERROR: bin/oas-download not found. New professional structure required."
+      exit 1
+    fi
+  changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  args:
+    executable: /bin/bash
+  register: dataset_download
+  when: not crowdhuman_shared_complete and ('oasentinel-data' in ansible_run_tags or 'oasentinel-full' in ansible_run_tags)
+  tags: [oasentinel-data, oasentinel-full]
+  async: 1800 # 30 minutes timeout for large dataset downloads
+  poll: 30
+
+- name: Check if processed dataset already exists in shared location
+  ansible.builtin.stat:
+    path: "{{ ubuntu_crowdhuman_dataset.processed_path }}/images/train"
+  register: processed_dataset_stat
+  tags: [oasentinel-data, oasentinel-full]
+
+- name: Display processing status
+  ansible.builtin.debug:
+    msg: |
+      Dataset Processing Status:
+      - Raw dataset complete: {{ crowdhuman_shared_complete }}
+      - Processed dataset exists: {{ processed_dataset_stat.stat.exists }}
+      - Raw location: {{ ubuntu_crowdhuman_dataset.raw_path }}
+      - Processed location: {{ ubuntu_crowdhuman_dataset.processed_path }}
+      {% if processed_dataset_stat.stat.exists %}
+      - Skipping processing (already processed in shared location)
+      {% else %}
+      - Will process raw dataset to shared location
+      {% endif %}
+  tags: [oasentinel-data, oasentinel-full]
+
+- name: Process CrowdHuman dataset to shared location with new professional executable
+  ansible.builtin.shell: |
+    cd "{{ oasentinel_dir }}"
+    source .venv/bin/activate
+
+    # Check if raw dataset exists in shared location
+    if [ ! -d "{{ ubuntu_crowdhuman_dataset.raw_path }}/Images" ]; then
+      echo "ERROR: CrowdHuman dataset not found at {{ ubuntu_crowdhuman_dataset.raw_path }}. Download first with bin/oas-download"
+      exit 1
+    fi
+
+    # Use new professional executable with shared paths
+    if [ -f "bin/oas-process" ]; then
+      chmod +x bin/oas-process
+      python bin/oas-process --input {{ ubuntu_crowdhuman_dataset.raw_path }} --output {{ ubuntu_crowdhuman_dataset.processed_path }}
+    else
+      echo "FATAL ERROR: bin/oas-process not found. New professional structure required."
+      exit 1
+    fi
+  changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  args:
+    executable: /bin/bash
+  register: dataset_process
+  when:
+    - "'oasentinel-data' in ansible_run_tags or 'oasentinel-full' in ansible_run_tags"
+    - crowdhuman_shared_complete # Raw dataset must exist in shared location
+    - not processed_dataset_stat.stat.exists # Only process if not already processed
+  tags: [oasentinel-data, oasentinel-full]
+  async: 900 # 15 minutes timeout for dataset processing
+  poll: 15
+
+- name: Create compatibility symlinks in oaSentinel project
+  ansible.builtin.file:
+    src: "{{ item.src }}"
+    dest: "{{ oasentinel_dir }}/{{ item.dest }}"
+    state: link
+    owner: "{{ ansible_user }}"
+    force: true
+  loop:
+    - { src: "{{ ubuntu_crowdhuman_dataset.processed_path }}", dest: "data/crowdhuman" }
+    - { src: "{{ ubuntu_crowdhuman_dataset.processed_path }}", dest: "data/processed" }
+    - { src: "{{ ubuntu_crowdhuman_dataset.config_path }}/dataset.yaml", dest: "crowdhuman.yaml" }
+  become: true
+  become_user: "{{ ansible_user }}"
+  tags: [oasentinel-data, oasentinel-full]
+
+# Training initiation (oasentinel-train tag)
+- name: Start oaSentinel training session
+  ansible.builtin.shell: |
+    set -o pipefail
+    cd "{{ oasentinel_dir }}"
+    source .venv/bin/activate
+
+    # Check if training session already exists
+    if screen -list | grep -q "oasentinel-training"; then
+      echo "Training session already exists. Use 'screen -r oasentinel-training' to attach."
+      exit 0
+    fi
+
+    # Start training in screen session with new professional executable
+    screen -dmS oasentinel-training bash -c "
+      cd {{ oasentinel_dir }}
+      source .venv/bin/activate
+      echo "Starting training in background screen session..."
+      python bin/oas-train \
+        --data {{ ubuntu_crowdhuman_dataset.config_path }}/dataset.yaml \
+        --epochs {{ ubuntu_oasentinel.epochs | default(100) }} \
+        --device {{ ubuntu_oasentinel.device | default('[0]') }}
+    "
+  changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  args:
+    executable: /bin/bash
+  when: crowdhuman_shared_complete and (ubuntu_oasentinel.auto_start_training | default(false))
+  tags: [oasentinel-train, oasentinel-full]
+
+- name: Display training session information
+  ansible.builtin.debug:
+    msg: "{{ training_start.stdout_lines }}"
+  when:
+    - training_start is defined
+    - training_start.stdout_lines is defined
+  tags: [oasentinel-train, oasentinel-full]
+
+# Verification and status
+- name: Verify oaSentinel installation
+  ansible.builtin.shell: |
+    set -o pipefail
+    cd "{{ oasentinel_dir }}"
+    source .venv/bin/activate
+    echo "🎯 oaSentinel Installation Verification"
+    echo "========================================"
+    echo "Directory: {{ oasentinel_dir }}"
+    echo "Virtual Environment: $([ -f ".venv/bin/activate" ] && echo " Ready" || echo " Missing")"
+    echo "Repository Status: $(git status --porcelain | wc -l) uncommitted changes"
+    echo "Python Packages:"
+    pip list | grep -E "(torch|ultralytics|opencv|wandb)" || echo "Core packages not found"
+    echo ""
+    echo " Ready for training with:"
+    echo "  - Download: bin/oas-download"
+    echo "  - Process:  bin/oas-process"
+    echo "  - Train:    bin/oas-train"
+    echo "  - Export:   bin/oas-export"
+  changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  args:
+    executable: /bin/bash
+  register: oasentinel_verification
+  tags: [oasentinel-setup, oasentinel-full, verify]
+
+- name: Display oaSentinel verification results
+  ansible.builtin.debug:
+    msg: "{{ oasentinel_verification.stdout_lines }}"
+  when: oasentinel_verification is defined
+  tags: [oasentinel-setup, oasentinel-full, verify]
+
+- name: OaSentinel setup summary
+  ansible.builtin.debug:
+    msg:
+      - "oaSentinel Setup Complete!"
+      - "Repository: {{ oasentinel_dir }}"
+      - "Training Config: configs/ubuntu_gpu.yaml"
+      - "Quick Start: ssh {{ ansible_user }}@{{ inventory_hostname }} 'oas-quick-train'"
+      - "Monitor: ssh {{ ansible_user }}@{{ inventory_hostname }} 'oas-screen-attach'"
+      - "Status: ssh {{ ansible_user }}@{{ inventory_hostname }} 'oas-info'"
+  tags: [oasentinel-setup, oasentinel-full, summary]
