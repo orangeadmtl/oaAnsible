@@ -2,6 +2,7 @@
 # Ubuntu shell enhancement tasks - Zsh with intelligent checks
 
 - name: Check current shell configuration
+  tags: [shell, zsh]
   block:
     - name: Get current shell for ansible user
       ansible.builtin.getent:
@@ -48,10 +49,11 @@
     - name: Set shell enhancement skip flags
       ansible.builtin.set_fact:
         passwd_entry: "{{ user_shell_info.ansible_facts.getent_passwd[ansible_user] }}"
-        skip_zsh_install: "{{ zsh_installed.rc == 0 }}"
-        skip_lsd_install: "{{ lsd_installed.rc == 0 }}"
-        skip_oh_my_zsh: "{{ oh_my_zsh_dir.stat.exists }}"
-        skip_zsh_config: "{{ zshrc_file.stat.exists and zsh_config_check.rc == 0 }}"
+        force_reinstall: "{{ force_shell_reinstall | default(false) | bool }}"
+        skip_zsh_install: "{{ (zsh_installed.rc == 0) and not (force_shell_reinstall | default(false) | bool) }}"
+        skip_lsd_install: "{{ (lsd_installed.rc == 0) and not (force_shell_reinstall | default(false) | bool) }}"
+        skip_oh_my_zsh: "{{ oh_my_zsh_dir.stat.exists and not (force_shell_reinstall | default(false) | bool) }}"
+        skip_zsh_config: "{{ (zshrc_file.stat.exists and zsh_config_check.rc == 0) and not (force_shell_reinstall | default(false) | bool) }}"
 
     - name: Set shell-related facts
       ansible.builtin.set_fact:
@@ -59,9 +61,11 @@
         skip_shell_change: "{{ (passwd_entry[6] if passwd_entry | length > 6 else '/bin/bash') == '/usr/bin/zsh' }}"
 
 - name: Display shell configuration status
+  tags: [shell, zsh]
   ansible.builtin.debug:
     msg: |
       Shell Enhancement Status:
+      - Force reinstall: {{ 'Yes' if force_reinstall else 'No' }}
       - Current shell: {{ current_shell.split('/')[-1] | default('unknown') }}
       - Zsh installed: {{ 'Yes' if skip_zsh_install else 'No' }}
       - Oh My Zsh: {{ 'Already installed' if skip_oh_my_zsh else 'Needs installation' }}
@@ -70,6 +74,7 @@
       - Enhanced .zshrc: {{ 'Already configured' if skip_zsh_config else 'Needs setup' }}
 
 - name: Install zsh shell and dependencies
+  tags: [shell, zsh]
   ansible.builtin.apt:
     name:
       - zsh
@@ -82,6 +87,7 @@
   when: not skip_zsh_install
 
 - name: Install lsd (modern ls replacement)
+  tags: [shell, zsh]
   when: not skip_lsd_install
   block:
     - name: Download lsd package
@@ -104,8 +110,16 @@
       become: true
 
 - name: Install Oh My Zsh
+  tags: [shell, zsh]
   when: not skip_oh_my_zsh
   block:
+    - name: Remove existing Oh My Zsh directory (force reinstall)
+      ansible.builtin.file:
+        path: "/home/{{ ansible_user }}/.oh-my-zsh"
+        state: absent
+      become: true
+      when: force_reinstall | default(false)
+
     - name: Download Oh My Zsh installer
       ansible.builtin.get_url:
         url: "https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh"
@@ -128,6 +142,7 @@
         state: absent
 
 - name: Install Oh My Zsh external plugins
+  tags: [shell, zsh]
   when: not skip_oh_my_zsh
   block:
     - name: Create custom plugins directory
@@ -150,11 +165,13 @@
       ansible.builtin.git:
         repo: "https://github.com/zsh-users/zsh-syntax-highlighting"
         dest: "/home/{{ ansible_user }}/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
-        version: "0.7.1"
+        version: "0.8.0"  # Updated to latest stable version
+        force: true  # Force update to avoid conflicts
       become: true
       become_user: "{{ ansible_user }}"
 
 - name: Configure zsh with enhanced settings
+  tags: [shell, zsh]
   when: not skip_zsh_config
   block:
     - name: Backup existing .zshrc if it exists
@@ -179,6 +196,7 @@
       register: zshrc_created
 
 - name: Set zsh as default shell for ansible user
+  tags: [shell, zsh]
   ansible.builtin.user:
     name: "{{ ansible_user }}"
     shell: /usr/bin/zsh
@@ -186,6 +204,7 @@
   when: not skip_shell_change
 
 - name: Display shell enhancement results
+  tags: [shell, zsh]
   ansible.builtin.debug:
     msg: |-
       Enhanced Zsh Configuration Completed:

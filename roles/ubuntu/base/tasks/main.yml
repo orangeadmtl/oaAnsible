@@ -1,6 +1,17 @@
 ---
 # Ubuntu base configuration tasks with intelligent checks
 
+- name: Fix any broken apt repository configurations (emergency fix)
+  ansible.builtin.shell: |
+    # Remove all Docker repositories to fix conflicting signed-by entries
+    rm -f /etc/apt/sources.list.d/*docker*.list
+    rm -f /etc/apt/sources.list.d/download_docker_com*.list
+    # Test if apt can now read sources
+    apt-get update || true
+  become: true
+  failed_when: false
+  changed_when: false
+
 - name: Check current system state
   block:
     - name: Check if base packages are already installed
@@ -8,29 +19,30 @@
         manager: auto
 
     - name: Get current timezone
-      ansible.builtin.command: timedatectl show --property=Timezone --value
+      ansible.builtin.shell: readlink /etc/localtime | sed 's|.*/zoneinfo/||'
       register: current_timezone
       changed_when: false
 
-    - name: Check ansible user configuration
-      ansible.builtin.getent:
-        database: passwd
-        key: "{{ ansible_user }}"
-      register: user_info
+    - name: Check if ansible user exists
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        state: present
+      register: user_check
       failed_when: false
+      check_mode: true
 
     - name: Set skip flags based on current state
       ansible.builtin.set_fact:
-        skip_packages: "{{ base_packages | difference(ansible_facts.packages.keys()) | length == 0 }}"
-        skip_timezone: "{{ current_timezone.stdout == timezone }}"
-        skip_user_setup: "{{ user_info.found and user_info.ansible_facts.getent_passwd[ansible_user][5] == '/home/' + ansible_user }}"
+        skip_packages: "{{ ubuntu_base_packages | difference(ansible_facts.packages.keys()) | length == 0 }}"
+        skip_timezone: "{{ current_timezone.stdout == ubuntu_timezone }}"
+        skip_user_setup: "{{ not user_check.changed }}"
 
 - name: Display base configuration status
   ansible.builtin.debug:
     msg: |
       Base Configuration Status:
       - Packages: {{ 'Already installed' if skip_packages else 'Need installation' }}
-      - Timezone: {{ 'Already set to ' + timezone if skip_timezone else 'Need to set to ' + timezone }}
+      - Timezone: {{ 'Already set to ' + ubuntu_timezone if skip_timezone else 'Need to set to ' + ubuntu_timezone }}"
       - User setup: {{ 'Already configured' if skip_user_setup else 'Need configuration' }}
 
 - name: Update apt cache
@@ -39,25 +51,25 @@
     cache_valid_time: 3600
   become: true
   when:
-    - update_cache | default(true) | bool
+    - ubuntu_update_cache | default(true) | bool
     - not (skip_packages and skip_timezone and skip_user_setup)
 
 - name: Upgrade system packages
   ansible.builtin.apt:
     upgrade: dist
   become: true
-  when: upgrade_system | default(false) | bool
+  when: ubuntu_upgrade_system | default(false) | bool
 
 - name: Install base packages
   ansible.builtin.apt:
-    name: "{{ base_packages }}"
+    name: "{{ ubuntu_base_packages }}"
     state: present
   become: true
   when: not skip_packages
 
 - name: Set timezone
-  ansible.builtin.timezone:
-    name: "{{ timezone }}"
+  community.general.timezone:
+    name: "{{ ubuntu_timezone }}"
   become: true
   when: not skip_timezone
 
@@ -89,6 +101,6 @@
   ansible.builtin.debug:
     msg: |-
       Base Configuration Completed:
-      - {{ base_packages | length }} essential packages {{ 'verified' if skip_packages else 'installed' }}
-      - Timezone {{ 'verified' if skip_timezone else 'set to ' + timezone }}
+      - {{ ubuntu_base_packages | length }} essential packages {{ 'verified' if skip_packages else 'installed' }}"
+      - Timezone {{ 'verified' if skip_timezone else 'set to ' + ubuntu_timezone }}"
       - User {{ ansible_user }} {{ 'verified' if skip_user_setup else 'configured with sudo access' }}

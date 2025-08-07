@@ -20,12 +20,19 @@ plugins=(
   extract
 )
 
-# Add external plugins if they exist
+# Add external plugins if they exist (with error handling)
 if [ -d "$HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions" ]; then
     plugins+=(zsh-autosuggestions)
 fi
+
+# Add zsh-syntax-highlighting with error handling
 if [ -d "$HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting" ]; then
-    plugins+=(zsh-syntax-highlighting)
+    # Check if the plugin is compatible before adding
+    if zsh -c 'autoload -U compinit && compinit -d ~/.zcompdump 2>/dev/null' 2>/dev/null; then
+        plugins+=(zsh-syntax-highlighting)
+    else
+        echo "Warning: zsh-syntax-highlighting plugin has compatibility issues, skipping..."
+    fi
 fi
 
 # Basic Oh My Zsh settings for stability

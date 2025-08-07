@@ -5,7 +5,7 @@
 ansible_user: "{{ vault_ubuntu_ansible_user | default('admin') }}"
 
 # System packages to install
-base_packages:
+ubuntu_base_packages:
   - curl
   - wget
   - git
@@ -19,6 +19,6 @@ base_packages:
   - lsb-release
 
 # System configuration
-timezone: "America/Los_Angeles"
-update_cache: true
-upgrade_system: false
+ubuntu_timezone: "America/Montreal"
+ubuntu_update_cache: true
+ubuntu_upgrade_system: false

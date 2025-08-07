@@ -74,16 +74,15 @@
   when: not skip_ssh_config
 
 - name: Configure firewall (ufw) basic rules
-  ansible.builtin.ufw:
-    rule: "{{ item.rule }}"
-    port: "{{ item.port }}"
-    proto: "{{ item.proto | default('tcp') }}"
+  ansible.builtin.shell: |
+    ufw {{ item.rule }} {{ item.port }}/{{ item.proto | default('tcp') }}
   become: true
   loop:
     - { rule: "allow", port: "22" }
     - { rule: "allow", port: "41641", proto: "udp" } # Tailscale
   notify: Enable ufw
   when: not skip_firewall
+  changed_when: false
 
 - name: Display security configuration results
   ansible.builtin.debug:
