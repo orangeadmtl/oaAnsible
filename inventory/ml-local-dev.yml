@@ -1,21 +1,21 @@
 ---
-# ML Remote Training Server Inventory
-# For setting up oaSentinel training on kampus-rig (RTX 3080 Ti server)
+# ML Local Development Server Inventory
+# For setting up oaSentinel training on local VM (192.168.2.250)
 
 all:
   children:
     ubuntu:
       hosts:
-        kampus-rig:
-          ansible_host: kampus-rig
+        kai-vm-u1:
+          ansible_host: 192.168.2.250
           ansible_user: kai
-          ansible_become_password: "{{ vault_sudo_passwords['kampus-rig'] }}"
+          ansible_become_password: "{{ vault_sudo_passwords['kai-vm-u1'] }}"
 
-          # Hardware specifications
+          # Hardware specifications (adjust based on your VM specs)
           gpu_count: 1
-          gpu_type: "RTX 3080 Ti"
-          total_memory_gb: 31
-          available_storage_gb: 430
+          gpu_type: "GPU (Local VM)"
+          total_memory_gb: 16  # Adjust based on your VM allocation
+          available_storage_gb: 100  # Adjust based on your VM disk
 
       vars:
         # Platform identification
@@ -54,8 +54,9 @@ all:
         cuda_version: "12.8"
         cuda_install_path: "/usr/local/cuda-12.8"
         cuda_symlink_path: "/usr/local/cuda"
+        ignore_missing_gpu: true  # Temporarily bypass hardware check for PATH fix
 
-        # Ubuntu ML optimization for high-end server
+        # Ubuntu ML optimization for local development
         ubuntu_ml_optimization:
           increase_shared_memory: true
           optimize_swap: true
@@ -71,7 +72,7 @@ all:
           tensorboard_port: 6006
           setup_screen_sessions: true
 
-        # Data management optimized for large datasets
+        # Data management optimized for local development
         data_management:
           create_datasets_dir: true
           datasets_path: "/data/ml-datasets"
@@ -82,10 +83,10 @@ all:
           install_nvidia_runtime: true
           enable_gpu_support: true
 
-        # Training configuration optimized for RTX 3080 Ti
+        # Training configuration optimized for local development
         training_config:
-          default_epochs: 100
-          default_batch_size: 32 # RTX 3080 Ti can handle higher batch sizes
+          default_epochs: 50  # Reduced for local dev (vs 100 for remote)
+          default_batch_size: 16 # Reduced for local VM (vs 32 for remote)
           auto_device_detection: true
           mixed_precision: true
 
@@ -97,13 +98,13 @@ all:
           jupyter: true
           wandb: true # Enable for professional training tracking
 
-        # Performance optimization for training server
+        # Performance optimization for local development
         performance_optimization:
           enable_gpu_monitoring: true
           optimize_memory: true
           enable_profiling: true
 
-        # Remote access settings for development
+        # Remote access settings for local development
         remote_access:
           monitoring_dashboard: true
           setup_reverse_tunnel: false

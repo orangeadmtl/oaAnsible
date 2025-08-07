@@ -94,3 +94,12 @@ optimization:
 
   networking:
     tcp_optimization: true
+
+# CUDA 12.8 Configuration - Default settings for Ubuntu
+cuda_defaults:
+  version: "12.8"
+  toolkit_package: "cuda-toolkit-12-8"
+  install_path: "/usr/local/cuda-12.8"
+  symlink_path: "/usr/local/cuda"
+  keyring_version: "1.1-1"
+  repository_url: "https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64"
