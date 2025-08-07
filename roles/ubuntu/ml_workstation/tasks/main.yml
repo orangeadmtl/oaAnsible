@@ -2,47 +2,57 @@
 # Ubuntu ML Workstation Setup Tasks
 
 - name: Check if running on Ubuntu
-  fail:
+  ansible.builtin.fail:
     msg: "This role is designed for Ubuntu systems only"
   when: ansible_distribution != "Ubuntu"
   tags: [always]
 
 - name: Display system information
-  debug:
+  ansible.builtin.debug:
     msg:
       - "Setting up Ubuntu ML training server"
       - "Distribution: {{ ansible_distribution }} {{ ansible_distribution_version }}"
       - "Architecture: {{ ansible_architecture }}"
-  tags: [info]
+  tags: [info, ml]
 
 # System package updates and essentials
 - name: Update apt package cache
-  apt:
-    update_cache: yes
+  ansible.builtin.apt:
+    update_cache: true
     cache_valid_time: 3600
   become: true
-  tags: [setup, packages]
+  tags: [setup, packages, ml]
 
 - name: Install essential system packages
-  apt:
+  ansible.builtin.apt:
     name: "{{ ubuntu_ml_packages.system_packages }}"
     state: present
   become: true
-  tags: [setup, packages]
+  tags: [setup, packages, ml]
 
 - name: Install monitoring and development packages
-  apt:
+  ansible.builtin.apt:
     name: "{{ ubuntu_ml_packages.monitoring_packages }}"
     state: present
   become: true
-  tags: [setup, packages, monitoring]
+  failed_when: false # Some packages like nvidia-ml-py3 may not be available yet
+  tags: [setup, packages, monitoring, ml]
+
+# Install OpenCV packages separately to handle complex dependencies
+- name: Install OpenCV and media development packages
+  ansible.builtin.apt:
+    name: "{{ ubuntu_ml_packages.opencv_packages }}"
+    state: present
+  become: true
+  failed_when: false # Skip if dependencies can't be resolved
+  tags: [setup, packages, opencv, ml]
 
 # System optimizations for ML training
 - name: Increase shared memory size for ML training
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/fstab
     line: "tmpfs /dev/shm tmpfs defaults,size=8G 0 0"
-    backup: yes
+    backup: true
   become: true
   when: ubuntu_ml_optimization.increase_shared_memory
   tags: [setup, optimization]
@@ -52,7 +62,7 @@
     name: "{{ item.key }}"
     value: "{{ item.value }}"
     state: present
-    reload: yes
+    reload: true
   loop:
     - { key: "vm.swappiness", value: "10" }
     - { key: "vm.vfs_cache_pressure", value: "50" }
@@ -61,10 +71,10 @@
   tags: [setup, optimization]
 
 - name: Increase file descriptor limits
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/security/limits.conf
     line: "{{ item }}"
-    backup: yes
+    backup: true
   loop:
     - "* soft nofile 65536"
     - "* hard nofile 65536"
@@ -74,55 +84,84 @@
   when: ubuntu_ml_optimization.increase_file_limits
   tags: [setup, optimization]
 
-# GPU Setup (NVIDIA)
-- name: Check for NVIDIA GPU
-  shell: lspci | grep -i nvidia
-  register: nvidia_check
-  ignore_errors: yes
+# GPU Setup (NVIDIA) - use existing variables from nvidia role if available
+- name: Check for NVIDIA GPU (reuse nvidia role data if available)
+  ansible.builtin.shell: |
+    set -o pipefail
+    lspci | grep -i nvidia
+  register: ml_nvidia_check
+  failed_when: false
   changed_when: false
+  when: has_nvidia_gpu is not defined
   tags: [setup, gpu]
 
-- name: Display GPU information
-  debug:
-    msg: "{{ 'NVIDIA GPU detected' if nvidia_check.rc == 0 else 'No NVIDIA GPU found' }}"
-  tags: [info, gpu]
+- name: Set GPU availability facts
+  ansible.builtin.set_fact:
+    ml_has_nvidia_gpu: "{{ has_nvidia_gpu | default(ml_nvidia_check.rc == 0 if ml_nvidia_check is defined else false) }}"
+  tags: [setup, gpu, ml]
 
-- name: Install NVIDIA drivers and CUDA (if GPU present)
-  include_tasks: nvidia_setup.yml
-  when: nvidia_check.rc == 0 and nvidia_config.install_drivers
-  tags: [setup, gpu, nvidia]
+- name: Force GPU detection if nvidia role already ran
+  ansible.builtin.shell: nvidia-smi --query-gpu=name --format=csv,noheader,nounits
+  register: ml_nvidia_smi_check
+  failed_when: false
+  changed_when: false
+  when: ml_has_nvidia_gpu == false and ml_nvidia_check is not defined
+  tags: [setup, gpu, ml]
+
+- name: Update GPU availability based on nvidia-smi
+  ansible.builtin.set_fact:
+    ml_has_nvidia_gpu: true
+  when: 
+    - ml_nvidia_smi_check is defined
+    - not ml_nvidia_smi_check.skipped | default(false)
+    - ml_nvidia_smi_check.rc == 0
+  tags: [setup, gpu, ml]
+
+- name: Display GPU information
+  ansible.builtin.debug:
+    msg: "{{ 'NVIDIA GPU detected' if ml_has_nvidia_gpu else 'No NVIDIA GPU found' }}"
+  tags: [info, gpu, ml]
+
+# NVIDIA/CUDA setup is now handled directly by deploy-components.yml when nvidia tag is used
+# This simplifies the logic and makes nvidia tag self-contained
 
 # Create ML data directories
 - name: Create ML datasets directory
-  file:
-    path: "{{ data_management.datasets_path }}"
+  ansible.builtin.file:
+    path: "{{ ubuntu_data_management.datasets_path }}"
     state: directory
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0755"
   become: true
-  when: data_management.create_datasets_dir
+  when: ubuntu_data_management.create_datasets_dir
+  tags: [setup, data]
+
+- name: Set oaSentinel directory default
+  ansible.builtin.set_fact:
+    oasentinel_dir: "{{ ubuntu_oasentinel.install_dir | default(ansible_user_dir + '/oaSentinel') }}"
   tags: [setup, data]
 
 - name: Link datasets directory to oaSentinel
-  file:
-    src: "{{ data_management.datasets_path }}"
-    dest: "{{ oasentinel_install_dir }}/data/shared"
+  ansible.builtin.file:
+    src: "{{ ubuntu_data_management.datasets_path }}"
+    dest: "{{ oasentinel_dir }}/data/shared"
     state: link
     owner: "{{ ansible_user }}"
-  when: data_management.create_datasets_dir
+  when: ubuntu_data_management.create_datasets_dir
   tags: [setup, data]
 
 # Performance governor for training
 - name: Set CPU governor to performance
-  shell: |
-    echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+  ansible.builtin.shell: |
+    set -o pipefail && echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
   become: true
+  changed_when: false
   when: ubuntu_ml_optimization.enable_performance_governor
   tags: [setup, performance]
 
 - name: Make performance governor persistent
-  cron:
+  ansible.builtin.cron:
     name: "Set CPU governor to performance"
     special_time: reboot
     job: "echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor"
@@ -133,53 +172,53 @@
 
 # Training environment setup
 - name: Create screen session for training
-  template:
+  ansible.builtin.template:
     src: ml_training_screen.sh.j2
     dest: "{{ ansible_user_dir }}/start_ml_training.sh"
     owner: "{{ ansible_user }}"
     mode: "0755"
-  when: training_server.setup_screen_sessions
+  when: ubuntu_training_server.setup_screen_sessions
   tags: [setup, training]
 
 - name: Setup Jupyter Lab for remote access
-  template:
+  ansible.builtin.template:
     src: jupyter_config.py.j2
     dest: "{{ ansible_user_dir }}/.jupyter/jupyter_lab_config.py"
     owner: "{{ ansible_user }}"
     mode: "0644"
-  when: training_server.enable_jupyter
+  when: ubuntu_training_server.enable_jupyter
   tags: [setup, jupyter]
 
 - name: Create Jupyter service script
-  template:
+  ansible.builtin.template:
     src: start_jupyter.sh.j2
     dest: "{{ ansible_user_dir }}/start_jupyter.sh"
     owner: "{{ ansible_user }}"
     mode: "0755"
-  when: training_server.enable_jupyter
+  when: ubuntu_training_server.enable_jupyter
   tags: [setup, jupyter]
 
 # GPU monitoring setup
 - name: Install GPU monitoring script
-  template:
+  ansible.builtin.template:
     src: gpu_monitor.sh.j2
-    dest: "{{ oasentinel_install_dir }}/scripts/gpu_monitor.sh"
+    dest: "{{ oasentinel_dir }}/scripts/gpu_monitor.sh"
     owner: "{{ ansible_user }}"
     mode: "0755"
-  when: nvidia_check.rc == 0
+  when: ml_has_nvidia_gpu is defined and ml_has_nvidia_gpu
   tags: [setup, monitoring]
 
 - name: Create Ubuntu-specific training configuration
-  template:
+  ansible.builtin.template:
     src: ubuntu_training_config.yaml.j2
-    dest: "{{ oasentinel_install_dir }}/configs/ubuntu_gpu.yaml"
+    dest: "{{ oasentinel_dir }}/configs/ubuntu_gpu.yaml"
     owner: "{{ ansible_user }}"
     mode: "0644"
   tags: [setup, config]
 
 # Training aliases and environment
 - name: Add Ubuntu ML training aliases
-  blockinfile:
+  ansible.builtin.blockinfile:
     path: "{{ ansible_user_dir }}/.bashrc"
     marker: "# {mark} ANSIBLE MANAGED - Ubuntu ML Training"
     block: |
@@ -196,7 +235,7 @@
 
       # Training functions
       gpu-status() {
-          echo "🚀 GPU Status:"
+          echo "GPU Status:"
           nvidia-smi --query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits
       }
 
@@ -204,18 +243,20 @@
           tail -f $OASENTINEL_HOME/logs/training/*.log 2>/dev/null || echo "No training logs found"
       }
 
-    create: yes
+    create: true
+    mode: "0644"
   tags: [setup, aliases]
 
 # System verification
 - name: Run Ubuntu ML verification
-  shell: |
-    cd "{{ oasentinel_install_dir }}"
-    source .venv/bin/activate
-    python -c "
+  ansible.builtin.shell: |
+    cd "{{ oasentinel_dir }}"
+    if [ -f ".venv/bin/activate" ]; then
+      source .venv/bin/activate
+      python -c "
     import torch
     import platform
-    print('🚀 Ubuntu ML Server Verification')
+    print('Ubuntu ML Server Verification')
     print('=' * 40)
     print(f'Platform: {platform.platform()}')
     print(f'PyTorch Version: {torch.__version__}')
@@ -225,28 +266,47 @@
         print(f'GPU Count: {torch.cuda.device_count()}')
         for i in range(torch.cuda.device_count()):
             print(f'GPU {i}: {torch.cuda.get_device_name(i)}')
-        print('✅ GPU acceleration ready for training!')
+        print('[OK] GPU acceleration ready for training!')
     else:
-        print('⚠️  CUDA not available - CPU training only')
-    print('Ubuntu ML server setup complete! 🎯')
-    "
+        print('[WARNING] CUDA not available - CPU training only')
+    print('Ubuntu ML server setup complete!')
+      "
+    else
+      echo "⚠️ oaSentinel virtual environment not found at {{ oasentinel_dir }}/.venv"
+      echo "This is expected if oaSentinel hasn't been deployed yet."
+      echo "Run: ./scripts/run ml-remote-server to complete oaSentinel setup"
+    fi
+  args:
+    executable: /bin/bash
+  register: ubuntu_ml_verification
+  failed_when: false
+  changed_when: false
+  become: true
   become_user: "{{ ansible_user }}"
-  register: ubuntu_verification
   tags: [verify]
 
 - name: Display verification results
-  debug:
-    msg: "{{ ubuntu_verification.stdout_lines }}"
-  tags: [verify]
+  ansible.builtin.debug:
+    msg: "{{ ubuntu_ml_verification.stdout_lines }}"
+  when: ubuntu_ml_verification is defined
+  tags: [verify, ml]
+
+# oaSentinel Integration
+- name: Include oaSentinel setup tasks
+  ansible.builtin.include_tasks: oasentinel.yml
+  when:
+    - "'oasentinel-setup' in ansible_run_tags or 'oasentinel-full' in ansible_run_tags or 'oasentinel-data' in ansible_run_tags or 'oasentinel-train' in ansible_run_tags"
+  tags: [oasentinel-setup, oasentinel-full, oasentinel-data, oasentinel-train]
 
 - name: Ubuntu ML setup summary
-  debug:
+  ansible.builtin.debug:
     msg:
-      - "🚀 Ubuntu ML Training Server Setup Complete!"
-      - "GPU Support: {{ 'Enabled' if nvidia_check.rc == 0 else 'CPU Only' }}"
-      - "oaSentinel: {{ oasentinel_install_dir }}"
-      - "Datasets: {{ data_management.datasets_path if data_management.create_datasets_dir else 'In project directory' }}"
-      - "Jupyter: {{ 'Enabled on port ' + training_server.jupyter_port|string if training_server.enable_jupyter else 'Disabled' }}"
+      - "Ubuntu ML Training Server Setup Complete!"
+      - "GPU Support: {{ 'Enabled' if (ml_has_nvidia_gpu is defined and ml_has_nvidia_gpu) else 'CPU Only' }}"
+      - "oaSentinel: {{ oasentinel_dir | default('Not configured') }}"
+      - "Datasets: {{ ubuntu_data_management.datasets_path if ubuntu_data_management.create_datasets_dir else 'In project directory' }}"
+      - "Jupyter: {{ 'Enabled on port ' + ubuntu_training_server.jupyter_port | string if ubuntu_training_server.enable_jupyter else 'Disabled' }}"
       - "Use 'train-gpu' for optimized training"
       - "Use 'gpu-watch' to monitor GPU usage"
-  tags: [summary]
+      - "Use 'oas-quick-train' for oaSentinel training"
+  tags: [summary, ml]

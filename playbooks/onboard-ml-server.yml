@@ -4,7 +4,7 @@
 
 - name: Setup Ubuntu ML Training Server
   hosts: ubuntu
-  gather_facts: yes
+  gather_facts: true
   become: true
 
   vars:
@@ -21,19 +21,19 @@
 
   pre_tasks:
     - name: Verify Ubuntu platform
-      fail:
+      ansible.builtin.fail:
         msg: "This playbook is designed for Ubuntu hosts only"
       when: ansible_distribution != "Ubuntu"
       tags: [always]
 
     - name: Check Ubuntu version compatibility
-      fail:
+      ansible.builtin.fail:
         msg: "Ubuntu 18.04+ required, found {{ ansible_distribution_version }}"
       when: ansible_distribution_version is version('18.04', '<')
       tags: [always]
 
     - name: Display setup information
-      debug:
+      ansible.builtin.debug:
         msg:
           - "🚀 Setting up Ubuntu ML Training Server"
           - "Host: {{ inventory_hostname }}"
@@ -44,130 +44,140 @@
       tags: [always]
 
     - name: Check for NVIDIA GPU
-      shell: lspci | grep -i nvidia
+      ansible.builtin.shell: |
+        set -o pipefail
+        lspci | grep -i nvidia
       register: nvidia_gpu_check
-      ignore_errors: yes
+      failed_when: false
       changed_when: false
       tags: [always]
 
     - name: GPU detection results
-      debug:
+      ansible.builtin.debug:
         msg: "{{ 'NVIDIA GPU detected - GPU acceleration will be configured' if nvidia_gpu_check.rc == 0 else 'No NVIDIA GPU found - CPU-only setup' }}"
       tags: [always]
 
     - name: Check available disk space
-      shell: df -h / | tail -1 | awk '{print $4}' | sed 's/G//'
+      ansible.builtin.shell: set -o pipefail && df -h / | tail -1 | awk '{print $4}' | sed 's/G//'
       register: disk_space
       changed_when: false
       tags: [always]
 
     - name: Verify sufficient disk space
-      fail:
+      ansible.builtin.fail:
         msg: "Insufficient disk space. Need at least 50GB free for ML server, found {{ disk_space.stdout }}G"
       when: disk_space.stdout | int < 50
       tags: [always]
 
   tasks:
     - name: Update system packages
-      apt:
-        update_cache: yes
+      ansible.builtin.apt:
+        update_cache: true
         upgrade: dist
-        autoremove: yes
+        autoremove: true
       tags: [system, update]
 
     - name: Setup Ubuntu base environment
-      include_role:
+      ansible.builtin.include_role:
         name: ubuntu/base
       when: execute_base_setup
       tags: [base, setup]
 
     - name: Setup NVIDIA drivers and CUDA
-      include_role:
+      ansible.builtin.include_role:
         name: ubuntu/nvidia
       when: execute_nvidia_setup and nvidia_gpu_check.rc == 0
       tags: [nvidia, gpu, setup]
 
     - name: Setup Docker with GPU support
-      include_role:
+      ansible.builtin.include_role:
         name: ubuntu/docker
       when: execute_docker_setup
       tags: [docker, setup]
 
     - name: Setup Python development environment
-      include_role:
+      ansible.builtin.include_role:
         name: ubuntu/python
       tags: [python, setup]
 
     - name: Setup ML workstation (common components)
-      include_role:
+      ansible.builtin.include_role:
         name: common/ml_workstation
       tags: [ml, setup]
 
     - name: Setup Ubuntu-specific ML optimizations
-      include_role:
+      ansible.builtin.include_role:
         name: ubuntu/ml_workstation
       tags: [ml, ubuntu, setup]
 
     - name: Setup system monitoring
-      include_role:
+      ansible.builtin.include_role:
         name: ubuntu/monitoring
       when: execute_monitoring_setup
       tags: [monitoring, setup]
 
     - name: Configure security settings
-      include_role:
+      ansible.builtin.include_role:
         name: ubuntu/security
       tags: [security, setup]
 
   post_tasks:
     - name: Reboot system if required
-      reboot:
+      ansible.builtin.reboot:
         reboot_timeout: 300
       when: nvidia_gpu_check.rc == 0 and execute_nvidia_setup
       tags: [reboot]
 
     - name: Wait for system to come back online
-      wait_for_connection:
+      ansible.builtin.wait_for_connection:
         timeout: 300
       when: nvidia_gpu_check.rc == 0 and execute_nvidia_setup
       tags: [reboot]
 
     - name: Run post-reboot verification
-      shell: |
+      ansible.builtin.shell: |
         nvidia-smi || echo "GPU drivers not ready"
         cd "{{ oasentinel_install_dir }}"
         source .venv/bin/activate
-        python -c "
-        import torch
-        print('CUDA Available:', torch.cuda.is_available())
-        if torch.cuda.is_available():
-            print('GPU Count:', torch.cuda.device_count())
-        "
+        python -c '
+          import torch
+          print("PyTorch version:", torch.__version__)
+          print("CUDA available:", torch.cuda.is_available())
+          if torch.cuda.is_available():
+            print("GPU count:", torch.cuda.device_count())
+            for i in range(torch.cuda.device_count()):
+              print("  GPU", i, ":", torch.cuda.get_device_name(i))
+        ' 2>/dev/null || echo "PyTorch/CUDA verification failed"
+      become: true
       become_user: "{{ ansible_user }}"
-      register: post_reboot_check
-      ignore_errors: yes
+      changed_when: false
+      failed_when: false
       when: nvidia_gpu_check.rc == 0
       tags: [verify]
+      register: ml_verification
 
     - name: Run final ML environment verification
-      shell: |
+      ansible.builtin.shell: |
         cd "{{ oasentinel_install_dir }}"
         source .venv/bin/activate
         python src/cli.py info
         python scripts/ml_health_check.sh
+      become: true
       become_user: "{{ ansible_user }}"
       register: final_verification
+      changed_when: false
       tags: [verify]
 
     - name: Create completion marker
-      file:
+      ansible.builtin.file:
         path: "{{ ansible_user_dir }}/.ml_server_setup_complete"
         state: touch
         owner: "{{ ansible_user }}"
+        mode: "0644"
       tags: [setup]
 
     - name: Setup completion summary
-      debug:
+      ansible.builtin.debug:
         msg:
           - "🎉 Ubuntu ML Training Server Setup Complete!"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -198,11 +208,13 @@
 
   handlers:
     - name: Restart networking
-      service:
+      ansible.builtin.service:
         name: networking
         state: restarted
 
     - name: Source bash configuration
-      shell: source {{ ansible_user_dir }}/.bashrc
+      ansible.builtin.command: source {{ ansible_user_dir }}/.bashrc
+      become: true
       become_user: "{{ ansible_user }}"
-      ignore_errors: yes
+      changed_when: false
+      failed_when: false
