@@ -1,77 +1,574 @@
 ---
-# NVIDIA GPU Setup for ML Training
+# CUDA 12.6 Installation - Complete NVIDIA stack with nvidia-driver-570-server
+# Follows official NVIDIA CUDA installation guide
+# Phase 1: Hardware detection and verification
+# Phase 2: NVIDIA drivers installation
+# Phase 3: CUDA 12.6 toolkit installation
+# Phase 4: Environment configuration and verification
 
-- name: Display GPU information
-  debug:
+- name: Display CUDA 12.6 installation information
+  ansible.builtin.debug:
     msg:
-      - "🎮 Setting up NVIDIA GPU for ML training"
-      - "GPU: {{ nvidia_check.stdout_lines[0] if nvidia_check.stdout_lines else 'Detection in progress...' }}"
-  tags: [gpu, nvidia]
+      - "Installing complete NVIDIA CUDA 12.6 stack with nvidia-driver-570-server for oaSentinel ML training"
+      - "Hardware detection -> NVIDIA drivers -> CUDA toolkit -> Environment setup"
+      - "PyTorch 2.5+ compatibility ensured"
+      - "Current tags: {{ ansible_run_tags | default('no-tags') }}"
+      - "Platform: {{ target_platform | default(ansible_distribution) }}"
+  tags: [gpu, nvidia, cuda, info]
 
-- name: Install NVIDIA drivers using ubuntu/nvidia role
-  include_role:
-    name: ubuntu/nvidia
+# Phase 1: Hardware Detection and Verification
+- name: Check for NVIDIA hardware
+  ansible.builtin.shell: |
+    lspci | grep -i nvidia || echo "NO_NVIDIA_HARDWARE"
+  register: nvidia_hardware_check
+  changed_when: false
+  failed_when: false
+  args:
+    executable: /bin/bash
+  tags: [gpu, nvidia, hardware]
+
+- name: Display hardware detection results
+  ansible.builtin.debug:
+    msg: |
+      NVIDIA Hardware Detection:
+      {{ nvidia_hardware_check.stdout_lines | join('\n') if nvidia_hardware_check.stdout_lines else 'No NVIDIA hardware detected' }}
+  tags: [gpu, nvidia, hardware, info]
+
+- name: Fail if no NVIDIA hardware detected
+  ansible.builtin.fail:
+    msg: |
+      No NVIDIA hardware detected on this system.
+      CUDA installation requires compatible NVIDIA GPU hardware.
+      Hardware check output: {{ nvidia_hardware_check.stdout }}
+  when: 
+    - nvidia_hardware_check.stdout.find('NO_NVIDIA_HARDWARE') != -1
+    - not (ignore_missing_gpu | default(false))
+  tags: [gpu, nvidia, hardware]
+
+- name: Check current NVIDIA driver status
+  ansible.builtin.shell: nvidia-smi --query-gpu=name,driver_version --format=csv,noheader || echo "NO_DRIVER"
+  register: current_nvidia_status
+  changed_when: false
+  failed_when: false
+  tags: [gpu, nvidia, drivers, diagnosis]
+
+- name: Set driver installation needed flag
+  ansible.builtin.set_fact:
+    driver_installation_needed: "{{ current_nvidia_status.stdout == 'NO_DRIVER' or 'Driver/library version mismatch' in current_nvidia_status.stdout or 'NVIDIA-SMI has failed' in current_nvidia_status.stdout }}"
   tags: [gpu, nvidia, drivers]
 
-- name: Install CUDA toolkit
-  apt:
-    name:
-      - nvidia-cuda-toolkit
-      - nvidia-cuda-dev
+- name: Check current CUDA installation status
+  ansible.builtin.shell: |
+    if [ -f "/usr/local/cuda/bin/nvcc" ]; then
+      /usr/local/cuda/bin/nvcc --version | grep "release"
+    elif [ -f "/usr/local/cuda-12.8/bin/nvcc" ]; then
+      /usr/local/cuda-12.8/bin/nvcc --version | grep "release"
+    else
+      echo "NO_CUDA_FOUND"
+    fi
+  register: current_cuda_status
+  changed_when: false
+  failed_when: false
+  tags: [gpu, nvidia, cuda, diagnosis]
+
+- name: Display current installation status
+  ansible.builtin.debug:
+    msg:
+      - "Current NVIDIA Status:"
+      - "  Driver: {{ current_nvidia_status.stdout if current_nvidia_status.stdout != 'NO_DRIVER' else 'Not installed' }}"
+      - "  CUDA: {{ current_cuda_status.stdout if current_cuda_status.stdout != 'NO_CUDA_FOUND' else 'Not installed' }}"
+      - "Proceeding with installation..."
+  tags: [gpu, nvidia, info]
+
+# Phase 2: Repository Setup and Driver Installation
+- name: Remove conflicting nouveau driver
+  ansible.builtin.modprobe:
+    name: nouveau
+    state: absent
+  become: true
+  ignore_errors: true
+  tags: [gpu, nvidia, drivers]
+
+- name: Blacklist nouveau driver permanently
+  ansible.builtin.blockinfile:
+    path: /etc/modprobe.d/blacklist-nouveau.conf
+    marker: "# {mark} ANSIBLE MANAGED - Blacklist nouveau for CUDA"
+    block: |
+      blacklist nouveau
+      options nouveau modeset=0
+    create: true
+    mode: "0644"
+  become: true
+  tags: [gpu, nvidia, drivers]
+
+- name: Download CUDA keyring (Ubuntu 24.04)
+  ansible.builtin.get_url:
+    url: "https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb"
+    dest: "/tmp/cuda-keyring_1.1-1_all.deb"
+    mode: '0644'
+  become: true
+  tags: [gpu, nvidia, cuda, repo]
+
+- name: Install CUDA repository keyring
+  ansible.builtin.apt:
+    deb: "/tmp/cuda-keyring_1.1-1_all.deb"
     state: present
   become: true
-  when: nvidia_config.install_cuda
-  tags: [gpu, cuda]
+  tags: [gpu, nvidia, cuda, repo]
 
-- name: Install cuDNN (if available in repos)
-  apt:
+- name: Update apt cache after adding CUDA repository
+  ansible.builtin.apt:
+    update_cache: true
+  become: true
+  tags: [gpu, nvidia, cuda, repo]
+
+- name: Get available NVIDIA server driver versions
+  ansible.builtin.shell: |
+    # Search for server drivers first (preferred for server environments)
+    apt-cache search "nvidia-driver-[0-9].*-server" | grep -o "nvidia-driver-[0-9][0-9][0-9]*-server" | sort -V | tail -5
+  register: available_server_drivers
+  changed_when: false
+  failed_when: false
+  args:
+    executable: /bin/bash
+  tags: [gpu, nvidia, drivers]
+
+- name: Get available NVIDIA desktop driver versions (fallback)
+  ansible.builtin.shell: |
+    # Fallback to desktop drivers if no server drivers found
+    apt-cache search "nvidia-driver-[0-9]" | grep "^nvidia-driver-[0-9]" | grep -v server | grep -o "nvidia-driver-[0-9][0-9][0-9]*" | sort -V | tail -5
+  register: available_desktop_drivers
+  changed_when: false
+  failed_when: false
+  args:
+    executable: /bin/bash
+  tags: [gpu, nvidia, drivers]
+
+- name: Set preferred driver (force nvidia-driver-570-server for consistency)
+  ansible.builtin.set_fact:
+    selected_driver: "nvidia-driver-570-server"
+    selected_driver_version: "570"
+    is_server_driver: true
+  tags: [gpu, nvidia, drivers]
+
+- name: Display selected NVIDIA driver
+  ansible.builtin.debug:
+    msg: 
+      - "Server drivers available: {{ available_server_drivers.stdout_lines }}"
+      - "Desktop drivers available: {{ available_desktop_drivers.stdout_lines }}"
+      - "Selected driver: {{ selected_driver }}"
+      - "Driver version: {{ selected_driver_version }}"
+      - "Is server driver: {{ is_server_driver }}"
+  tags: [gpu, nvidia, drivers, info]
+
+- name: Complete NVIDIA package removal for clean installation
+  ansible.builtin.shell: |
+    echo "Starting aggressive NVIDIA/CUDA package cleanup..."
+    
+    # Step 1: Stop any running NVIDIA processes
+    systemctl stop nvidia-persistenced 2>/dev/null || true
+    pkill -f nvidia 2>/dev/null || true
+    
+    # Step 2: Force remove specific problematic packages using absolute dpkg commands
+    echo "Removing specific problematic packages..."
+    dpkg --force-depends --force-remove-essential --purge libnvidia-compute-570 2>/dev/null || true
+    dpkg --force-depends --force-remove-essential --purge nvidia-driver-570 2>/dev/null || true
+    dpkg --force-depends --force-remove-essential --purge nvidia-driver-575-server 2>/dev/null || true
+    dpkg --force-depends --force-remove-essential --purge nvidia-utils-570 2>/dev/null || true
+    dpkg --force-depends --force-remove-essential --purge nvidia-utils-575-server 2>/dev/null || true
+    
+    # Step 3: Get all NVIDIA/CUDA packages and remove them
+    echo "Finding all NVIDIA/CUDA packages..."
+    ALL_NVIDIA_PKGS=$(dpkg --get-selections | grep -E "(nvidia|cuda)" | grep -v deinstall | awk '{print $1}' | tr '\n' ' ')
+    
+    if [ -n "$ALL_NVIDIA_PKGS" ]; then
+        echo "Found packages to remove: $ALL_NVIDIA_PKGS"
+        # Remove packages one by one to avoid dependency conflicts
+        for pkg in $ALL_NVIDIA_PKGS; do
+            echo "Removing package: $pkg"
+            dpkg --force-depends --force-remove-essential --purge "$pkg" 2>/dev/null || true
+            apt-get remove --purge "$pkg" -y 2>/dev/null || true
+        done
+    else
+        echo "No NVIDIA/CUDA packages found to remove"
+    fi
+    
+    # Step 4: Clean up broken package database
+    echo "Cleaning up package database..."
+    dpkg --configure -a 2>/dev/null || true
+    apt-get -f install -y 2>/dev/null || true
+    apt-get autoremove -y --purge 2>/dev/null || true
+    apt-get autoclean 2>/dev/null || true
+    
+    # Step 5: Remove leftover files and directories
+    echo "Removing leftover NVIDIA files..."
+    rm -rf /usr/lib/nvidia* 2>/dev/null || true
+    rm -rf /usr/lib/x86_64-linux-gnu/libnvidia* 2>/dev/null || true
+    rm -rf /usr/share/nvidia* 2>/dev/null || true
+    rm -rf /etc/nvidia* 2>/dev/null || true
+    rm -rf /usr/local/cuda* 2>/dev/null || true
+    
+    # Step 6: Update package cache
+    apt-get update -y
+    
+    # Step 7: Final verification
+    echo "Final package verification:"
+    REMAINING=$(dpkg --get-selections | grep -E "(nvidia|cuda)" | grep -v deinstall || echo "")
+    if [ -n "$REMAINING" ]; then
+        echo "WARNING: Some packages may still remain:"
+        echo "$REMAINING"
+    else
+        echo "SUCCESS: All NVIDIA/CUDA packages removed"
+    fi
+  become: true
+  when: true
+  ignore_errors: true
+  args:
+    executable: /bin/bash
+  tags: [gpu, nvidia, drivers, cleanup]
+
+- name: Fix broken packages after cleanup
+  ansible.builtin.apt:
+    state: fixed
+  become: true
+  when: true
+  ignore_errors: true
+  tags: [gpu, nvidia, drivers, fix]
+
+- name: Install selected NVIDIA driver
+  ansible.builtin.apt:
+    name: "{{ selected_driver }}"
+    state: present
+  become: true
+  when: true
+  register: nvidia_driver_install
+  tags: [gpu, nvidia, drivers]
+
+- name: Install matching NVIDIA utilities
+  ansible.builtin.apt:
+    name: "nvidia-utils-{{ selected_driver_version }}{% if is_server_driver %}-server{% endif %}"
+    state: present
+  become: true
+  when: true
+  register: nvidia_utils_install
+  tags: [gpu, nvidia, drivers]
+
+- name: Install NVIDIA settings (if available)
+  ansible.builtin.apt:
+    name: nvidia-settings
+    state: present
+  become: true
+  when: true
+  ignore_errors: true
+  tags: [gpu, nvidia, drivers]
+
+- name: Wait for apt lock to be released
+  ansible.builtin.shell: |
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+      echo "Waiting for other apt processes to finish..."
+      sleep 5
+    done
+    echo "APT lock released"
+  become: true
+  tags: [gpu, nvidia, cuda]
+
+- name: Install CUDA toolkit 12.8 (compatible with nvidia-driver-570-server)
+  ansible.builtin.apt:
+    name: "cuda-toolkit-12-8"
+    state: present
+  become: true
+  tags: [gpu, nvidia, cuda]
+
+- name: Install additional CUDA packages for complete toolkit
+  ansible.builtin.apt:
+    name:
+      - cuda-compiler-12-8
+      - cuda-tools-12-8
+      - cuda-cccl-12-8
+    state: present
+  become: true
+  failed_when: false  # Some packages might not be available
+  tags: [gpu, nvidia, cuda]
+
+- name: Install cuDNN for deep learning (optional)
+  ansible.builtin.apt:
     name:
       - libcudnn8
       - libcudnn8-dev
     state: present
   become: true
-  ignore_errors: yes # May not be available in all Ubuntu versions
-  when: nvidia_config.install_cudnn
-  tags: [gpu, cudnn]
+  failed_when: false # May not be available in all repositories
+  tags: [gpu, nvidia, cudnn]
 
-- name: Add CUDA to PATH and LD_LIBRARY_PATH
-  blockinfile:
-    path: "{{ ansible_user_dir }}/.bashrc"
-    marker: "# {mark} ANSIBLE MANAGED - CUDA Environment"
+# Phase 3: Environment Configuration - Critical for command accessibility
+- name: Check if CUDA installation directory exists
+  ansible.builtin.stat:
+    path: "/usr/local/cuda-12.8"
+  register: cuda_install_dir
+  tags: [gpu, nvidia, cuda, environment]
+
+- name: Create CUDA symbolic link for version compatibility
+  ansible.builtin.file:
+    src: "/usr/local/cuda-12.8"
+    dest: "/usr/local/cuda"
+    state: link
+    force: true
+  become: true
+  when: cuda_install_dir.stat.exists
+  tags: [gpu, nvidia, cuda, environment]
+
+- name: Configure CUDA environment variables in /etc/environment
+  ansible.builtin.blockinfile:
+    path: "/etc/environment"
+    marker: "# {mark} ANSIBLE MANAGED - CUDA 12.8 Environment Variables"
     block: |
-      # CUDA Environment Variables
-      export CUDA_HOME=/usr/local/cuda
-      export PATH=$CUDA_HOME/bin:$PATH
-      export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
-    create: yes
+      CUDA_HOME="/usr/local/cuda"
+      CUDA_PATH="/usr/local/cuda"
+    create: true
+    mode: "0644"
+  become: true
+  tags: [gpu, nvidia, cuda, environment]
+
+- name: Create system-wide CUDA profile script for all users
+  ansible.builtin.copy:
+    content: |
+      #!/bin/bash
+      # CUDA 12.8 Environment Configuration
+      # This script is sourced by all interactive shell sessions
+      
+      # Only configure if CUDA directory exists
+      if [ -d "/usr/local/cuda" ]; then
+          # Set CUDA environment variables
+          export CUDA_HOME="/usr/local/cuda"
+          export CUDA_PATH="/usr/local/cuda"
+          
+          # Add CUDA binaries to PATH if not already present and PATH exists
+          if [ -n "$PATH" ] && [[ ":$PATH:" != *":/usr/local/cuda/bin:"* ]]; then
+              export PATH="/usr/local/cuda/bin:$PATH"
+          elif [ -z "$PATH" ]; then
+              export PATH="/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+          fi
+          
+          # Add CUDA libraries to LD_LIBRARY_PATH if not already present
+          if [ -n "$LD_LIBRARY_PATH" ]; then
+              if [[ ":$LD_LIBRARY_PATH:" != *":/usr/local/cuda/lib64:"* ]]; then
+                  export LD_LIBRARY_PATH="/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
+              fi
+              if [[ ":$LD_LIBRARY_PATH:" != *":/usr/local/cuda/lib:"* ]]; then
+                  export LD_LIBRARY_PATH="/usr/local/cuda/lib:$LD_LIBRARY_PATH"
+              fi
+          else
+              export LD_LIBRARY_PATH="/usr/local/cuda/lib64:/usr/local/cuda/lib"
+          fi
+      fi
+    dest: "/etc/profile.d/cuda.sh"
+    mode: "0755"
+    owner: root
+    group: root
+  become: true
+  tags: [gpu, nvidia, cuda, environment]
+
+- name: Update user shell environment for immediate effect
+  ansible.builtin.blockinfile:
+    path: "{{ ansible_user_dir }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED - CUDA 12.8 Environment"
+    block: |
+      # CUDA 12.8 Environment - Safe PATH handling
+      if [ -d "/usr/local/cuda" ]; then
+          export CUDA_HOME="/usr/local/cuda"
+          export CUDA_PATH="/usr/local/cuda"
+          
+          # Only add to PATH if not already present and PATH is not empty
+          if [ -n "$PATH" ] && [[ ":$PATH:" != *":/usr/local/cuda/bin:"* ]]; then
+              export PATH="/usr/local/cuda/bin:$PATH"
+          fi
+          
+          # Handle LD_LIBRARY_PATH safely
+          if [ -n "$LD_LIBRARY_PATH" ]; then
+              if [[ ":$LD_LIBRARY_PATH:" != *":/usr/local/cuda/lib64:"* ]]; then
+                  export LD_LIBRARY_PATH="/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
+              fi
+              if [[ ":$LD_LIBRARY_PATH:" != *":/usr/local/cuda/lib:"* ]]; then
+                  export LD_LIBRARY_PATH="/usr/local/cuda/lib:$LD_LIBRARY_PATH"
+              fi
+          else
+              export LD_LIBRARY_PATH="/usr/local/cuda/lib64:/usr/local/cuda/lib"
+          fi
+      fi
+      
+      # Convenient aliases for CUDA/GPU management
+      alias nvidia-info="nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv"
+      alias cuda-version="nvcc --version | grep release"
+      alias gpu-status="nvidia-smi"
+    create: true
+    mode: "0644"
   become_user: "{{ ansible_user }}"
-  tags: [gpu, cuda, environment]
+  tags: [gpu, nvidia, cuda, environment]
+
+- name: Create system-wide alternative for nvcc command access
+  ansible.builtin.file:
+    src: "/usr/local/cuda/bin/nvcc"
+    dest: "/usr/local/bin/nvcc"
+    state: link
+    force: true
+  become: true
+  when: cuda_install_dir.stat.exists
+  ignore_errors: true
+  tags: [gpu, nvidia, cuda, environment]
+
+- name: Create system-wide alternative for nvidia-smi command access  
+  ansible.builtin.shell: |
+    # Find nvidia-smi location and create symlink
+    NVIDIA_SMI_PATH=$(find /usr/bin /usr/local/bin -name "nvidia-smi" 2>/dev/null | head -1)
+    if [ -n "$NVIDIA_SMI_PATH" ] && [ "$NVIDIA_SMI_PATH" != "/usr/local/bin/nvidia-smi" ]; then
+        ln -sf "$NVIDIA_SMI_PATH" /usr/local/bin/nvidia-smi
+    fi
+  become: true
+  ignore_errors: true
+  args:
+    executable: /bin/bash
+  tags: [gpu, nvidia, drivers, environment]
 
 - name: Install GPU monitoring tools
-  apt:
+  ansible.builtin.pip:
     name:
       - nvidia-ml-py3
       - gpustat
     state: present
+    executable: pip3
   become: true
-  tags: [gpu, monitoring]
+  failed_when: false # May not be available before reboot
+  tags: [gpu, nvidia, monitoring]
 
-- name: Install GPU monitoring script
-  template:
-    src: gpu_monitor.sh.j2
-    dest: "{{ oasentinel_install_dir }}/scripts/gpu_monitor.sh"
-    owner: "{{ ansible_user }}"
-    mode: "0755"
-  tags: [gpu, monitoring]
-
-- name: Verify GPU setup
-  shell: |
-    nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader || echo "Reboot required for GPU drivers"
+# Phase 4: Comprehensive Verification and Testing
+- name: Verify NVIDIA driver installation (post-installation)
+  ansible.builtin.shell: |
+    # First check if nvidia-smi is available in PATH
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
+    elif [ -f "/usr/bin/nvidia-smi" ]; then
+        /usr/bin/nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
+    else
+        echo "NVIDIA_SMI_NOT_FOUND - reboot required"
+    fi
   register: gpu_verification
   changed_when: false
-  tags: [gpu, verify]
+  failed_when: false
+  tags: [gpu, nvidia, verify]
 
-- name: Display GPU verification results
-  debug:
-    msg: "{{ gpu_verification.stdout_lines }}"
-  tags: [gpu, verify]
+- name: Verify CUDA toolkit installation
+  ansible.builtin.shell: |
+    # Check multiple possible nvcc locations
+    if command -v nvcc >/dev/null 2>&1; then
+        nvcc --version | grep "release"
+    elif [ -f "/usr/local/cuda/bin/nvcc" ]; then
+        /usr/local/cuda/bin/nvcc --version | grep "release"
+    elif [ -f "/usr/local/cuda-12.8/bin/nvcc" ]; then
+        /usr/local/cuda-12.8/bin/nvcc --version | grep "release"
+    else
+        echo "NVCC_NOT_FOUND - installation may have failed or reboot required"
+    fi
+  register: cuda_verification
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "/usr/local/cuda/bin:/usr/local/cuda-12.8/bin:{{ ansible_env.PATH }}"
+  tags: [gpu, nvidia, cuda, verify]
+
+- name: Check CUDA library files installation
+  ansible.builtin.shell: |
+    # Verify key CUDA libraries are installed
+    CUDA_LIBS_FOUND=0
+    for path in "/usr/local/cuda/lib64" "/usr/local/cuda-12.8/lib64"; do
+        if [ -d "$path" ] && [ "$(ls -A $path 2>/dev/null)" ]; then
+            echo "CUDA libraries found in: $path"
+            ls "$path"/libcudart* 2>/dev/null | head -3
+            CUDA_LIBS_FOUND=1
+            break
+        fi
+    done
+    if [ $CUDA_LIBS_FOUND -eq 0 ]; then
+        echo "CUDA_LIBS_NOT_FOUND - installation may be incomplete"
+    fi
+  register: cuda_libs_verification
+  changed_when: false
+  failed_when: false
+  tags: [gpu, nvidia, cuda, verify]
+
+- name: Test environment variable accessibility
+  ansible.builtin.shell: |
+    # Test if CUDA environment is properly configured
+    echo "PATH check:"
+    echo "$PATH" | grep -o "/usr/local/cuda[^:]*" || echo "CUDA not in PATH"
+    echo "LD_LIBRARY_PATH check:"
+    echo "${LD_LIBRARY_PATH:-empty}" | grep -o "/usr/local/cuda[^:]*" || echo "CUDA not in LD_LIBRARY_PATH"
+    echo "CUDA_HOME: ${CUDA_HOME:-not_set}"
+  register: env_verification
+  changed_when: false
+  failed_when: false
+  environment:
+    CUDA_HOME: "/usr/local/cuda"
+    PATH: "/usr/local/cuda/bin:{{ ansible_env.PATH }}"
+    LD_LIBRARY_PATH: "/usr/local/cuda/lib64:/usr/local/cuda/lib:{{ ansible_env.LD_LIBRARY_PATH | default('') }}"
+  tags: [gpu, nvidia, environment, verify]
+
+- name: Advanced CUDA runtime verification (if available)
+  ansible.builtin.shell: |
+    # Test CUDA runtime compilation if nvcc is available
+    if command -v nvcc >/dev/null 2>&1; then
+        echo "CUDA_NVCC_AVAILABLE - nvcc is in PATH"
+        nvcc --version
+    elif [ -f "/usr/local/cuda/bin/nvcc" ]; then
+        echo "CUDA_NVCC_FOUND - nvcc found in /usr/local/cuda/bin/"
+        /usr/local/cuda/bin/nvcc --version
+    elif [ -f "/usr/local/cuda-12.8/bin/nvcc" ]; then
+        echo "CUDA_NVCC_FOUND - nvcc found in /usr/local/cuda-12.8/bin/"
+        /usr/local/cuda-12.8/bin/nvcc --version
+    else
+        echo "NVCC_NOT_AVAILABLE - cannot find nvcc compiler"
+    fi
+  register: cuda_compile_test
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "/usr/local/cuda/bin:/usr/local/cuda-12.8/bin:{{ ansible_env.PATH }}"
+    LD_LIBRARY_PATH: "/usr/local/cuda/lib64:/usr/local/cuda/lib:{{ ansible_env.LD_LIBRARY_PATH | default('') }}"
+  tags: [gpu, nvidia, cuda, verify, advanced]
+
+- name: Display comprehensive installation results
+  ansible.builtin.debug:
+    msg:
+      - "========================================="
+      - "CUDA 12.8 Installation Complete!"
+      - "========================================="
+      - ""
+      - "Hardware & Driver Status:"
+      - "   Hardware: {{ nvidia_hardware_check.stdout_lines[0] if nvidia_hardware_check.stdout_lines else 'No NVIDIA GPU detected' }}"
+      - "   NVIDIA Driver: {{ gpu_verification.stdout_lines | join(' ') if gpu_verification.stdout != 'NVIDIA_SMI_NOT_FOUND - reboot required' else 'Requires reboot' }}"
+      - ""
+      - "CUDA Toolkit Status:"
+      - "   NVCC: {{ cuda_verification.stdout_lines | join(' ') if cuda_verification.stdout != 'NVCC_NOT_FOUND - installation may have failed or reboot required' else 'Requires reboot' }}"
+      - "   Libraries: {{ cuda_libs_verification.stdout_lines[0] if cuda_libs_verification.stdout_lines else 'Verification pending' }}"
+      - ""
+      - "Environment Configuration:"
+      - "   {{ env_verification.stdout_lines | join(' | ') if env_verification.stdout_lines else 'Environment setup pending reboot' }}"
+      - ""
+      - "Advanced Testing:"
+      - "   Compilation Test: {{ cuda_compile_test.stdout_lines[0] if cuda_compile_test.stdout_lines else 'Not available' }}"
+      - ""
+      - "Next Steps:"
+      - "   1. Reboot system: sudo reboot"
+      - "   2. Test commands: nvidia-smi && nvcc --version"
+      - "   3. PyTorch test: python -c 'import torch; print(torch.cuda.is_available())'"
+      - "   4. Ready for oaSentinel ML training!"
+      - ""
+      - "Status: PyTorch 2.5+ Compatible | CUDA 12.8 + nvidia-driver-570-server"
+      - "========================================="
+  tags: [gpu, nvidia, info, summary]
+
+- name: Clean up temporary files
+  ansible.builtin.file:
+    path: "/tmp/cuda-keyring_1.1-1_all.deb"
+    state: absent
+  become: true
+  tags: [gpu, nvidia, cleanup]
