@@ -11,7 +11,102 @@ PLAYER_DIR="{{ player.video_source }}"
 LOGS_DIR="${PLAYER_DIR}/logs"
 LOG_FILE="${LOGS_DIR}/player.log"
 
-# Bulletproof video configuration with comprehensive fallbacks
+# Video configuration - works with both scheduled and static configurations
+{% if player.schedule_enabled | default(false) and player.schedules is defined %}
+# Time-based scheduling functions
+get_current_schedule() {
+    local current_time=$(date '+%H:%M')
+    local current_hour=$(date '+%H')
+    local current_minute=$(date '+%M')
+    local current_minutes=$((current_hour * 60 + current_minute))
+    
+    {% for schedule in player.schedules %}
+    # Schedule: {{ schedule.name }} ({{ schedule.start_time }} - {{ schedule.end_time }})
+    local start_time="{{ schedule.start_time }}"
+    local end_time="{{ schedule.end_time }}"
+    local start_hour=${start_time%:*}
+    local start_minute=${start_time#*:}
+    local end_hour=${end_time%:*}
+    local end_minute=${end_time#*:}
+    local start_minutes=$((start_hour * 60 + start_minute))
+    local end_minutes=$((end_hour * 60 + end_minute))
+    
+    # Handle overnight schedules (e.g., 22:30 - 01:00)
+    if [ $end_minutes -lt $start_minutes ]; then
+        # Overnight schedule
+        if [ $current_minutes -ge $start_minutes ] || [ $current_minutes -lt $end_minutes ]; then
+            echo "{{ schedule.name }}"
+            return 0
+        fi
+    else
+        # Same-day schedule
+        if [ $current_minutes -ge $start_minutes ] && [ $current_minutes -lt $end_minutes ]; then
+            echo "{{ schedule.name }}"
+            return 0
+        fi
+    fi
+    {% endfor %}
+    
+    # Default fallback to first schedule
+    echo "{{ player.schedules[0].name }}"
+}
+
+get_schedule_videos() {
+    local schedule_name="$1"
+    local display_num="$2"
+    
+    {% for schedule in player.schedules %}
+    if [ "$schedule_name" = "{{ schedule.name }}" ]; then
+        {% set display1_videos = schedule.videos | selectattr('display', 'equalto', 1) | selectattr('enabled', 'equalto', true) | list %}
+        {% set display2_videos = schedule.videos | selectattr('display', 'equalto', 2) | selectattr('enabled', 'equalto', true) | list %}
+        if [ "$display_num" = "1" ]; then
+            {% if display1_videos %}
+            echo "{{ display1_videos[0].name }}"
+            {% else %}
+            echo ""
+            {% endif %}
+        elif [ "$display_num" = "2" ]; then
+            {% if display2_videos %}
+            echo "{{ display2_videos[0].name }}"
+            {% else %}
+            echo ""
+            {% endif %}
+        fi
+        return 0
+    fi
+    {% endfor %}
+    
+    echo ""
+}
+
+# Dynamic video file resolution based on current schedule
+CURRENT_SCHEDULE=$(get_current_schedule)
+VIDEO_FILE_DISPLAY1="${PLAYER_DIR}/$(get_schedule_videos "$CURRENT_SCHEDULE" "1")"
+VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/$(get_schedule_videos "$CURRENT_SCHEDULE" "2")"
+
+# Fallback to static configuration if scheduling fails
+if [[ -z "$(get_schedule_videos "$CURRENT_SCHEDULE" "1")" ]]; then
+    {% if player.videos is defined and player.videos %}
+        {% set fallback_display1 = player.videos | selectattr('display', 'equalto', 1) | selectattr('enabled', 'equalto', true) | first %}
+        {% if fallback_display1 %}
+    VIDEO_FILE_DISPLAY1="${PLAYER_DIR}/{{ fallback_display1.name }}"
+        {% endif %}
+    {% endif %}
+fi
+
+if [[ -z "$(get_schedule_videos "$CURRENT_SCHEDULE" "2")" ]]; then
+    {% if player.videos is defined and player.videos %}
+        {% set fallback_display2 = player.videos | selectattr('display', 'equalto', 2) | selectattr('enabled', 'equalto', true) | first %}
+        {% if fallback_display2 %}
+    VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/{{ fallback_display2.name }}"
+        {% else %}
+    VIDEO_FILE_DISPLAY2="$VIDEO_FILE_DISPLAY1"  # Use same video for both displays
+        {% endif %}
+    {% endif %}
+fi
+
+{% else %}
+# Traditional static video configuration (backward compatibility)
 {% if player.videos is defined and player.videos %}
   {% if player.dual_screen | default(true) %}
     # Dual-screen mode: use explicit display assignments
@@ -54,6 +149,7 @@ VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/{{ display2_videos[0].name }}"
 {% else %}
 VIDEO_FILE_DISPLAY2=""
 {% endif %}
+{% endif %}
 
 # MPV arguments
 MPV_ARGS="--loop --fullscreen --no-audio --no-border --ontop --no-input-default-bindings --no-input-cursor --no-osd-bar"
@@ -72,6 +168,35 @@ log_message() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $1" >> "$LOG_FILE"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $1"
 }
+
+{% if player.schedule_enabled | default(false) %}
+# Function to check if schedule has changed and restart if needed
+check_schedule_change() {
+    local new_schedule=$(get_current_schedule)
+    if [ "$new_schedule" != "$CURRENT_SCHEDULE" ]; then
+        log_message "Schedule changed from $CURRENT_SCHEDULE to $new_schedule - restarting player" "SCHEDULE"
+        CURRENT_SCHEDULE="$new_schedule"
+        
+        # Update video paths
+        VIDEO_FILE_DISPLAY1="${PLAYER_DIR}/$(get_schedule_videos "$CURRENT_SCHEDULE" "1")"
+        VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/$(get_schedule_videos "$CURRENT_SCHEDULE" "2")"
+        
+        # Clean restart
+        cleanup_mpv_processes
+        sleep 2
+        return 1  # Signal to restart
+    fi
+    return 0  # No change
+}
+
+# Function to cleanup existing MPV processes
+cleanup_mpv_processes() {
+    log_message "Stopping existing MPV processes for schedule change..." "CLEANUP"
+    pkill -f "mpv.*--screen=" || true
+    sleep 1
+    pkill -9 -f "mpv.*--screen=" 2>/dev/null || true
+}
+{% endif %}
 
 # Simple and effective display detection
 detect_displays() {
@@ -162,18 +287,28 @@ log_message "=== OrangeAd MPV Player Starting ===" "SYSTEM"
 log_message "Hostname: $(hostname)" "SYSTEM"
 log_message "User: $(whoami)" "SYSTEM"
 
+{% if player.schedule_enabled | default(false) %}
+log_message "Schedule-based player enabled" "SYSTEM"
+log_message "Current schedule: $CURRENT_SCHEDULE" "SCHEDULE"
+log_message "Display 1 video: $(basename "$VIDEO_FILE_DISPLAY1")" "SCHEDULE"
+if [[ -n "$VIDEO_FILE_DISPLAY2" ]]; then
+    log_message "Display 2 video: $(basename "$VIDEO_FILE_DISPLAY2")" "SCHEDULE"
+else
+    log_message "Display 2: Same as display 1" "SCHEDULE"
+fi
+{% endif %}
+
 # Validate video files exist
 if [[ ! -f "$VIDEO_FILE_DISPLAY1" ]]; then
     log_message "ERROR: Primary video file not found: $VIDEO_FILE_DISPLAY1" "ERROR"
     exit 1
 fi
 
-{% if display2_videos %}
+# Check secondary video file exists if configured
 if [[ -n "$VIDEO_FILE_DISPLAY2" && ! -f "$VIDEO_FILE_DISPLAY2" ]]; then
     log_message "ERROR: Secondary video file not found: $VIDEO_FILE_DISPLAY2" "ERROR"
     exit 1
 fi
-{% endif %}
 
 # Clean up any existing MPV processes
 log_message "Cleaning up existing MPV processes..." "CLEANUP"
@@ -195,7 +330,7 @@ if [ "$DISPLAY_COUNT" -ge 2 ]; then
     mpv --screen=0 $MPV_ARGS "$VIDEO_FILE_DISPLAY1" &
     MPV_PID_1=$!
     
-{% if display2_videos %}
+    # Start secondary display
     if [[ -n "$VIDEO_FILE_DISPLAY2" ]]; then
         mpv --screen=1 $MPV_ARGS "$VIDEO_FILE_DISPLAY2" &
         MPV_PID_2=$!
@@ -203,10 +338,6 @@ if [ "$DISPLAY_COUNT" -ge 2 ]; then
         mpv --screen=1 $MPV_ARGS "$VIDEO_FILE_DISPLAY1" &
         MPV_PID_2=$!
     fi
-{% else %}
-    mpv --screen=1 $MPV_ARGS "$VIDEO_FILE_DISPLAY1" &
-    MPV_PID_2=$!
-{% endif %}
     
     log_message "Both MPV instances launched (PIDs: $MPV_PID_1, $MPV_PID_2)" "START"
     
@@ -276,7 +407,7 @@ while true; do
     # Check secondary display if dual-screen
     if [ "$DUAL_RUNNING" = true ] && ! kill -0 $MPV_PID_2 2>/dev/null; then
         log_message "Secondary display died - restarting..." "RESTART"
-{% if display2_videos %}
+        # Restart secondary display with appropriate video
         if [[ -n "$VIDEO_FILE_DISPLAY2" ]]; then
             if start_mpv 1 "$VIDEO_FILE_DISPLAY2" "MPV_PID_2"; then
                 log_message "Secondary display restarted (PID: $MPV_PID_2)" "RESTART"
@@ -292,15 +423,15 @@ while true; do
                 DUAL_RUNNING=false
             fi
         fi
-{% else %}
-        if start_mpv 1 "$VIDEO_FILE_DISPLAY1" "MPV_PID_2"; then
-            log_message "Secondary display restarted (PID: $MPV_PID_2)" "RESTART"
-        else
-            log_message "Secondary display restart failed" "ERROR"
-            DUAL_RUNNING=false
-        fi
-{% endif %}
     fi
+    
+    {% if player.schedule_enabled | default(false) %}
+    # Check for schedule changes every cycle
+    if ! check_schedule_change; then
+        log_message "Restarting due to schedule change..." "RESTART"
+        break  # Exit monitoring loop to restart with new schedule
+    fi
+    {% endif %}
     
     # Health check every 10 cycles
     if [ $((MONITOR_COUNT % 10)) -eq 0 ]; then
@@ -309,7 +440,16 @@ while true; do
         else
             log_message "HEALTH #$MONITOR_COUNT: Single-screen (PID: $MPV_PID_1)" "HEALTH"
         fi
+        {% if player.schedule_enabled | default(false) %}
+        log_message "Current schedule: $CURRENT_SCHEDULE" "HEALTH"
+        {% endif %}
     fi
     
     sleep {{ player.health_check_interval | default(30) }}
 done
+
+{% if player.schedule_enabled | default(false) %}
+# If we exit the monitoring loop due to schedule change, restart the entire script
+log_message "Restarting player with new schedule: $CURRENT_SCHEDULE" "RESTART"
+exec "$0"  # Restart the script
+{% endif %}

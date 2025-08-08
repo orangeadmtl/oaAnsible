@@ -1,18 +1,38 @@
 ---
 - name: Configure MPV player service
   block:
-    - name: Deploy only required video files based on inventory configuration
+    - name: Collect all video files from schedules and fallback configuration
+      ansible.builtin.set_fact:
+        all_video_files: >-
+          {%- set all_videos = [] -%}
+          {%- if player.schedule_enabled | default(false) and player.schedules is defined -%}
+            {%- for schedule in player.schedules -%}
+              {%- for video in schedule.videos | default([]) | selectattr('enabled', 'equalto', true) -%}
+                {%- if video.name not in (all_videos | map(attribute='name') | list) -%}
+                  {%- set _ = all_videos.append(video) -%}
+                {%- endif -%}
+              {%- endfor -%}
+            {%- endfor -%}
+          {%- endif -%}
+          {%- for video in player.videos | default([]) | selectattr('enabled', 'equalto', true) -%}
+            {%- if video.name not in (all_videos | map(attribute='name') | list) -%}
+              {%- set _ = all_videos.append(video) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ all_videos }}
+
+    - name: Deploy all required video files from schedules and fallback
       ansible.builtin.copy:
         src: "{{ role_path }}/files/{{ video_item.name }}"
         dest: "{{ player.video_source }}/{{ video_item.name }}"
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user_group | default('staff') }}"
         mode: "0644"
-      loop: "{{ player.videos | default([]) | selectattr('enabled', 'equalto', true) | list }}"
+      loop: "{{ all_video_files }}"
       loop_control:
         loop_var: video_item
       when:
-        - player.videos is defined and player.videos | length > 0
+        - all_video_files is defined and all_video_files | length > 0
         - video_item.name | regex_search('\.(webm|mp4|mov|avi|mkv)$')
 
     - name: Deploy OrangeAd MPV player script
@@ -35,19 +55,19 @@
       ansible.builtin.debug:
         msg: |
           File deployment completed successfully:
-          - Video files: {{ player.videos | default([]) | selectattr('enabled', 'equalto', true) | list | length }} deployed
-          - Player script: oemplayer.sh deployed
+          - Video files: {{ all_video_files | length }} deployed (from {{ 'schedules and fallback' if player.schedule_enabled | default(false) else 'static configuration' }})
+          - Player script: oemplayer.sh deployed with {{ 'time-based scheduling' if player.schedule_enabled | default(false) else 'static configuration' }}
           - LaunchAgent plist: {{ player.service_name }}.plist ready
           - Service transition will happen next (minimal downtime)
 
     - name: Verify all required files are in place
       ansible.builtin.stat:
         path: "{{ player.video_source }}/{{ video_item.name }}"
-      loop: "{{ player.videos | default([]) | selectattr('enabled', 'equalto', true) | list }}"
+      loop: "{{ all_video_files }}"
       loop_control:
         loop_var: video_item
       register: video_files_final_check
-      when: player.videos is defined and player.videos | length > 0
+      when: all_video_files is defined and all_video_files | length > 0
 
     - name: Validate file deployment readiness
       ansible.builtin.fail:
