@@ -18,7 +18,7 @@
       - "Install Directory: {{ oasentinel_dir }}"
       - "Branch: {{ oasentinel_branch }}"
       - "Python Environment: {{ oasentinel_venv_path }}"
-  tags: [oasentinel-setup, oasentinel-full]
+  tags: [oasentinel-setup, oasentinel-train, oasentinel-full]
 
 # Git repository management
 - name: Check if oaSentinel directory already exists
@@ -84,13 +84,17 @@
     source .venv/bin/activate
     pip install --upgrade pip uv
     if [ -f "pyproject.toml" ]; then
+      # Ensure GUI OpenCV wheels are removed so headless variant is used
+      uv pip uninstall -y opencv-python opencv-contrib-python >/dev/null 2>&1 || true
       uv pip install -e .
     elif [ -f "requirements.txt" ]; then
+      # Ensure GUI OpenCV wheels are removed so headless variant is used
+      uv pip uninstall -y opencv-python opencv-contrib-python >/dev/null 2>&1 || true
       uv pip install -r requirements.txt
     else
       echo "No pyproject.toml or requirements.txt found, installing core dependencies"
       uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-      uv pip install ultralytics opencv-python wandb huggingface_hub datasets pyyaml typer rich
+      uv pip install ultralytics opencv-python-headless wandb huggingface_hub datasets pyyaml typer rich
     fi
   become: true
   become_user: "{{ ansible_user }}"
@@ -154,15 +158,6 @@
     mode: "0755"
   tags: [oasentinel-setup, oasentinel-full]
 
-- name: Create automated training script
-  ansible.builtin.template:
-    src: oasentinel_train_auto.sh.j2
-    dest: "{{ oasentinel_dir }}/start_training_auto.sh"
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-    mode: "0755"
-  tags: [oasentinel-setup, oasentinel-full, oasentinel-train]
-
 # Environment variables and aliases
 - name: Add oaSentinel environment to .bashrc
   ansible.builtin.blockinfile:
@@ -179,51 +174,129 @@
       export OASENTINEL_DATA_DIR="{{ ubuntu_oasentinel.data_dir | default('/shared/datasets') }}"
       export OASENTINEL_MODEL_DIR="{{ ubuntu_oasentinel.model_dir | default('/shared/models') }}"
       export OASENTINEL_EXPORT_DIR="{{ ubuntu_oasentinel.export_dir | default('/shared/models/exported') }}"
+      export PATH="$OASENTINEL_HOME/bin:$HOME/.local/bin:$PATH"
     create: true
   changed_when: false
   become: true
   become_user: "{{ ansible_user }}"
-  tags: [oasentinel-setup, oasentinel-full]
+  tags: [oasentinel-setup, oasentinel-train, oasentinel-full]
 
 - name: Add oaSentinel aliases to .bashrc
   ansible.builtin.blockinfile:
     path: "{{ ansible_user_dir }}/.bashrc"
     marker: "# {mark} ANSIBLE MANAGED - oaSentinel Aliases"
     block: |
-      # oaSentinel Training Aliases
-      alias oas-train="cd $OASENTINEL_HOME && ./scripts/train.sh"
-      alias oas-train-auto="cd $OASENTINEL_HOME && ./start_training_auto.sh"
-      alias oas-eval="cd $OASENTINEL_HOME && ./scripts/evaluate.sh"
-      alias oas-export="cd $OASENTINEL_HOME && ./scripts/export.sh"
-      alias oas-status="cd $OASENTINEL_HOME && python -c 'from src.cli import app; app()' status"
+      # oaSentinel CLI shortcuts (bin-based)
+      oas-train() { "$OASENTINEL_HOME/bin/oas-train" "$@"; }
+      oas-export() { "$OASENTINEL_HOME/bin/oas-export" "$@"; }
 
       # Training session management
       alias oas-screen="screen -S oasentinel-training"
-      alias oas-screen-attach="screen -r oasentinel-training"
+      alias oas-screen-attach="$OASENTINEL_HOME/bin/oas-screen-attach"
       alias oas-logs="tail -f $OASENTINEL_HOME/logs/training/*.log 2>/dev/null || echo 'No training logs found'"
 
-      # Quick functions
-      oas-quick-train() {
-          cd $OASENTINEL_HOME
-          source .venv/bin/activate
-          screen -dmS oasentinel-training bash -c "./start_training_auto.sh; exec bash"
-          echo "Training started in background screen session 'oasentinel-training'"
-          echo "Attach with: screen -r oasentinel-training"
-      }
-
-      oas-info() {
-          echo "oaSentinel Environment Info"
-          echo "================================"
-          echo "Home: $OASENTINEL_HOME"
-          echo "Virtual env: $([ -f "$OASENTINEL_HOME/.venv/bin/activate" ] && echo "[OK] Ready" || echo "[FAIL] Not found")"
-          echo "GPU Status: $(command -v nvidia-smi >/dev/null && nvidia-smi --query-gpu=name --format=csv,noheader || echo "No GPU detected")"
-          echo "Training sessions: $(screen -list | grep oasentinel || echo "None")"
-      }
+      # Convenience wrappers
+      oas-quick-train() { "$OASENTINEL_HOME/bin/oas-quick-train" "$@"; }
+      oas-info() { "$OASENTINEL_HOME/bin/oas-info" "$@"; }
     create: true
     mode: "0644"
   become: true
   become_user: "{{ ansible_user }}"
-  tags: [oasentinel-setup, oasentinel-full]
+  tags: [oasentinel-setup, oasentinel-train, oasentinel-full]
+
+- name: Add oaSentinel environment to .zshrc
+  ansible.builtin.blockinfile:
+    path: "{{ ansible_user_dir }}/.zshrc"
+    marker: "# {mark} ANSIBLE MANAGED - oaSentinel Environment (zsh)"
+    mode: "0644"
+    block: |
+      # oaSentinel Environment (zsh)
+      export OASENTINEL_HOME="{{ oasentinel_dir }}"
+      export PYTHONPATH="$OASENTINEL_HOME/src:$PYTHONPATH"
+      export WANDB_PROJECT="oaSentinel"
+      export WANDB_MODE="{{ ubuntu_oasentinel.wandb_mode | default('disabled') }}"
+      export OASENTINEL_LOG_LEVEL="{{ ubuntu_oasentinel.log_level | default('INFO') }}"
+      export OASENTINEL_DATA_DIR="{{ ubuntu_oasentinel.data_dir | default('/shared/datasets') }}"
+      export OASENTINEL_MODEL_DIR="{{ ubuntu_oasentinel.model_dir | default('/shared/models') }}"
+      export OASENTINEL_EXPORT_DIR="{{ ubuntu_oasentinel.export_dir | default('/shared/models/exported') }}"
+      export PATH="$OASENTINEL_HOME/bin:$HOME/.local/bin:$PATH"
+    create: true
+  changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  tags: [oasentinel-setup, oasentinel-train, oasentinel-full]
+
+- name: Add oaSentinel aliases to .zshrc
+  ansible.builtin.blockinfile:
+    path: "{{ ansible_user_dir }}/.zshrc"
+    marker: "# {mark} ANSIBLE MANAGED - oaSentinel Aliases (zsh)"
+    block: |
+      # oaSentinel CLI shortcuts (bin-based) for zsh
+      oas-train() { "$OASENTINEL_HOME/bin/oas-train" "$@"; }
+      oas-export() { "$OASENTINEL_HOME/bin/oas-export" "$@"; }
+
+      # Training session management
+      alias oas-screen="screen -S oasentinel-training"
+      alias oas-screen-attach="$OASENTINEL_HOME/bin/oas-screen-attach"
+      alias oas-logs="tail -f $OASENTINEL_HOME/logs/training/*.log 2>/dev/null || echo 'No training logs found'"
+
+      # Convenience wrappers
+      oas-quick-train() { "$OASENTINEL_HOME/bin/oas-quick-train" "$@"; }
+      oas-info() { "$OASENTINEL_HOME/bin/oas-info" "$@"; }
+    create: true
+    mode: "0644"
+  become: true
+  become_user: "{{ ansible_user }}"
+  tags: [oasentinel-setup, oasentinel-train, oasentinel-full]
+
+# Install helper scripts into ~/.local/bin so they're available without sourcing aliases
+- name: Ensure ~/.local/bin exists
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/.local/bin"
+    state: directory
+    mode: "0755"
+  become: true
+  become_user: "{{ ansible_user }}"
+  tags: [oasentinel-setup, oasentinel-train, oasentinel-full]
+
+- name: Install helper script oas-screen-attach
+  ansible.builtin.copy:
+    dest: "{{ ansible_user_dir }}/.local/bin/oas-screen-attach"
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    content: |
+      #!/usr/bin/env sh
+      exec "{{ oasentinel_dir }}/bin/oas-screen-attach" "$@"
+  become: true
+  become_user: "{{ ansible_user }}"
+  tags: [oasentinel-setup, oasentinel-train, oasentinel-full]
+
+- name: Install helper script oas-quick-train
+  ansible.builtin.copy:
+    dest: "{{ ansible_user_dir }}/.local/bin/oas-quick-train"
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    content: |
+      #!/usr/bin/env sh
+      exec "{{ oasentinel_dir }}/bin/oas-quick-train" "$@"
+  become: true
+  become_user: "{{ ansible_user }}"
+  tags: [oasentinel-setup, oasentinel-train, oasentinel-full]
+
+- name: Install helper script oas-info
+  ansible.builtin.copy:
+    dest: "{{ ansible_user_dir }}/.local/bin/oas-info"
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    content: |
+      #!/usr/bin/env sh
+      exec "{{ oasentinel_dir }}/bin/oas-info" "$@"
+  become: true
+  become_user: "{{ ansible_user }}"
+  tags: [oasentinel-setup, oasentinel-train, oasentinel-full]
 
 # Dataset preparation (oasentinel-data tag) - Updated for shared location
 - name: Create shared CrowdHuman dataset directories
@@ -250,6 +323,24 @@
     - "{{ ubuntu_crowdhuman_dataset.raw_path }}/Images"
   tags: [oasentinel-data, oasentinel-train, oasentinel-full]
 
+- name: Count images in shared CrowdHuman Images directory (recursive)
+  ansible.builtin.find:
+    paths: "{{ ubuntu_crowdhuman_dataset.raw_path }}/Images"
+    file_type: file
+    recurse: true
+    use_regex: false
+    patterns:
+      - "*.jpg"
+      - "*.jpeg"
+      - "*.png"
+      - "*.JPG"
+      - "*.JPEG"
+      - "*.PNG"
+  register: crowdhuman_images_find
+  changed_when: false
+  failed_when: false
+  tags: [oasentinel-data, oasentinel-train, oasentinel-full]
+
 - name: Check if CrowdHuman dataset exists in old project location
   ansible.builtin.stat:
     path: "{{ item }}"
@@ -262,7 +353,7 @@
 
 - name: Set dataset completeness flags
   ansible.builtin.set_fact:
-    crowdhuman_shared_complete: "{{ crowdhuman_shared_files_stat.results | selectattr('stat.exists') | list | length == 3 }}"
+    crowdhuman_shared_complete: "{{ (crowdhuman_shared_files_stat.results | selectattr('stat.exists') | list | length == 3) and ((crowdhuman_images_find.matched | default(0)) | int > 0) }}"
     crowdhuman_old_exists: "{{ crowdhuman_old_files_stat.results | selectattr('stat.exists') | list | length > 0 }}"
   tags: [oasentinel-data, oasentinel-train, oasentinel-full]
 
@@ -272,6 +363,7 @@
       CrowdHuman Dataset Status:
       - Shared Location Complete: {{ crowdhuman_shared_complete }}
       - Shared Location: {{ ubuntu_crowdhuman_dataset.base_path }}
+      - Shared Images Found: {{ crowdhuman_images_find.matched | default(0) }}
       - Old Project Data Found: {{ crowdhuman_old_exists }}
       - Old Location: {{ ubuntu_crowdhuman_dataset.old_project_path }}
       {% if crowdhuman_shared_complete %}
@@ -356,6 +448,39 @@
   async: 1800 # 30 minutes timeout for large dataset downloads
   poll: 30
 
+- name: Re-check shared dataset files after download
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: crowdhuman_shared_files_stat_post
+  loop:
+    - "{{ ubuntu_crowdhuman_dataset.raw_path }}/annotation_train.odgt"
+    - "{{ ubuntu_crowdhuman_dataset.raw_path }}/annotation_val.odgt"
+    - "{{ ubuntu_crowdhuman_dataset.raw_path }}/Images"
+  tags: [oasentinel-data, oasentinel-full]
+
+- name: Re-count images in shared Images directory after download (recursive)
+  ansible.builtin.find:
+    paths: "{{ ubuntu_crowdhuman_dataset.raw_path }}/Images"
+    file_type: file
+    recurse: true
+    use_regex: false
+    patterns:
+      - "*.jpg"
+      - "*.jpeg"
+      - "*.png"
+      - "*.JPG"
+      - "*.JPEG"
+      - "*.PNG"
+  register: crowdhuman_images_find_post
+  changed_when: false
+  failed_when: false
+  tags: [oasentinel-data, oasentinel-full]
+
+- name: Update completeness flag after download
+  ansible.builtin.set_fact:
+    crowdhuman_shared_complete: "{{ (crowdhuman_shared_files_stat_post.results | selectattr('stat.exists') | list | length == 3) and ((crowdhuman_images_find_post.matched | default(0)) | int > 0) }}"
+  tags: [oasentinel-data, oasentinel-full]
+
 - name: Check if processed dataset already exists in shared location
   ansible.builtin.stat:
     path: "{{ ubuntu_crowdhuman_dataset.processed_path }}/images/train"
@@ -423,7 +548,23 @@
     - { src: "{{ ubuntu_crowdhuman_dataset.config_path }}/dataset.yaml", dest: "crowdhuman.yaml" }
   become: true
   become_user: "{{ ansible_user }}"
-  tags: [oasentinel-data, oasentinel-full]
+  tags: [oasentinel-setup, oasentinel-full]
+
+# Python environment setup
+
+# Helper commands are provided via the oaSentinel Aliases blockinfile above; no duplicate alias entries here
+
+- name: Ensure bin scripts are executable on target
+  ansible.builtin.file:
+    path: "{{ oasentinel_dir }}/bin/{{ item }}"
+    mode: '0755'
+  loop:
+    - oas-quick-train
+    - oas-screen-attach
+    - oas-info
+  become: true
+  become_user: "{{ ansible_user }}"
+  tags: [oasentinel-setup, oasentinel-full]
 
 # Training initiation (oasentinel-train tag)
 - name: Start oaSentinel training session
@@ -438,21 +579,14 @@
       exit 0
     fi
 
-    # Start training in screen session with new professional executable
-    screen -dmS oasentinel-training bash -c "
-      cd {{ oasentinel_dir }}
-      source .venv/bin/activate
-      echo "Starting training in background screen session..."
-      python bin/oas-train \
-        --data {{ ubuntu_crowdhuman_dataset.config_path }}/dataset.yaml \
-        --epochs {{ ubuntu_oasentinel.epochs | default(100) }} \
-        --device {{ ubuntu_oasentinel.device | default('[0]') }}
-    "
+    # Start training in screen session with robust quoting
+    screen -dmS oasentinel-training zsh -lc "cd {{ oasentinel_dir }} && source .venv/bin/activate && python bin/oas-train --data {{ ubuntu_crowdhuman_dataset.config_path }}/dataset.yaml --epochs {{ ubuntu_oasentinel.epochs | default(100) }} --device {{ ubuntu_oasentinel.device | default('[0]') }}"
   changed_when: false
   become: true
   become_user: "{{ ansible_user }}"
   args:
-    executable: /bin/bash
+    executable: /bin/zsh
+  register: training_start
   when: crowdhuman_shared_complete and (ubuntu_oasentinel.auto_start_training | default(false))
   tags: [oasentinel-train, oasentinel-full]
 
@@ -473,7 +607,7 @@
     echo "🎯 oaSentinel Installation Verification"
     echo "========================================"
     echo "Directory: {{ oasentinel_dir }}"
-    echo "Virtual Environment: $([ -f ".venv/bin/activate" ] && echo " Ready" || echo " Missing")"
+    echo "Virtual Environment: $( [ -f '.venv/bin/activate' ] && echo Ready || echo Missing )"
     echo "Repository Status: $(git status --porcelain | wc -l) uncommitted changes"
     echo "Python Packages:"
     pip list | grep -E "(torch|ultralytics|opencv|wandb)" || echo "Core packages not found"
@@ -487,7 +621,7 @@
   become: true
   become_user: "{{ ansible_user }}"
   args:
-    executable: /bin/bash
+    executable: /bin/zsh
   register: oasentinel_verification
   tags: [oasentinel-setup, oasentinel-full, verify]
 
