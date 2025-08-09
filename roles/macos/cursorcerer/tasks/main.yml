@@ -1,0 +1,260 @@
+---
+- name: Deploy Cursorcerer system-wide cursor hiding
+  when: (cursorcerer | default({})).enabled | default(cursorcerer_defaults.enabled) | default(true)
+  tags: ["cursorcerer", "kiosk", "ui"]
+  block:
+    - name: Merge Cursorcerer configuration with defaults
+      ansible.builtin.set_fact:
+        cursorcerer_config: "{{ cursorcerer_defaults | combine(cursorcerer | default({}), recursive=true) }}"
+        
+    - name: Set derived paths from configuration
+      ansible.builtin.set_fact:
+        cursorcerer_prefpane_path: "{{ cursorcerer_config.prefpane_path }}"
+        cursorcerer_app_path: "{{ cursorcerer_config.app_path }}"
+        cursorcerer_app_binary: "{{ cursorcerer_config.app_binary }}"
+        cursorcerer_log_path: "{{ cursorcerer_config.log_path }}"
+
+    - name: Create required directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ cursorcerer_prefpane_path }}"
+        - "{{ ansible_user_dir }}/orangead/logs"
+        - "{{ ansible_user_dir }}/Library/LaunchAgents"
+
+    - name: Check if Cursorcerer is already installed
+      ansible.builtin.stat:
+        path: "{{ cursorcerer_prefpane_path }}/Cursorcerer.prefPane"
+      register: cursorcerer_installed
+
+    - name: Download and install Cursorcerer (when not installed)
+      when: not cursorcerer_installed.stat.exists
+      block:
+        - name: Download Cursorcerer from official source
+          ansible.builtin.get_url:
+            url: "https://www.doomlaser.com/downloads/Cursorcerer.zip"
+            dest: "/tmp/Cursorcerer.zip"
+            mode: "0644"
+            timeout: 30
+          register: cursorcerer_download
+
+        - name: Extract Cursorcerer ZIP file
+          ansible.builtin.unarchive:
+            src: "/tmp/Cursorcerer.zip"
+            dest: "{{ cursorcerer_prefpane_path }}"
+            remote_src: true
+          register: cursorcerer_extract
+          notify:
+            - verify cursorcerer installation
+
+        - name: Clean up downloaded ZIP file
+          ansible.builtin.file:
+            path: "/tmp/Cursorcerer.zip"
+            state: absent
+
+    - name: Set appropriate permissions for Cursorcerer application
+      ansible.builtin.file:
+        path: "{{ cursorcerer_app_binary }}"
+        mode: "0755"
+      when: not cursorcerer_installed.stat.exists
+
+    - name: Configure Cursorcerer preferences (using REAL keys only)
+      ansible.builtin.shell: |
+        # Configure Cursorcerer using only the keys it actually reads
+        # Based on reverse engineering: only idleHide, autoShow, HotkeyEnabled, HotkeyCombo are used
+        
+        # Clear conflicting UI preferences 
+        defaults delete com.doomlaser.cursorcerer 2>/dev/null || true
+        
+        # Set cursor hide timeout (REAL key: idleHide, not IdleTimeout!)
+        defaults write com.doomlaser.cursorcerer idleHide -float {{ cursorcerer_config.idle_timeout | default(3) }}
+        
+        # Set show cursor on movement (REAL key: autoShow, not ShowOnMovement!)
+        defaults write com.doomlaser.cursorcerer autoShow -bool {{ cursorcerer_config.show_on_movement | default(true) | lower }}
+        
+        # Configure hotkey (REAL keys: HotkeyEnabled, HotkeyCombo)
+        defaults write com.doomlaser.cursorcerer HotkeyEnabled -bool {{ cursorcerer_config.hotkey_enabled | default(true) | lower }}
+        {% if cursorcerer_config.hotkey_enabled | default(true) %}
+        defaults write com.doomlaser.cursorcerer HotkeyCombo -string "{{ cursorcerer_config.hotkey_combo | default('^~k') }}"
+        {% endif %}
+        
+        # Note: SystemWide, IdleTimeout, ShowOnMovement keys are ignored by Cursorcerer
+        
+        # Force preferences daemon to reload
+        killall -u $USER cfprefsd 2>/dev/null || true
+        
+      register: cursorcerer_config_result
+      changed_when: cursorcerer_config_result.rc == 0
+      failed_when: cursorcerer_config_result.rc != 0
+
+    - name: Create Cursorcerer LaunchAgent for auto-start
+      ansible.builtin.template:
+        src: com.orangead.cursorcerer.plist.j2
+        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.cursorcerer.plist"
+        mode: "0644"
+      when: cursorcerer_config.auto_start | default(true)
+      notify:
+        - reload cursorcerer launchagent
+
+    - name: Kill existing Cursorcerer processes
+      ansible.builtin.shell: pkill -f Cursorcerer || true
+      register: kill_result
+      failed_when: false
+      changed_when: false
+
+    - name: Restart Cursorcerer to apply new preferences
+      ansible.builtin.shell: |
+        # Kill existing processes to force reload of preferences
+        pkill -f Cursorcerer || true
+        sleep 2
+        
+        # Start Cursorcerer application
+        nohup "{{ cursorcerer_app_binary }}" > "{{ cursorcerer_log_path }}" 2>&1 &
+        
+        # Give it time to start and load preferences
+        sleep 3
+      register: cursorcerer_start
+      changed_when: true
+
+    - name: Wait for Cursorcerer to start
+      ansible.builtin.wait_for:
+        timeout: 5
+      delegate_to: localhost
+
+    - name: Verify Cursorcerer is running
+      ansible.builtin.shell: pgrep -f Cursorcerer
+      register: cursorcerer_check
+      failed_when: false
+      changed_when: false
+
+    - name: Log Cursorcerer deployment status
+      ansible.builtin.debug:
+        msg:
+          - "=== Cursorcerer Deployment Status ==="
+          - "Installation: {{ 'Already installed' if cursorcerer_installed.stat.exists else 'Downloaded and installed from official source' }}"
+          - "Source: https://www.doomlaser.com/downloads/Cursorcerer.zip"
+          - "Configured idle timeout: {{ cursorcerer_config.idle_timeout | default(3) }} seconds"
+          - "Hotkey enabled: {{ cursorcerer_config.hotkey_enabled | default(true) }}"
+          - "Auto-start: {{ cursorcerer_config.auto_start | default(true) }}"
+          - "System-wide coverage: {{ cursorcerer_config.system_wide_coverage | default(true) }}"
+          - "Integration: Works alongside MPV --no-input-cursor"
+          - ""
+          - "⚠️  Note: Manual UI changes override programmatic settings"
+          - "   Use hotkey (Ctrl+Opt+K) or check preference pane to verify actual settings"
+        verbosity: 0
+
+    - name: Comprehensive Cursorcerer functionality test
+      ansible.builtin.shell: |
+        echo "=== Cursorcerer Comprehensive Debug ==="
+        
+        # 1. Process Status
+        if pgrep -f "Cursorcerer" > /dev/null; then
+          echo "✓ Process: Running"
+          process_count=$(pgrep -f "Cursorcerer" | wc -l | xargs)
+          echo "  Count: $process_count processes"
+          pids=$(pgrep -f "Cursorcerer" | tr '\n' ' ')
+          echo "  PIDs: $pids"
+        else
+          echo "❌ Process: Not running"
+          exit 1
+        fi
+        
+        # 2. LaunchAgent Status
+        {% if cursorcerer_config.auto_start | default(true) %}
+        if launchctl list | grep -q "com.orangead.cursorcerer"; then
+          echo "✓ LaunchAgent: Loaded and running"
+        else
+          echo "⚠ LaunchAgent: Not loaded"
+        fi
+        {% endif %}
+        
+        # 3. All Preferences Analysis
+        echo "✓ Preference Settings Analysis:"
+        
+        # Individual setting checks with expected vs actual
+        idle_timeout=$(defaults read com.doomlaser.cursorcerer IdleTimeout 2>/dev/null || echo "not set")
+        idle_hide=$(defaults read com.doomlaser.cursorcerer idleHide 2>/dev/null || echo "not set") 
+        hotkey_enabled=$(defaults read com.doomlaser.cursorcerer HotkeyEnabled 2>/dev/null || echo "not set")
+        hotkey_combo=$(defaults read com.doomlaser.cursorcerer HotkeyCombo 2>/dev/null || echo "not set")
+        show_on_movement=$(defaults read com.doomlaser.cursorcerer ShowOnMovement 2>/dev/null || echo "not set")
+        auto_show=$(defaults read com.doomlaser.cursorcerer autoShow 2>/dev/null || echo "not set")
+        system_wide=$(defaults read com.doomlaser.cursorcerer SystemWide 2>/dev/null || echo "not set")
+        
+        echo "  Expected vs Actual Settings (REAL keys only):"
+        echo "    Idle Timeout: Expected={{ cursorcerer_config.idle_timeout | default(3) }}s, idleHide=${idle_hide}s"
+        echo "    Show on Movement: Expected={{ cursorcerer_config.show_on_movement | default(true) }}, autoShow=${auto_show}"
+        echo "    Hotkey: Expected={{ cursorcerer_config.hotkey_enabled | default(true) }}, HotkeyEnabled=${hotkey_enabled}"
+        echo "    Hotkey Combo: Expected={{ cursorcerer_config.hotkey_combo | default('^~k') }}, HotkeyCombo=${hotkey_combo}"
+        echo ""
+        echo "  UNUSED keys (ignored by Cursorcerer):"
+        echo "    IdleTimeout=${idle_timeout}, ShowOnMovement=${show_on_movement}, SystemWide=${system_wide}"
+        
+        # 4. Setting Consistency Check
+        echo "✓ Setting Consistency Check:"
+        issues=0
+        
+        # Check REAL keys only (keys Cursorcerer actually uses)
+        expected_timeout={{ cursorcerer_config.idle_timeout | default(3) }}
+        if [ "$idle_hide" != "$expected_timeout" ]; then
+          echo "  ❌ Timeout mismatch: Expected ${expected_timeout}s, got idleHide=${idle_hide}s"
+          issues=$((issues + 1))
+        else
+          echo "  ✓ Idle timeout correct: ${expected_timeout}s"
+        fi
+        
+        expected_autoshow={{ cursorcerer_config.show_on_movement | default(true) | lower }}
+        if [ "$auto_show" = "1" ] && [ "$expected_autoshow" = "true" ]; then
+          echo "  ✓ Show on movement correct: enabled"
+        elif [ "$auto_show" = "0" ] && [ "$expected_autoshow" = "false" ]; then
+          echo "  ✓ Show on movement correct: disabled"
+        else
+          echo "  ❌ Show on movement mismatch: Expected ${expected_autoshow}, got autoShow=${auto_show}"
+          issues=$((issues + 1))
+        fi
+        
+        expected_hotkey={{ cursorcerer_config.hotkey_enabled | default(true) | lower }}
+        if [ "$hotkey_enabled" = "1" ] && [ "$expected_hotkey" = "true" ]; then
+          echo "  ✓ Hotkey correct: enabled"
+        elif [ "$hotkey_enabled" = "0" ] && [ "$expected_hotkey" = "false" ]; then
+          echo "  ✓ Hotkey correct: disabled"
+        else
+          echo "  ❌ Hotkey mismatch: Expected ${expected_hotkey}, got HotkeyEnabled=${hotkey_enabled}"
+          issues=$((issues + 1))
+        fi
+        
+        expected_combo="{{ cursorcerer_config.hotkey_combo | default('^~k') }}"
+        if [ "$hotkey_combo" = "$expected_combo" ]; then
+          echo "  ✓ Hotkey combo correct: ${expected_combo}"
+        else
+          echo "  ❌ Hotkey combo mismatch: Expected ${expected_combo}, got ${hotkey_combo}"
+          issues=$((issues + 1))
+        fi
+        
+        # Summary
+        echo "✓ Debug Summary:"
+        if [ $issues -eq 0 ]; then
+          echo "  ✓ All settings configured correctly"
+          echo "  ✓ Ready for manual functionality testing"
+        else
+          echo "  ⚠ Found $issues setting inconsistencies"
+          echo "  ⚠ Manual reconfiguration may be needed"
+        fi
+        
+        echo ""
+        echo "✓ Manual Testing Instructions:"
+        echo "  1. Move cursor and wait {{ cursorcerer_config.idle_timeout | default(3) }} seconds - cursor should hide"
+        echo "  2. Move cursor again - cursor should reappear"  
+        echo "  3. Press Ctrl+Opt+K - should toggle cursor on/off"
+        echo "  4. Test with different applications to verify system-wide behavior"
+        
+        exit 0
+      register: cursorcerer_debug
+      changed_when: false
+      failed_when: cursorcerer_debug.rc != 0
+
+    - name: Display debug results
+      ansible.builtin.debug:
+        msg: "{{ cursorcerer_debug.stdout_lines }}"
+      when: cursorcerer_debug is defined

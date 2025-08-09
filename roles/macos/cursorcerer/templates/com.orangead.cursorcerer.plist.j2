@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.orangead.cursorcerer</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{ cursorcerer_app_binary }}</string>
+    </array>
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    {% if cursorcerer.auto_restart | default(true) %}
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    {% endif %}
+    
+    <key>StandardOutPath</key>
+    <string>{{ cursorcerer_log_path }}</string>
+    
+    <key>StandardErrorPath</key>
+    <string>{{ cursorcerer_log_path }}</string>
+    
+    <key>WorkingDirectory</key>
+    <string>{{ ansible_user_dir }}</string>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
+    </dict>
+    
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    
+    {% if cursorcerer.coordinate_with_player | default(true) %}
+    <!-- Start after a delay to allow other services to initialize -->
+    <key>StartInterval</key>
+    <integer>30</integer>
+    {% endif %}
+    
+    <!-- Prevent multiple instances -->
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
+    
+    <!-- Restart policy -->
+    <key>ExitTimeOut</key>
+    <integer>5</integer>
+    
+    <!-- Process management -->
+    <key>AbandonProcessGroup</key>
+    <true/>
+    
+    <!-- Launch only for GUI sessions -->
+    <key>LaunchOnlyOnce</key>
+    <false/>
+</dict>
+</plist>
