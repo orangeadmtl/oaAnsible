@@ -7,7 +7,7 @@
 
 - name: Check macOS component compatibility
   ansible.builtin.set_fact:
-    compatible_components: "{{ compatible_components + ['macos-api', 'tracker', 'alpr', 'player', 'camguard', 'base', 'network', 'security', 'ssh'] }}"
+    compatible_components: "{{ compatible_components + ['macos-api', 'tracker', 'alpr', 'player', 'camguard', 'cursorcerer', 'base', 'network', 'security', 'ssh'] }}"
   when: target_platform == "macos"
 
 - name: Check Ubuntu component compatibility
@@ -139,6 +139,14 @@
     - target_platform == "macos"
     - "'camguard' in deployment_components | default(selected_components)"
   tags: ["camguard"]
+
+- name: Deploy Cursorcerer component
+  ansible.builtin.include_role:
+    name: macos/cursorcerer
+  when:
+    - target_platform == "macos"
+    - "'cursorcerer' in deployment_components | default(selected_components)"
+  tags: ["cursorcerer"]
 
 # Ubuntu-specific components
 - name: Deploy Docker component

@@ -39,6 +39,15 @@
           experimental: true
           multi_service: true # Deploys both Docker service and Python monitor
 
+        cursorcerer:
+          platform: "macos"
+          requires: ["base-system"]
+          conflicts: []
+          provides: ["system-cursor-hiding", "kiosk-enhancement"]
+          category: "ui-enhancement"
+          priority: 50
+          kiosk_mode: true # Specifically for kiosk deployments
+
         # Universal Components
         base-system:
           platform: "universal"

@@ -30,6 +30,7 @@
           "api": "macos-api"
           "alpr": "alpr"
           "camguard": "camguard"
+          "cursorcerer": "cursorcerer"
           "transfer": "transfer"
           "base": "base"
           "network": "network"
@@ -56,6 +57,7 @@
             "api": "macos-api",
             "alpr": "alpr",
             "camguard": "camguard",
+            "cursorcerer": "cursorcerer",
             "transfer": "transfer",
             "base": "base",
             "network": "network",
@@ -116,7 +118,7 @@
 
           Valid component tags are:
           - Infrastructure: base, network, security, ssh
-          - Applications: macos-api, api, tracker, player, alpr, camguard, transfer
+          - Applications: macos-api, api, tracker, player, alpr, camguard, cursorcerer, transfer
           - Platform-specific: docker, nvidia, gpu, ml, health
           - oaSentinel: oasentinel-setup, oasentinel-data, oasentinel-train, oasentinel-full, oasentinel
 
@@ -194,7 +196,8 @@
             (oa_environment.deploy_macos_api | default(false) | ternary(['macos-api'], [])) +
             (oa_environment.deploy_tracker | default(false) | ternary(['tracker'], [])) +
             (oa_environment.deploy_player | default(false) | ternary(['player'], [])) +
-            (oa_environment.deploy_alpr_service | default(false) | ternary(['alpr'], []))
+            (oa_environment.deploy_alpr_service | default(false) | ternary(['alpr'], [])) +
+            (oa_environment.deploy_cursorcerer | default(false) | ternary(['cursorcerer'], []))
           }}
       when:
         - execution_mode == "full"
@@ -208,6 +211,7 @@
           - deploy_tracker: {{ oa_environment.deploy_tracker | default(false) }}
           - deploy_player: {{ oa_environment.deploy_player | default(false) }}
           - deploy_alpr_service: {{ oa_environment.deploy_alpr_service | default(false) }}
+          - deploy_cursorcerer: {{ oa_environment.deploy_cursorcerer | default(false) }}
 
           Final component list: {{ inventory_components | default([]) }}
       when:
@@ -245,7 +249,7 @@
 
               Available component tags:
               - Infrastructure: base, network, security, ssh
-              - Applications: macos-api (or 'api'), tracker, player, alpr, camguard
+              - Applications: macos-api (or 'api'), tracker, player, alpr, camguard, cursorcerer
               - Platform-specific: docker, nvidia, gpu, ml, health
               - oaSentinel: oasentinel-setup, oasentinel-data, oasentinel-train, oasentinel-full, oasentinel
 
