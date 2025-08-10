@@ -29,11 +29,12 @@ all:
       allow_experimental: false
       allow_server_optimizations: false # Conservative for stability - prevents SSH disconnections
       allow_destructive_operations: false
-      # Evenko preprod project components: player only
+      # Evenko preprod project components: player + cursorcerer testing
       deploy_macos_api: false
       deploy_tracker: false
       deploy_alpr_service: false
       deploy_player: true
+      deploy_cursorcerer: true  # NEW: System-wide cursor hiding for testing
 
     # Custom wallpaper deployment
     deploy_custom_wallpaper: true
@@ -66,18 +67,60 @@ all:
       system_volume_muted: true
       hide_desktop_icons: true
 
-      # Videos configuration - Evenko slideshow for both screens (compressed)
+      # Time-based scheduling configuration (testing environment - TEST SCHEDULE for 5:30 PM)
+      schedule_enabled: true
+      schedules:
+        - name: "daytime"
+          start_time: "01:00"
+          end_time: "22:30"
+          videos:
+            - name: "SLIDESHOW_ILESONIQ.mp4"
+              display: 1
+              enabled: true
+              loop: true
+              volume: 0.0
+            - name: "SLIDESHOW_ILESONIQ.mp4"
+              display: 2
+              enabled: true
+              loop: true
+              volume: 0.0
+        - name: "nighttime"
+          start_time: "22:30"
+          end_time: "01:00"
+          videos:
+            - name: "POUR22h30_SLIDESHOW_ILESONIQ.mp4"
+              display: 1
+              enabled: true
+              loop: true
+              volume: 0.0
+            - name: "POUR22h30_SLIDESHOW_ILESONIQ.mp4"
+              display: 2
+              enabled: true
+              loop: true
+              volume: 0.0
+
+      # Fallback videos configuration (for backward compatibility)
       videos:
-        - name: "Osheaga_sunday_compressed.mp4"
+        - name: "SLIDESHOW_ILESONIQ.mp4"
           display: 1
           enabled: true
           loop: true
           volume: 0.0
-        - name: "Osheaga_sunday_compressed.mp4"
+        - name: "SLIDESHOW_ILESONIQ.mp4"
           display: 2
           enabled: true
           loop: true
           volume: 0.0
+
+    # Cursorcerer configuration for system-wide cursor hiding
+    cursorcerer:
+      enabled: true
+      idle_timeout: 3          # Hide cursor after 3 seconds (testing mode)
+      hotkey_enabled: true     # Keep hotkey enabled for testing/debugging
+      auto_start: true         # Start on login
+      show_on_movement: true   # Show cursor when mouse moves
+      coordinate_with_player: true  # Work alongside MPV cursor hiding
+      system_wide_coverage: true   # Provide complete system coverage
 
   children:
     macos:

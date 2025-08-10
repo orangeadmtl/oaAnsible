@@ -66,14 +66,46 @@ all:
       system_volume_muted: true
       hide_desktop_icons: true
 
-      # Videos configuration - Osheaga slideshow for both screens
+      # Time-based scheduling configuration
+      schedule_enabled: true
+      schedules:
+        - name: "daytime"
+          start_time: "01:00"
+          end_time: "22:30"
+          videos:
+            - name: "SLIDESHOW_ILESONIQ.mp4"
+              display: 1
+              enabled: true
+              loop: true
+              volume: 0.0
+            - name: "SLIDESHOW_ILESONIQ.mp4"
+              display: 2
+              enabled: true
+              loop: true
+              volume: 0.0
+        - name: "nighttime"
+          start_time: "22:30"
+          end_time: "01:00"
+          videos:
+            - name: "POUR22h30_SLIDESHOW_ILESONIQ.mp4"
+              display: 1
+              enabled: true
+              loop: true
+              volume: 0.0
+            - name: "POUR22h30_SLIDESHOW_ILESONIQ.mp4"
+              display: 2
+              enabled: true
+              loop: true
+              volume: 0.0
+
+      # Fallback videos configuration (for backward compatibility)
       videos:
-        - name: "Osheaga_sunday_compressed.mp4"
+        - name: "SLIDESHOW_ILESONIQ.mp4"
           display: 1
           enabled: true
           loop: true
           volume: 0.0
-        - name: "Osheaga_sunday_compressed.mp4"
+        - name: "SLIDESHOW_ILESONIQ.mp4"
           display: 2
           enabled: true
           loop: true
@@ -103,6 +135,9 @@ all:
           ansible_user: ek002
           ansible_port: 22
           ansible_become_password: "{{ vault_sudo_passwords['f1-ca-003'] }}"
+          # Single-screen override for this device - everything else inherited!
+          player:
+            dual_screen: false
         f1-ca-005:
           ansible_host: 100.120.130.91
           ansible_user: ek000
@@ -131,3 +166,6 @@ all:
           ansible_user: admin
           ansible_port: 22
           ansible_become_password: "{{ vault_sudo_passwords['f1-ca-016'] }}"
+          # Single-screen override for this device - everything else inherited!
+          player:
+            dual_screen: false
