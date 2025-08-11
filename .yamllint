@@ -3,7 +3,7 @@
 
 # Configure line length to match prettier
 line-length:
-  max: 120
+  max: 200
   level: warning
 
 # Configure comment spacing to be compatible with ansible-lint

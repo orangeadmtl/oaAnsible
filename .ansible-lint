@@ -29,6 +29,7 @@ skip_list:
   - name[template] # Skip name template checks for meta tasks
   - no-handler # Skip no-handler rule for meta tasks that trigger handlers
   - yaml[line-length] # Skip line length checks
+  - syntax-check[unknown-module] # Offline mode may not resolve external collections
 
 # Warn on these rules but don't fail
 warn_list:
