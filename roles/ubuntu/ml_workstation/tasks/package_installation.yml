@@ -1,0 +1,41 @@
+---
+# Package installation tasks for ML workstation setup
+# Handles system packages, monitoring tools, and OpenCV dependencies
+
+- name: Update apt package cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+  tags: [setup, packages, ml]
+
+- name: Install essential system packages
+  ansible.builtin.apt:
+    name: "{{ ubuntu_ml_packages.system_packages }}"
+    state: present
+  become: true
+  tags: [setup, packages, ml]
+
+- name: Install monitoring and development packages
+  ansible.builtin.apt:
+    name: "{{ ubuntu_ml_packages.monitoring_packages }}"
+    state: present
+  become: true
+  failed_when: false # Some packages like nvidia-ml-py3 may not be available yet
+  tags: [setup, packages, monitoring, ml]
+
+- name: Install OpenCV and media development packages
+  ansible.builtin.apt:
+    name: "{{ ubuntu_ml_packages.opencv_packages }}"
+    state: present
+  become: true
+  failed_when: false # Skip if dependencies can't be resolved
+  tags: [setup, packages, opencv, ml]
+
+- name: Display installed packages summary
+  ansible.builtin.debug:
+    msg: |
+      Package installation completed:
+      - System packages: {{ ubuntu_ml_packages.system_packages | length }} packages
+      - Monitoring packages: {{ ubuntu_ml_packages.monitoring_packages | length }} packages  
+      - OpenCV packages: {{ ubuntu_ml_packages.opencv_packages | length }} packages

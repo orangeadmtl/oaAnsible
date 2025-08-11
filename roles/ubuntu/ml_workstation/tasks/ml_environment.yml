@@ -1,0 +1,58 @@
+---
+# ML environment setup tasks for Ubuntu ML workstation
+# Handles directories, data links, and training environment configuration
+
+- name: Create ML datasets directory
+  ansible.builtin.file:
+    path: "{{ ubuntu_data_management.datasets_path }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+  become: true
+  when: ubuntu_data_management.create_datasets_dir
+  tags: [setup, data]
+
+- name: Set oaSentinel directory default
+  ansible.builtin.set_fact:
+    oasentinel_dir: "{{ ubuntu_oasentinel.install_dir | default(ansible_user_dir + '/oaSentinel') }}"
+  tags: [setup, data]
+
+- name: Create oaSentinel directory structure
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+  loop:
+    - "{{ oasentinel_dir }}"
+    - "{{ oasentinel_dir }}/data"
+    - "{{ oasentinel_dir }}/scripts"
+    - "{{ oasentinel_dir }}/configs"
+  tags: [setup, data]
+
+- name: Link datasets directory to oaSentinel
+  ansible.builtin.file:
+    src: "{{ ubuntu_data_management.datasets_path }}"
+    dest: "{{ oasentinel_dir }}/data/shared"
+    state: link
+    owner: "{{ ansible_user }}"
+  when: ubuntu_data_management.create_datasets_dir
+  tags: [setup, data]
+
+- name: Create Ubuntu-specific training configuration
+  ansible.builtin.template:
+    src: ubuntu_training_config.yaml.j2
+    dest: "{{ oasentinel_dir }}/configs/ubuntu_gpu.yaml"
+    owner: "{{ ansible_user }}"
+    mode: "0644"
+  tags: [setup, config]
+
+- name: Display ML environment status
+  ansible.builtin.debug:
+    msg: |
+      ML Environment Setup:
+      - Dataset directory: {{ ubuntu_data_management.datasets_path if ubuntu_data_management.create_datasets_dir else 'Not created' }}
+      - oaSentinel directory: {{ oasentinel_dir }}
+      - Configurations: Ubuntu GPU training config created

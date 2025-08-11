@@ -1,0 +1,20 @@
+---
+# System validation and information tasks
+# Validates Ubuntu environment and displays system information
+
+- name: Check if running on Ubuntu
+  ansible.builtin.fail:
+    msg: "This role is designed for Ubuntu systems only"
+  when: ansible_distribution != "Ubuntu"
+  tags: [always]
+
+- name: Display system information
+  ansible.builtin.debug:
+    msg:
+      - "Setting up Ubuntu ML training server"
+      - "Distribution: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "Architecture: {{ ansible_architecture }}"
+      - "Kernel: {{ ansible_kernel }}"
+      - "Memory: {{ ansible_memtotal_mb }}MB"
+      - "CPU cores: {{ ansible_processor_vcpus }}"
+  tags: [info, ml]

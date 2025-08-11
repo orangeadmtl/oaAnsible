@@ -1,0 +1,53 @@
+---
+# System optimization tasks for ML workstation
+# Handles memory, swap, and system limits configuration
+
+- name: Increase shared memory size for ML training
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    line: "tmpfs /dev/shm tmpfs defaults,size=8G 0 0"
+    backup: true
+  become: true
+  when: ubuntu_ml_optimization.increase_shared_memory
+  tags: [setup, optimization]
+
+- name: Configure swap settings for ML workloads
+  ansible.builtin.blockinfile:
+    path: /etc/sysctl.conf
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - ML Optimizations"
+    block: |
+      # ML workload optimizations
+      vm.swappiness=10
+      vm.vfs_cache_pressure=50
+      vm.dirty_ratio=15
+      vm.dirty_background_ratio=5
+    backup: true
+  become: true
+  when: ubuntu_ml_optimization.tune_memory_management
+  notify: Apply sysctl settings
+  tags: [setup, optimization]
+
+- name: Increase file descriptor limits
+  ansible.builtin.blockinfile:
+    path: /etc/security/limits.conf
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - ML File Limits"
+    block: |
+      # Increased limits for ML training
+      * soft nofile 65536
+      * hard nofile 65536
+      * soft nproc 65536
+      * hard nproc 65536
+      root soft nofile 65536
+      root hard nofile 65536
+    backup: true
+  become: true
+  when: ubuntu_ml_optimization.increase_file_limits
+  tags: [setup, optimization]
+
+- name: Display optimization settings
+  ansible.builtin.debug:
+    msg: |
+      System optimizations applied:
+      - Shared memory: {{ 'Increased to 8GB' if ubuntu_ml_optimization.increase_shared_memory else 'No change' }}
+      - Memory management: {{ 'Tuned for ML workloads' if ubuntu_ml_optimization.tune_memory_management else 'Default settings' }}
+      - File limits: {{ 'Increased for ML training' if ubuntu_ml_optimization.increase_file_limits else 'Default limits' }}

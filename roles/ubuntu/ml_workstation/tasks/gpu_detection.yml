@@ -1,0 +1,52 @@
+---
+# GPU detection and setup tasks for ML workstation
+# Handles NVIDIA GPU detection and configuration
+
+- name: Check for NVIDIA GPU (reuse nvidia role data if available)
+  ansible.builtin.shell: |
+    set -o pipefail
+    lspci | grep -i nvidia
+  register: ml_nvidia_check
+  failed_when: false
+  changed_when: false
+  when: has_nvidia_gpu is not defined
+  tags: [setup, gpu]
+
+- name: Set GPU availability facts
+  ansible.builtin.set_fact:
+    ml_has_nvidia_gpu: "{{ has_nvidia_gpu | default(ml_nvidia_check.rc == 0 if ml_nvidia_check is defined else false) }}"
+  tags: [setup, gpu, ml]
+
+- name: Force GPU detection if nvidia role already ran
+  ansible.builtin.shell: nvidia-smi --query-gpu=name --format=csv,noheader,nounits
+  register: ml_nvidia_smi_check
+  failed_when: false
+  changed_when: false
+  when: ml_has_nvidia_gpu == false and ml_nvidia_check is not defined
+  tags: [setup, gpu, ml]
+
+- name: Update GPU availability based on nvidia-smi
+  ansible.builtin.set_fact:
+    ml_has_nvidia_gpu: true
+  when: 
+    - ml_nvidia_smi_check is defined
+    - not ml_nvidia_smi_check.skipped | default(false)
+    - ml_nvidia_smi_check.rc == 0
+  tags: [setup, gpu, ml]
+
+- name: Get GPU details if available
+  ansible.builtin.shell: nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader,nounits
+  register: ml_gpu_details
+  failed_when: false
+  changed_when: false
+  when: ml_has_nvidia_gpu
+  tags: [info, gpu, ml]
+
+- name: Display GPU information
+  ansible.builtin.debug:
+    msg: |
+      GPU Status: {{ 'NVIDIA GPU detected' if ml_has_nvidia_gpu else 'No NVIDIA GPU found' }}
+      {% if ml_has_nvidia_gpu and ml_gpu_details is defined and ml_gpu_details.rc == 0 %}
+      GPU Details: {{ ml_gpu_details.stdout }}
+      {% endif %}
+  tags: [info, gpu, ml]

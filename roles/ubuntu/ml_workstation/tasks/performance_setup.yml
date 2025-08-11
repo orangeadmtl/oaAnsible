@@ -1,0 +1,75 @@
+---
+# Performance optimization tasks for Ubuntu ML workstation
+# Handles CPU governor, training environment, and monitoring setup
+
+- name: Set CPU governor to performance
+  ansible.builtin.shell: |
+    set -o pipefail && echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+  become: true
+  changed_when: false
+  when: ubuntu_ml_optimization.enable_performance_governor
+  tags: [setup, performance]
+
+- name: Make performance governor persistent
+  ansible.builtin.cron:
+    name: "Set CPU governor to performance"
+    special_time: reboot
+    job: "echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor"
+    user: root
+  become: true
+  when: ubuntu_ml_optimization.enable_performance_governor
+  tags: [setup, performance]
+
+- name: Create screen session for training
+  ansible.builtin.template:
+    src: ml_training_screen.sh.j2
+    dest: "{{ ansible_user_dir }}/start_ml_training.sh"
+    owner: "{{ ansible_user }}"
+    mode: "0755"
+  when: ubuntu_training_server.setup_screen_sessions
+  tags: [setup, training]
+
+- name: Ensure .jupyter directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/.jupyter"
+    state: directory
+    owner: "{{ ansible_user }}"
+    mode: "0755"
+  when: ubuntu_training_server.enable_jupyter
+  tags: [setup, jupyter]
+
+- name: Setup Jupyter Lab for remote access
+  ansible.builtin.template:
+    src: jupyter_config.py.j2
+    dest: "{{ ansible_user_dir }}/.jupyter/jupyter_lab_config.py"
+    owner: "{{ ansible_user }}"
+    mode: "0644"
+  when: ubuntu_training_server.enable_jupyter
+  tags: [setup, jupyter]
+
+- name: Create Jupyter service script
+  ansible.builtin.template:
+    src: start_jupyter.sh.j2
+    dest: "{{ ansible_user_dir }}/start_jupyter.sh"
+    owner: "{{ ansible_user }}"
+    mode: "0755"
+  when: ubuntu_training_server.enable_jupyter
+  tags: [setup, jupyter]
+
+- name: Install GPU monitoring script
+  ansible.builtin.template:
+    src: gpu_monitor.sh.j2
+    dest: "{{ oasentinel_dir }}/scripts/gpu_monitor.sh"
+    owner: "{{ ansible_user }}"
+    mode: "0755"
+  when: ml_has_nvidia_gpu is defined and ml_has_nvidia_gpu
+  tags: [setup, monitoring]
+
+- name: Display performance setup status
+  ansible.builtin.debug:
+    msg: |
+      Performance Setup Status:
+      - CPU Governor: {{ 'Performance mode enabled' if ubuntu_ml_optimization.enable_performance_governor else 'Default settings' }}
+      - Training Scripts: {{ 'Screen session script created' if ubuntu_training_server.setup_screen_sessions else 'Not configured' }}
+      - Jupyter Lab: {{ 'Configured for remote access' if ubuntu_training_server.enable_jupyter else 'Not enabled' }}
+      - GPU Monitoring: {{ 'GPU monitor script installed' if (ml_has_nvidia_gpu | default(false)) else 'No GPU monitoring' }}
