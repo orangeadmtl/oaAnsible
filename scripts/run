@@ -1,15 +1,10 @@
 #!/bin/bash
 
-# DEPRECATION NOTICE: This script is deprecated in favor of the unified Pangaea CLI
-# Use: ./pangaea.sh run oaAnsible [inventory] [flags]
-# This script will be removed in a future version
-
-echo -e "\033[1;33m[DEPRECATED]\033[0m This script is deprecated. Use: ./pangaea.sh run oaAnsible [inventory] [flags]"
-echo -e "Continuing with execution for backward compatibility..."
-echo ""
-
 # run - Unified deployment script for oaAnsible
 # Usage: ./scripts/run [inventory] [component...] [options]
+# 
+# Modernized script supporting the new inventory/projects/{project}/{env}.yml structure
+# and optimized for efficient component-based deployments
 
 set -e
 
@@ -43,26 +38,23 @@ show_usage() {
     echo "  -h, --help         - Show this comprehensive help"
     echo ""
     echo "🚀 Tag-Based Deployment Examples:"
-    echo "  $0 spectra-preprod -t player           # Deploy only the player component"
-    echo "  $0 spectra-preprod -t base,network     # Deploy infrastructure only"
-    echo "  $0 spectra-preprod -t macos-api        # Deploy macOS API only"
-    echo "  $0 spectra-preprod -t api              # Same as above (alias)"
-    echo "  $0 spectra-preprod -t tracker,security # Deploy tracker + security"
-    echo "  $0 ml-remote-server -t health               # Fast GPU health check"
-    echo "  $0 ml-remote-server -t nvidia               # Install/fix NVIDIA drivers"
-    echo "  $0 ml-remote-server -t nvidia,ml            # Full ML workstation setup"
-    echo "  $0 ml-remote-server -t oasentinel-setup     # Setup oaSentinel project"
-    echo "  $0 ml-remote-server -t oasentinel-full      # Complete oaSentinel automation"
-    echo "  $0 prod -t network --dry-run           # Safe preview of network changes"
+    echo "  $0 projects/spectra/preprod -t player           # Deploy player component"
+    echo "  $0 projects/f1/prod -t base,network             # Deploy infrastructure only"
+    echo "  $0 projects/spectra/prod -t macos-api           # Deploy macOS API only"
+    echo "  $0 projects/evenko/prod -t tracker,security     # Deploy tracker + security"
+    echo "  $0 ml-remote-server -t health                   # Fast GPU health check"
+    echo "  $0 ml-remote-server -t nvidia,ml                # Full ML workstation setup"
+    echo "  $0 ml-ubuntu-servers -t oasentinel-setup        # Setup oaSentinel project"
+    echo "  $0 projects/f1/prod -t network --dry-run        # Safe preview of network changes"
     echo ""
     echo "🔧 Full Stack Examples:"
-    echo "  $0                                    # Interactive mode"
-    echo "  $0 spectra-preprod                    # Full deployment"
-    echo "  $0 spectra-prod --dry-run             # Preview full prod deployment"
+    echo "  $0                                              # Interactive mode"
+    echo "  $0 projects/spectra/preprod                     # Full project deployment"
+    echo "  $0 projects/f1/prod --dry-run                   # Preview full prod deployment"
     echo ""
     echo "🎯 Targeted Host Examples:"
-    echo "  $0 spectra-preprod -t player -l spectra-ca-001  # Deploy player to one host"
-    echo "  $0 staging -t tracker -l 'host1,host2'          # Multiple hosts"
+    echo "  $0 projects/spectra/preprod -t player -l spectra-ca-001  # Deploy to one host"
+    echo "  $0 projects/f1/staging -t tracker -l 'host1,host2'       # Multiple hosts"
     echo ""
     echo "📋 Available Inventories:"
     discover_inventories | sed 's/^/  📁 /'
@@ -154,13 +146,21 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             if [ -z "$INVENTORY_NAME" ]; then
-                # Check if this looks like an inventory name
+                # Check if this looks like an inventory name (including new project structure)
                 if discover_inventories | grep -q "^$1$"; then
                     INVENTORY_NAME="$1"
                 else
-                    # If not a known inventory, show error
+                    # If not a known inventory, show error with better formatting
                     log_error "Unknown inventory: $1"
-                    log_error "Available inventories: $(discover_inventories | tr '\n' ' ')"
+                    log_error ""
+                    log_error "Available inventories:"
+                    discover_inventories | while read -r inv; do
+                        if [[ "$inv" =~ ^projects/ ]]; then
+                            log_error "  📁 $inv (Project structure)"
+                        else
+                            log_error "  📄 $inv (Legacy format)"
+                        fi
+                    done
                     exit 1
                 fi
             else
@@ -225,8 +225,8 @@ if [ -n "$LIMIT" ]; then
     CONTEXT="$CONTEXT (limited to $LIMIT)"
 fi
 
-# Safety confirmation for production inventories (exclude preprod)
-if [[ "$INVENTORY_NAME" =~ -prod$ ]] && [[ "$EXECUTION_MODE" != "dry-run" ]] && [[ "$EXECUTION_MODE" != "check" ]]; then
+# Safety confirmation for production inventories (both legacy and project structure)
+if ([[ "$INVENTORY_NAME" =~ -prod$ ]] || [[ "$INVENTORY_NAME" =~ /prod$ ]]) && [[ "$EXECUTION_MODE" != "dry-run" ]] && [[ "$EXECUTION_MODE" != "check" ]]; then
     log_warn "⚠️  WARNING: You are about to deploy to a PRODUCTION environment!"
     log_warn "Inventory: $INVENTORY_NAME"
     log_warn "Playbook: $PLAYBOOK"

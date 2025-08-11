@@ -187,22 +187,38 @@ check_vault_password_file() {
 discover_inventories() {
   local inventories=()
   
-  # Look for both old format (directory-based) and new format (file-based)
+  # Look for inventories in the new project structure: inventory/projects/{project}/{env}.yml
+  if [ -d "$OA_ANSIBLE_INVENTORY_DIR/projects" ]; then
+    for project_dir in "$OA_ANSIBLE_INVENTORY_DIR/projects"/*; do
+      if [ -d "$project_dir" ]; then
+        local project_name=$(basename "$project_dir")
+        for env_file in "$project_dir"/*.yml; do
+          if [ -f "$env_file" ]; then
+            local env_name=$(basename "$env_file" .yml)
+            inventories+=("projects/${project_name}/${env_name}")
+          fi
+        done
+      fi
+    done
+  fi
   
-  # Old format: inventory/staging/hosts.yml, inventory/production/hosts.yml, etc.
-  for dir in "$OA_ANSIBLE_INVENTORY_DIR"/*; do
-    if [ -d "$dir" ] && [ -f "$dir/hosts.yml" ]; then
-      inventories+=($(basename "$dir"))
-    fi
-  done
-  
-  # New format: inventory/f1-staging.yml, inventory/f1-preprod.yml, etc.
+  # Look for legacy format inventories at root level
   for file in "$OA_ANSIBLE_INVENTORY_DIR"/*.yml; do
     if [ -f "$file" ]; then
       local basename=$(basename "$file" .yml)
-      # Skip if this is inside a directory (already handled above)
-      if [[ ! "$basename" =~ ^(staging|production|pre-prod)$ ]]; then
+      # Skip if this is a component or group_vars file
+      if [[ ! "$basename" =~ ^(components|group_vars)$ ]] && [[ ! -d "$(dirname "$file")/$(basename "$file" .yml)" ]]; then
         inventories+=("$basename")
+      fi
+    fi
+  done
+  
+  # Look for old format directory-based inventories (legacy support)
+  for dir in "$OA_ANSIBLE_INVENTORY_DIR"/*; do
+    if [ -d "$dir" ] && [ -f "$dir/hosts.yml" ]; then
+      local dirname=$(basename "$dir")
+      if [[ "$dirname" != "projects" ]] && [[ "$dirname" != "group_vars" ]] && [[ "$dirname" != "platforms" ]] && [[ "$dirname" != "components" ]]; then
+        inventories+=($(basename "$dir"))
       fi
     fi
   done
@@ -215,13 +231,22 @@ discover_inventories() {
 get_inventory_path() {
   local inventory_name="$1"
   
-  # Check new format first: inventory/f1-staging.yml
+  # Check if it's a new project structure path: projects/project/env
+  if [[ "$inventory_name" =~ ^projects/([^/]+)/([^/]+)$ ]]; then
+    local project_path="$OA_ANSIBLE_INVENTORY_DIR/$inventory_name.yml"
+    if [ -f "$project_path" ]; then
+      echo "$project_path"
+      return 0
+    fi
+  fi
+  
+  # Check legacy format at root level: inventory/inventory-name.yml
   if [ -f "$OA_ANSIBLE_INVENTORY_DIR/$inventory_name.yml" ]; then
     echo "$OA_ANSIBLE_INVENTORY_DIR/$inventory_name.yml"
     return 0
   fi
   
-  # Check old format: inventory/staging/hosts.yml
+  # Check old format directory structure: inventory/inventory-name/hosts.yml
   if [ -f "$OA_ANSIBLE_INVENTORY_DIR/$inventory_name/hosts.yml" ]; then
     echo "$OA_ANSIBLE_INVENTORY_DIR/$inventory_name/hosts.yml"
     return 0
@@ -381,13 +406,23 @@ list_all_hosts() {
     echo "[$inv]"
     # List macOS hosts
     yq e '.all.children.macos.hosts | keys | .[]' "$inventory_path" 2>/dev/null | while read -r host; do
-      local host_ip=$(yq e ".all.children.macos.hosts.\"$host\".ansible_host" "$inventory_path")
-      echo "  $host ($host_ip) [macOS]"
+      if [ -n "$host" ] && [ "$host" != "null" ]; then
+        local host_ip=$(yq e ".all.children.macos.hosts.\"$host\".ansible_host" "$inventory_path")
+        echo "  $host ($host_ip) [macOS]"
+      fi
     done
-    # List Ubuntu hosts
+    # List Ubuntu hosts (try both ubuntu_servers and ubuntu groups)
     yq e '.all.children.ubuntu_servers.hosts | keys | .[]' "$inventory_path" 2>/dev/null | while read -r host; do
-      local host_ip=$(yq e ".all.children.ubuntu_servers.hosts.\"$host\".ansible_host" "$inventory_path")
-      echo "  $host ($host_ip) [Ubuntu]"
+      if [ -n "$host" ] && [ "$host" != "null" ]; then
+        local host_ip=$(yq e ".all.children.ubuntu_servers.hosts.\"$host\".ansible_host" "$inventory_path")
+        echo "  $host ($host_ip) [Ubuntu-servers]"
+      fi
+    done
+    yq e '.all.children.ubuntu.hosts | keys | .[]' "$inventory_path" 2>/dev/null | while read -r host; do
+      if [ -n "$host" ] && [ "$host" != "null" ]; then
+        local host_ip=$(yq e ".all.children.ubuntu.hosts.\"$host\".ansible_host" "$inventory_path")
+        echo "  $host ($host_ip) [Ubuntu]"
+      fi
     done
     echo ""
   done
@@ -426,21 +461,30 @@ find_host_by_name() {
     
     # Search in macOS hosts
     while IFS= read -r host; do
-      if [[ "$host" == *"$search_term"* ]]; then
+      if [ -n "$host" ] && [ "$host" != "null" ] && [[ "$host" == *"$search_term"* ]]; then
         found_hosts+=("$host")
         found_inventories+=("$inv")
         found_groups+=("macos")
       fi
     done < <(yq e '.all.children.macos.hosts | keys | .[]' "$inventory_path" 2>/dev/null)
     
-    # Search in Ubuntu hosts
+    # Search in Ubuntu hosts (ubuntu_servers group)
     while IFS= read -r host; do
-      if [[ "$host" == *"$search_term"* ]]; then
+      if [ -n "$host" ] && [ "$host" != "null" ] && [[ "$host" == *"$search_term"* ]]; then
         found_hosts+=("$host")
         found_inventories+=("$inv")
         found_groups+=("ubuntu_servers")
       fi
     done < <(yq e '.all.children.ubuntu_servers.hosts | keys | .[]' "$inventory_path" 2>/dev/null)
+    
+    # Search in Ubuntu hosts (ubuntu group)
+    while IFS= read -r host; do
+      if [ -n "$host" ] && [ "$host" != "null" ] && [[ "$host" == *"$search_term"* ]]; then
+        found_hosts+=("$host")
+        found_inventories+=("$inv")
+        found_groups+=("ubuntu")
+      fi
+    done < <(yq e '.all.children.ubuntu.hosts | keys | .[]' "$inventory_path" 2>/dev/null)
   done
   
   if [ ${#found_hosts[@]} -eq 0 ]; then

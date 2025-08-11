@@ -1,7 +1,10 @@
 #!/bin/bash
 
-# SSH Key Deployment Script
-# Deploys SSH public keys to macOS and Ubuntu servers
+# SSH Key Deployment Script - Bootstrap Tool
+# Deploys SSH public keys to macOS and Ubuntu servers for initial Ansible access
+#
+# This is a BOOTSTRAP script that must remain standalone as it's used BEFORE 
+# Ansible can connect to hosts. It's not deprecated like other scripts.
 #
 # Usage:
 #   Interactive mode: ./genSSH
@@ -11,7 +14,8 @@
 #   ./genSSH 192.168.1.247 kai
 #   ./genSSH 192.168.1.100 ubuntu mypassword
 #
-# Supports both macOS and Ubuntu server groups in inventory
+# Supports the new inventory/projects/{project}/{env}.yml structure
+# and both macOS and Ubuntu server groups in inventory
 
 # Source helper functions and variables
 HELPER_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
@@ -27,6 +31,8 @@ fi
 SCRIPT_LOG_LEVEL=$_LOG_LEVEL_DEBUG
 export SCRIPT_LOG_LEVEL
 
+log_info "🔑 SSH Key Bootstrap Tool - Phase 4 Updated"
+log_info "This script supports the new inventory/projects/{project}/{env}.yml structure"
 log_debug "genSSH script started."
 ensure_ansible_root_dir
 check_ansible_installed # Checks for ansible-playbook
