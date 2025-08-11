@@ -1,0 +1,42 @@
+---
+# System setup tasks for ALPR service deployment
+# Handles CPU architecture detection, Rosetta installation, and directory creation
+
+- name: Ensure temporary scripts directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/tmp"
+    state: directory
+    mode: "0755"
+
+- name: Check CPU architecture
+  ansible.builtin.command: uname -m
+  register: macos_cpu_arch
+  changed_when: false
+
+- name: Display CPU architecture
+  ansible.builtin.debug:
+    msg: |
+      CPU Architecture: {{ macos_cpu_arch.stdout }} ({{ 'Apple Silicon' if macos_cpu_arch.stdout == 'arm64' else 'Intel' }})
+      Environment: Physical Hardware
+
+- name: Check if Rosetta is installed (Apple Silicon only)
+  ansible.builtin.command: /usr/bin/pgrep -x oahd
+  register: macos_rosetta_check
+  changed_when: false
+  failed_when: false
+  when: macos_cpu_arch.stdout == 'arm64'
+
+- name: Install Rosetta (Apple Silicon only)
+  ansible.builtin.command: /usr/sbin/softwareupdate --install-rosetta --agree-to-license
+  register: macos_rosetta_install
+  when:
+    - macos_cpu_arch.stdout == 'arm64'
+    - macos_rosetta_check.rc != 0
+  become: true
+  changed_when: false
+  failed_when: false
+
+- name: Display Rosetta installation status (Apple Silicon only)
+  ansible.builtin.debug:
+    msg: "Rosetta {{ 'installed successfully' if macos_rosetta_install.changed | default(false) else 'already installed' }}"
+  when: macos_cpu_arch.stdout == 'arm64'

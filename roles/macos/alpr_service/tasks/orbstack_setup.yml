@@ -1,0 +1,95 @@
+---
+# OrbStack installation and setup tasks
+# Handles OrbStack CLI installation, daemon startup, and connectivity verification
+
+- name: Check if OrbStack CLI tools are available
+  ansible.builtin.command: which orb
+  register: macos_orbstack_cli_check
+  changed_when: false
+  failed_when: false
+
+- name: Display OrbStack CLI availability
+  ansible.builtin.debug:
+    msg: "OrbStack CLI tools {{ 'are available' if macos_orbstack_cli_check.rc == 0 else 'not found - will be installed via homebrew' }}"
+
+- name: Check if Docker CLI is available
+  ansible.builtin.command: which docker
+  register: macos_docker_cli_check
+  changed_when: false
+  failed_when: false
+
+- name: Display Docker CLI availability
+  ansible.builtin.debug:
+    msg: "Docker CLI {{ 'is available' if macos_docker_cli_check.rc == 0 else 'not found' }}"
+
+- name: Check if orbctl is available
+  ansible.builtin.command: which orbctl
+  register: macos_orbctl_cli_check
+  changed_when: false
+  failed_when: false
+
+- name: Display orbctl availability
+  ansible.builtin.debug:
+    msg: "orbctl CLI {{ 'is available' if macos_orbctl_cli_check.rc == 0 else 'not found' }}"
+
+- name: Initial Docker daemon connectivity check
+  ansible.builtin.command: docker info
+  register: macos_docker_initial_check
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+
+- name: Check if OrbStack helper tools are installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/orbctl
+  register: macos_orbstack_helper_check
+  changed_when: false
+  failed_when: false
+
+- name: Install OrbStack helper tools if needed
+  ansible.builtin.shell: |
+    # Create helper installation script
+    /Applications/OrbStack.app/Contents/MacOS/OrbStack --install-cli-tools
+  become: true
+  register: macos_orbstack_helper_install
+  when: not macos_orbstack_helper_check.stat.exists
+  changed_when: false
+  failed_when: false
+
+- name: Ensure OrbStack is started
+  ansible.builtin.shell: |
+    # Start OrbStack app if not running
+    if ! pgrep -f "OrbStack" > /dev/null; then
+      open -g /Applications/OrbStack.app
+      sleep 10
+    fi
+    # Use orb start command as backup
+    /Applications/OrbStack.app/Contents/MacOS/bin/orb start 2>/dev/null || true
+  register: macos_orbstack_start
+  when: macos_docker_initial_check.rc != 0
+  changed_when: false
+  failed_when: false
+
+- name: Display OrbStack start status
+  ansible.builtin.debug:
+    msg: "OrbStack {{ 'started successfully' if macos_orbstack_start.rc == 0 else 'start failed or was already running' }}"
+  when: macos_docker_initial_check.rc != 0
+  changed_when: false
+  failed_when: false
+
+- name: Wait for OrbStack daemon to be ready
+  ansible.builtin.command: docker info
+  register: macos_docker_daemon_check
+  until: macos_docker_daemon_check.rc == 0
+  retries: "{{ macos_orbstack_startup_timeout // macos_orbstack_check_interval }}"
+  delay: "{{ macos_orbstack_check_interval }}"
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+
+- name: Verify Docker daemon connectivity
+  ansible.builtin.fail:
+    msg: "Docker daemon is not accessible after waiting {{ macos_orbstack_startup_timeout }} seconds. Please ensure OrbStack is installed and running."
+  when: macos_docker_daemon_check.rc != 0

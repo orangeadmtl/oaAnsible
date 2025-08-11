@@ -1,0 +1,78 @@
+---
+# ALPR service management tasks
+# Handles service cleanup, startup, and monitoring
+
+- name: Generate ALPR cleanup script
+  ansible.builtin.template:
+    src: scripts/alpr_cleanup.sh.j2
+    dest: "{{ ansible_user_dir }}/tmp/alpr_cleanup.sh"
+    mode: "0755"
+
+- name: Complete ALPR stack cleanup for idempotent deployment with bulletproof license uninstall
+  ansible.builtin.command: "{{ ansible_user_dir }}/tmp/alpr_cleanup.sh"
+  register: macos_alpr_comprehensive_cleanup
+  become: false
+  changed_when: true
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+
+- name: Display cleanup results
+  ansible.builtin.debug:
+    msg: |
+      ALPR Cleanup Results:
+      {{ macos_alpr_comprehensive_cleanup.stdout | default('No output') }}
+
+      {% if macos_alpr_comprehensive_cleanup.stderr %}
+      Cleanup Warnings/Errors:
+      {{ macos_alpr_comprehensive_cleanup.stderr }}
+      {% endif %}
+
+- name: Generate ALPR preflight start script
+  ansible.builtin.template:
+    src: scripts/alpr_preflight_start.sh.j2
+    dest: "{{ ansible_user_dir }}/tmp/alpr_preflight_start.sh"
+    mode: "0755"
+
+- name: Start ALPR service with pre-flight checks
+  ansible.builtin.command: "{{ ansible_user_dir }}/tmp/alpr_preflight_start.sh"
+  register: macos_alpr_service_start
+  become: false
+  changed_when: true
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+
+- name: Wait for ALPR service to start
+  ansible.builtin.wait_for:
+    port: "{{ macos_alpr_host_port }}"
+    host: localhost
+    delay: 10
+    timeout: 60
+  register: macos_alpr_service_wait
+  failed_when: false
+
+- name: Check ALPR service status via launchctl
+  ansible.builtin.shell: |
+    set -o pipefail
+    launchctl list | grep {{ macos_alpr_service_plist }} || echo "Service not found"
+  register: macos_alpr_service_status
+  changed_when: false
+
+- name: Check ALPR container status via Docker CLI
+  ansible.builtin.shell: |
+    set -o pipefail
+    # Check if container is running
+    if docker ps --filter "name={{ macos_alpr_container_name }}" --format "{% raw %}{{.Names}}{% endraw %}" | grep -q "{{ macos_alpr_container_name }}"; then
+      echo "Running: $(docker ps --filter 'name={{ macos_alpr_container_name }}' --format '{% raw %}{{.Status}}{% endraw %}')"
+    else
+      echo "Not running"
+      # Check logs for troubleshooting
+      echo "Recent logs:"
+      docker logs {{ macos_alpr_container_name }} 2>/dev/null | tail -5 || echo "No logs available"
+    fi
+  register: macos_alpr_container_status
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"

@@ -1,0 +1,83 @@
+---
+# Docker setup and image management tasks
+# Handles Docker system verification, ALPR image management, and testing
+
+- name: Get Docker system info
+  ansible.builtin.command: docker system info --format json
+  register: macos_docker_info
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+
+- name: Display Docker system status
+  ansible.builtin.debug:
+    msg: |
+      Docker System Status:
+      Docker daemon is accessible
+      {% if macos_docker_info.rc == 0 %}{% set docker_info = macos_docker_info.stdout | from_json %}
+      Server Version: {{ docker_info.ServerVersion | default('Unknown') }}
+      Container Runtime: {{ docker_info.DefaultRuntime | default('Unknown') }}
+      Operating System: {{ docker_info.OperatingSystem | default('Unknown') }}
+      {% endif %}
+  changed_when: false
+  failed_when: false
+
+- name: Test Docker functionality with ALPR image
+  ansible.builtin.shell: |
+    # Test Docker with ALPR image inspection instead of hello-world
+    docker image inspect {{ macos_alpr_image_name }} >/dev/null 2>&1
+  register: macos_docker_test
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+  changed_when: false
+  failed_when: false
+
+- name: Display Docker test results
+  ansible.builtin.debug:
+    msg: "Docker ALPR image test {{ 'passed' if macos_docker_test.rc == 0 else 'failed - will pull image later' }}"
+  changed_when: false
+  failed_when: false
+
+- name: Check for existing ALPR Docker image
+  ansible.builtin.shell: |
+    set -o pipefail
+    docker images | grep -q "{{ macos_alpr_image_name | regex_escape }}" || echo "image_not_found"
+  register: macos_alpr_image_check
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+
+- name: Generate ALPR image update script
+  ansible.builtin.template:
+    src: scripts/alpr_image_update.sh.j2
+    dest: "{{ ansible_user_dir }}/tmp/alpr_image_update.sh"
+    mode: "0755"
+
+- name: Check current ALPR image version and update if needed
+  ansible.builtin.command: "{{ ansible_user_dir }}/tmp/alpr_image_update.sh"
+  register: macos_alpr_image_update
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+  changed_when: false
+  failed_when: false
+
+- name: Check if image was updated
+  ansible.builtin.slurp:
+    src: /tmp/alpr_image_updated
+  register: alpr_image_status_file
+  failed_when: false
+
+- name: Set image update fact
+  ansible.builtin.set_fact:
+    alpr_image_was_updated: "{{ (alpr_image_status_file.content | b64decode | trim) == 'UPDATED' }}"
+  when:
+    - alpr_image_status_file is defined
+    - alpr_image_status_file.content is defined
+
+- name: Display image update status
+  ansible.builtin.debug:
+    msg: |
+      ALPR Image Update Status:
+      {{ macos_alpr_image_update.stdout | default('No output') }}

@@ -1,0 +1,138 @@
+---
+# ALPR service configuration tasks
+# Handles firewall rules, directory setup, volume creation, and service configuration
+
+# Configure firewall rules for Plate Recognizer API access
+- name: Configure firewall for Plate Recognizer API access
+  block:
+    - name: Allow outbound connections to api.platerecognizer.com (HTTP)
+      ansible.builtin.command: >
+        /usr/sbin/ipfw add allow tcp from any to {{ item }} 80
+      become: true
+      register: platerecognizer_http_firewall
+      changed_when: platerecognizer_http_firewall.rc == 0
+      failed_when: false # Don't fail if ipfw is not available or other benign errors
+      loop: "{{ macos_alpr_api_platerecognizer_ips }}"
+      when: ansible_distribution_version is version('10.15', '<=')
+
+    - name: Allow outbound connections to api.platerecognizer.com (HTTPS)
+      ansible.builtin.command: >
+        /usr/sbin/ipfw add allow tcp from any to {{ item }} 443
+      become: true
+      register: platerecognizer_https_firewall
+      changed_when: platerecognizer_https_firewall.rc == 0
+      failed_when: false # Don't fail if ipfw is not available or other benign errors
+      loop: "{{ macos_alpr_api_platerecognizer_ips }}"
+      when: ansible_distribution_version is version('10.15', '<=')
+
+    - name: Configure PF firewall rules for Plate Recognizer API (newer macOS)
+      when: ansible_distribution_version is version('11.0', '>=')
+      block:
+        - name: Create temporary PF rule file for Plate Recognizer
+          ansible.builtin.copy:
+            dest: /tmp/platerecognizer_pf.conf
+            content: |
+              # Plate Recognizer API access rules
+              {% for ip in macos_alpr_api_platerecognizer_ips %}
+              pass out proto tcp from any to {{ ip }} port {80, 443}
+              {% endfor %}
+            mode: "0644"
+          become: true
+          register: pf_rule_file
+
+        - name: Load PF rules for Plate Recognizer API
+          ansible.builtin.command: pfctl -f /tmp/platerecognizer_pf.conf
+          become: true
+          register: pf_load_result
+          changed_when: pf_load_result.rc == 0
+          failed_when: false # Don't fail if PF is not enabled
+
+        - name: Clean up temporary PF rule file
+          ansible.builtin.file:
+            path: /tmp/platerecognizer_pf.conf
+            state: absent
+          become: true
+
+    - name: Allow Docker binary through Application Firewall
+      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/local/bin/docker
+      become: true
+      register: docker_firewall_result
+      changed_when: "'already has a rule' not in (docker_firewall_result.stdout | default('') + docker_firewall_result.stderr | default(''))"
+      failed_when: false
+
+    - name: Unblock Docker binary in Application Firewall
+      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /usr/local/bin/docker
+      become: true
+      register: docker_unblock_result
+      changed_when: docker_unblock_result.rc == 0 and "not blocked" not in (docker_unblock_result.stdout | default('') + docker_unblock_result.stderr | default(''))
+      failed_when: false
+
+    - name: Display firewall configuration status
+      ansible.builtin.debug:
+        msg: |
+          Firewall Configuration:
+          - Plate Recognizer API IPs: {{ macos_alpr_api_platerecognizer_ips | join(', ') }}
+          - HTTP/HTTPS access configured
+          - Docker binary allowed through Application Firewall
+
+- name: Ensure LaunchAgents directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/Library/LaunchAgents"
+    state: directory
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: staff
+  become: true
+
+- name: Ensure ALPR directories exist with proper structure
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: staff
+  become: true
+  loop:
+    - "{{ ansible_user_dir }}/orangead/alpr"
+    - "{{ ansible_user_dir }}/orangead/alpr/logs"
+    - "{{ ansible_user_dir }}/orangead/alpr/config"
+  changed_when: false
+  failed_when: false
+
+- name: Create ALPR deployment state tracking
+  ansible.builtin.copy:
+    content: |
+      # ALPR Deployment State Tracking
+      DEPLOYMENT_DATE={{ ansible_date_time.iso8601 }}
+      DEPLOYMENT_USER={{ ansible_user }}
+      ALPR_IMAGE={{ macos_alpr_image_name }}
+      ALPR_VERSION={{ ansible_date_time.epoch }}
+      CPU_ARCH={{ macos_cpu_arch.stdout | default('unknown') }}
+      ANSIBLE_VERSION={{ ansible_version.full }}
+    dest: "{{ ansible_user_dir }}/orangead/alpr/config/deployment.env"
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: "0644"
+  become: true
+
+- name: Create ALPR Docker volume for license data
+  community.docker.docker_volume:
+    name: "{{ macos_alpr_license_volume_name }}"
+    state: present
+  environment:
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+  changed_when: false
+  failed_when: false
+
+- name: Create ALPR service LaunchAgent plist
+  ansible.builtin.template:
+    src: com.orangead.alpr.plist.j2
+    dest: "{{ ansible_user_dir }}/Library/LaunchAgents/{{ macos_alpr_service_plist }}.plist"
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: "0644"
+  become: false
+  notify: Reload ALPR service
+  register: macos_alpr_plist_created
+  changed_when: false
+  failed_when: false
