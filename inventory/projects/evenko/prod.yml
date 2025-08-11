@@ -9,7 +9,7 @@ all:
       stage: "production"
 
   children:
-    # Environment group  
+    # Environment group
     production:
       children:
         # Project group

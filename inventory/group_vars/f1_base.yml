@@ -21,5 +21,4 @@ tracker:
   default_yolo_source: 0
   default_model: "yolo12s.pt"
   server_port: 8080
-
 # F1 project does not require additional packages beyond environment defaults

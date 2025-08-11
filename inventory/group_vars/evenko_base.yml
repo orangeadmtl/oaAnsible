@@ -2,7 +2,7 @@
 # Evenko Project Configuration
 # Component deployment and configuration for Evenko events (kiosk mode)
 
-# Project identification  
+# Project identification
 project_name: "evenko"
 
 # Evenko project component deployment
@@ -30,7 +30,7 @@ player:
   health_check: true
   restart_on_failure: true
   volume: 0.0
-  
+
   # Kiosk mode settings
   fullscreen: true
   hide_cursor: true

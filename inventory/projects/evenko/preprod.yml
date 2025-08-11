@@ -34,7 +34,7 @@ all:
       deploy_tracker: false
       deploy_alpr_service: false
       deploy_player: true
-      deploy_cursorcerer: true  # NEW: System-wide cursor hiding for testing
+      deploy_cursorcerer: true # NEW: System-wide cursor hiding for testing
 
     # Custom wallpaper deployment
     deploy_custom_wallpaper: true
@@ -115,12 +115,12 @@ all:
     # Cursorcerer configuration for system-wide cursor hiding
     cursorcerer:
       enabled: true
-      idle_timeout: 3          # Hide cursor after 3 seconds (testing mode)
-      hotkey_enabled: true     # Keep hotkey enabled for testing/debugging
-      auto_start: true         # Start on login
-      show_on_movement: true   # Show cursor when mouse moves
-      coordinate_with_player: true  # Work alongside MPV cursor hiding
-      system_wide_coverage: true   # Provide complete system coverage
+      idle_timeout: 3 # Hide cursor after 3 seconds (testing mode)
+      hotkey_enabled: true # Keep hotkey enabled for testing/debugging
+      auto_start: true # Start on login
+      show_on_movement: true # Show cursor when mouse moves
+      coordinate_with_player: true # Work alongside MPV cursor hiding
+      system_wide_coverage: true # Provide complete system coverage
 
   children:
     macos:

@@ -12,19 +12,19 @@ all:
     f1_staging:
       children:
         macos:
-              hosts:
-                m4-ca-001:
-                  ansible_host: 192.168.2.47
-                  ansible_user: admin
-                  ansible_port: 22
-                  ansible_become_method: sudo
-                  ansible_become_password: "{{ vault_sudo_passwords['m4-ca-001'] }}"
-                  # Host-specific override for testing
-                  allow_server_optimizations: false
-            ubuntu_servers:
-              hosts:
-                kampus-rig:
-                  ansible_host: 100.88.17.33
-                  ansible_user: kai
-                  ansible_port: 22
-                  ansible_become_password: "{{ vault_sudo_passwords['kampus-rig'] }}"
+          hosts:
+            m4-ca-001:
+              ansible_host: 192.168.2.47
+              ansible_user: admin
+              ansible_port: 22
+              ansible_become_method: sudo
+              ansible_become_password: "{{ vault_sudo_passwords['m4-ca-001'] }}"
+              # Host-specific override for testing
+              allow_server_optimizations: false
+        ubuntu_servers:
+          hosts:
+            kampus-rig:
+              ansible_host: 100.88.17.33
+              ansible_user: kai
+              ansible_port: 22
+              ansible_become_password: "{{ vault_sudo_passwords['kampus-rig'] }}"

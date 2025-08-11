@@ -10,7 +10,7 @@ base_packages:
   - wget
   - jq
   - curl
-  
+
   # File management and utilities
   - lsd
 

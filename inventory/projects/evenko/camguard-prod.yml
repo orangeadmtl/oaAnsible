@@ -77,7 +77,7 @@ all:
         max_size_gb: 0 # No size limit - cleanup via transfer only
 
       # Service settings
-      service:
+      ansible.builtin.service:
         name: "com.orangead.camguard"
         user: "{{ ansible_user }}"
         keep_alive: true

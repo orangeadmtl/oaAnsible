@@ -24,13 +24,13 @@ all:
           children:
             macos:
               hosts:
-                # Placeholder for ALPR production devices
-                # alpr-prod-001:
-                #   ansible_host: 100.200.200.200
-                #   ansible_user: admin
-                #   ansible_port: 22
-                #   ansible_become_password: "{{ vault_sudo_passwords['alpr-prod-001'] }}"
-                #   cam_id: "alpr-cam-001"
+            # Placeholder for ALPR production devices
+            # alpr-prod-001:
+            #   ansible_host: 100.200.200.200
+            #   ansible_user: admin
+            #   ansible_port: 22
+            #   ansible_become_password: "{{ vault_sudo_passwords['alpr-prod-001'] }}"
+            #   cam_id: "alpr-cam-001"
             ubuntu_servers:
               hosts:
                 # Placeholder for Ubuntu servers if needed

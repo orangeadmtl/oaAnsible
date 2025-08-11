@@ -30,11 +30,11 @@ all:
       allow_server_optimizations: false # Conservative for production
       allow_destructive_operations: false
       # NEW REQUEST: Deploy camguard to ALL evenko machines
-      deploy_macos_api: true  # Required for camguard monitoring
+      deploy_macos_api: true # Required for camguard monitoring
       deploy_tracker: false
       deploy_alpr_service: false
-      deploy_player: false    # Player already deployed separately
-      deploy_camguard: true   # NEW: Camera recording for all machines
+      deploy_player: false # Player already deployed separately
+      deploy_camguard: true # NEW: Camera recording for all machines
 
     # Custom wallpaper deployment (disabled for camguard-only deployment)
     deploy_custom_wallpaper: false
@@ -49,14 +49,14 @@ all:
           - jq
           - curl
           - lsd
-          - ffmpeg  # Required for camguard video recording
+          - ffmpeg # Required for camguard video recording
 
     # CamGuard configuration for ALL evenko machines
     camguard:
       enabled: true
       # Recording schedule - 7 days a week for comprehensive monitoring
       schedule_enabled: true
-      recording_days: [0, 1, 2, 3, 4, 5, 6]  # Sunday through Saturday
+      recording_days: [0, 1, 2, 3, 4, 5, 6] # Sunday through Saturday
       start_time: "00:00"
       end_time: "23:59"
       # Video settings optimized for monitoring
@@ -64,15 +64,15 @@ all:
         resolution: "1920x1080"
         framerate: 30
         bitrate: "4M"
-        segment_duration: 900  # 15 minutes per file
+        segment_duration: 900 # 15 minutes per file
         format: "mp4"
-        codec: "h264_videotoolbox"  # Hardware acceleration
+        codec: "h264_videotoolbox" # Hardware acceleration
       # Storage settings
       storage:
-        retention_days: 7  # Keep recordings for 1 week
-        max_storage_gb: 50  # Limit storage per machine
+        retention_days: 7 # Keep recordings for 1 week
+        max_storage_gb: 50 # Limit storage per machine
         cleanup_enabled: true
-        auto_cleanup_hour: 2  # Cleanup at 2 AM daily
+        auto_cleanup_hour: 2 # Cleanup at 2 AM daily
       # RTSP streaming for live monitoring
       streaming:
         enabled: true

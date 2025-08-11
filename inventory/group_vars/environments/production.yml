@@ -27,4 +27,6 @@ macos_production_packages:
 # macOS packages for production (minimal set)
 system:
   homebrew:
-    packages: "{{ base_packages + macos_production_packages + macos_platform_packages + (alpr_additional_packages | default([])) + (evenko_additional_packages | default([])) }}"
+    packages:
+      "{{ base_packages + macos_production_packages + macos_platform_packages + (alpr_additional_packages | default([])) + (evenko_additional_packages |
+      default([])) }}"

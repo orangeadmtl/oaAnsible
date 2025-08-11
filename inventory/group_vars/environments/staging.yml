@@ -2,7 +2,7 @@
 # Staging Environment Configuration
 # Permissive settings for development and testing
 
-# Environment identification  
+# Environment identification
 environment_stage: "staging"
 
 # Feature toggles (permissive for staging)
@@ -27,4 +27,6 @@ macos_staging_additional_packages:
 # macOS packages for staging
 system:
   homebrew:
-    packages: "{{ base_packages + macos_staging_additional_packages + macos_platform_packages + (alpr_additional_packages | default([])) + (evenko_additional_packages | default([])) }}"
+    packages:
+      "{{ base_packages + macos_staging_additional_packages + macos_platform_packages + (alpr_additional_packages | default([])) + (evenko_additional_packages |
+      default([])) }}"

@@ -8,7 +8,7 @@ runtime:
     version: "3.11.11"
     manager: "pyenv"
   node:
-    version: "22.11.0" 
+    version: "22.11.0"
     manager: "nvm"
 
 # Legacy format support (for backward compatibility during transition)
