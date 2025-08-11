@@ -1,0 +1,25 @@
+---
+all:
+  vars:
+    # Environment and project identification
+    target_env: "spectra-staging"
+    deployment_environment: "staging"
+    oa_environment:
+      name: "spectra-staging"
+      stage: "staging"
+
+  children:
+    # Environment group
+    staging:
+      children:
+        # Project group
+        spectra_project:
+          children:
+            macos:
+              hosts:
+                spectra-ca-001:
+                  ansible_host: 192.168.1.173
+                  ansible_user: studio
+                  ansible_port: 22
+                  ansible_become_password: "{{ vault_sudo_passwords['spectra-ca-001'] }}"
+                  cam_id: "22222222-2222-2222-2222-222222222222"

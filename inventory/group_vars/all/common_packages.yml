@@ -1,0 +1,20 @@
+---
+# Common Packages Configuration
+# Base packages that are consistent across all environments and platforms
+
+# Cross-platform base packages (present in all inventory files)
+base_packages:
+  # Version control and development tools
+  - go
+  - git
+  - wget
+  - jq
+  - curl
+  
+  # File management and utilities
+  - lsd
+
+# Feature toggles that are consistent across environments
+configure:
+  pyenv: true
+  node: true

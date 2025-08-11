@@ -1,0 +1,30 @@
+---
+# Staging Environment Configuration
+# Permissive settings for development and testing
+
+# Environment identification  
+environment_stage: "staging"
+
+# Feature toggles (permissive for staging)
+configure:
+  tailscale: true
+
+# Environment permissions (permissive for staging)
+environment_permissions:
+  allow_experimental: true
+  allow_server_optimizations: true
+  allow_destructive_operations: true
+
+# Additional packages for staging environments
+macos_staging_additional_packages:
+  - btop
+  - httpie
+  - telnet
+  - util-linux
+  - fish
+  - orbstack # Only in staging environments
+
+# macOS packages for staging
+system:
+  homebrew:
+    packages: "{{ base_packages + macos_staging_additional_packages + macos_platform_packages + (alpr_additional_packages | default([])) + (evenko_additional_packages | default([])) }}"

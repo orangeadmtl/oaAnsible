@@ -1,0 +1,74 @@
+---
+all:
+  vars:
+    # Environment and project identification
+    target_env: "evenko-prod"
+    deployment_environment: "production"
+    oa_environment:
+      name: "evenko-prod"
+      stage: "production"
+
+  children:
+    # Environment group  
+    production:
+      children:
+        # Project group
+        evenko_project:
+          children:
+            macos:
+              hosts:
+                f1-ca-001:
+                  ansible_host: 100.103.229.95
+                  ansible_user: studio
+                  ansible_port: 22
+                  ansible_become_password: "{{ vault_sudo_passwords['f1-ca-001'] }}"
+                  # Single-screen override for this device - everything else inherited!
+                  player:
+                    dual_screen: false
+                f1-ca-002:
+                  ansible_host: 100.122.121.83
+                  ansible_user: ek003
+                  ansible_port: 22
+                  ansible_become_password: "{{ vault_sudo_passwords['f1-ca-002'] }}"
+                  # Single-screen override for this device - everything else inherited!
+                  player:
+                    dual_screen: false
+                f1-ca-003:
+                  ansible_host: 100.114.173.58
+                  ansible_user: ek002
+                  ansible_port: 22
+                  ansible_become_password: "{{ vault_sudo_passwords['f1-ca-003'] }}"
+                  # Single-screen override for this device - everything else inherited!
+                  player:
+                    dual_screen: false
+                f1-ca-005:
+                  ansible_host: 100.120.130.91
+                  ansible_user: ek000
+                  ansible_port: 22
+                  ansible_become_password: "{{ vault_sudo_passwords['f1-ca-005'] }}"
+                f1-ca-007:
+                  ansible_host: 100.78.224.4
+                  ansible_user: admin
+                  ansible_port: 22
+                  ansible_become_password: "{{ vault_sudo_passwords['f1-ca-007'] }}"
+                f1-ca-011:
+                  ansible_host: 100.108.127.23
+                  ansible_user: admin
+                  ansible_port: 22
+                  ansible_become_password: "{{ vault_sudo_passwords['f1-ca-011'] }}"
+                f1-ca-012:
+                  ansible_host: 100.67.135.111
+                  ansible_user: admin
+                  ansible_port: 22
+                  ansible_become_password: "{{ vault_sudo_passwords['f1-ca-012'] }}"
+                  # Single-screen override for this device - everything else inherited!
+                  player:
+                    dual_screen: false
+                f1-ca-016:
+                  ansible_host: 100.68.254.108
+                  ansible_user: admin
+                  ansible_port: 22
+                  ansible_become_password: "{{ vault_sudo_passwords['f1-ca-016'] }}"
+                  # Single-screen override for this device - everything else inherited!
+                  player:
+                    dual_screen: false

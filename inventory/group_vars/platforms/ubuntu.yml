@@ -1,0 +1,51 @@
+---
+# Ubuntu Platform Group Variables
+# Platform-specific configuration for all Ubuntu devices
+
+# Platform identification
+platform:
+  name: "ubuntu"
+  type: "server"
+  capabilities:
+    - "systemd"
+    - "apt"
+    - "docker"
+    - "gpu"
+
+# Ubuntu-specific package management
+system:
+  package_manager: "apt"
+  packages:
+    base:
+      - git
+      - wget
+      - curl
+      - htop
+      - unzip
+      - build-essential
+
+# Service management
+services:
+  type: "systemd"
+  user_services_path: "{{ ansible_user_dir }}/.config/systemd/user"
+  system_services_path: "/etc/systemd/system"
+
+# Ubuntu-specific paths
+paths:
+  user_applications: "{{ ansible_user_dir }}/Applications"
+  orangead_base: "{{ ansible_user_dir }}/orangead"
+  logs_base: "{{ ansible_user_dir }}/orangead/logs"
+
+# Security settings
+security:
+  firewall:
+    enabled: true
+    default_policy: "deny"
+  ssh:
+    disable_password_auth: false
+    key_based_auth: true
+
+# Network configuration
+network:
+  configure_static_ip: false
+  enable_ipv6: true

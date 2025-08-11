@@ -14,35 +14,18 @@ platform:
     - "alpr"
     - "camera"
 
-# Runtime versions for macOS
-runtime:
-  python:
-    version: "3.11.11"
-    manager: "pyenv"
-  node:
-    version: "22.11.0"
-    manager: "nvm"
-
 # macOS-specific package management
+# Note: Actual package lists are managed by environment and project group_vars
+# This just provides the platform-specific packages that are always installed
+macos_platform_packages:
+  # macOS-specific applications (always installed regardless of environment)
+  - mas
+  - mackup
+  - rectangle
+
+# Default system configuration
 system:
   package_manager: "homebrew"
-  homebrew:
-    packages:
-      - go
-      - git
-      - wget
-      - jq
-      - btop
-      - httpie
-      - curl
-      - telnet
-      - util-linux
-      - fish
-      - lsd
-      # macOS-specific packages
-      - mas
-      - mackup
-      - rectangle
 
 # Service management
 services:

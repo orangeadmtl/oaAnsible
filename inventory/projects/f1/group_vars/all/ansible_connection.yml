@@ -1,0 +1,14 @@
+---
+# Global Ansible Connection Configuration
+# Applied to all hosts across all environments and projects
+
+# Python interpreter
+ansible_python_interpreter: /usr/bin/python3
+
+# SSH connection settings
+ansible_connection: ssh
+ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+ansible_ssh_pipelining: true
+
+# Privilege escalation
+ansible_become_method: sudo

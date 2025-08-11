@@ -1,0 +1,35 @@
+---
+all:
+  vars:
+    # Environment and project identification
+    target_env: "alpr-staging"
+    oa_environment:
+      name: "alpr-staging"
+      stage: "staging"
+
+  children:
+    # Clean inheritance: macos → staging → alpr_base → alpr_staging
+    macos:
+      children:
+        staging:
+          children:
+            alpr_base:
+              children:
+                alpr_staging:
+                  hosts:
+                    # Placeholder for ALPR staging devices
+                    # alpr-staging-001:
+                    #   ansible_host: 192.168.1.200
+                    #   ansible_user: admin
+                    #   ansible_port: 22
+                    #   ansible_become_password: "{{ vault_sudo_passwords['alpr-staging-001'] }}"
+    
+    ubuntu:
+      children:
+        staging:
+          children:
+            alpr_base:
+              children:
+                alpr_staging:
+                  hosts:
+                    # Placeholder for Ubuntu servers if needed

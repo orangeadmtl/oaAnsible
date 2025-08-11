@@ -1,0 +1,25 @@
+---
+all:
+  vars:
+    # Environment and project identification
+    target_env: "alpr-preprod"
+    oa_environment:
+      name: "alpr-preprod"
+      stage: "preprod"
+
+  children:
+    # Project-Environment group (inherits from preprod, alpr_project, and macos)
+    alpr_preprod:
+      children:
+        macos:
+              hosts:
+                # Placeholder for ALPR pre-production devices
+                # alpr-preprod-001:
+                #   ansible_host: 192.168.1.201
+                #   ansible_user: admin
+                #   ansible_port: 22
+                #   ansible_become_password: "{{ vault_sudo_passwords['alpr-preprod-001'] }}"
+
+            ubuntu_servers:
+              hosts:
+                # Placeholder for Ubuntu servers if needed

@@ -1,0 +1,85 @@
+---
+# Evenko Project Configuration
+# Component deployment and configuration for Evenko events (kiosk mode)
+
+# Project identification  
+project_name: "evenko"
+
+# Evenko project component deployment
+oa_environment_defaults:
+  project: "evenko"
+  # Evenko project components: dual-screen player only
+  deploy_macos_api: false
+  deploy_tracker: false
+  deploy_alpr_service: false
+  deploy_player: true
+
+# Custom deployment features for Evenko
+deploy_custom_wallpaper: true
+
+# Additional packages required for Evenko
+evenko_additional_packages:
+  - mpv # Required for video player
+
+# Player configuration for Evenko project (dual-screen kiosk mode)
+player:
+  enabled: true
+  loop_mode: true
+  dual_screen: true
+  video_selection_strategy: "sequential"
+  health_check: true
+  restart_on_failure: true
+  volume: 0.0
+  
+  # Kiosk mode settings
+  fullscreen: true
+  hide_cursor: true
+  black_background: true
+  disable_screensaver: true
+  system_volume_muted: true
+  hide_desktop_icons: true
+
+  # Time-based scheduling configuration
+  schedule_enabled: true
+  schedules:
+    - name: "daytime"
+      start_time: "01:00"
+      end_time: "22:30"
+      videos:
+        - name: "SLIDESHOW_ILESONIQ.mp4"
+          display: 1
+          enabled: true
+          loop: true
+          volume: 0.0
+        - name: "SLIDESHOW_ILESONIQ.mp4"
+          display: 2
+          enabled: true
+          loop: true
+          volume: 0.0
+    - name: "nighttime"
+      start_time: "22:30"
+      end_time: "01:00"
+      videos:
+        - name: "POUR22h30_SLIDESHOW_ILESONIQ.mp4"
+          display: 1
+          enabled: true
+          loop: true
+          volume: 0.0
+        - name: "POUR22h30_SLIDESHOW_ILESONIQ.mp4"
+          display: 2
+          enabled: true
+          loop: true
+          volume: 0.0
+
+  # Fallback videos configuration (for backward compatibility)
+  videos:
+    - name: "SLIDESHOW_ILESONIQ.mp4"
+      display: 1
+      enabled: true
+      loop: true
+      volume: 0.0
+    - name: "SLIDESHOW_ILESONIQ.mp4"
+      display: 2
+      enabled: true
+      loop: true
+      volume: 0.0

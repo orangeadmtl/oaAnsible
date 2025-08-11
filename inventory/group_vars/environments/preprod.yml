@@ -1,0 +1,29 @@
+---
+# Pre-production Environment Configuration
+# Conservative settings with selective optimizations allowed
+
+# Environment identification
+deployment_environment: preprod
+
+# Feature toggles for preprod environment
+configure:
+  tailscale: false # Pre-production - Tailscale managed separately
+  server_optimizations: true
+  experimental: false
+  destructive_operations: false
+
+# Environment-specific permissions
+oa_environment:
+  allow_experimental: false
+  allow_server_optimizations: true
+  allow_destructive_operations: false
+
+# Additional packages for preprod environment (beyond common)
+system:
+  homebrew:
+    additional_packages:
+      - btop
+      - httpie
+      - telnet
+      - util-linux
+      - fish
