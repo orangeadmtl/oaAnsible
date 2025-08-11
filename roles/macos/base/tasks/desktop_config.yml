@@ -1,0 +1,67 @@
+---
+# Desktop and Dock configuration tasks for macOS base setup
+# Configures modern macOS desktop settings for kiosk environments
+
+- name: Set wallpaper to solid color (dark gray)
+  ansible.builtin.shell: |
+    osascript -e 'tell application "System Events" to tell every desktop to set picture to "/System/Library/Desktop Pictures/Solid Colors/Stone.png"'
+  changed_when: false
+
+- name: Configure dock position to bottom
+  ansible.builtin.shell: |
+    defaults write com.apple.dock orientation -string "bottom"
+  changed_when: false
+
+- name: Set dock to minimize into dock
+  ansible.builtin.shell: |
+    defaults write com.apple.dock minimize-to-application -bool false
+  changed_when: false
+
+- name: Enable dock magnification
+  ansible.builtin.shell: |
+    defaults write com.apple.dock magnification -bool true
+  changed_when: false
+
+- name: Set dock large size for magnification
+  ansible.builtin.shell: |
+    defaults write com.apple.dock largesize -int 64
+  changed_when: false
+
+- name: Show only active applications in dock
+  ansible.builtin.shell: |
+    defaults write com.apple.dock static-only -bool true
+  changed_when: false
+
+- name: Configure hot corners - disable all
+  ansible.builtin.shell: |
+    defaults write com.apple.dock wvous-tl-corner -int 1
+    defaults write com.apple.dock wvous-tr-corner -int 1
+    defaults write com.apple.dock wvous-bl-corner -int 1
+    defaults write com.apple.dock wvous-br-corner -int 1
+  changed_when: false
+
+- name: Disable dock icon bouncing
+  ansible.builtin.shell: |
+    defaults write com.apple.dock no-bouncing -bool true
+  changed_when: false
+
+- name: Enable single app mode (hide all other apps when switching)
+  ansible.builtin.shell: |
+    defaults write com.apple.dock single-app -bool true
+  changed_when: false
+
+- name: Configure Mission Control - disable rearranging spaces
+  ansible.builtin.shell: |
+    defaults write com.apple.dock mru-spaces -bool false
+  changed_when: false
+
+- name: Configure Mission Control - group windows by application
+  ansible.builtin.shell: |
+    defaults write com.apple.dock expose-group-apps -bool true
+  changed_when: false
+
+- name: Apply desktop and dock settings
+  ansible.builtin.shell: |
+    killall Dock
+  failed_when: false
+  changed_when: false

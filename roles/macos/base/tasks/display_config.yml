@@ -1,0 +1,48 @@
+---
+# Display and screensaver configuration tasks for macOS base setup
+# Configures display settings for kiosk/production environments
+
+- name: Disable screen saver
+  ansible.builtin.shell: |
+    defaults -currentHost write com.apple.screensaver idleTime -int 0
+  changed_when: false
+
+- name: Never turn off display (set to never)
+  ansible.builtin.shell: |
+    sudo pmset -a displaysleep 0
+  become: true
+  changed_when: false
+
+- name: Disable computer sleep
+  ansible.builtin.shell: |
+    sudo pmset -a sleep 0
+  become: true
+  changed_when: false
+
+- name: Disable disk sleep
+  ansible.builtin.shell: |
+    sudo pmset -a disksleep 0
+  become: true
+  changed_when: false
+
+- name: No password required after screen saver begins
+  ansible.builtin.shell: |
+    defaults write com.apple.screensaver askForPassword -int 0
+  changed_when: false
+
+- name: No password required after display is turned off
+  ansible.builtin.shell: |
+    defaults write com.apple.screensaver askForPasswordDelay -int 0
+  changed_when: false
+
+- name: Disable screen saver for all users
+  ansible.builtin.shell: |
+    defaults write /Library/Preferences/com.apple.screensaver idleTime -int 0
+  become: true
+  changed_when: false
+
+- name: Apply screen saver settings immediately
+  ansible.builtin.shell: |
+    killall cfprefsd
+  failed_when: false
+  changed_when: false

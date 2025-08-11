@@ -1,0 +1,83 @@
+---
+# Notification configuration tasks for macOS base setup
+# Comprehensive notification suppression for kiosk mode
+
+- name: Disable all notification center notifications
+  ansible.builtin.shell: |
+    defaults write com.apple.notificationcenterui bannerTime -int 0
+  changed_when: false
+
+- name: Disable notification center entirely
+  ansible.builtin.shell: |
+    launchctl unload -w /System/Library/LaunchAgents/com.apple.notificationcenterui.plist 2>/dev/null || true
+  changed_when: false
+  failed_when: false
+
+- name: Disable software update notifications
+  ansible.builtin.shell: |
+    defaults write com.apple.systempreferences AttentionPrefBundleIDs -int 0
+  become: true
+  changed_when: false
+
+- name: Disable app store update notifications
+  ansible.builtin.shell: |
+    defaults write com.apple.appstore ShowDebugMenu -bool true
+    defaults write com.apple.appstore AutomaticCheckEnabled -bool false
+    defaults write com.apple.appstore AutomaticDownload -bool false
+    defaults write com.apple.appstore AutomaticallyDownloadApps -bool false
+  changed_when: false
+
+- name: Disable system update notifications
+  ansible.builtin.shell: |
+    defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false
+    defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool false
+    defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool false
+    defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool false
+  become: true
+  changed_when: false
+
+- name: Disable crash reporter
+  ansible.builtin.shell: |
+    defaults write com.apple.CrashReporter DialogType -string "none"
+  changed_when: false
+
+- name: Disable problem reporting
+  ansible.builtin.shell: |
+    defaults write com.apple.problemreporting checkForProblems -bool false
+  changed_when: false
+
+- name: Disable Siri suggestions and notifications
+  ansible.builtin.shell: |
+    defaults write com.apple.suggestions SuggestionsAppLibraryEnabled -bool false
+    defaults write com.apple.suggestions SuggestionsSpotlightEnabled -bool false
+  changed_when: false
+
+- name: Disable location services notifications
+  ansible.builtin.shell: |
+    defaults write com.apple.locationmenu ShowSystemServices -bool false
+  changed_when: false
+
+- name: Disable privacy notifications
+  ansible.builtin.shell: |
+    defaults write com.apple.security.pcc DisablePasswordAndTouchIDRequests -bool true
+  changed_when: false
+  failed_when: false
+
+- name: Disable iCloud notifications
+  ansible.builtin.shell: |
+    defaults write com.apple.bird optimize-storage -bool false
+  changed_when: false
+  failed_when: false
+
+- name: Disable Time Machine notifications
+  ansible.builtin.shell: |
+    defaults write /Library/Preferences/com.apple.TimeMachine DoNotOfferNewDisksForBackup -bool true
+  become: true
+  changed_when: false
+
+- name: Apply notification settings
+  ansible.builtin.shell: |
+    killall NotificationCenter 2>/dev/null || true
+    killall cfprefsd
+  failed_when: false
+  changed_when: false

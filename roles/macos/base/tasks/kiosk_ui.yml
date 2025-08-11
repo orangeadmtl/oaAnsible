@@ -1,0 +1,112 @@
+---
+# Kiosk UI configuration tasks for macOS base setup
+# Configures macOS UI for kiosk/production environments
+
+- name: Auto-hide menu bar
+  ansible.builtin.shell: |
+    defaults write NSGlobalDomain _HIHideMenuBar -bool true
+  changed_when: false
+
+- name: Auto-hide dock
+  ansible.builtin.shell: |
+    defaults write com.apple.dock autohide -bool true
+  changed_when: false
+
+- name: Set dock autohide delay to 0
+  ansible.builtin.shell: |
+    defaults write com.apple.dock autohide-delay -float 0
+  changed_when: false
+
+- name: Set dock autohide animation time to 0
+  ansible.builtin.shell: |
+    defaults write com.apple.dock autohide-time-modifier -float 0
+  changed_when: false
+
+- name: Disable dock magnification
+  ansible.builtin.shell: |
+    defaults write com.apple.dock magnification -bool false
+  changed_when: false
+
+- name: Set dock size to minimum
+  ansible.builtin.shell: |
+    defaults write com.apple.dock tilesize -int 16
+  changed_when: false
+
+- name: Remove all items from dock
+  ansible.builtin.shell: |
+    defaults write com.apple.dock persistent-apps -array
+    defaults write com.apple.dock persistent-others -array
+  changed_when: false
+
+- name: Disable recent applications in dock
+  ansible.builtin.shell: |
+    defaults write com.apple.dock show-recents -bool false
+  changed_when: false
+
+- name: Minimize windows into application icon
+  ansible.builtin.shell: |
+    defaults write com.apple.dock minimize-to-application -bool true
+  changed_when: false
+
+- name: Disable launch animation
+  ansible.builtin.shell: |
+    defaults write com.apple.dock launchanim -bool false
+  changed_when: false
+
+- name: Disable dock bouncing icons
+  ansible.builtin.shell: |
+    defaults write com.apple.dock no-bouncing -bool true
+  changed_when: false
+
+- name: Hide desktop icons
+  ansible.builtin.shell: |
+    defaults write com.apple.finder CreateDesktop false
+  changed_when: false
+
+- name: Disable Finder new window animation
+  ansible.builtin.shell: |
+    defaults write com.apple.finder DisableAllAnimations -bool true
+  changed_when: false
+
+- name: Hide Finder sidebar
+  ansible.builtin.shell: |
+    defaults write com.apple.finder ShowSidebar -bool false
+  changed_when: false
+
+- name: Hide Finder status bar
+  ansible.builtin.shell: |
+    defaults write com.apple.finder ShowStatusBar -bool false
+  changed_when: false
+
+- name: Hide Finder path bar
+  ansible.builtin.shell: |
+    defaults write com.apple.finder ShowPathbar -bool false
+  changed_when: false
+
+- name: Hide Finder tab bar
+  ansible.builtin.shell: |
+    defaults write com.apple.finder ShowTabView -bool false
+  changed_when: false
+
+- name: Disable window animations and Get Info animations
+  ansible.builtin.shell: |
+    defaults write com.apple.finder DisableAllAnimations -bool true
+  changed_when: false
+
+- name: Disable Mission Control animations
+  ansible.builtin.shell: |
+    defaults write com.apple.universalaccess reduceMotion -bool true
+  changed_when: false
+
+- name: Disable transparency effects
+  ansible.builtin.shell: |
+    defaults write com.apple.universalaccess reduceTransparency -bool true
+  changed_when: false
+
+- name: Apply UI settings immediately
+  ansible.builtin.shell: |
+    killall Dock
+    killall Finder
+    killall SystemUIServer
+  failed_when: false
+  changed_when: false

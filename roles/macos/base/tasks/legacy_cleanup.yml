@@ -1,0 +1,75 @@
+---
+# Legacy cleanup tasks for macOS base setup
+# Cleans up legacy JPR Launch Agents and Daemons
+
+- name: Get list of JPR Launch Agents
+  ansible.builtin.shell: |
+    set -o pipefail
+    launchctl list | grep ca.jpr | awk '{print $3}' || true
+  register: jpr_agents
+  changed_when: false
+
+- name: Get list of JPR Launch Daemons
+  ansible.builtin.shell: |
+    set -o pipefail
+    sudo launchctl list | grep ca.jpr | awk '{print $3}' || true
+  register: jpr_daemons
+  changed_when: false
+  become: true
+
+- name: Unload JPR Launch Agents
+  ansible.builtin.shell: |
+    set -o pipefail
+    launchctl unload "{{ ansible_env.HOME }}/Library/LaunchAgents/{{ item }}.plist"
+  loop: "{{ jpr_agents.stdout_lines }}"
+  when: jpr_agents.stdout_lines | length > 0
+  failed_when: false
+  changed_when: false
+
+- name: Remove JPR Launch Agent files
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/Library/LaunchAgents/{{ item }}.plist"
+    state: absent
+  loop: "{{ jpr_agents.stdout_lines }}"
+  when: jpr_agents.stdout_lines | length > 0
+  changed_when: false
+
+- name: Unload JPR Launch Daemons
+  ansible.builtin.shell: |
+    set -o pipefail
+    sudo launchctl unload "/Library/LaunchDaemons/{{ item }}.plist"
+  loop: "{{ jpr_daemons.stdout_lines }}"
+  when: jpr_daemons.stdout_lines | length > 0
+  become: true
+  failed_when: false
+  changed_when: false
+
+- name: Remove JPR Launch Daemon files
+  ansible.builtin.file:
+    path: "/Library/LaunchDaemons/{{ item }}.plist"
+    state: absent
+  loop: "{{ jpr_daemons.stdout_lines }}"
+  when: jpr_daemons.stdout_lines | length > 0
+  become: true
+  changed_when: false
+
+- name: Verify JPR cleanup - check remaining agents
+  ansible.builtin.shell: |
+    set -o pipefail
+    launchctl list | grep ca.jpr || echo "No JPR agents found"
+  register: remaining_agents
+  changed_when: false
+
+- name: Verify JPR cleanup - check remaining daemons
+  ansible.builtin.shell: |
+    set -o pipefail
+    sudo launchctl list | grep ca.jpr || echo "No JPR daemons found"
+  register: remaining_daemons
+  changed_when: false
+  become: true
+
+- name: Report JPR cleanup results
+  ansible.builtin.debug:
+    msg:
+      - "JPR Launch Agents cleanup: {{ 'COMPLETE' if 'No JPR agents found' in remaining_agents.stdout else 'INCOMPLETE - ' + remaining_agents.stdout }}"
+      - "JPR Launch Daemons cleanup: {{ 'COMPLETE' if 'No JPR daemons found' in remaining_daemons.stdout else 'INCOMPLETE - ' + remaining_daemons.stdout }}"

@@ -1,0 +1,40 @@
+---
+# Audio configuration tasks for macOS base setup
+# Configures sound settings for kiosk/production environments
+
+- name: Disable startup sound
+  ansible.builtin.shell: |
+    sudo nvram StartupMute=%01
+  become: true
+  changed_when: false
+
+- name: Set default volume to 0
+  ansible.builtin.shell: |
+    osascript -e "set volume output volume 0"
+  changed_when: false
+
+- name: Disable user interface sound effects
+  ansible.builtin.shell: |
+    defaults write com.apple.systemsound 'com.apple.sound.uiaudio.enabled' -int 0
+  changed_when: false
+
+- name: Disable alert volume
+  ansible.builtin.shell: |
+    defaults write NSGlobalDomain com.apple.sound.beep.volume -float 0.0
+  changed_when: false
+
+- name: Disable beep sound
+  ansible.builtin.shell: |
+    defaults write NSGlobalDomain com.apple.sound.beep.sound -string ""
+  changed_when: false
+
+- name: Disable feedback sounds for volume changes
+  ansible.builtin.shell: |
+    defaults write NSGlobalDomain com.apple.sound.beep.feedback -int 0
+  changed_when: false
+
+- name: Apply sound settings immediately
+  ansible.builtin.shell: |
+    killall SystemUIServer
+  failed_when: false
+  changed_when: false

@@ -1,0 +1,35 @@
+---
+# Sudo configuration tasks for macOS base setup
+# Configures passwordless sudo for the ansible_user
+
+- name: Check existing sudoers entries
+  become: true
+  ansible.builtin.shell: |
+    set -o pipefail
+    grep -E "^({{ ansible_user }}|%admin|%wheel).*NOPASSWD:.*ALL" /etc/sudoers || echo "not_found"
+  register: sudoers_check
+  changed_when: false
+  tags: ["sudo", "setup"]
+
+- name: Ensure ansible_user can sudo without a password
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    state: present
+    regexp: "^{{ ansible_user }}\\\\s+ALL="
+    line: "{{ ansible_user }} ALL=(ALL) NOPASSWD: ALL"
+    validate: "visudo -cf %s"
+  when: sudoers_check.stdout == "not_found" or sudoers_check.stdout | regex_search('^%') is not none
+  tags: ["sudo", "setup"]
+
+- name: Ensure group admin entry doesn't override user entry
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    state: present
+    insertafter: "^{{ ansible_user }} ALL=(ALL) NOPASSWD: ALL"
+    regexp: "^%admin\\\\s+ALL="
+    line: "%admin ALL=(ALL) ALL"
+    validate: "visudo -cf %s"
+  when: sudoers_check.stdout | regex_search('^%admin') is not none
+  tags: ["sudo", "setup"]
