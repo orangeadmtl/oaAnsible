@@ -1,0 +1,67 @@
+---
+# macOS API virtual environment management
+# Handles Python virtual environment creation and dependency installation
+
+- name: Check if virtual environment needs update
+  ansible.builtin.stat:
+    path: "{{ components_state.macos_api.path }}/.venv/pyvenv.cfg"
+  register: venv_config_check
+
+- name: Get current virtual environment Python version
+  ansible.builtin.shell: |
+    {{ components_state.macos_api.path }}/.venv/bin/python --version 2>&1 | cut -d' ' -f2
+  register: current_venv_python
+  failed_when: false
+  changed_when: false
+  when: venv_config_check.stat.exists
+
+- name: Determine if virtual environment needs recreation
+  ansible.builtin.set_fact:
+    venv_recreation_needed: >
+      {{
+        not venv_config_check.stat.exists or
+        api_files_sync.changed or
+        (current_venv_python.stdout | default('') != python_state.version_info.version | default(''))
+      }}
+
+- name: Create or recreate virtual environment
+  ansible.builtin.shell: |
+    cd {{ components_state.macos_api.path }}
+    rm -rf .venv
+    {{ python_state.version_info.path }} -m venv .venv
+    ./.venv/bin/pip install --upgrade pip setuptools wheel
+  register: venv_creation
+  when: venv_recreation_needed
+
+- name: Install dependencies with uv (fast)
+  ansible.builtin.shell: |
+    cd {{ components_state.macos_api.path }}
+    {{ homebrew_state.prefix }}/bin/uv pip install -r pyproject.toml --python ./.venv/bin/python
+  environment:
+    PATH: "{{ homebrew_state.prefix }}/bin:{{ ansible_env.PATH }}"
+  register: dependencies_install
+  when: venv_recreation_needed or api_files_sync.changed
+
+- name: Verify critical dependencies are installed
+  ansible.builtin.shell: |
+    {{ components_state.macos_api.path }}/.venv/bin/python -c "
+    import {{ item }}
+    print(f'{{ item }} version: {{{ item }}.__version__}')
+    "
+  register: dependency_verification
+  failed_when: false
+  changed_when: false
+  loop:
+    - fastapi
+    - pydantic
+    - psutil
+  when: venv_recreation_needed or dependencies_install.changed
+
+- name: Display dependency verification results
+  ansible.builtin.debug:
+    msg: |
+      Dependency verification:
+      {% for result in dependency_verification.results | default([]) %}
+      - {{ result.item }}: {{ 'OK - ' + result.stdout if result.rc == 0 else 'FAILED' }}
+      {% endfor %}
+  when: dependency_verification.results is defined

@@ -1,0 +1,67 @@
+---
+# macOS API environment setup
+# Handles dependencies, directory structure, and file synchronization
+
+- name: Ensure dependencies are ready
+  ansible.builtin.debug:
+    msg: |
+      Dependencies check:
+      - Python state: {{ python_state | default({}) }}
+      - Homebrew ready: {{ homebrew_state.ready | default(false) }}
+      - Python path: {{ python_state.version_info.path | default('unknown') }}
+
+- name: Create directory structure with proper permissions
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: "{{ item.mode }}"
+    recurse: "{{ item.recurse | default(false) }}"
+  loop:
+    - { path: "{{ components_state.macos_api.path }}", mode: "0755" }
+    - { path: "{{ components_state.macos_api.path }}/macos_api", mode: "0755" }
+    - { path: "{{ components_state.macos_api.path }}/macos_api/core", mode: "0755" }
+    - { path: "{{ components_state.macos_api.path }}/macos_api/models", mode: "0755" }
+    - { path: "{{ components_state.macos_api.path }}/macos_api/routers", mode: "0755" }
+    - { path: "{{ components_state.macos_api.path }}/macos_api/services", mode: "0755" }
+    - { path: "{{ components_state.macos_api.log_path }}", mode: "0755" }
+  become: true
+
+- name: Smart file synchronization (only copy changed files)
+  ansible.builtin.synchronize:
+    src: "{{ role_path }}/../../macos-api/"
+    dest: "{{ components_state.macos_api.path }}/"
+    delete: false
+    recursive: true
+    checksum: true
+    times: true
+    perms: false
+    owner: false
+    group: false
+    rsync_opts:
+      - "--exclude=*.pyc"
+      - "--exclude=__pycache__"
+      - "--exclude=.DS_Store"
+      - "--exclude=.git"
+      - "--exclude=*.log"
+      - "--exclude=.venv"
+  become: false
+  register: api_files_sync
+
+- name: Fix ownership of synchronized files
+  ansible.builtin.file:
+    path: "{{ components_state.macos_api.path }}"
+    owner: "{{ ansible_user }}"
+    group: staff
+    recurse: true
+  become: true
+  when: api_files_sync.changed
+
+- name: Display file synchronization results
+  ansible.builtin.debug:
+    msg: |
+      File synchronization: {{ 'Files updated' if api_files_sync.changed else 'No changes needed' }}
+      {% if api_files_sync.changed %}
+      Updated files detected - proceeding with full deployment
+      {% endif %}

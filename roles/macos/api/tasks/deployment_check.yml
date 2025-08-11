@@ -1,0 +1,42 @@
+---
+# macOS API deployment status check
+# Determines if deployment is needed based on current state
+
+- name: Check macOS API deployment status
+  ansible.builtin.stat:
+    path: "{{ components_state.macos_api.path }}/main.py"
+  register: api_main_check
+
+- name: Check virtual environment status
+  ansible.builtin.stat:
+    path: "{{ components_state.macos_api.path }}/.venv/bin/python"
+  register: api_venv_check
+
+- name: Check if service is running correctly
+  ansible.builtin.shell: |
+    set -o pipefail
+    launchctl print gui/$(id -u)/com.orangead.macosapi 2>/dev/null | grep -E "(state|pid)" || echo "not_loaded"
+  register: api_service_check
+  changed_when: false
+  failed_when: false
+
+- name: Determine if deployment is needed
+  ansible.builtin.set_fact:
+    api_deployment_needed: >
+      {{
+        not api_main_check.stat.exists or
+        not api_venv_check.stat.exists or
+        not python_state.ready or
+        'state = running' not in api_service_check.stdout
+      }}
+
+- name: Skip deployment - macOS API already configured
+  ansible.builtin.debug:
+    msg: |
+      macOS API is already properly deployed:
+      - Main application: {{ api_main_check.stat.exists }}
+      - Virtual environment: {{ api_venv_check.stat.exists }}
+      - Python environment: {{ python_state.ready }}
+      - Service running: {{ 'state = running' in api_service_check.stdout }}
+      Skipping deployment tasks.
+  when: not api_deployment_needed
