@@ -82,7 +82,7 @@ all:
         max_size_gb: 0 # No size limit
 
       # Service settings
-      service:
+      ansible.builtin.service:
         name: "com.orangead.camguard"
         user: "{{ ansible_user }}"
         keep_alive: true

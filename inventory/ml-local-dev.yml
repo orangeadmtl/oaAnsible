@@ -14,8 +14,8 @@ all:
           # Hardware specifications (adjust based on your VM specs)
           gpu_count: 1
           gpu_type: "GPU (Local VM)"
-          total_memory_gb: 16  # Adjust based on your VM allocation
-          available_storage_gb: 100  # Adjust based on your VM disk
+          total_memory_gb: 16 # Adjust based on your VM allocation
+          available_storage_gb: 100 # Adjust based on your VM disk
 
       vars:
         # Platform identification
@@ -54,7 +54,7 @@ all:
         cuda_version: "12.8"
         cuda_install_path: "/usr/local/cuda-12.8"
         cuda_symlink_path: "/usr/local/cuda"
-        ignore_missing_gpu: true  # Temporarily bypass hardware check for PATH fix
+        ignore_missing_gpu: true # Temporarily bypass hardware check for PATH fix
 
         # Ubuntu ML optimization for local development
         ubuntu_ml_optimization:
@@ -85,7 +85,7 @@ all:
 
         # Training configuration optimized for local development
         training_config:
-          default_epochs: 50  # Reduced for local dev (vs 100 for remote)
+          default_epochs: 50 # Reduced for local dev (vs 100 for remote)
           default_batch_size: 16 # Reduced for local VM (vs 32 for remote)
           auto_device_detection: true
           mixed_precision: true
