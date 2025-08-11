@@ -1,0 +1,61 @@
+---
+# Tailscale prerequisites setup
+# Handles configuration checks, Go installation, and environment setup
+
+- name: Check if Tailscale configuration is enabled
+  ansible.builtin.debug:
+    msg: |
+      Tailscale configuration status:
+      - configure.tailscale: {{ configure.tailscale | default(true) }}
+      - Environment: {{ oa_environment.name | default('unknown') }}
+
+      {% if not (configure.tailscale | default(true)) %}
+      SKIPPING: Tailscale configuration disabled in inventory.
+      This is expected for production/pre-production environments where Tailscale is managed separately.
+      {% else %}
+      PROCEEDING: Tailscale configuration enabled.
+      {% endif %}
+
+- name: End Tailscale role when configuration is disabled
+  ansible.builtin.meta: end_play
+  when: not (configure.tailscale | default(true))
+
+- name: Install Go using Homebrew (latest version)
+  community.general.homebrew:
+    name: go
+    state: latest
+    update_homebrew: true
+  register: go_install_result
+
+- name: Display Go installation status
+  ansible.builtin.debug:
+    msg: "Go installation {{ go_install_result.changed | ternary('updated to latest version', 'already at latest version') }}"
+
+- name: Define homebrew_prefix for this role
+  ansible.builtin.set_fact:
+    _homebrew_prefix: "{{ (ansible_architecture == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
+
+- name: Set Go environment variables
+  block:
+    - name: Get Go version
+      ansible.builtin.command: "{{ _homebrew_prefix }}/bin/go version"
+      register: go_version_output
+      changed_when: false
+      environment:
+        PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
+
+    - name: Display Go version
+      ansible.builtin.debug:
+        msg: "Using Go version: {{ go_version_output.stdout }}"
+
+    - name: Get Go environment
+      ansible.builtin.command: "{{ _homebrew_prefix }}/bin/go env GOPATH"
+      register: go_env_output
+      changed_when: false
+      environment:
+        PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
+
+    - name: Set Go path facts
+      ansible.builtin.set_fact:
+        go_path: "{{ go_env_output.stdout }}"
+        go_bin_path: "{{ go_env_output.stdout }}/bin"

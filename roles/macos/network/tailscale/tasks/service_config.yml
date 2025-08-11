@@ -1,0 +1,52 @@
+---
+# Tailscale service configuration tasks
+# Handles LaunchDaemon setup and service management
+
+- name: Ensure Tailscale state directory exists
+  ansible.builtin.file:
+    path: /var/lib/tailscale
+    state: directory
+    mode: "0755"
+    owner: root
+    group: wheel
+  become: true
+
+- name: Create Tailscale LaunchDaemon plist
+  ansible.builtin.template:
+    src: com.tailscale.tailscaled.plist.j2
+    dest: /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+    owner: root
+    group: wheel
+    mode: "0644"
+  become: true
+  notify: restart tailscale daemon
+
+- name: Load and start Tailscale daemon
+  ansible.builtin.shell: |
+    # Load the service
+    launchctl load -w /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+    
+    # Start if not already running
+    launchctl kickstart system/com.tailscale.tailscaled
+  become: true
+  register: tailscale_service_start
+  changed_when: false
+  failed_when: false
+
+- name: Wait for Tailscale daemon to start
+  ansible.builtin.wait_for:
+    timeout: 10
+    sleep: 2
+  delegate_to: localhost
+
+- name: Verify Tailscale daemon is running
+  ansible.builtin.shell: |
+    launchctl list | grep com.tailscale.tailscaled || echo "not_running"
+  register: tailscale_daemon_status
+  changed_when: false
+
+- name: Display service status
+  ansible.builtin.debug:
+    msg: |
+      Tailscale daemon status: {{ 'running' if 'com.tailscale.tailscaled' in tailscale_daemon_status.stdout else 'not running' }}
+      Service configuration: {{ 'completed' if tailscale_service_start.rc == 0 else 'failed' }}

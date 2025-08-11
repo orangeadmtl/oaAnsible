@@ -1,0 +1,74 @@
+---
+# Tailscale connection verification tasks
+# Handles final status checks and SSH configuration
+
+- name: Verify Tailscale installation and get final status
+  ansible.builtin.shell: |
+    set -o pipefail
+    {{ go_bin_path_for_tailscale }}/tailscale status --json
+  register: final_tailscale_status_raw
+  changed_when: false
+  failed_when: false
+
+- name: Parse final Tailscale status JSON
+  ansible.builtin.set_fact:
+    final_tailscale_status: "{{ final_tailscale_status_raw.stdout | from_json }}"
+  when: final_tailscale_status_raw.rc == 0
+
+- name: Display final Tailscale connection status
+  ansible.builtin.debug:
+    msg: |
+      === FINAL TAILSCALE STATUS ===
+      State: {{ final_tailscale_status.BackendState | default('Unknown') }}
+      {% if final_tailscale_status.Self is defined %}
+      Hostname: {{ final_tailscale_status.Self.DNSName | default('Unknown') }}
+      IP Address: {{ final_tailscale_status.Self.TailscaleIPs[0] | default('Unknown') }}
+      Tags: {{ final_tailscale_status.Self.Tags | default([]) | join(', ') or 'None' }}
+      Online: {{ final_tailscale_status.Self.Online | default(false) }}
+      {% endif %}
+      
+      Connection: {{ 'SUCCESS' if final_tailscale_status.BackendState == 'Running' else 'FAILED' }}
+
+- name: Check if Tailscale SSH is enabled
+  ansible.builtin.shell: |
+    set -o pipefail
+    {{ go_bin_path_for_tailscale }}/tailscale status --json | jq -r '.Self.RunningSSH // false'
+  register: tailscale_ssh_status
+  changed_when: false
+  failed_when: false
+
+- name: Enable Tailscale SSH
+  ansible.builtin.shell: |
+    {{ go_bin_path_for_tailscale }}/tailscale set --ssh
+  environment:
+    PATH: "{{ go_bin_path_for_tailscale }}:{{ ansible_env.PATH }}"
+  register: tailscale_ssh_enable
+  when: 
+    - tailscale.ssh_enabled | default(false)
+    - tailscale_ssh_status.stdout == "false"
+  changed_when: tailscale_ssh_enable.rc == 0
+  failed_when: false
+
+- name: Check for hostname duplication
+  ansible.builtin.shell: |
+    set -o pipefail
+    {{ go_bin_path_for_tailscale }}/tailscale status | grep -c "{{ ansible_hostname }}" || echo "0"
+  register: hostname_duplication_check
+  changed_when: false
+
+- name: Warning about hostname duplication
+  ansible.builtin.debug:
+    msg: |
+      WARNING: Multiple devices detected with hostname '{{ ansible_hostname }}'.
+      This may cause connectivity issues. Consider using unique hostnames.
+      Count: {{ hostname_duplication_check.stdout }}
+  when: hostname_duplication_check.stdout | int > 1
+
+- name: Final connection verification
+  ansible.builtin.fail:
+    msg: |
+      Tailscale setup failed. Current state: {{ final_tailscale_status.BackendState | default('Unknown') }}
+      Please check the authentication key and network connectivity.
+  when: 
+    - final_tailscale_status.BackendState | default('') != 'Running'
+    - not (oa_environment.allow_experimental | default(false))

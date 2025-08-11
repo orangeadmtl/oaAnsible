@@ -1,0 +1,110 @@
+---
+# Tailscale authentication and connection tasks
+# Handles authentication, hostname configuration, and connection setup
+
+- name: Check current Tailscale status
+  ansible.builtin.shell: |
+    set -o pipefail
+    {{ go_bin_path_for_tailscale }}/tailscale status --json 2>/dev/null || echo '{"BackendState": "NeedsLogin"}'
+  register: current_tailscale_status_raw
+  changed_when: false
+  failed_when: false
+
+- name: Parse current Tailscale status
+  ansible.builtin.set_fact:
+    current_tailscale_status: "{{ current_tailscale_status_raw.stdout | from_json }}"
+
+- name: Get current hostname
+  ansible.builtin.setup:
+    filter: ansible_hostname
+
+- name: Define expected Tailscale tags
+  ansible.builtin.set_fact:
+    expected_tailscale_tags: "{{ tailscale.tags | default([]) }}"
+
+- name: Compare current tags with expected tags
+  ansible.builtin.set_fact:
+    tags_match: "{{ (current_tailscale_status.Self.Tags | default([])) | sort == expected_tailscale_tags | sort }}"
+
+- name: Decide if full 'tailscale up' is needed
+  ansible.builtin.set_fact:
+    needs_full_auth: >-
+      {{
+        current_tailscale_status.BackendState == "NeedsLogin" or
+        current_tailscale_status.BackendState == "NoState" or
+        not tags_match or
+        (current_tailscale_status.Self.DNSName | default('') | regex_replace('\\..*$', '') != ansible_hostname)
+      }}
+
+- name: Debug Tailscale decision logic
+  ansible.builtin.debug:
+    msg: |
+      Tailscale Authentication Analysis:
+      - Current state: {{ current_tailscale_status.BackendState | default('Unknown') }}
+      - Current hostname: {{ ansible_hostname }}
+      - Current Tailscale name: {{ current_tailscale_status.Self.DNSName | default('None') | regex_replace('\\..*$', '') }}
+      - Expected tags: {{ expected_tailscale_tags }}
+      - Current tags: {{ current_tailscale_status.Self.Tags | default([]) }}
+      - Tags match: {{ tags_match }}
+      - Needs authentication: {{ needs_full_auth }}
+
+- name: Handle hostname mismatch scenario
+  when: 
+    - current_tailscale_status.BackendState == "Running"
+    - (current_tailscale_status.Self.DNSName | default('') | regex_replace('\\..*$', '') != ansible_hostname)
+  block:
+    - name: Notice Tailscale hostname mismatch detected
+      ansible.builtin.debug:
+        msg: |
+          Hostname mismatch detected:
+          - Current hostname: {{ ansible_hostname }}
+          - Tailscale hostname: {{ current_tailscale_status.Self.DNSName | default('None') | regex_replace('\\..*$', '') }}
+          
+          Strategy: {{ oa_environment.stage == 'staging' | ternary('Force re-auth', 'Safe hostname update') }}
+
+    - name: Force full Tailscale re-authentication for hostname mismatch (staging only)
+      ansible.builtin.shell: |
+        {{ go_bin_path_for_tailscale }}/tailscale logout
+        {{ go_bin_path_for_tailscale }}/tailscale up \
+          --hostname="{{ ansible_hostname }}" \
+          --accept-routes \
+          --accept-dns=false \
+          {% if expected_tailscale_tags | length > 0 %}
+          --advertise-tags="{{ expected_tailscale_tags | join(',') }}" \
+          {% endif %}
+          --auth-key="{{ tailscale_auth_key }}"
+      environment:
+        PATH: "{{ go_bin_path_for_tailscale }}:{{ ansible_env.PATH }}"
+      register: tailscale_forced_reauth
+      when: 
+        - oa_environment.stage | default('') == 'staging'
+        - tailscale_auth_key is defined
+        - tailscale_auth_key != ""
+
+- name: Authenticate Tailscale if needed
+  ansible.builtin.shell: |
+    {{ go_bin_path_for_tailscale }}/tailscale up \
+      --hostname="{{ ansible_hostname }}" \
+      --accept-routes \
+      --accept-dns=false \
+      {% if expected_tailscale_tags | length > 0 %}
+      --advertise-tags="{{ expected_tailscale_tags | join(',') }}" \
+      {% endif %}
+      {% if tailscale_auth_key is defined and tailscale_auth_key != "" %}
+      --auth-key="{{ tailscale_auth_key }}"
+      {% endif %}
+  environment:
+    PATH: "{{ go_bin_path_for_tailscale }}:{{ ansible_env.PATH }}"
+  register: tailscale_auth_result
+  when: needs_full_auth
+  changed_when: tailscale_auth_result.rc == 0
+  failed_when: false
+
+- name: Display authentication result
+  ansible.builtin.debug:
+    msg: |
+      Tailscale authentication: {{ 'successful' if tailscale_auth_result.rc == 0 else 'failed' }}
+      {% if tailscale_auth_result.stderr is defined %}
+      Error: {{ tailscale_auth_result.stderr }}
+      {% endif %}
+  when: needs_full_auth
