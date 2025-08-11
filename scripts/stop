@@ -1,6 +1,22 @@
 #!/bin/bash
 
-# stop - Ultimate service stopper for debugging Spectra deployment
+# DEPRECATED: This script is deprecated in favor of maintenance playbooks and pangaea.sh
+# 
+# NEW RECOMMENDED APPROACHES:
+# 1. Use maintenance playbook: ansible-playbook -i inventory playbooks/maintenance/stop_services.yml --tags <service>
+# 2. Use pangaea.sh: ./pangaea.sh stop oaAnsible [inventory] [options]
+# 
+# This script will be removed in a future version.
+
+echo -e "\033[1;33m[DEPRECATED]\033[0m This script is deprecated."
+echo -e "Recommended alternatives:"
+echo -e "  1. Maintenance playbook: \033[32mansible-playbook -i inventory playbooks/maintenance/stop_services.yml\033[0m"
+echo -e "  2. Pangaea CLI: \033[32m./pangaea.sh stop oaAnsible [inventory] [options]\033[0m"
+echo -e ""
+echo -e "Continuing with legacy execution for backward compatibility..."
+echo -e ""
+
+# stop - Ultimate service stopper for debugging Spectra deployment  
 # Usage: ./scripts/stop [inventory/host] [options]
 # Purpose: Quickly stop all OrangeAd services for debugging and troubleshooting
 

@@ -1,5 +1,21 @@
 #!/bin/bash
 
+# DEPRECATED: This script is deprecated in favor of maintenance playbooks and pangaea.sh
+# 
+# NEW RECOMMENDED APPROACHES:
+# 1. Use maintenance playbook: ansible-playbook -i inventory playbooks/maintenance/reboot_hosts.yml --extra-vars "confirm_reboot=yes"
+# 2. Use pangaea.sh: ./pangaea.sh reboot oaAnsible [inventory] [options]
+# 
+# This script will be removed in a future version.
+
+echo -e "\033[1;33m[DEPRECATED]\033[0m This script is deprecated."
+echo -e "Recommended alternatives:"
+echo -e "  1. Maintenance playbook: \033[32mansible-playbook -i inventory playbooks/maintenance/reboot_hosts.yml --extra-vars 'confirm_reboot=yes'\033[0m"
+echo -e "  2. Pangaea CLI: \033[32m./pangaea.sh reboot oaAnsible [inventory] [options]\033[0m"
+echo -e ""
+echo -e "Continuing with legacy execution for backward compatibility..."
+echo -e ""
+
 # reboot - Reboot machines in selected inventory
 # Usage: ./scripts/reboot [inventory_name] [host_pattern]
 
