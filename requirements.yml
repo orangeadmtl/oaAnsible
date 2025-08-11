@@ -6,3 +6,4 @@ collections:
   - name: geerlingguy.mac
   - name: ansible.posix
   - name: community.general
+  - name: community.docker
