@@ -1,0 +1,71 @@
+---
+# Deployment verification tasks for tracker deployment
+# Handles service status checks and final verification
+
+- name: Wait for services to start
+  ansible.builtin.wait_for:
+    timeout: 10
+    sleep: 2
+  delegate_to: localhost
+
+- name: Check if tracker process is running
+  ansible.builtin.shell: |
+    set -o pipefail
+    launchctl list | grep com.orangead.tracker || echo "Service not found"
+  register: tracker_status
+  changed_when: false
+
+- name: Check if tracker API process is running
+  ansible.builtin.shell: |
+    set -o pipefail
+    launchctl list | grep com.orangead.tracker_api || echo "Service not found"
+  register: tracker_api_status
+  changed_when: false
+
+- name: Display tracker service status
+  ansible.builtin.debug:
+    msg: |
+      Tracker Services Status:
+      - Tracker: {{ 'Running' if 'com.orangead.tracker' in tracker_status.stdout else 'Not running' }}
+      - API: {{ 'Running' if 'com.orangead.tracker_api' in tracker_api_status.stdout else 'Not running' }}
+
+- name: Check tracker logs for any errors
+  ansible.builtin.shell: |
+    set -o pipefail
+    if [ -f {{ ansible_user_dir }}/orangead/tracker/logs/tracker.err.log ]; then
+      tail -10 {{ ansible_user_dir }}/orangead/tracker/logs/tracker.err.log
+    else
+      echo "No error log found"
+    fi
+  register: tracker_logs
+  changed_when: false
+  failed_when: false
+
+- name: Display recent tracker errors (if any)
+  ansible.builtin.debug:
+    msg: "Recent tracker errors: {{ tracker_logs.stdout_lines }}"
+  when: 
+    - tracker_logs.stdout_lines is defined 
+    - tracker_logs.stdout_lines | length > 0
+    - "'No error log found' not in tracker_logs.stdout"
+
+- name: Final deployment verification
+  ansible.builtin.debug:
+    msg: |
+      === TRACKER DEPLOYMENT COMPLETE ===
+      
+      Configuration:
+      - Repository: {{ merged_tracker_config.repository_url }}
+      - Version: {{ final_git_version }}
+      - Python: {{ final_python_version }}
+      - Camera ID: {{ cam_id }}
+      
+      Services:
+      - Tracker: {{ 'RUNNING' if 'com.orangead.tracker' in tracker_status.stdout else 'FAILED' }}
+      - API: {{ 'RUNNING' if 'com.orangead.tracker_api' in tracker_api_status.stdout else 'FAILED' }}
+      
+      Logs:
+      - Main log: {{ ansible_user_dir }}/orangead/tracker/output.txt
+      - Error log: {{ ansible_user_dir }}/orangead/tracker/logs/tracker.err.log
+      
+      Status: {{ 'SUCCESS' if ('com.orangead.tracker' in tracker_status.stdout and 'com.orangead.tracker_api' in tracker_api_status.stdout) else 'PARTIAL/FAILED' }}

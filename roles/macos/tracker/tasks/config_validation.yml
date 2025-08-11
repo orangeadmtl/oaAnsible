@@ -1,0 +1,61 @@
+---
+# Configuration validation tasks for tracker deployment
+# Handles configuration validation and git setup
+
+- name: Validate tracker config exists in inventory
+  ansible.builtin.assert:
+    that: tracker is defined
+    fail_msg: "tracker configuration not found in inventory"
+
+- name: Validate cam_id is defined for tracker deployment
+  ansible.builtin.assert:
+    that: 
+      - cam_id is defined
+      - cam_id != ""
+    fail_msg: |
+      cam_id must be defined for tracker deployment.
+      Add cam_id to host vars in inventory file.
+      Example: cam_id: "your-camera-id-here"
+
+- name: Set tracker configuration
+  ansible.builtin.set_fact:
+    merged_tracker_config: "{{ tracker | combine(override_tracker_config | default({}), recursive=true) }}"
+
+- name: Debug merged tracker configuration
+  ansible.builtin.debug:
+    msg: "Final tracker config: {{ merged_tracker_config }}"
+
+- name: Set final git version (prioritize specific commit over branch)
+  ansible.builtin.set_fact:
+    final_git_version: "{{ 
+      merged_tracker_config.git_commit | default(
+        merged_tracker_config.git_version | default('main')
+      ) 
+    }}"
+
+- name: Display git version being used for tracker
+  ansible.builtin.debug:
+    msg: |
+      Git configuration:
+      - Repository: {{ merged_tracker_config.repository_url }}
+      - Version/Branch: {{ merged_tracker_config.git_version | default('main') }}
+      {% if merged_tracker_config.git_commit is defined %}
+      - Specific commit: {{ merged_tracker_config.git_commit }}
+      {% endif %}
+      - Final version: {{ final_git_version }}
+
+- name: Clone or update tracker repository
+  ansible.builtin.git:
+    repo: "{{ merged_tracker_config.repository_url }}"
+    dest: "{{ ansible_user_dir }}/orangead/tracker"
+    version: "{{ final_git_version }}"
+    force: true
+    accept_hostkey: true
+  register: git_clone_result
+
+- name: Display git operation result
+  ansible.builtin.debug:
+    msg: |
+      Git operation: {{ 'cloned' if git_clone_result.before is none else 'updated' }}
+      Before: {{ git_clone_result.before | default('N/A') }}
+      After: {{ git_clone_result.after }}

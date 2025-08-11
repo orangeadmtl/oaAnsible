@@ -1,0 +1,43 @@
+---
+# System setup tasks for tracker deployment
+# Handles required packages and PATH configuration
+
+- name: Ensure util-linux is installed
+  community.general.homebrew:
+    name: util-linux
+    state: present
+  register: util_linux_install
+  become: true
+  become_user: "{{ ansible_user }}"
+
+- name: Debug util-linux installation
+  ansible.builtin.debug:
+    msg: "util-linux installation result: {{ util_linux_install }}"
+
+- name: Add util-linux to shell profiles
+  ansible.builtin.blockinfile:
+    path: "{{ item }}"
+    create: true
+    mode: "0644"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - util-linux"
+    block: |
+      # Add util-linux bin to PATH for tracker compatibility
+      export PATH="{{ homebrew_prefix }}/opt/util-linux/bin:$PATH"
+  loop:
+    - "{{ ansible_env.HOME }}/.zshrc"
+    - "{{ ansible_env.HOME }}/.bash_profile"
+  become: false
+
+- name: Verify util-linux installation
+  ansible.builtin.shell: |
+    export PATH="{{ homebrew_prefix }}/opt/util-linux/bin:$PATH"
+    which column && column --version
+  register: util_linux_verify
+  changed_when: false
+  failed_when: false
+
+- name: Display util-linux verification
+  ansible.builtin.debug:
+    msg: |
+      util-linux verification:
+      {{ util_linux_verify.stdout | default('Installation verification failed') }}

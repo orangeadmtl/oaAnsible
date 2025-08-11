@@ -1,0 +1,101 @@
+---
+# Service setup tasks for tracker deployment
+# Handles configuration, logging, and LaunchAgent setup
+
+- name: Template config.yaml
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: "{{ ansible_user_dir }}/orangead/tracker/config.yaml"
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: "0644"
+  become: true
+
+- name: Ensure /var/log/orangead directory exists
+  ansible.builtin.file:
+    path: /var/log/orangead
+    state: directory
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: staff
+  become: true
+
+- name: Check if output.txt is a symlink
+  ansible.builtin.stat:
+    path: "{{ ansible_user_dir }}/orangead/tracker/output.txt"
+  register: output_txt_stat
+  become: true
+
+- name: Remove output.txt only if it's a symlink
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/orangead/tracker/output.txt"
+    state: absent
+  become: true
+  when: output_txt_stat.stat.exists and output_txt_stat.stat.islnk
+
+- name: Remove any existing nohup.out file
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/orangead/tracker/nohup.out"
+    state: absent
+  become: true
+
+- name: Create centralized log symlink
+  ansible.builtin.file:
+    src: /var/log/orangead/tracker.log
+    dest: "{{ ansible_user_dir }}/orangead/tracker/output.txt"
+    state: link
+    follow: false
+    force: true
+  become: true
+
+- name: Stop and unload old API service (com.orangead.api)
+  ansible.builtin.command: launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.api.plist
+  become: false
+  failed_when: false
+  changed_when: false
+
+- name: Remove old incorrectly named API plist file
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.api.plist"
+    state: absent
+  become: false
+
+- name: Ensure LaunchAgents directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/Library/LaunchAgents"
+    state: directory
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: staff
+  become: true
+
+- name: Template tracker launchd service file
+  ansible.builtin.template:
+    src: com.orangead.tracker.plist.j2
+    dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist"
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: "0644"
+  become: false
+  register: launchd_service
+  tags: ["tracker", "service"]
+
+- name: Template API launchd service file
+  ansible.builtin.template:
+    src: com.orangead.tracker_api.plist.j2
+    dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker_api.plist"
+    owner: "{{ ansible_user }}"
+    group: staff
+    mode: "0644"
+  become: false
+  register: launchd_api_service
+
+- name: Load and start tracker services
+  ansible.builtin.shell: |
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist 2>/dev/null || true
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker_api.plist 2>/dev/null || true
+    sleep 2
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker.plist
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker_api.plist
+  become: false
+  register: service_start_result
