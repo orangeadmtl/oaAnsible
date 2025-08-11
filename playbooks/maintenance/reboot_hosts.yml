@@ -1,0 +1,159 @@
+---
+# Maintenance Playbook: Reboot Hosts
+# Usage: ansible-playbook -i inventory playbooks/maintenance/reboot_hosts.yml
+#
+# Examples:
+#   ansible-playbook -i projects/f1/prod.yml playbooks/maintenance/reboot_hosts.yml --limit "f1-ca-001"
+#   ansible-playbook -i ml-ubuntu-servers.yml playbooks/maintenance/reboot_hosts.yml --extra-vars "confirm_reboot=yes"
+#   ansible-playbook -i projects/f1/prod.yml playbooks/maintenance/reboot_hosts.yml --tags immediate
+
+- name: "Reboot Hosts - Maintenance Playbook"
+  hosts: all
+  gather_facts: true
+  become: false
+  vars:
+    # Safety settings
+    confirm_reboot: "{{ confirm_reboot | default('no') }}"
+    reboot_delay: "{{ reboot_delay | default(60) }}"  # seconds
+    reboot_timeout: "{{ reboot_timeout | default(300) }}"  # 5 minutes
+    
+    # Graceful shutdown services on macOS before reboot
+    graceful_services:
+      - "com.orangead.macosapi"
+      - "com.orangead.tracker"
+      - "com.orangead.player"
+      - "com.orangead.camguard"
+
+  pre_tasks:
+    - name: "Safety confirmation check"
+      fail:
+        msg: |
+          ⚠️  REBOOT CONFIRMATION REQUIRED ⚠️
+          
+          You are about to REBOOT the following hosts:
+          {{ ansible_play_hosts | join(', ') }}
+          
+          To proceed, add: --extra-vars "confirm_reboot=yes"
+          
+          Example:
+          ansible-playbook -i {{ inventory_file }} playbooks/maintenance/reboot_hosts.yml --extra-vars "confirm_reboot=yes"
+      when: confirm_reboot != 'yes'
+      tags: always
+
+    - name: "Display reboot plan"
+      debug:
+        msg: |
+          🔄 REBOOT PLAN for {{ inventory_hostname }}
+          Platform: {{ ansible_facts['os_family'] }}
+          Current uptime: {{ ansible_facts['uptime_seconds'] // 3600 }}h {{ (ansible_facts['uptime_seconds'] % 3600) // 60 }}m
+          Reboot delay: {{ reboot_delay }} seconds
+          Reboot timeout: {{ reboot_timeout }} seconds
+          {% if ansible_facts['os_family'] == 'Darwin' %}
+          Will gracefully stop services: {{ graceful_services | join(', ') }}
+          {% endif %}
+      tags: always
+
+  tasks:
+    # Pre-reboot tasks for macOS
+    - name: "macOS Pre-reboot Tasks"
+      when: ansible_facts['os_family'] == 'Darwin'
+      block:
+        - name: "Gracefully stop OrangeAd services before reboot"
+          command: launchctl unload ~/Library/LaunchAgents/{{ item }}.plist
+          loop: "{{ graceful_services }}"
+          register: service_stop
+          failed_when: false
+          changed_when: service_stop.rc == 0
+          tags: ["graceful"]
+
+        - name: "Wait for services to stop cleanly"
+          pause:
+            seconds: 10
+          tags: ["graceful"]
+
+    # Pre-reboot tasks for Ubuntu
+    - name: "Ubuntu Pre-reboot Tasks"
+      when: ansible_facts['os_family'] == 'Debian'
+      block:
+        - name: "Stop OrangeAd user services gracefully"
+          systemd:
+            name: "{{ item }}"
+            state: stopped
+            scope: user
+          loop:
+            - "orangead-api"
+            - "orangead-tracker"
+            - "orangead-health"
+          failed_when: false
+          tags: ["graceful"]
+
+    # Main reboot task
+    - name: "Reboot the host"
+      reboot:
+        reboot_timeout: "{{ reboot_timeout }}"
+        pre_reboot_delay: "{{ reboot_delay }}"
+        post_reboot_delay: 30
+        test_command: "echo 'System is back online'"
+      register: reboot_result
+      tags: ["reboot", "immediate"]
+
+    # Immediate reboot (skip graceful shutdown)
+    - name: "Immediate reboot (skip graceful shutdown)"
+      reboot:
+        reboot_timeout: "{{ reboot_timeout }}"
+        pre_reboot_delay: 5
+        post_reboot_delay: 30
+        test_command: "echo 'System is back online'"
+      when: "'immediate' in ansible_run_tags"
+      tags: ["immediate"]
+
+  post_tasks:
+    - name: "Verify system status after reboot"
+      setup:
+      tags: always
+
+    - name: "Display post-reboot status"
+      debug:
+        msg: |
+          ✅ REBOOT COMPLETED for {{ inventory_hostname }}
+          Platform: {{ ansible_facts['os_family'] }}
+          New uptime: {{ ansible_facts['uptime_seconds'] // 60 }} minutes
+          Load average: {{ ansible_facts['load']['1min'] | default('unknown') }}
+          Available memory: {{ (ansible_facts['memfree_mb'] | default(0) / 1024) | round(1) }}GB / {{ (ansible_facts['memtotal_mb'] | default(0) / 1024) | round(1) }}GB
+          
+          {% if ansible_facts['os_family'] == 'Darwin' %}
+          💡 Services will need to be restarted manually or will auto-start based on their configuration.
+          Use: ./scripts/run {{ inventory_file | basename | regex_replace('\\.yml$', '') }} --tags <service-tags>
+          {% endif %}
+      tags: always
+
+    # Optional: Wait for services to auto-start (macOS LaunchAgents)
+    - name: "Wait for macOS LaunchAgents to auto-start"
+      when: 
+        - ansible_facts['os_family'] == 'Darwin'
+        - "'immediate' not in ansible_run_tags"
+      pause:
+        seconds: 30
+        prompt: "Waiting for LaunchAgents to automatically restart..."
+      tags: ["graceful"]
+
+    - name: "Verify critical services are running (macOS)"
+      when: ansible_facts['os_family'] == 'Darwin'
+      command: launchctl list | grep -E "(orangead|com\.orangead)"
+      register: services_check
+      failed_when: false
+      changed_when: false
+      tags: always
+
+    - name: "Display service status summary"
+      when: ansible_facts['os_family'] == 'Darwin'
+      debug:
+        msg: |
+          🔍 Service Status Check:
+          {% if services_check.stdout_lines %}
+          Running OrangeAd services:
+          {{ services_check.stdout_lines | join('\n') }}
+          {% else %}
+          ⚠️  No OrangeAd services currently running. You may need to restart them manually.
+          {% endif %}
+      tags: always

@@ -1,0 +1,156 @@
+---
+# Maintenance Playbook: Stop Services
+# Usage: ansible-playbook -i inventory playbooks/maintenance/stop_services.yml
+# Tags: Use --tags to stop specific services
+#
+# Examples:
+#   ansible-playbook -i projects/f1/prod.yml playbooks/maintenance/stop_services.yml --tags api
+#   ansible-playbook -i projects/f1/prod.yml playbooks/maintenance/stop_services.yml --tags "api,tracker"
+#   ansible-playbook -i projects/f1/prod.yml playbooks/maintenance/stop_services.yml  # Stop all services
+
+- name: "Stop Services - Maintenance Playbook"
+  hosts: all
+  gather_facts: false
+  become: false
+  vars:
+    # Service definitions for each platform
+    macos_services:
+      - name: "macOS API"
+        plist: "com.orangead.macosapi"
+        tags: ["api", "macos-api"]
+      - name: "Tracker"
+        plist: "com.orangead.tracker"
+        tags: ["tracker"]
+      - name: "Tracker API"
+        plist: "com.orangead.tracker_api"
+        tags: ["tracker", "tracker-api"]
+      - name: "Player"
+        plist: "com.orangead.player"
+        tags: ["player", "video"]
+      - name: "Video Player Health Check"
+        plist: "com.orangead.videoplayer.health"
+        tags: ["player", "health"]
+      - name: "CamGuard"
+        plist: "com.orangead.camguard"
+        tags: ["camguard"]
+      - name: "CamGuard Cleanup"
+        plist: "com.orangead.camguard.cleanup"
+        tags: ["camguard", "cleanup"]
+      - name: "CamGuard Transfer"
+        plist: "com.orangead.camguard.transfer"
+        tags: ["camguard", "transfer"]
+      - name: "MediaMTX"
+        plist: "com.orangead.mediamtx"
+        tags: ["camguard", "streaming"]
+      - name: "ALPR"
+        plist: "com.orangead.alpr"
+        tags: ["alpr"]
+      - name: "ALPR Monitor"
+        plist: "com.orangead.alpr-monitor"
+        tags: ["alpr", "monitor"]
+
+  pre_tasks:
+    - name: "Display selected services to stop"
+      debug:
+        msg: |
+          Stopping services on: {{ inventory_hostname }}
+          Platform: {{ ansible_facts['os_family'] | default('Unknown') }}
+          {% if ansible_run_tags is defined and 'all' not in ansible_run_tags %}
+          Tags filter: {{ ansible_run_tags | join(', ') }}
+          {% else %}
+          Mode: Stop ALL services
+          {% endif %}
+      tags: always
+
+  tasks:
+    # macOS Tasks
+    - name: "Stop macOS Services"
+      when: ansible_facts['os_family'] == 'Darwin'
+      block:
+        - name: "Check which services are currently loaded"
+          command: launchctl list
+          register: launchctl_list
+          changed_when: false
+          failed_when: false
+          tags: always
+
+        - name: "Stop individual macOS services"
+          command: launchctl unload ~/Library/LaunchAgents/{{ item.plist }}.plist
+          loop: "{{ macos_services }}"
+          when: 
+            - item.plist + '.plist' in launchctl_list.stdout
+            - ansible_run_tags is undefined or 'all' in ansible_run_tags or (item.tags | intersect(ansible_run_tags | default([]))) | length > 0
+          register: service_stop
+          changed_when: service_stop.rc == 0
+          failed_when: false
+          tags: "{{ item.tags }}"
+
+        - name: "Display stopped services summary"
+          debug:
+            msg: |
+              Services Stop Summary:
+              {% for result in service_stop.results %}
+              {% if result.changed %}
+              ✅ Stopped: {{ result.item.name }}
+              {% elif result.skipped | default(false) %}
+              ⏭️  Skipped: {{ result.item.name }} (not matching tags or not loaded)
+              {% else %}
+              ❌ Failed: {{ result.item.name }} - {{ result.stderr | default('Unknown error') }}
+              {% endif %}
+              {% endfor %}
+          tags: always
+
+    # Ubuntu Tasks
+    - name: "Stop Ubuntu Services"
+      when: ansible_facts['os_family'] == 'Debian'
+      block:
+        - name: "Get list of systemd services"
+          command: systemctl --user list-units --type=service --state=active --no-pager --no-legend
+          register: systemd_services
+          changed_when: false
+          failed_when: false
+          tags: always
+
+        - name: "Stop OrangeAd systemd services"
+          systemd:
+            name: "{{ item }}"
+            state: stopped
+            scope: user
+            enabled: false
+          loop:
+            - "orangead-api"
+            - "orangead-tracker"
+            - "orangead-health"
+          when: item in systemd_services.stdout
+          register: ubuntu_service_stop
+          failed_when: false
+          tags:
+            - api
+            - tracker
+            - health
+
+        - name: "Display Ubuntu services stop summary"
+          debug:
+            msg: |
+              Ubuntu Services Stop Summary:
+              {% for result in ubuntu_service_stop.results | default([]) %}
+              {% if result.changed %}
+              ✅ Stopped: {{ result.item }}
+              {% elif result.skipped | default(false) %}
+              ⏭️  Skipped: {{ result.item }}
+              {% else %}
+              ❌ Failed: {{ result.item }} - {{ result.msg | default('Unknown error') }}
+              {% endif %}
+              {% endfor %}
+          tags: always
+
+  post_tasks:
+    - name: "Final status check"
+      debug:
+        msg: |
+          🛑 Service stop operation completed for {{ inventory_hostname }}
+          Platform: {{ ansible_facts['os_family'] | default('Unknown') }}
+          
+          💡 To start services again, use:
+          ./scripts/run {{ inventory_file | basename | regex_replace('\\.yml$', '') }} --tags <service-tags>
+      tags: always
