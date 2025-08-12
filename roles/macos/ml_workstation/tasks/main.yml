@@ -42,13 +42,13 @@
 
 # Homebrew packages for ML development
 - name: Install Homebrew packages for ML development
-  homebrew:
+  community.general.homebrew:
     name: "{{ macos_dev_tools.homebrew_packages }}"
     state: present
   tags: [setup, homebrew]
 
 - name: Install Python build dependencies via Homebrew
-  homebrew:
+  community.general.homebrew:
     name: "{{ macos_dev_tools.python_build_deps }}"
     state: present
   tags: [setup, homebrew, python]

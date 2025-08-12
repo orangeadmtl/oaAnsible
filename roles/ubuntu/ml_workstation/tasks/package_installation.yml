@@ -34,8 +34,8 @@
 
 - name: Display installed packages summary
   ansible.builtin.debug:
-    msg: |
+    msg: |-
       Package installation completed:
       - System packages: {{ ubuntu_ml_packages.system_packages | length }} packages
-      - Monitoring packages: {{ ubuntu_ml_packages.monitoring_packages | length }} packages  
+      - Monitoring packages: {{ ubuntu_ml_packages.monitoring_packages | length }} packages
       - OpenCV packages: {{ ubuntu_ml_packages.opencv_packages | length }} packages

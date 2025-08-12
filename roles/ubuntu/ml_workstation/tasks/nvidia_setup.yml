@@ -19,6 +19,7 @@
 # Phase 1: Hardware Detection and Verification
 - name: Check for NVIDIA hardware
   ansible.builtin.shell: |
+    set -o pipefail
     lspci | grep -i nvidia || echo "NO_NVIDIA_HARDWARE"
   register: nvidia_hardware_check
   changed_when: false
@@ -40,7 +41,7 @@
       No NVIDIA hardware detected on this system.
       CUDA installation requires compatible NVIDIA GPU hardware.
       Hardware check output: {{ nvidia_hardware_check.stdout }}
-  when: 
+  when:
     - nvidia_hardware_check.stdout.find('NO_NVIDIA_HARDWARE') != -1
     - not (ignore_missing_gpu | default(false))
   tags: [gpu, nvidia, hardware]
@@ -54,11 +55,13 @@
 
 - name: Set driver installation needed flag
   ansible.builtin.set_fact:
-    driver_installation_needed: "{{ current_nvidia_status.stdout == 'NO_DRIVER' or 'Driver/library version mismatch' in current_nvidia_status.stdout or 'NVIDIA-SMI has failed' in current_nvidia_status.stdout }}"
+    driver_installation_needed: "{{ current_nvidia_status.stdout == 'NO_DRIVER' or 'Driver/library version mismatch' in current_nvidia_status.stdout or 'NVIDIA-SMI
+      has failed' in current_nvidia_status.stdout }}"
   tags: [gpu, nvidia, drivers]
 
 - name: Check current CUDA installation status
   ansible.builtin.shell: |
+    set -o pipefail
     if [ -f "/usr/local/cuda/bin/nvcc" ]; then
       /usr/local/cuda/bin/nvcc --version | grep "release"
     elif [ -f "/usr/local/cuda-12.8/bin/nvcc" ]; then
@@ -69,6 +72,8 @@
   register: current_cuda_status
   changed_when: false
   failed_when: false
+  args:
+    executable: /bin/bash
   tags: [gpu, nvidia, cuda, diagnosis]
 
 - name: Display current installation status
@@ -82,11 +87,11 @@
 
 # Phase 2: Repository Setup and Driver Installation
 - name: Remove conflicting nouveau driver
-  ansible.builtin.modprobe:
+  community.general.modprobe:
     name: nouveau
     state: absent
   become: true
-  ignore_errors: true
+  failed_when: false
   tags: [gpu, nvidia, drivers]
 
 - name: Blacklist nouveau driver permanently
@@ -105,7 +110,7 @@
   ansible.builtin.get_url:
     url: "https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb"
     dest: "/tmp/cuda-keyring_1.1-1_all.deb"
-    mode: '0644'
+    mode: "0644"
   become: true
   tags: [gpu, nvidia, cuda, repo]
 
@@ -124,6 +129,7 @@
 
 - name: Get available NVIDIA server driver versions
   ansible.builtin.shell: |
+    set -o pipefail
     # Search for server drivers first (preferred for server environments)
     apt-cache search "nvidia-driver-[0-9].*-server" | grep -o "nvidia-driver-[0-9][0-9][0-9]*-server" | sort -V | tail -5
   register: available_server_drivers
@@ -135,6 +141,7 @@
 
 - name: Get available NVIDIA desktop driver versions (fallback)
   ansible.builtin.shell: |
+    set -o pipefail
     # Fallback to desktop drivers if no server drivers found
     apt-cache search "nvidia-driver-[0-9]" | grep "^nvidia-driver-[0-9]" | grep -v server | grep -o "nvidia-driver-[0-9][0-9][0-9]*" | sort -V | tail -5
   register: available_desktop_drivers
@@ -153,7 +160,7 @@
 
 - name: Display selected NVIDIA driver
   ansible.builtin.debug:
-    msg: 
+    msg:
       - "Server drivers available: {{ available_server_drivers.stdout_lines }}"
       - "Desktop drivers available: {{ available_desktop_drivers.stdout_lines }}"
       - "Selected driver: {{ selected_driver }}"
@@ -173,7 +180,7 @@
     state: fixed
   become: true
   when: true
-  ignore_errors: true
+  failed_when: false
   tags: [gpu, nvidia, drivers, fix]
 
 - name: Install selected NVIDIA driver
@@ -195,7 +202,7 @@
   tags: [gpu, nvidia, drivers]
 
 - name: Get current kernel version
-  ansible.builtin.shell: uname -r
+  ansible.builtin.command: uname -r
   register: kernel_version
   changed_when: false
   tags: [gpu, nvidia, drivers]
@@ -214,14 +221,18 @@
     state: present
   become: true
   when: true
-  ignore_errors: true
+  failed_when: false
   tags: [gpu, nvidia, drivers]
 
 - name: Check if NVIDIA kernel modules are loaded
-  ansible.builtin.shell: lsmod | grep nvidia || echo "NO_MODULES"
+  ansible.builtin.shell: |
+    set -o pipefail
+    lsmod | grep nvidia || echo "NO_MODULES"
   register: nvidia_modules_check
   changed_when: false
   failed_when: false
+  args:
+    executable: /bin/bash
   tags: [gpu, nvidia, drivers, verify]
 
 - name: Try to load NVIDIA kernel modules
@@ -231,7 +242,8 @@
     modprobe nvidia-drm 2>/dev/null || true
   become: true
   when: "'NO_MODULES' in nvidia_modules_check.stdout"
-  ignore_errors: true
+  failed_when: false
+  changed_when: false
   tags: [gpu, nvidia, drivers]
 
 - name: Wait for apt lock to be released
@@ -242,6 +254,7 @@
     done
     echo "APT lock released"
   become: true
+  changed_when: false
   tags: [gpu, nvidia, cuda]
 
 - name: Install CUDA toolkit 12.8 (compatible with nvidia-driver-570-server)
@@ -260,7 +273,7 @@
       - cuda-cccl-12-8
     state: present
   become: true
-  failed_when: false  # Some packages might not be available
+  failed_when: false # Some packages might not be available
   tags: [gpu, nvidia, cuda]
 
 - name: Install cuDNN for deep learning (optional)
@@ -309,20 +322,20 @@
       #!/bin/bash
       # CUDA 12.8 Environment Configuration
       # This script is sourced by all interactive shell sessions
-      
+
       # Only configure if CUDA directory exists
       if [ -d "/usr/local/cuda" ]; then
           # Set CUDA environment variables
           export CUDA_HOME="/usr/local/cuda"
           export CUDA_PATH="/usr/local/cuda"
-          
+
           # Add CUDA binaries to PATH if not already present and PATH exists
           if [ -n "$PATH" ] && [[ ":$PATH:" != *":/usr/local/cuda/bin:"* ]]; then
               export PATH="/usr/local/cuda/bin:$PATH"
           elif [ -z "$PATH" ]; then
               export PATH="/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
           fi
-          
+
           # Add CUDA libraries to LD_LIBRARY_PATH if not already present
           if [ -n "$LD_LIBRARY_PATH" ]; then
               if [[ ":$LD_LIBRARY_PATH:" != *":/usr/local/cuda/lib64:"* ]]; then
@@ -348,6 +361,7 @@
     marker: "# {mark} ANSIBLE MANAGED - CUDA 12.8 Environment"
     state: absent
     create: false
+  become: true
   become_user: "{{ ansible_user }}"
   failed_when: false
   tags: [gpu, nvidia, cuda, environment, cleanup]
@@ -360,7 +374,7 @@
     force: true
   become: true
   when: cuda_install_dir.stat.exists
-  ignore_errors: true
+  failed_when: false
   tags: [gpu, nvidia, cuda, environment]
 
 - name: Ensure nvcc symlink exists even if CUDA symlink missing
@@ -373,12 +387,13 @@
         fi
     fi
   become: true
-  ignore_errors: true
+  failed_when: false
   args:
     executable: /bin/bash
+  changed_when: false
   tags: [gpu, nvidia, cuda, environment]
 
-- name: Create system-wide alternative for nvidia-smi command access  
+- name: Create system-wide alternative for nvidia-smi command access
   ansible.builtin.shell: |
     set -o pipefail
     # Determine nvidia-smi location and create a stable symlink
@@ -390,7 +405,8 @@
         ln -sf "$NVIDIA_SMI_PATH" /usr/local/bin/nvidia-smi
     fi
   become: true
-  ignore_errors: true
+  failed_when: false
+  changed_when: false
   args:
     executable: /bin/bash
   tags: [gpu, nvidia, drivers, environment]
@@ -433,8 +449,7 @@
     pre_reboot_delay: 0
     post_reboot_delay: 15
   when:
-    - (nvidia_driver_install is defined and nvidia_driver_install.changed) or
-      (nvidia_utils_install is defined and nvidia_utils_install.changed) or
+    - (nvidia_driver_install is defined and nvidia_driver_install.changed) or (nvidia_utils_install is defined and nvidia_utils_install.changed) or
       (nvidia_modules_check is defined and 'NO_MODULES' in nvidia_modules_check.stdout)
   become: true
   tags: [gpu, nvidia, reboot]
@@ -442,6 +457,7 @@
 # Phase 4: Comprehensive Verification and Testing
 - name: Verify NVIDIA driver installation (post-installation)
   ansible.builtin.shell: |
+    set -o pipefail
     # First check if nvidia-smi is available in PATH
     if command -v nvidia-smi >/dev/null 2>&1; then
         nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
@@ -453,10 +469,13 @@
   register: gpu_verification
   changed_when: false
   failed_when: false
+  args:
+    executable: /bin/bash
   tags: [gpu, nvidia, verify]
 
 - name: Verify CUDA toolkit installation
   ansible.builtin.shell: |
+    set -o pipefail
     # Check multiple possible nvcc locations
     if command -v nvcc >/dev/null 2>&1; then
         nvcc --version | grep "release"
@@ -472,10 +491,13 @@
   failed_when: false
   environment:
     PATH: "/usr/local/cuda/bin:/usr/local/cuda-12.8/bin:{{ ansible_env.PATH }}"
+  args:
+    executable: /bin/bash
   tags: [gpu, nvidia, cuda, verify]
 
 - name: Check CUDA library files installation
   ansible.builtin.shell: |
+    set -o pipefail
     # Verify key CUDA libraries are installed
     CUDA_LIBS_FOUND=0
     for path in "/usr/local/cuda/lib64" "/usr/local/cuda-12.8/lib64"; do
@@ -492,10 +514,13 @@
   register: cuda_libs_verification
   changed_when: false
   failed_when: false
+  args:
+    executable: /bin/bash
   tags: [gpu, nvidia, cuda, verify]
 
 - name: Test environment variable accessibility
   ansible.builtin.shell: |
+    set -o pipefail
     # Test if CUDA environment is properly configured
     echo "PATH check:"
     echo "$PATH" | grep -o "/usr/local/cuda[^:]*" || echo "CUDA not in PATH"
@@ -509,6 +534,8 @@
     CUDA_HOME: "/usr/local/cuda"
     PATH: "/usr/local/cuda/bin:{{ ansible_env.PATH }}"
     LD_LIBRARY_PATH: "/usr/local/cuda/lib64:/usr/local/cuda/lib:{{ ansible_env.LD_LIBRARY_PATH | default('') }}"
+  args:
+    executable: /bin/bash
   tags: [gpu, nvidia, environment, verify]
 
 - name: Advanced CUDA runtime verification (if available)
@@ -540,9 +567,11 @@
       - "CUDA 12.8 Installation Complete with nvidia-driver-570-server"
       - "Hardware: {{ (nvidia_hardware_check.stdout_lines[0] | default('No NVIDIA GPU detected')) | regex_replace('^[0-9:]+\\s+', '') }}"
       - "Driver: {{ gpu_verification.stdout if gpu_verification.stdout != 'NVIDIA_SMI_NOT_FOUND - reboot required' else 'Requires reboot' }}"
-      - "CUDA: {{ cuda_verification.stdout if cuda_verification.stdout != 'NVCC_NOT_FOUND - installation may have failed or reboot required' else 'Requires reboot' }}"
+      - "CUDA: {{ cuda_verification.stdout if cuda_verification.stdout != 'NVCC_NOT_FOUND - installation may have failed or reboot required' else 'Requires reboot'
+        }}"
       - "Libraries: {{ cuda_libs_verification.stdout_lines[0] if cuda_libs_verification.stdout_lines else 'Verification pending' }}"
-      - "Kernel modules: {% if 'NO_MODULES' not in nvidia_modules_check.stdout %}{{ nvidia_modules_check.stdout_lines | length }} modules loaded{% else %}Require reboot{% endif %}"
+      - "Kernel modules: {% if 'NO_MODULES' not in nvidia_modules_check.stdout %}{{ nvidia_modules_check.stdout_lines | length }} modules loaded{% else %}Require
+        reboot{% endif %}"
       - "Next: Reboot system, then test with 'nvidia-smi' and 'nvcc --version'"
   tags: [gpu, nvidia, info, summary]
 

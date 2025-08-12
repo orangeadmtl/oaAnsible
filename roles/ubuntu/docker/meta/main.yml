@@ -1,0 +1,12 @@
+---
+# Ensure ansible-lint resolves community.docker.* modules even in offline mode
+collections:
+  - community.docker
+
+galaxy_info:
+  author: OrangeAd Engineering
+  description: Ubuntu Docker role metadata
+  license: MIT
+  min_ansible_version: "2.15"
+
+dependencies: []

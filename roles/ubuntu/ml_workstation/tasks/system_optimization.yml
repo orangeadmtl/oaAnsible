@@ -46,7 +46,7 @@
 
 - name: Display optimization settings
   ansible.builtin.debug:
-    msg: |
+    msg: |-
       System optimizations applied:
       - Shared memory: {{ 'Increased to 8GB' if ubuntu_ml_optimization.increase_shared_memory else 'No change' }}
       - Memory management: {{ 'Tuned for ML workloads' if ubuntu_ml_optimization.tune_memory_management else 'Default settings' }}

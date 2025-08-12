@@ -353,7 +353,8 @@
 
 - name: Set dataset completeness flags
   ansible.builtin.set_fact:
-    crowdhuman_shared_complete: "{{ (crowdhuman_shared_files_stat.results | selectattr('stat.exists') | list | length == 3) and ((crowdhuman_images_find.matched | default(0)) | int > 0) }}"
+    crowdhuman_shared_complete: "{{ (crowdhuman_shared_files_stat.results | selectattr('stat.exists') | list | length == 3) and ((crowdhuman_images_find.matched |
+      default(0)) | int > 0) }}"
     crowdhuman_old_exists: "{{ crowdhuman_old_files_stat.results | selectattr('stat.exists') | list | length > 0 }}"
   tags: [oasentinel-data, oasentinel-train, oasentinel-full]
 
@@ -478,7 +479,8 @@
 
 - name: Update completeness flag after download
   ansible.builtin.set_fact:
-    crowdhuman_shared_complete: "{{ (crowdhuman_shared_files_stat_post.results | selectattr('stat.exists') | list | length == 3) and ((crowdhuman_images_find_post.matched | default(0)) | int > 0) }}"
+    crowdhuman_shared_complete: "{{ (crowdhuman_shared_files_stat_post.results | selectattr('stat.exists') | list | length == 3) and ((crowdhuman_images_find_post.matched
+      | default(0)) | int > 0) }}"
   tags: [oasentinel-data, oasentinel-full]
 
 - name: Check if processed dataset already exists in shared location
@@ -557,7 +559,7 @@
 - name: Ensure bin scripts are executable on target
   ansible.builtin.file:
     path: "{{ oasentinel_dir }}/bin/{{ item }}"
-    mode: '0755'
+    mode: "0755"
   loop:
     - oas-quick-train
     - oas-screen-attach

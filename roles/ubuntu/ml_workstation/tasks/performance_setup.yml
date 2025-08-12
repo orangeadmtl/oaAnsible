@@ -67,7 +67,7 @@
 
 - name: Display performance setup status
   ansible.builtin.debug:
-    msg: |
+    msg: |-
       Performance Setup Status:
       - CPU Governor: {{ 'Performance mode enabled' if ubuntu_ml_optimization.enable_performance_governor else 'Default settings' }}
       - Training Scripts: {{ 'Screen session script created' if ubuntu_training_server.setup_screen_sessions else 'Not configured' }}

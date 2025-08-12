@@ -51,7 +51,7 @@
 
 - name: Display ML environment status
   ansible.builtin.debug:
-    msg: |
+    msg: |-
       ML Environment Setup:
       - Dataset directory: {{ ubuntu_data_management.datasets_path if ubuntu_data_management.create_datasets_dir else 'Not created' }}
       - oaSentinel directory: {{ oasentinel_dir }}

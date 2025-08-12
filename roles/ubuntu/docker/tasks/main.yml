@@ -129,6 +129,8 @@
     driver: "{{ item.driver | default('bridge') }}"
     ipam_config: "{{ item.ipam_config | default(omit) }}"
     state: present
+  collections:
+    - community.docker
   loop: "{{ ubuntu_docker_networks }}"
   when: ubuntu_docker_networks | length > 0
 
@@ -138,6 +140,8 @@
     driver: "{{ item.driver | default('local') }}"
     driver_options: "{{ item.driver_options | default(omit) }}"
     state: present
+  collections:
+    - community.docker
   loop: "{{ ubuntu_docker_volumes }}"
   when: ubuntu_docker_volumes | length > 0
 
@@ -147,6 +151,8 @@
     username: "{{ item.username }}"
     password: "{{ item.password }}"
     state: present
+  collections:
+    - community.docker
   loop: "{{ ubuntu_docker_registries }}"
   when: ubuntu_docker_registries | length > 0
   no_log: true

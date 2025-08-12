@@ -1,0 +1,18 @@
+---
+# Minimal Ubuntu NVIDIA role (legacy compatibility)
+# This stub satisfies legacy playbooks that include ubuntu/nvidia.
+- name: Detect NVIDIA GPU presence (legacy)
+  ansible.builtin.shell: |
+    set -o pipefail
+    lspci | grep -i nvidia || true
+  args:
+    executable: /bin/bash
+  register: ubuntu_nvidia_detect
+  changed_when: false
+  failed_when: false
+
+- name: Report NVIDIA detection (legacy)
+  ansible.builtin.debug:
+    msg: |
+      NVIDIA GPU detected: {{ (ubuntu_nvidia_detect.stdout | length) > 0 }}
+  changed_when: false
