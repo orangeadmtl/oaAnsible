@@ -120,7 +120,8 @@
     # Check platform compatibility
     - name: Check platform compatibility
       ansible.builtin.set_fact:
-        validation_results: "{{ validation_results | combine({'platform_conflicts': validation_results.platform_conflicts + [{'component': item, 'required_platform':
+        validation_results:
+          "{{ validation_results | combine({'platform_conflicts': validation_results.platform_conflicts + [{'component': item, 'required_platform':
           component_framework.available_components[item].platform, 'current_platform': detected_platform | default('unknown')}]}) }}"
       loop: "{{ selected_components }}"
       when:
@@ -162,7 +163,8 @@
 
     - name: Sort components by priority and dependencies
       ansible.builtin.set_fact:
-        final_component_order: "{{ dependency_resolution.resolved_components | map('extract', component_framework.available_components) | list | sort(attribute='priority',
+        final_component_order:
+          "{{ dependency_resolution.resolved_components | map('extract', component_framework.available_components) | list | sort(attribute='priority',
           reverse=true) | map(attribute='component_name') | list }}"
 
     - name: Display resolved component order
@@ -211,7 +213,8 @@
 
     - name: Check component health status
       ansible.builtin.uri:
-        url: "http://127.0.0.1:{{ component_framework.available_components[item].health_port }}{{ component_framework.available_components[item].health_endpoint }}"
+        url:
+          "http://127.0.0.1:{{ component_framework.available_components[item].health_port }}{{ component_framework.available_components[item].health_endpoint }}"
         method: GET
         timeout: 5
         status_code: [200, 404, -1] # Accept connection refused as "not running"
@@ -223,9 +226,9 @@
 
     - name: Process health check results
       ansible.builtin.set_fact:
-        health_check_results: "{{ health_check_results | combine({item.item: {'status': 'healthy' if item.status == 200 else ('unhealthy' if item.status > 0 else
-          'stopped'), 'response_time': item.elapsed if item.elapsed is defined else 0, 'port': component_framework.available_components[item.item].health_port}})
-          }}"
+        health_check_results:
+          "{{ health_check_results | combine({item.item: {'status': 'healthy' if item.status == 200 else ('unhealthy' if item.status > 0 else 'stopped'),
+          'response_time': item.elapsed if item.elapsed is defined else 0, 'port': component_framework.available_components[item.item].health_port}}) }}"
       loop: "{{ health_response.results }}"
       when: item.item is defined
 
@@ -245,6 +248,6 @@
       execution_order: "{{ final_component_order | default([]) }}"
       health_status: "{{ health_check_results | default({}) }}"
       conflicts_detected: "{{ conflict_matrix | default([]) | length > 0 }}"
-      validation_passed: "{{ validation_results.invalid_components | default([]) | length == 0 and validation_results.platform_conflicts | default([]) | length ==
-        0 }}"
+      validation_passed:
+        "{{ validation_results.invalid_components | default([]) | length == 0 and validation_results.platform_conflicts | default([]) | length == 0 }}"
   tags: ["always"]

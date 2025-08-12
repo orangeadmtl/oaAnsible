@@ -33,8 +33,8 @@
 
         - name: Set uv path fact
           ansible.builtin.set_fact:
-            uv_path: "{{ (uv_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('')
-              }}"
+            uv_path:
+              "{{ (uv_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('') }}"
 
         - name: Get uv version
           ansible.builtin.shell: |
@@ -74,8 +74,8 @@
 
         - name: Set bun path fact
           ansible.builtin.set_fact:
-            bun_path: "{{ (bun_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('')
-              }}"
+            bun_path:
+              "{{ (bun_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) | default('') }}"
 
         - name: Get bun version
           ansible.builtin.shell: |
@@ -123,8 +123,9 @@
 
         - name: Set Homebrew path fact
           ansible.builtin.set_fact:
-            homebrew_path: "{{ (homebrew_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first)
-              | default('') }}"
+            homebrew_path:
+              "{{ (homebrew_paths.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list | first) |
+              default('') }}"
 
         - name: Get Homebrew version
           ansible.builtin.shell: |

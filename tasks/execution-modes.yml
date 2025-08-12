@@ -18,9 +18,10 @@
 
 - name: Initialize safety checks configuration
   ansible.builtin.set_fact:
-    execution_config: "{{ execution_config | combine({'safety_checks': {'require_confirmation': (not (execution_config.force_mode | default(false))) and (oa_environment.name
-      | default('') | regex_search('-prod$')), 'validate_prerequisites': true, 'check_disk_space': true, 'verify_network_connectivity': true, 'backup_configurations':
-      execution_config.mode != 'dry-run'}}) }}"
+    execution_config:
+      "{{ execution_config | combine({'safety_checks': {'require_confirmation': (not (execution_config.force_mode | default(false))) and (oa_environment.name |
+      default('') | regex_search('-prod$')), 'validate_prerequisites': true, 'check_disk_space': true, 'verify_network_connectivity': true,
+      'backup_configurations': execution_config.mode != 'dry-run'}}) }}"
   tags: ["always"]
 
 - name: Display execution mode banner
@@ -113,9 +114,10 @@
 
     - name: Simulate component deployment changes
       ansible.builtin.set_fact:
-        execution_plan: "{{ execution_plan | combine({'changes_summary': execution_plan.changes_summary + [{'component': item, 'action': 'deploy' if item not in (existing_components
-          | default([])) else 'update', 'estimated_time': '2-5min', 'changes': ['Create/update application files', 'Configure virtual environment', 'Install/update
-          dependencies', 'Configure service (LaunchAgent/SystemD)', 'Start/restart service']}]}) }}"
+        execution_plan:
+          "{{ execution_plan | combine({'changes_summary': execution_plan.changes_summary + [{'component': item, 'action': 'deploy' if item not in
+          (existing_components | default([])) else 'update', 'estimated_time': '2-5min', 'changes': ['Create/update application files', 'Configure virtual
+          environment', 'Install/update dependencies', 'Configure service (LaunchAgent/SystemD)', 'Start/restart service']}]}) }}"
       loop: "{{ final_component_order | default([]) }}"
 
     - name: Display execution plan

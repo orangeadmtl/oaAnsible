@@ -207,12 +207,19 @@
       changed_when: false
       failed_when: false
 
+    - name: Get current commit hash (if repo exists) # noqa command-instead-of-module
+      ansible.builtin.command: git -C "{{ repo_dest }}" rev-parse HEAD
+      register: current_commit
+      when: git_repo_check.stat.exists
+      changed_when: false
+      failed_when: false
+
     - name: Get remote repository latest commit
-      ansible.builtin.git:
-        repo: "{{ repo_url }}"
-        dest: "{{ repo_dest }}"
-        ls_remote: true
-        version: "{{ repo_version | default('HEAD') }}"
+      ansible.builtin.shell: |
+        set -euo pipefail
+        git ls-remote "{{ repo_url }}" "{{ repo_version | default('HEAD') }}" | head -n1 | awk '{print $1}'
+      args:
+        executable: /bin/bash
       register: remote_commit
       changed_when: false
       failed_when: false
@@ -225,7 +232,7 @@
         update: true
         force: "{{ force_update | default(false) }}"
       when: >
-        not git_repo_check.stat.exists or current_commit.stdout != (remote_commit.stdout.split('\t')[0] if remote_commit.stdout else '')
+        not git_repo_check.stat.exists or (current_commit.stdout | default('')) | trim != (remote_commit.stdout | default('')) | trim
       register: git_operation_result
 
 # Pattern 8: Performance-Optimized Fact Gathering

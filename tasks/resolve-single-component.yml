@@ -37,7 +37,8 @@
 
     - name: Add component to resolved list
       ansible.builtin.set_fact:
-        dependency_resolution: "{{ dependency_resolution | combine({'resolved_components': dependency_resolution.resolved_components + [component_to_resolve]}) }}"
+        dependency_resolution:
+          "{{ dependency_resolution | combine({'resolved_components': dependency_resolution.resolved_components + [component_to_resolve]}) }}"
       when: component_to_resolve not in dependency_resolution.resolved_components
 
     - name: Remove component from processing stack

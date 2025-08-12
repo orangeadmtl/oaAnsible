@@ -44,7 +44,9 @@
 
     - name: Get Homebrew version if installed
       ansible.builtin.command:
-        cmd: "{{ '/opt/homebrew/bin/brew' if homebrew_arm_check.stat.exists else '/usr/local/bin/brew' if homebrew_intel_check.stat.exists else 'false' }} --version"
+        cmd:
+          "{{ '/opt/homebrew/bin/brew' if homebrew_arm_check.stat.exists else '/usr/local/bin/brew' if homebrew_intel_check.stat.exists else 'false' }}
+          --version"
       register: homebrew_version_check
       changed_when: false
       failed_when: false
@@ -106,8 +108,8 @@
 
     - name: Check if target Python version is available
       ansible.builtin.set_fact:
-        target_python_installed: "{{ (runtime.python.version | default(python.version | default('3.11.11'))) in (pyenv_versions_check.stdout_lines | default([]))
-          }}"
+        target_python_installed:
+          "{{ (runtime.python.version | default(python.version | default('3.11.11'))) in (pyenv_versions_check.stdout_lines | default([])) }}"
       when: pyenv_versions_check is defined
 
     - name: Check if uv is installed
@@ -129,8 +131,9 @@
           target_installed: "{{ target_python_installed | default(false) }}"
           target_is_global: "{{ pyenv_global_check.stdout | default('none') == (runtime.python.version | default(python.version | default('3.11.11'))) }}"
           uv_installed: "{{ uv_check.rc == 0 }}"
-          ready: "{{ pyenv_binary_check.stat.exists and pyenv_git_check.stat.exists | default(false) and target_python_installed | default(false) and pyenv_global_check.stdout
-            | default('none') == (runtime.python.version | default(python.version | default('3.11.11'))) }}"
+          ready:
+            "{{ pyenv_binary_check.stat.exists and pyenv_git_check.stat.exists | default(false) and target_python_installed | default(false) and
+            pyenv_global_check.stdout | default('none') == (runtime.python.version | default(python.version | default('3.11.11'))) }}"
 
 # Node.js Environment State Detection
 - name: Check Node.js environment state
@@ -174,10 +177,12 @@
           installed_versions: "{{ nvm_versions_check.stdout_lines | default([]) }}"
           current_version: "{{ node_version_check.stdout | default('none') }}"
           target_version: "v{{ runtime.node.version | default(node.version | default('22.11.0')) }}"
-          target_installed: "{{ ('v' + (runtime.node.version | default(node.version | default('22.11.0')))) in (nvm_versions_check.stdout_lines | default([])) }}"
+          target_installed:
+            "{{ ('v' + (runtime.node.version | default(node.version | default('22.11.0')))) in (nvm_versions_check.stdout_lines | default([])) }}"
           bun_installed: "{{ bun_check.rc == 0 }}"
-          ready: "{{ nvm_check.stat.exists and ('v' + (runtime.node.version | default(node.version | default('22.11.0')))) in (nvm_versions_check.stdout_lines | default([]))
-            }}"
+          ready:
+            "{{ nvm_check.stat.exists and ('v' + (runtime.node.version | default(node.version | default('22.11.0')))) in (nvm_versions_check.stdout_lines |
+            default([])) }}"
 
 # Service State Detection (macOS)
 - name: Check macOS services state
@@ -211,11 +216,14 @@
       ansible.builtin.set_fact:
         macos_services_state:
           user_agents:
-            macosapi: "{{ 'running' if 'state = running' in launchagent_status.results[0].stdout else 'stopped' if 'state = ' in launchagent_status.results[0].stdout
+            macosapi:
+              "{{ 'running' if 'state = running' in launchagent_status.results[0].stdout else 'stopped' if 'state = ' in launchagent_status.results[0].stdout
               else 'not_loaded' }}"
-            tracker: "{{ 'running' if 'state = running' in launchagent_status.results[1].stdout else 'stopped' if 'state = ' in launchagent_status.results[1].stdout
+            tracker:
+              "{{ 'running' if 'state = running' in launchagent_status.results[1].stdout else 'stopped' if 'state = ' in launchagent_status.results[1].stdout
               else 'not_loaded' }}"
-            alpr: "{{ 'running' if 'state = running' in launchagent_status.results[2].stdout else 'stopped' if 'state = ' in launchagent_status.results[2].stdout
+            alpr:
+              "{{ 'running' if 'state = running' in launchagent_status.results[2].stdout else 'stopped' if 'state = ' in launchagent_status.results[2].stdout
               else 'not_loaded' }}"
           system_daemons:
             dailyreboot: "{{ 'loaded' if 'state = ' in launchdaemon_status.results[0].stdout else 'not_loaded' }}"
@@ -249,8 +257,9 @@
           running: "{{ tailscale_status_check.rc == 0 if tailscale_status_check is defined else false }}"
           online: "{{ tailscale_status_data.BackendState == 'Running' if tailscale_status_data is defined else false }}"
           hostname: "{{ tailscale_status_data.Self.HostName if tailscale_status_data is defined and tailscale_status_data.Self is defined else 'unknown' }}"
-          ip: "{{ tailscale_status_data.Self.TailscaleIPs[0] if tailscale_status_data is defined and tailscale_status_data.Self is defined and tailscale_status_data.Self.TailscaleIPs
-            else 'unknown' }}"
+          ip:
+            "{{ tailscale_status_data.Self.TailscaleIPs[0] if tailscale_status_data is defined and tailscale_status_data.Self is defined and
+            tailscale_status_data.Self.TailscaleIPs else 'unknown' }}"
           tags: "{{ tailscale_status_data.Self.Tags if tailscale_status_data is defined and tailscale_status_data.Self is defined else [] }}"
 
 # Component Installation State Detection
@@ -369,6 +378,6 @@
       node: "{{ node_state.ready }}"
       homebrew: "{{ homebrew_state.working if platform_state.is_macos else true }}"
       tailscale: "{{ tailscale_state.online }}"
-      base_system: "{{ (homebrew_state.working if platform_state.is_macos else true) and (config_files_state.zshrc_exists or config_files_state.bash_profile_exists)
-        }}"
+      base_system:
+        "{{ (homebrew_state.working if platform_state.is_macos else true) and (config_files_state.zshrc_exists or config_files_state.bash_profile_exists) }}"
   tags: ["always", "state"]

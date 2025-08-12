@@ -7,12 +7,14 @@
 
 - name: Check macOS component compatibility
   ansible.builtin.set_fact:
-    compatible_components: "{{ compatible_components + ['macos-api', 'tracker', 'alpr', 'player', 'camguard', 'cursorcerer', 'base', 'network', 'security', 'ssh'] }}"
+    compatible_components:
+      "{{ compatible_components + ['macos-api', 'tracker', 'alpr', 'player', 'camguard', 'cursorcerer', 'base', 'network', 'security', 'ssh'] }}"
   when: target_platform == "macos"
 
 - name: Check Ubuntu component compatibility
   ansible.builtin.set_fact:
-    compatible_components: "{{ compatible_components + ['base', 'network', 'security', 'docker', 'monitoring', 'nvidia', 'ml', 'health', 'oasentinel-setup', 'oasentinel-data',
+    compatible_components:
+      "{{ compatible_components + ['base', 'network', 'security', 'docker', 'monitoring', 'nvidia', 'ml', 'health', 'oasentinel-setup', 'oasentinel-data',
       'oasentinel-train', 'oasentinel-full'] }}"
   when: target_platform == "ubuntu"
 
