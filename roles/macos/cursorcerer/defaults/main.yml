@@ -4,58 +4,58 @@
 # Downloaded from: https://www.doomlaser.com/downloads/Cursorcerer.zip
 
 # Default configuration that can be overridden by inventory
-# 
+#
 # Configuration Merging:
-# - Role defaults (cursorcerer_defaults) provide sensible defaults
-# - Inventory configuration (cursorcerer:) overrides defaults
+# - Role defaults (macos_cursorcerer_defaults) provide sensible defaults
+# - Inventory configuration (macos_cursorcerer:) overrides defaults
 # - All settings are fully customizable per environment/host
 #
 # Example inventory override:
-# cursorcerer:
+# macos_cursorcerer:
 #   idle_timeout: 5              # Custom timeout
 #   hotkey_enabled: false        # Disable hotkey for kiosk
 #   prefpane_path: "/custom/path" # Custom installation path
-cursorcerer_defaults:
+macos_cursorcerer_defaults:
   enabled: true
-  
+
   # Cursor hiding behavior
-  idle_timeout: 3          # Hide cursor after 3 seconds of inactivity
-  show_on_movement: true   # Show cursor when mouse is moved
-  
-  # Control options  
-  hotkey_enabled: true     # Enable Ctrl+Opt+K toggle hotkey
-  hotkey_combo: "^~k"      # Control+Option+K (Cursorcerer default)
-  
+  idle_timeout: 3 # Hide cursor after 3 seconds of inactivity
+  show_on_movement: true # Show cursor when mouse is moved
+
+  # Control options
+  hotkey_enabled: true # Enable Ctrl+Opt+K toggle hotkey
+  hotkey_combo: "^~k" # Control+Option+K (Cursorcerer default)
+
   # Service management
-  auto_start: true         # Start Cursorcerer on user login
-  auto_restart: true       # Restart service if it crashes
-  
+  auto_start: true # Start Cursorcerer on user login
+  auto_restart: true # Restart service if it crashes
+
   # Installation paths (can be overridden in inventory)
   prefpane_path: "{{ ansible_user_dir }}/Library/PreferencePanes"
   app_path: "{{ ansible_user_dir }}/Library/PreferencePanes/Cursorcerer.prefPane/Contents/Resources/Cursorcerer.app"
   app_binary: "{{ ansible_user_dir }}/Library/PreferencePanes/Cursorcerer.prefPane/Contents/Resources/Cursorcerer.app/Contents/MacOS/Cursorcerer"
-  
+
   # Service configuration
   service_name: "com.orangead.cursorcerer"
   log_path: "{{ ansible_user_dir }}/orangead/logs/cursorcerer.log"
-  
-  # Integration with existing kiosk settings
-  coordinate_with_player: true  # Work alongside MPV cursor hiding
-  system_wide_coverage: true   # Provide system-wide cursor management
 
-# Backward compatibility - inventory can still use 'cursorcerer:' top-level key
-cursorcerer: "{{ cursorcerer_defaults }}"
+  # Integration with existing kiosk settings
+  coordinate_with_player: true # Work alongside MPV cursor hiding
+  system_wide_coverage: true # Provide system-wide cursor management
+
+# Backward compatibility note:
+# Tasks will accept either 'macos_cursorcerer' (preferred) or legacy 'cursorcerer' from inventory.
 
 # Default configuration for kiosk environments
-cursorcerer_kiosk_defaults:
-  idle_timeout: 2          # Faster hiding for kiosk mode
-  hotkey_enabled: false    # Disable hotkey for production kiosks
+macos_cursorcerer_kiosk_defaults:
+  idle_timeout: 2 # Faster hiding for kiosk mode
+  hotkey_enabled: false # Disable hotkey for production kiosks
   auto_start: true
   show_on_movement: true
 
-# Development/testing configuration  
-cursorcerer_dev_defaults:
-  idle_timeout: 5          # Longer timeout for development
-  hotkey_enabled: true     # Keep hotkey for debugging
-  auto_start: false        # Manual control during development
+# Development/testing configuration
+macos_cursorcerer_dev_defaults:
+  idle_timeout: 5 # Longer timeout for development
+  hotkey_enabled: true # Keep hotkey for debugging
+  auto_start: false # Manual control during development
   show_on_movement: true

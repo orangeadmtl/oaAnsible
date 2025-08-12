@@ -1,10 +1,10 @@
 ---
-- name: restart cursorcerer
+- name: Restart cursorcerer
   ansible.builtin.shell: |
     # Stop existing Cursorcerer processes
     pkill -f "Cursorcerer" || true
     sleep 2
-    
+
     # Start Cursorcerer application
     if [ -f "{{ cursorcerer_app_binary }}" ]; then
       open "{{ cursorcerer_app_path }}"
@@ -12,32 +12,32 @@
   failed_when: false
   changed_when: false
 
-- name: reload cursorcerer launchagent
+- name: Reload cursorcerer launchagent
   ansible.builtin.shell: |
     # Unload existing LaunchAgent
     launchctl unload "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.cursorcerer.plist" 2>/dev/null || true
     sleep 1
-    
+
     # Load LaunchAgent
     launchctl load "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.cursorcerer.plist"
   failed_when: false
   changed_when: false
   when: cursorcerer_config.auto_start | default(true)
 
-- name: verify cursorcerer installation
+- name: Verify cursorcerer installation
   ansible.builtin.shell: |
     # Check if prefPane is installed
     if [ ! -d "{{ cursorcerer_prefpane_path }}/Cursorcerer.prefPane" ]; then
       echo "ERROR: Cursorcerer.prefPane not found"
       exit 1
     fi
-    
+
     # Check if application binary exists
     if [ ! -f "{{ cursorcerer_app_binary }}" ]; then
       echo "ERROR: Cursorcerer application binary not found"
       exit 1
     fi
-    
+
     echo "Cursorcerer installation verified"
   register: cursorcerer_verification
   changed_when: false

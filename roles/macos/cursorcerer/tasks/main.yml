@@ -1,12 +1,17 @@
 ---
 - name: Deploy Cursorcerer system-wide cursor hiding
-  when: (cursorcerer | default({})).enabled | default(cursorcerer_defaults.enabled) | default(true)
+  when: (macos_cursorcerer | default(cursorcerer | default({}))).enabled | default(macos_cursorcerer_defaults.enabled | default(true))
   tags: ["cursorcerer", "kiosk", "ui"]
   block:
+    - name: Compute effective Cursorcerer input and defaults
+      ansible.builtin.set_fact:
+        macos_cursorcerer_input: "{{ macos_cursorcerer | default(cursorcerer | default({})) }}"
+        macos_cursorcerer_defaults_local: "{{ macos_cursorcerer_defaults }}"
+
     - name: Merge Cursorcerer configuration with defaults
       ansible.builtin.set_fact:
-        cursorcerer_config: "{{ cursorcerer_defaults | combine(cursorcerer | default({}), recursive=true) }}"
-        
+        cursorcerer_config: "{{ macos_cursorcerer_defaults | combine(macos_cursorcerer_input, recursive=true) }}"
+
     - name: Set derived paths from configuration
       ansible.builtin.set_fact:
         cursorcerer_prefpane_path: "{{ cursorcerer_config.prefpane_path }}"
@@ -64,27 +69,27 @@
       ansible.builtin.shell: |
         # Configure Cursorcerer using only the keys it actually reads
         # Based on reverse engineering: only idleHide, autoShow, HotkeyEnabled, HotkeyCombo are used
-        
-        # Clear conflicting UI preferences 
+
+        # Clear conflicting UI preferences
         defaults delete com.doomlaser.cursorcerer 2>/dev/null || true
-        
+
         # Set cursor hide timeout (REAL key: idleHide, not IdleTimeout!)
         defaults write com.doomlaser.cursorcerer idleHide -float {{ cursorcerer_config.idle_timeout | default(3) }}
-        
+
         # Set show cursor on movement (REAL key: autoShow, not ShowOnMovement!)
         defaults write com.doomlaser.cursorcerer autoShow -bool {{ cursorcerer_config.show_on_movement | default(true) | lower }}
-        
+
         # Configure hotkey (REAL keys: HotkeyEnabled, HotkeyCombo)
         defaults write com.doomlaser.cursorcerer HotkeyEnabled -bool {{ cursorcerer_config.hotkey_enabled | default(true) | lower }}
         {% if cursorcerer_config.hotkey_enabled | default(true) %}
         defaults write com.doomlaser.cursorcerer HotkeyCombo -string "{{ cursorcerer_config.hotkey_combo | default('^~k') }}"
         {% endif %}
-        
+
         # Note: SystemWide, IdleTimeout, ShowOnMovement keys are ignored by Cursorcerer
-        
+
         # Force preferences daemon to reload
         killall -u $USER cfprefsd 2>/dev/null || true
-        
+
       register: cursorcerer_config_result
       changed_when: cursorcerer_config_result.rc == 0
       failed_when: cursorcerer_config_result.rc != 0
@@ -109,10 +114,10 @@
         # Kill existing processes to force reload of preferences
         pkill -f Cursorcerer || true
         sleep 2
-        
+
         # Start Cursorcerer application
         nohup "{{ cursorcerer_app_binary }}" > "{{ cursorcerer_log_path }}" 2>&1 &
-        
+
         # Give it time to start and load preferences
         sleep 3
       register: cursorcerer_start
@@ -124,7 +129,7 @@
       delegate_to: localhost
 
     - name: Verify Cursorcerer is running
-      ansible.builtin.shell: pgrep -f Cursorcerer
+      ansible.builtin.command: pgrep -f Cursorcerer
       register: cursorcerer_check
       failed_when: false
       changed_when: false
@@ -147,8 +152,9 @@
 
     - name: Comprehensive Cursorcerer functionality test
       ansible.builtin.shell: |
+        set -o pipefail
         echo "=== Cursorcerer Comprehensive Debug ==="
-        
+
         # 1. Process Status
         if pgrep -f "Cursorcerer" > /dev/null; then
           echo "✓ Process: Running"
@@ -160,28 +166,26 @@
           echo "❌ Process: Not running"
           exit 1
         fi
-        
+
         # 2. LaunchAgent Status
-        {% if cursorcerer_config.auto_start | default(true) %}
         if launchctl list | grep -q "com.orangead.cursorcerer"; then
           echo "✓ LaunchAgent: Loaded and running"
         else
           echo "⚠ LaunchAgent: Not loaded"
         fi
-        {% endif %}
-        
+
         # 3. All Preferences Analysis
         echo "✓ Preference Settings Analysis:"
-        
+
         # Individual setting checks with expected vs actual
         idle_timeout=$(defaults read com.doomlaser.cursorcerer IdleTimeout 2>/dev/null || echo "not set")
-        idle_hide=$(defaults read com.doomlaser.cursorcerer idleHide 2>/dev/null || echo "not set") 
+        idle_hide=$(defaults read com.doomlaser.cursorcerer idleHide 2>/dev/null || echo "not set")
         hotkey_enabled=$(defaults read com.doomlaser.cursorcerer HotkeyEnabled 2>/dev/null || echo "not set")
         hotkey_combo=$(defaults read com.doomlaser.cursorcerer HotkeyCombo 2>/dev/null || echo "not set")
         show_on_movement=$(defaults read com.doomlaser.cursorcerer ShowOnMovement 2>/dev/null || echo "not set")
         auto_show=$(defaults read com.doomlaser.cursorcerer autoShow 2>/dev/null || echo "not set")
         system_wide=$(defaults read com.doomlaser.cursorcerer SystemWide 2>/dev/null || echo "not set")
-        
+
         echo "  Expected vs Actual Settings (REAL keys only):"
         echo "    Idle Timeout: Expected={{ cursorcerer_config.idle_timeout | default(3) }}s, idleHide=${idle_hide}s"
         echo "    Show on Movement: Expected={{ cursorcerer_config.show_on_movement | default(true) }}, autoShow=${auto_show}"
@@ -190,11 +194,11 @@
         echo ""
         echo "  UNUSED keys (ignored by Cursorcerer):"
         echo "    IdleTimeout=${idle_timeout}, ShowOnMovement=${show_on_movement}, SystemWide=${system_wide}"
-        
+
         # 4. Setting Consistency Check
         echo "✓ Setting Consistency Check:"
         issues=0
-        
+
         # Check REAL keys only (keys Cursorcerer actually uses)
         expected_timeout={{ cursorcerer_config.idle_timeout | default(3) }}
         if [ "$idle_hide" != "$expected_timeout" ]; then
@@ -203,7 +207,7 @@
         else
           echo "  ✓ Idle timeout correct: ${expected_timeout}s"
         fi
-        
+
         expected_autoshow={{ cursorcerer_config.show_on_movement | default(true) | lower }}
         if [ "$auto_show" = "1" ] && [ "$expected_autoshow" = "true" ]; then
           echo "  ✓ Show on movement correct: enabled"
@@ -213,7 +217,7 @@
           echo "  ❌ Show on movement mismatch: Expected ${expected_autoshow}, got autoShow=${auto_show}"
           issues=$((issues + 1))
         fi
-        
+
         expected_hotkey={{ cursorcerer_config.hotkey_enabled | default(true) | lower }}
         if [ "$hotkey_enabled" = "1" ] && [ "$expected_hotkey" = "true" ]; then
           echo "  ✓ Hotkey correct: enabled"
@@ -223,7 +227,7 @@
           echo "  ❌ Hotkey mismatch: Expected ${expected_hotkey}, got HotkeyEnabled=${hotkey_enabled}"
           issues=$((issues + 1))
         fi
-        
+
         expected_combo="{{ cursorcerer_config.hotkey_combo | default('^~k') }}"
         if [ "$hotkey_combo" = "$expected_combo" ]; then
           echo "  ✓ Hotkey combo correct: ${expected_combo}"
@@ -231,7 +235,7 @@
           echo "  ❌ Hotkey combo mismatch: Expected ${expected_combo}, got ${hotkey_combo}"
           issues=$((issues + 1))
         fi
-        
+
         # Summary
         echo "✓ Debug Summary:"
         if [ $issues -eq 0 ]; then
@@ -241,15 +245,17 @@
           echo "  ⚠ Found $issues setting inconsistencies"
           echo "  ⚠ Manual reconfiguration may be needed"
         fi
-        
+
         echo ""
         echo "✓ Manual Testing Instructions:"
         echo "  1. Move cursor and wait {{ cursorcerer_config.idle_timeout | default(3) }} seconds - cursor should hide"
-        echo "  2. Move cursor again - cursor should reappear"  
+        echo "  2. Move cursor again - cursor should reappear"
         echo "  3. Press Ctrl+Opt+K - should toggle cursor on/off"
         echo "  4. Test with different applications to verify system-wide behavior"
-        
+
         exit 0
+      args:
+        executable: /bin/bash
       register: cursorcerer_debug
       changed_when: false
       failed_when: cursorcerer_debug.rc != 0
