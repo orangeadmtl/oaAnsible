@@ -18,6 +18,12 @@
       'oasentinel-train', 'oasentinel-full'] }}"
   when: target_platform == "ubuntu"
 
+- name: Check OrangePi component compatibility
+  ansible.builtin.set_fact:
+    compatible_components:
+      "{{ compatible_components + ['base', 'shell', 'tailscale', 'player', 'monitoring'] }}"
+  when: target_platform == "orangepi"
+
 - name: Validate selected components
   ansible.builtin.fail:
     msg: |
@@ -34,7 +40,22 @@
       - Components: {{ deployment_components | default(selected_components) | join(', ') }}
       - Compatible: {{ compatible_components | join(', ') }}
 
-# Deploy components in dependency order: base -> network -> security -> applications
+# Deploy components in dependency order: security -> base -> network -> applications
+# Security must be first to configure passwordless sudo for Ubuntu
+
+- name: Deploy security component (priority for Ubuntu sudo config)
+  when: "'security' in deployment_components | default(selected_components)"
+  tags: ["security"]
+  block:
+    - name: Deploy macOS security
+      ansible.builtin.include_role:
+        name: macos/security
+      when: target_platform == "macos"
+
+    - name: Deploy Ubuntu security
+      ansible.builtin.include_role:
+        name: ubuntu/security
+      when: target_platform == "ubuntu"
 
 - name: Deploy base system component
   when: "'base' in deployment_components | default(selected_components)"
@@ -49,6 +70,11 @@
       ansible.builtin.include_role:
         name: ubuntu/base
       when: target_platform == "ubuntu"
+
+    - name: Deploy OrangePi base
+      ansible.builtin.include_role:
+        name: orangepi/base
+      when: target_platform == "orangepi"
 
 - name: Deploy network component
   when: "'network' in deployment_components | default(selected_components)"
@@ -71,27 +97,44 @@
         name: ubuntu/network/tailscale
       when: target_platform == "ubuntu"
 
-- name: Deploy security component
-  when: "'security' in deployment_components | default(selected_components)"
-  tags: ["security"]
-  block:
-    - name: Deploy macOS security
+    - name: Deploy OrangePi Tailscale
       ansible.builtin.include_role:
-        name: macos/security
+        name: orangepi/network/tailscale
+      when: target_platform == "orangepi"
+
+- name: Deploy tailscale component (alias for network)
+  when: "'tailscale' in deployment_components | default(selected_components)"
+  tags: ["tailscale", "network"]
+  block:
+    - name: Deploy macOS Tailscale
+      ansible.builtin.include_role:
+        name: macos/network/tailscale
       when: target_platform == "macos"
 
-    - name: Deploy Ubuntu security
+    - name: Deploy Ubuntu Tailscale
       ansible.builtin.include_role:
-        name: ubuntu/security
+        name: ubuntu/network/tailscale
       when: target_platform == "ubuntu"
 
+    - name: Deploy OrangePi Tailscale
+      ansible.builtin.include_role:
+        name: orangepi/network/tailscale
+      when: target_platform == "orangepi"
+
+
 - name: Deploy shell enhancements component
-  ansible.builtin.include_role:
-    name: ubuntu/shell
-  when:
-    - target_platform == "ubuntu"
-    - "'shell' in deployment_components | default(selected_components)"
+  when: "'shell' in deployment_components | default(selected_components)"
   tags: ["shell", "zsh"]
+  block:
+    - name: Deploy Ubuntu shell
+      ansible.builtin.include_role:
+        name: ubuntu/shell
+      when: target_platform == "ubuntu"
+
+    - name: Deploy OrangePi shell
+      ansible.builtin.include_role:
+        name: orangepi/shell
+      when: target_platform == "orangepi"
 
 - name: Deploy SSH component
   ansible.builtin.include_role:
@@ -127,12 +170,18 @@
   tags: ["alpr"]
 
 - name: Deploy player component
-  ansible.builtin.include_role:
-    name: macos/player
-  when:
-    - target_platform == "macos"
-    - "'player' in deployment_components | default(selected_components)"
+  when: "'player' in deployment_components | default(selected_components)"
   tags: ["player"]
+  block:
+    - name: Deploy macOS player
+      ansible.builtin.include_role:
+        name: macos/player
+      when: target_platform == "macos"
+
+    - name: Deploy OrangePi player
+      ansible.builtin.include_role:
+        name: orangepi/player
+      when: target_platform == "orangepi"
 
 - name: Deploy CamGuard component
   ansible.builtin.include_role:
@@ -174,6 +223,20 @@
     - target_platform == "ubuntu"
     - "'ml' in deployment_components | default(selected_components)"
   tags: ["ml"]
+
+- name: Deploy monitoring component
+  when: "'monitoring' in deployment_components | default(selected_components)"
+  tags: ["monitoring"]
+  block:
+    - name: Deploy Ubuntu monitoring
+      ansible.builtin.include_role:
+        name: ubuntu/monitoring
+      when: target_platform == "ubuntu"
+
+    - name: Deploy OrangePi monitoring
+      ansible.builtin.include_role:
+        name: orangepi/monitoring
+      when: target_platform == "orangepi"
 
 # GPU Health Check is now integrated into the ML workstation role verification tasks
 

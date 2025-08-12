@@ -1,0 +1,229 @@
+---
+# OrangePi Onboarding Playbook - Intelligent Device Setup
+# Integrates with existing opi-setup infrastructure while adding automation
+
+- name: OrangePi Device Onboarding
+  hosts: orangepi_devices
+  gather_facts: true
+  become: false
+  vars_files:
+    - ../group_vars/all/vault.yml
+  vars:
+    # Default deployment profile - overridden by script or inventory
+    deployment_profile: "player"
+    # Component configuration - automatically determined by profile
+    configure_components: []
+    
+  pre_tasks:
+    - name: Display OrangePi onboarding banner
+      ansible.builtin.debug:
+        msg: |
+          ╔══════════════════════════════════════════════════════════════╗
+          ║                   OrangePi Device Onboarding                ║
+          ╠══════════════════════════════════════════════════════════════╣
+          ║ Target: {{ inventory_hostname }} ({{ ansible_host }})
+          ║ User: {{ ansible_user }}
+          ║ Profile: {{ deployment_profile | upper }}
+          ║ Platform: OrangePi 5B + opi-setup integration
+          ║ Timestamp: {{ ansible_date_time.iso8601 }}
+          ╚══════════════════════════════════════════════════════════════╝
+
+    - name: Gather system facts
+      ansible.builtin.setup:
+        gather_subset:
+          - "!all"
+          - "!any"
+          - "distribution"
+          - "network"
+          - "hardware"
+
+    - name: Validate OrangePi system compatibility
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+          - ansible_distribution_major_version | int >= 20
+          - ansible_architecture == "aarch64"
+        fail_msg: |
+          ❌ System validation failed:
+          - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          - Architecture: {{ ansible_architecture }}
+          - Required: Ubuntu 20.04+ on ARM64 (OrangePi 5B)
+        success_msg: "✅ {{ ansible_distribution }} {{ ansible_distribution_version }} on {{ ansible_architecture }} - Compatible"
+
+    - name: Display system information
+      ansible.builtin.debug:
+        msg: |
+          📋 OrangePi System Information:
+          ├─ Hostname: {{ ansible_hostname }}
+          ├─ Architecture: {{ ansible_architecture }}
+          ├─ Kernel: {{ ansible_kernel }}
+          ├─ Memory: {{ (ansible_memtotal_mb / 1024) | round(1) }}GB
+          ├─ CPU Cores: {{ ansible_processor_vcpus }}
+          ├─ Primary IP: {{ ansible_default_ipv4.address | default('N/A') }}
+          ├─ Profile: {{ deployment_profile }}
+          └─ Integration: opi-setup enhanced
+
+    - name: Determine components based on profile
+      ansible.builtin.set_fact:
+        configure_components: |
+          {%- set components = [] -%}
+          {%- if deployment_profile == "minimal" -%}
+            {%- set components = ["base"] -%}
+          {%- elif deployment_profile == "player" -%}
+            {%- set components = ["base", "shell", "tailscale", "player", "monitoring"] -%}
+          {%- elif deployment_profile == "development" -%}
+            {%- set components = ["base", "shell", "tailscale", "monitoring"] -%}
+          {%- else -%}
+            {%- set components = ["base", "tailscale"] -%}
+          {%- endif -%}
+          {{ components }}
+
+    - name: Display selected components
+      ansible.builtin.debug:
+        msg: |
+          🔧 Components for {{ deployment_profile }} profile:
+          {{ configure_components | join(', ') }}
+
+  tasks:
+    # Base Setup (Always Required)
+    - name: Base OrangePi setup and opi-setup integration
+      ansible.builtin.include_role:
+        name: orangepi/base
+      vars:
+        base_role_name: "OrangePi Base + opi-setup Integration"
+      tags: [always, base]
+
+    # Shell Enhancement (player and development profiles)
+    - name: Enhanced shell with OrangePi utilities
+      ansible.builtin.include_role:
+        name: orangepi/shell
+      vars:
+        shell_role_name: "zsh + Oh My Zsh + OrangePi Functions"
+      tags: [shell]
+      when: "'shell' in configure_components"
+
+    # Tailscale Network Setup (all profiles except minimal)
+    - name: Tailscale network configuration
+      ansible.builtin.include_role:
+        name: orangepi/network/tailscale
+      vars:
+        tailscale_role_name: "Tailscale VPN with Authentication"
+      tags: [network, tailscale]
+      when: "'tailscale' in configure_components"
+
+    # Player-specific Configuration (player profile only)
+    - name: Advanced player configuration
+      ansible.builtin.include_tasks:
+        file: tasks/player_advanced_config.yml
+      tags: [player]
+      when: "'player' in configure_components"
+
+    # Monitoring Setup (all profiles except minimal)
+    - name: Enhanced monitoring and health checks
+      ansible.builtin.include_tasks:
+        file: tasks/monitoring_setup.yml
+      tags: [monitoring]
+      when: "'monitoring' in configure_components"
+
+  post_tasks:
+    - name: Check if system reboot is required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Wait for all services to stabilize
+      ansible.builtin.pause:
+        seconds: 10
+      when: ansible_connection != "local"
+
+    - name: Verify core services are running
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: started
+      register: service_check
+      failed_when: false
+      loop:
+        - health-check-api.service
+        - tailscaled
+      when: item != "tailscaled" or "'tailscale' in configure_components"
+
+    - name: Test health API endpoint
+      ansible.builtin.uri:
+        url: "http://localhost:{{ health_api_port | default(9090) }}/health"
+        method: GET
+        timeout: 10
+      register: health_api_test
+      failed_when: false
+      when: "'base' in configure_components"
+
+    - name: Display onboarding completion summary
+      ansible.builtin.debug:
+        msg: |
+          ╔═══════════════════════════════════════════════════════════════╗
+          ║              🍊 OrangePi Onboarding Complete!                ║
+          ╠═══════════════════════════════════════════════════════════════╣
+          ║                                                               ║
+          ║ Host: {{ inventory_hostname }} ({{ ansible_host }})
+          ║ Profile: {{ deployment_profile | upper }}
+          ║                                                               ║
+          ║ 📦 Configured Components:                                     ║
+          {% if deployment_profile == "player" %}
+          ║ ├─ ✓ opi-setup integration & base system                     ║
+          ║ ├─ ✓ Enhanced shell (zsh + OrangePi functions)               ║
+          ║ ├─ ✓ Tailscale VPN with authentication                       ║
+          ║ ├─ ✓ Player services & health monitoring                     ║
+          ║ └─ ✓ System monitoring & utilities                           ║
+          {% elif deployment_profile == "development" %}
+          ║ ├─ ✓ opi-setup integration & base system                     ║
+          ║ ├─ ✓ Enhanced shell (zsh + OrangePi functions)               ║
+          ║ ├─ ✓ Tailscale VPN with authentication                       ║
+          ║ └─ ✓ Development utilities & monitoring                      ║
+          {% elif deployment_profile == "minimal" %}
+          ║ └─ ✓ opi-setup integration & base system                     ║
+          {% endif %}
+          ║                                                               ║
+          ║ 🔗 Access Information:                                       ║
+          ║ • SSH: ssh {{ ansible_user }}@{{ ansible_host }}
+          {% if "'tailscale' in configure_components" %}
+          ║ • Tailscale: Connected with OrangePi tags                   ║
+          {% endif %}
+          {% if "'shell' in configure_components" %}
+          ║ • Enhanced Shell: zsh with OrangePi utilities               ║
+          {% endif %}
+          ║ • Health API: http://{{ ansible_host }}:{{ health_api_port | default(9090) }}/health
+          ║                                                               ║
+          {% if reboot_required.stat.exists %}
+          ║ ⚠️ REBOOT REQUIRED for updates to take full effect           ║
+          ║   Run: sudo reboot                                           ║
+          {% else %}
+          ║ ✅ No reboot required - system ready for use                 ║
+          {% endif %}
+          ║                                                               ║
+          ║ 🎯 Quick Commands (if shell enhanced):                       ║
+          ║ • oastatus  - Check all services                            ║
+          ║ • oahealth  - API health check                              ║
+          ║ • oainfo    - System information                            ║
+          ║ • oatailscale - Tailscale management                        ║
+          ║                                                               ║
+          ║ 🚀 Your OrangePi is ready for OrangeAd operations!          ║
+          ╚═══════════════════════════════════════════════════════════════╝
+
+    - name: Generate onboarding report
+      ansible.builtin.template:
+        src: "orangepi-onboarding-report.md.j2"
+        dest: "/tmp/orangepi-onboarding-{{ inventory_hostname }}-{{ ansible_date_time.epoch }}.md"
+        mode: "0644"
+      delegate_to: localhost
+      vars:
+        report_timestamp: "{{ ansible_date_time.iso8601 }}"
+        report_host: "{{ inventory_hostname }}"
+        report_ip: "{{ ansible_host }}"
+        report_profile: "{{ deployment_profile }}"
+        report_user: "{{ ansible_user }}"
+        report_os: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
+        report_reboot_required: "{{ reboot_required.stat.exists }}"
+        report_components: "{{ configure_components }}"
+        report_health_api: "{{ health_api_test.status | default('unknown') }}"
+        onboarding_role_name: "OrangePi Onboarding Report Generator"
+      tags: [report]
+      failed_when: false

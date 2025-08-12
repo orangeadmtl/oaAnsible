@@ -35,7 +35,23 @@
       - "apt"
       - "docker"
       - "server"
-  when: ansible_distribution == "Ubuntu"
+  when: ansible_distribution == "Ubuntu" and ansible_architecture != "aarch64"
+  tags: ["always"]
+
+- name: Detect OrangePi platform (Ubuntu ARM64)
+  ansible.builtin.set_fact:
+    detected_platform: "orangepi"
+    platform_capabilities:
+      - "systemd"
+      - "apt"
+      - "opi-setup"
+      - "player"
+      - "display"
+      - "embedded"
+  when: 
+    - ansible_distribution == "Ubuntu"
+    - ansible_architecture == "aarch64"
+    - platform_type is defined and platform_type == "orangepi"  # Explicit platform detection from inventory
   tags: ["always"]
 
 - name: Fallback platform detection using command
@@ -85,6 +101,6 @@
   ansible.builtin.fail:
     msg: |
       Unsupported platform detected: {{ detected_platform }}
-      This playbook supports: macOS, Ubuntu
-      Detected system: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      This playbook supports: macOS, Ubuntu, OrangePi (Ubuntu ARM64)
+      Detected system: {{ ansible_distribution }} {{ ansible_distribution_version }} ({{ ansible_architecture }})
   when: detected_platform == "generic"

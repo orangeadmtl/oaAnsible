@@ -1,0 +1,33 @@
+---
+# OrangePi Tailscale Network Configuration
+# Enhanced version of the basic tailscale.sh script
+
+# Tailscale configuration
+tailscale_auth_key: "{{ vault_tailscale_auth_key }}"
+tailscale_hostname: "{{ inventory_hostname }}"
+tailscale_advertise_routes: []
+tailscale_accept_routes: true
+tailscale_enable_ssh: true
+
+# OrangePi-specific tags
+tailscale_tags:
+  - "tag:oa-orangepi"
+  - "tag:oa-device"
+
+# Installation settings
+tailscale_repo_url: "https://pkgs.tailscale.com/stable/ubuntu"
+tailscale_signing_key_url: "https://pkgs.tailscale.com/stable/ubuntu/jammy.noarmor.gpg"
+
+# Service configuration
+enable_tailscale_service: true
+tailscale_up_timeout: 60
+
+# Security settings
+tailscale_shields_up: false
+tailscale_exit_node: ""
+
+# Integration settings
+update_hosts_file: true
+verify_connection: true
+ping_targets:
+  - "dashboard"  # Try to ping the dashboard server

@@ -1,0 +1,47 @@
+---
+# OrangePi Base Role Defaults
+# Integrates with existing opi-setup infrastructure
+
+# Base configuration
+orangepi_user: "orangepi"
+orangepi_home: "/home/{{ orangepi_user }}"
+orangepi_project_root: "{{ orangepi_home }}/Orangead/player"
+
+# opi-setup integration
+opi_setup_repo: "https://github.com/oa-device/opi-setup.git"
+opi_setup_branch: "main"
+opi_setup_force_update: false
+
+# System configuration  
+configure_hostname: true
+orangepi_hostname: "{{ inventory_hostname }}"
+configure_timezone: true
+orangepi_timezone: "America/Montreal"
+
+# Service configuration
+configure_sudo_rights: true
+configure_path_enhancement: true
+disable_update_notifications: true
+disable_gnome_notifications: true
+configure_gnome_settings: true
+
+# Security settings
+change_default_password: true
+orangepi_password: "orangead"
+
+# Integration with oaDashboard
+enable_health_api: true
+health_api_port: 9090
+
+# Device identification
+device_series: "opi"
+device_location: "default"
+device_id: "{{ inventory_hostname }}"
+
+# Component selection (can be overridden in inventory)
+components:
+  base: true
+  shell: false
+  tailscale: false  
+  player: true
+  monitoring: true

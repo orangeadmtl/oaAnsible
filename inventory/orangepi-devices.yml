@@ -1,0 +1,33 @@
+---
+all:
+  vars:
+    # Ansible configuration
+    ansible_python_interpreter: "/usr/bin/python3"
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+
+    # Platform configuration
+    platform_type: "orangepi"
+    deployment_profile: "player"
+
+    # Tailscale configuration
+    tailscale_auth_key: "{{ vault_tailscale_auth_key }}"
+    tailscale_enable_ssh: true
+    tailscale_tags:
+      - "tag:oa-orangepi"
+      - "tag:oa-device"
+
+    # OrangePi-specific configuration
+    orangepi_user: "orangepi"
+    orangepi_home: "/home/orangepi"
+    orangepi_project_root: "/home/orangepi/Orangead/player"
+    orangepi_timezone: "America/Montreal"
+
+  children:
+    orangepi_devices:
+      hosts:
+        kai0001:
+          ansible_host: "192.168.1.64"
+          ansible_user: "orangepi"
+          ansible_port: 22
+          device_id: "kai0001"
+          tailscale_hostname: "kai0001"

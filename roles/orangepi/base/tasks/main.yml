@@ -1,0 +1,121 @@
+---
+# OrangePi Base Setup - Integrates with existing opi-setup
+# This role coordinates with the existing opi-setup infrastructure
+
+- name: Display OrangePi base setup banner
+  ansible.builtin.debug:
+    msg: |
+      ╔════════════════════════════════════════════════════╗
+      ║              OrangePi Base Configuration           ║
+      ╠════════════════════════════════════════════════════╣
+      ║ Target: {{ inventory_hostname }}
+      ║ Project Root: {{ orangepi_project_root }}
+      ║ Integration: opi-setup enhanced automation
+      ╚════════════════════════════════════════════════════╝
+
+- name: Check if opi-setup already exists
+  ansible.builtin.stat:
+    path: "{{ orangepi_project_root }}"
+  register: opi_setup_exists
+
+- name: Create Orangead directory structure
+  ansible.builtin.file:
+    path: "{{ orangepi_home }}/Orangead"
+    state: directory
+    owner: "{{ orangepi_user }}"
+    group: "{{ orangepi_user }}"
+    mode: '0755'
+  become: true
+
+- name: Clone or update opi-setup repository
+  ansible.builtin.git:
+    repo: "{{ opi_setup_repo }}"
+    dest: "{{ orangepi_project_root }}"
+    version: "{{ opi_setup_branch }}"
+    force: "{{ opi_setup_force_update }}"
+  become_user: "{{ orangepi_user }}"
+  become: true
+  register: opi_setup_git
+
+- name: Make opi-setup scripts executable
+  ansible.builtin.file:
+    path: "{{ orangepi_project_root }}/{{ item }}"
+    mode: '0755'
+  loop:
+    - setup.sh
+    - util-scripts/oasetup
+    - util-scripts/oaplayer
+    - util-scripts/oasync
+    - util-scripts/oadisplay
+    - util-scripts/oasvc
+    - util-scripts/sreboot
+  become: true
+  failed_when: false  # Continue if some scripts don't exist
+
+- name: Run opi-setup.sh if this is initial setup
+  ansible.builtin.command:
+    cmd: ./setup.sh
+    chdir: "{{ orangepi_project_root }}"
+  become_user: "{{ orangepi_user }}"
+  become: true
+  when: not opi_setup_exists.stat.exists
+  register: opi_setup_result
+  
+- name: Display opi-setup results
+  ansible.builtin.debug:
+    msg: |
+      opi-setup execution completed
+      {% if opi_setup_result.changed %}
+      Initial setup performed successfully
+      {% else %}
+      opi-setup was already configured
+      {% endif %}
+
+- name: Set hostname if configured
+  ansible.builtin.hostname:
+    name: "{{ orangepi_hostname }}"
+  become: true
+  when: configure_hostname
+
+- name: Configure device identification
+  ansible.builtin.template:
+    src: device_info.json.j2
+    dest: "{{ orangepi_project_root }}/device_info.json"
+    owner: "{{ orangepi_user }}"
+    group: "{{ orangepi_user }}"
+    mode: '0644'
+  become: true
+
+- name: Ensure critical services are enabled
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+  loop:
+    - health-check-api.service
+    - display-setup.service
+  failed_when: false  # Continue if services don't exist yet
+
+- name: Verify opi-setup integration
+  ansible.builtin.uri:
+    url: "http://localhost:{{ health_api_port }}/health"
+    method: GET
+    timeout: 10
+  register: health_check
+  failed_when: false
+  retries: 3
+  delay: 5
+
+- name: Display integration status
+  ansible.builtin.debug:
+    msg: |
+      ╔════════════════════════════════════════════════════╗
+      ║           OrangePi Base Setup Complete             ║
+      ╠════════════════════════════════════════════════════╣
+      ║ ✅ opi-setup integration: Ready
+      ║ ✅ Project structure: Configured
+      ║ ✅ Services: {{ 'Healthy' if health_check.status == 200 else 'Pending startup' }}
+      ║ ✅ Device ID: {{ device_id }}
+      ╚════════════════════════════════════════════════════╝

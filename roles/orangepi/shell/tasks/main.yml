@@ -1,0 +1,115 @@
+---
+# OrangePi Shell Enhancement Tasks
+# Enhanced zsh configuration for OrangePi devices
+
+- name: Display shell enhancement banner
+  ansible.builtin.debug:
+    msg: |
+      ╔════════════════════════════════════════════════════╗
+      ║              OrangePi Shell Enhancement            ║
+      ╠════════════════════════════════════════════════════╣
+      ║ Installing: Oh My Zsh + OrangePi-specific aliases
+      ║ Theme: {{ oh_my_zsh_theme }}
+      ║ Plugins: {{ oh_my_zsh_plugins | join(', ') }}
+      ╚════════════════════════════════════════════════════╝
+
+- name: Install zsh and required packages
+  ansible.builtin.apt:
+    name:
+      - zsh
+      - git
+      - curl
+      - wget
+      - jq
+    state: present
+    update_cache: true
+  become: true
+
+- name: Install development tools if enabled
+  ansible.builtin.apt:
+    name: "{{ dev_packages }}"
+    state: present
+  become: true
+  when: install_dev_tools
+
+- name: Check if Oh My Zsh is already installed
+  ansible.builtin.stat:
+    path: "{{ orangepi_home }}/.oh-my-zsh"
+  register: oh_my_zsh_exists
+
+- name: Backup existing shell configuration
+  ansible.builtin.copy:
+    src: "{{ orangepi_home }}/.{{ item }}"
+    dest: "{{ orangepi_home }}/.{{ item }}.backup-{{ ansible_date_time.epoch }}"
+    remote_src: true
+  become_user: "{{ orangepi_user }}"
+  become: true
+  loop:
+    - bashrc
+    - zshrc
+  failed_when: false
+  when: backup_existing_configs
+
+- name: Install Oh My Zsh
+  ansible.builtin.shell: |
+    curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh | sh -s -- --unattended
+  become_user: "{{ orangepi_user }}"
+  become: true
+  when: not oh_my_zsh_exists.stat.exists
+
+- name: Install zsh-autosuggestions plugin
+  ansible.builtin.git:
+    repo: https://github.com/zsh-users/zsh-autosuggestions
+    dest: "{{ orangepi_home }}/.oh-my-zsh/custom/plugins/zsh-autosuggestions"
+  become_user: "{{ orangepi_user }}"
+  become: true
+
+- name: Install zsh-syntax-highlighting plugin
+  ansible.builtin.git:
+    repo: https://github.com/zsh-users/zsh-syntax-highlighting.git
+    dest: "{{ orangepi_home }}/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
+  become_user: "{{ orangepi_user }}"
+  become: true
+
+- name: Configure zsh with custom settings
+  ansible.builtin.template:
+    src: zshrc.j2
+    dest: "{{ orangepi_home }}/.zshrc"
+    owner: "{{ orangepi_user }}"
+    group: "{{ orangepi_user }}"
+    mode: '0644'
+  become: true
+
+- name: Set zsh as default shell
+  ansible.builtin.user:
+    name: "{{ orangepi_user }}"
+    shell: /bin/zsh
+  become: true
+  when: set_zsh_as_default
+
+- name: Add OrangePi-specific functions
+  ansible.builtin.template:
+    src: orangepi_functions.zsh.j2
+    dest: "{{ orangepi_home }}/.oh-my-zsh/custom/orangepi_functions.zsh"
+    owner: "{{ orangepi_user }}"
+    group: "{{ orangepi_user }}"
+    mode: '0644'
+  become: true
+
+- name: Display shell enhancement completion
+  ansible.builtin.debug:
+    msg: |
+      ╔════════════════════════════════════════════════════╗
+      ║         Shell Enhancement Complete                 ║
+      ╠════════════════════════════════════════════════════╣
+      ║ ✅ Zsh installed and configured
+      ║ ✅ Oh My Zsh with {{ oh_my_zsh_theme }} theme
+      ║ ✅ OrangePi aliases and functions added
+      ║ ✅ Enhanced plugins installed
+      ║ 
+      ║ 🎯 Available OrangePi commands:
+      ║ • oastatus  - Check all services
+      ║ • oaupdate  - Update project
+      ║ • oareboot  - Safe reboot
+      ║ • oahealth  - Check API health
+      ╚════════════════════════════════════════════════════╝

@@ -1,0 +1,44 @@
+---
+# Tailscale Connection Verification Tasks
+
+- name: Test Tailscale self-connectivity
+  ansible.builtin.command:
+    cmd: tailscale ping {{ tailscale_hostname }}
+  register: self_ping
+  failed_when: false
+  become: true
+
+- name: Test connectivity to ping targets
+  ansible.builtin.command:
+    cmd: tailscale ping {{ item }}
+  register: target_ping
+  failed_when: false
+  become: true
+  loop: "{{ ping_targets }}"
+  when: ping_targets is defined and ping_targets
+
+- name: Display connectivity results
+  ansible.builtin.debug:
+    msg: |
+      🌐 Tailscale Connectivity Test Results:
+      =====================================
+      Self-ping: {{ 'SUCCESS' if self_ping.rc == 0 else 'FAILED' }}
+      {% if ping_targets is defined and ping_targets %}
+      Target connectivity:
+      {% for result in target_ping.results %}
+      - {{ result.item }}: {{ 'SUCCESS' if result.rc == 0 else 'FAILED' }}
+      {% endfor %}
+      {% endif %}
+
+- name: Verify Tailscale network interface
+  ansible.builtin.command:
+    cmd: ip addr show tailscale0
+  register: tailscale_interface
+  failed_when: false
+
+- name: Display network interface info
+  ansible.builtin.debug:
+    msg: |
+      📡 Tailscale Interface Status:
+      {{ 'Active' if tailscale_interface.rc == 0 else 'Not found' }}
+  when: tailscale_interface is defined

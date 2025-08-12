@@ -1,0 +1,41 @@
+---
+# OrangePi Shell Enhancement Defaults
+# Based on Ubuntu and macOS shell roles
+
+# Oh My Zsh configuration
+install_oh_my_zsh: true
+oh_my_zsh_theme: "robbyrussell"
+oh_my_zsh_plugins:
+  - git
+  - sudo
+  - command-not-found
+  - zsh-autosuggestions
+  - zsh-syntax-highlighting
+
+# Shell configuration
+set_zsh_as_default: true
+backup_existing_configs: true
+
+# Custom aliases specific to OrangePi
+orangepi_aliases:
+  - { alias: "oastatus", command: "oasvc" }
+  - { alias: "oaupdate", command: "oasync" }
+  - { alias: "oareboot", command: "sreboot" }
+  - { alias: "oadisplay", command: "oadisplay" }
+  - { alias: "oaplayer", command: "oaplayer" }
+  - { alias: "oalogs", command: "journalctl -u slideshow-player.service -f" }
+  - { alias: "oahealth", command: "curl -s http://localhost:9090/health | jq ." }
+
+# Enhanced prompt configuration
+enable_custom_prompt: true
+show_device_info: true
+
+# Development tools
+install_dev_tools: false
+dev_packages:
+  - vim
+  - htop
+  - tree
+  - jq
+  - curl
+  - wget

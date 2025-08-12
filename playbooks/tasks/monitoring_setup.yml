@@ -1,0 +1,45 @@
+---
+# Enhanced Monitoring Setup Tasks
+# Supplements the existing opi-setup health API
+
+- name: Verify health API is accessible
+  ansible.builtin.uri:
+    url: "http://localhost:{{ health_api_port | default(9090) }}/health"
+    method: GET
+    timeout: 10
+  register: health_api_check
+  failed_when: false
+  retries: 3
+  delay: 5
+
+- name: Create system monitoring script
+  ansible.builtin.template:
+    src: system_monitor.sh.j2
+    dest: "{{ orangepi_project_root }}/util-scripts/oamonitor"
+    owner: "{{ orangepi_user }}"
+    group: "{{ orangepi_user }}"
+    mode: '0755'
+  become: true
+
+- name: Configure log rotation for OrangePi services
+  ansible.builtin.template:
+    src: orangepi_logrotate.j2
+    dest: /etc/logrotate.d/orangepi
+    mode: '0644'
+  become: true
+
+- name: Create health check cron job
+  ansible.builtin.cron:
+    name: "OrangePi Health Check"
+    minute: "*/5"
+    job: "{{ orangepi_project_root }}/util-scripts/oamonitor --quiet"
+    user: "{{ orangepi_user }}"
+
+- name: Display monitoring setup status
+  ansible.builtin.debug:
+    msg: |
+      📊 Monitoring Configuration:
+      ├─ Health API: {{ 'Accessible' if health_api_check.status == 200 else 'Pending' }}
+      ├─ System Monitor: oamonitor utility available
+      ├─ Log Rotation: Configured for service logs
+      └─ Health Checks: Every 5 minutes via cron

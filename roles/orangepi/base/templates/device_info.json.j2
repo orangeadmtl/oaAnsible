@@ -1,0 +1,12 @@
+{
+  "device_id": "{{ device_id }}",
+  "hostname": "{{ orangepi_hostname }}",
+  "series": "{{ device_series }}",
+  "location": "{{ device_location }}",
+  "platform": "orangepi",
+  "setup_date": "{{ ansible_date_time.iso8601 }}",
+  "ansible_managed": true,
+  "components": {{ components | to_nice_json }},
+  "opi_setup_version": "{{ opi_setup_branch }}",
+  "health_api_port": {{ health_api_port }}
+}
