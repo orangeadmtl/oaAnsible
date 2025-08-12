@@ -29,7 +29,7 @@
   become: true
 
 - name: Smart file synchronization (only copy changed files)
-  ansible.builtin.synchronize:
+  ansible.posix.synchronize:
     src: "{{ role_path }}/../../macos-api/"
     dest: "{{ components_state.macos_api.path }}/"
     delete: false

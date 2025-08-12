@@ -44,8 +44,8 @@
 - name: Display recent tracker errors (if any)
   ansible.builtin.debug:
     msg: "Recent tracker errors: {{ tracker_logs.stdout_lines }}"
-  when: 
-    - tracker_logs.stdout_lines is defined 
+  when:
+    - tracker_logs.stdout_lines is defined
     - tracker_logs.stdout_lines | length > 0
     - "'No error log found' not in tracker_logs.stdout"
 
@@ -53,19 +53,19 @@
   ansible.builtin.debug:
     msg: |
       === TRACKER DEPLOYMENT COMPLETE ===
-      
+
       Configuration:
       - Repository: {{ merged_tracker_config.repository_url }}
       - Version: {{ final_git_version }}
       - Python: {{ final_python_version }}
       - Camera ID: {{ cam_id }}
-      
+
       Services:
       - Tracker: {{ 'RUNNING' if 'com.orangead.tracker' in tracker_status.stdout else 'FAILED' }}
       - API: {{ 'RUNNING' if 'com.orangead.tracker_api' in tracker_api_status.stdout else 'FAILED' }}
-      
+
       Logs:
       - Main log: {{ ansible_user_dir }}/orangead/tracker/output.txt
       - Error log: {{ ansible_user_dir }}/orangead/tracker/logs/tracker.err.log
-      
+
       Status: {{ 'SUCCESS' if ('com.orangead.tracker' in tracker_status.stdout and 'com.orangead.tracker_api' in tracker_api_status.stdout) else 'PARTIAL/FAILED' }}

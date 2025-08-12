@@ -9,7 +9,7 @@
 
 - name: Validate cam_id is defined for tracker deployment
   ansible.builtin.assert:
-    that: 
+    that:
       - cam_id is defined
       - cam_id != ""
     fail_msg: |
@@ -27,11 +27,7 @@
 
 - name: Set final git version (prioritize specific commit over branch)
   ansible.builtin.set_fact:
-    final_git_version: "{{ 
-      merged_tracker_config.git_commit | default(
-        merged_tracker_config.git_version | default('main')
-      ) 
-    }}"
+    final_git_version: "{{ merged_tracker_config.git_commit | default(merged_tracker_config.git_version | default('main')) }}"
 
 - name: Display git version being used for tracker
   ansible.builtin.debug:
@@ -55,7 +51,7 @@
 
 - name: Display git operation result
   ansible.builtin.debug:
-    msg: |
+    msg: |-
       Git operation: {{ 'cloned' if git_clone_result.before is none else 'updated' }}
       Before: {{ git_clone_result.before | default('N/A') }}
       After: {{ git_clone_result.after }}

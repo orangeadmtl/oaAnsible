@@ -99,3 +99,4 @@
     launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.tracker_api.plist
   become: false
   register: service_start_result
+  changed_when: false

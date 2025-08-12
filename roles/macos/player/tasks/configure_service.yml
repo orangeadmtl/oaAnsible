@@ -4,8 +4,7 @@
     - name: Collect all video files from schedules and fallback configuration
       ansible.builtin.set_fact:
         all_video_files: >-
-          {%- set all_videos = [] -%}
-          {%- if player.schedule_enabled | default(false) and player.schedules is defined -%}
+          {%- set all_videos = [] -%} {%- if player.schedule_enabled | default(false) and player.schedules is defined -%}
             {%- for schedule in player.schedules -%}
               {%- for video in schedule.videos | default([]) | selectattr('enabled', 'equalto', true) -%}
                 {%- if video.name not in (all_videos | map(attribute='name') | list) -%}
@@ -13,13 +12,11 @@
                 {%- endif -%}
               {%- endfor -%}
             {%- endfor -%}
-          {%- endif -%}
-          {%- for video in player.videos | default([]) | selectattr('enabled', 'equalto', true) -%}
+          {%- endif -%} {%- for video in player.videos | default([]) | selectattr('enabled', 'equalto', true) -%}
             {%- if video.name not in (all_videos | map(attribute='name') | list) -%}
               {%- set _ = all_videos.append(video) -%}
             {%- endif -%}
-          {%- endfor -%}
-          {{ all_videos }}
+          {%- endfor -%} {{ all_videos }}
 
     - name: Deploy all required video files from schedules and fallback
       ansible.builtin.copy:

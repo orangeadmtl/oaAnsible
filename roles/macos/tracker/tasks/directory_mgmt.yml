@@ -34,24 +34,18 @@
   register: directory_content_check
   changed_when: false
 
-- name: Check if directory is a git repository
-  ansible.builtin.command: git -C "{{ ansible_user_dir }}/orangead/tracker" rev-parse --git-dir
-  register: git_repo_check
-  failed_when: false
-  changed_when: false
-
 - name: Display directory status
   ansible.builtin.debug:
     msg: |
       Tracker directory status:
       - Exists: {{ tracker_dir_stat.stat.exists }}
       - Has content: {{ directory_content_check.stdout == 'has_content' }}
-      - Is git repo: {{ git_repo_check.rc == 0 }}
+      - Is git repo: {{ tracker_git_stat.stat.exists | default(false) }}
 
 - name: Backup and clean non-empty directory that is not a git repository
-  when: 
+  when:
     - directory_content_check.stdout == 'has_content'
-    - git_repo_check.rc != 0
+    - not tracker_git_stat.stat.exists | default(false)
   block:
     - name: Create backup directory with timestamp
       ansible.builtin.shell: |
@@ -59,27 +53,35 @@
         mkdir -p "$backup_dir"
         echo "$backup_dir"
       register: backup_dir_result
+      changed_when: true
 
     - name: Copy everything to backup
       ansible.builtin.shell: |
         cp -r "{{ ansible_user_dir }}/orangead/tracker"/* "{{ backup_dir_result.stdout }}/" 2>/dev/null || true
-      
+      changed_when: true
+
     - name: Save logs, output.txt, and database before cleanup
       ansible.builtin.shell: |
         mkdir -p "{{ ansible_user_dir }}/orangead/tracker_preserved"
         [ -f "{{ ansible_user_dir }}/orangead/tracker/logs" ] && cp -r "{{ ansible_user_dir }}/orangead/tracker/logs" "{{ ansible_user_dir }}/orangead/tracker_preserved/" || true
         [ -f "{{ ansible_user_dir }}/orangead/tracker/output.txt" ] && cp "{{ ansible_user_dir }}/orangead/tracker/output.txt" "{{ ansible_user_dir }}/orangead/tracker_preserved/" || true
         [ -d "{{ ansible_user_dir }}/orangead/tracker/data" ] && cp -r "{{ ansible_user_dir }}/orangead/tracker/data" "{{ ansible_user_dir }}/orangead/tracker_preserved/" || true
+      changed_when: false
 
     - name: Clean directory
       ansible.builtin.shell: |
         rm -rf "{{ ansible_user_dir }}/orangead/tracker"/*
         rm -rf "{{ ansible_user_dir }}/orangead/tracker"/.*
+      changed_when: false
 
 - name: Check available disk space
   ansible.builtin.shell: |
+    set -o pipefail
     df -h "{{ ansible_user_dir }}" | tail -1 | awk '{print $4}'
   register: available_space
+  changed_when: false
+  args:
+    executable: /bin/bash
 
 - name: Display available disk space
   ansible.builtin.debug:

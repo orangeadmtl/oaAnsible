@@ -16,7 +16,7 @@
 
     - name: Load inventory file directly to get global config
       ansible.builtin.include_vars:
-        file: "{{ inventory_file }}"
+        ansible.builtin.file: "{{ inventory_file }}"
         name: inventory_data
       tags: ["player", "config"]
 
@@ -24,8 +24,8 @@
       ansible.builtin.set_fact:
         base_player_config: "{{ inventory_data.all.vars.player }}"
       tags: ["player", "config"]
-        
-    - name: Merge with host-specific overrides  
+
+    - name: Merge with host-specific overrides
       ansible.builtin.set_fact:
         global_player_config: "{{ base_player_config | combine(player | default({}), recursive=True) }}"
       tags: ["player", "config"]
@@ -46,16 +46,14 @@
           - global_player_config is defined
           - global_player_config.enabled | default(false)
           - >-
-            (global_player_config.schedule_enabled | default(false) and 
-             global_player_config.schedules is defined and 
+            (global_player_config.schedule_enabled | default(false) and
+             global_player_config.schedules is defined and
              global_player_config.schedules | length > 0) or
-            (global_player_config.videos is defined and 
+            (global_player_config.videos is defined and
              global_player_config.videos | length > 0)
         fail_msg: >-
-          Player configuration validation failed. Requirements:
-          - player.enabled must be true
-          - Either schedule_enabled with schedules defined, or videos defined
-          - At least one video source must be configured
+          Player configuration validation failed. Requirements: - player.enabled must be true - Either schedule_enabled with schedules defined, or videos
+          defined - At least one video source must be configured
         success_msg: "Player configuration validation passed"
       tags: ["player", "config", "validation"]
 

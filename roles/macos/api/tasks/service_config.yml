@@ -29,6 +29,7 @@
   ansible.builtin.shell: |
     launchctl bootout gui/$(id -u)/com.orangead.macosapi 2>/dev/null || true
   when: existing_plist.stat.exists and plist_creation.changed
+  changed_when: false
 
 - name: Load and start macOS API service
   ansible.builtin.shell: |
@@ -36,6 +37,7 @@
     launchctl enable gui/$(id -u)/com.orangead.macosapi
     launchctl kickstart gui/$(id -u)/com.orangead.macosapi
   register: service_start
+  changed_when: false
 
 - name: Wait for service to initialize
   ansible.builtin.wait_for:
