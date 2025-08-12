@@ -43,8 +43,8 @@ macos_player:
   service_keep_alive: true
   service_run_at_load: true
 
-  # Health monitoring
-  health_check_interval: 60 # seconds - less aggressive for MPV
+  # Health monitoring - optimized for 100% uptime
+  health_check_interval: 180 # seconds - reduced frequency to prevent false positive restarts
   restart_attempts: 3
   restart_delay: 10 # seconds
 

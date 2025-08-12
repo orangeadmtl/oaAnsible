@@ -13,15 +13,31 @@ LOG_FILE="${LOGS_DIR}/player.log"
 
 # Video configuration - works with both scheduled and static configurations
 {% if player.schedule_enabled | default(false) and player.schedules is defined %}
-# Time-based scheduling functions
+# Time-based scheduling functions with day-of-week support
 get_current_schedule() {
     local current_time=$(date '+%H:%M')
     local current_hour=$(date '+%H')
     local current_minute=$(date '+%M')
     local current_minutes=$((current_hour * 60 + current_minute))
+    local current_dow=$(date '+%u')  # 1=Monday, 7=Sunday
+    local current_day=""
+    
+    # Convert day number to day name
+    case $current_dow in
+        1|2|3|4|7) current_day="weekday" ;;  # Monday-Thursday, Sunday
+        5) current_day="friday" ;;
+        6) current_day="saturday" ;;
+    esac
     
     {% for schedule in player.schedules %}
-    # Schedule: {{ schedule.name }} ({{ schedule.start_time }} - {{ schedule.end_time }})
+    # Schedule: {{ schedule.name }} ({{ schedule.start_time }} - {{ schedule.end_time }}){% if schedule.day_of_week is defined %} [{{ schedule.day_of_week }}]{% endif %}
+    {% if schedule.day_of_week is defined %}
+    # Check if this schedule matches current day
+    if [ "$current_day" != "{{ schedule.day_of_week }}" ]; then
+        continue  # Skip this schedule if day doesn't match
+    fi
+    {% endif %}
+    
     local start_time="{{ schedule.start_time }}"
     local end_time="{{ schedule.end_time }}"
     local start_hour=${start_time%:*}
@@ -47,8 +63,18 @@ get_current_schedule() {
     fi
     {% endfor %}
     
-    # Default fallback to first schedule
-    echo "{{ player.schedules[0].name }}"
+    # Default fallback to first schedule that matches current day
+    {% for schedule in player.schedules %}
+    {% if schedule.day_of_week is defined %}
+    if [ "$current_day" = "{{ schedule.day_of_week }}" ]; then
+        echo "{{ schedule.name }}"
+        return 0
+    fi
+    {% else %}
+    echo "{{ schedule.name }}"
+    return 0
+    {% endif %}
+    {% endfor %}
 }
 
 get_schedule_videos() {
@@ -108,7 +134,7 @@ fi
 {% else %}
 # Traditional static video configuration (backward compatibility)
 {% if player.videos is defined and player.videos %}
-  {% if player.dual_screen | default(true) %}
+  {% if merged_player_config.dual_screen | default(true) %}
     # Dual-screen mode: use explicit display assignments
     {% set display1_videos = player.videos | selectattr('display', 'equalto', 1) | selectattr('enabled', 'equalto', true) | list %}
     {% set display2_videos = player.videos | selectattr('display', 'equalto', 2) | selectattr('enabled', 'equalto', true) | list %}
@@ -445,7 +471,7 @@ while true; do
         {% endif %}
     fi
     
-    sleep {{ player.health_check_interval | default(30) }}
+    sleep {{ player.health_check_interval | default(180) }}
 done
 
 {% if player.schedule_enabled | default(false) %}

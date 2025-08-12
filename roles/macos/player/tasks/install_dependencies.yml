@@ -59,7 +59,7 @@
       ansible.builtin.debug:
         msg: "WARNING: Dual screen requested but only {{ display_count.stdout }} display(s) detected"
       when:
-        - player.dual_screen | default(false)
+        - global_player_config.dual_screen | default(false)
         - display_count.stdout | int < 2
 
     - name: Check dual-screen requirements for project
@@ -67,16 +67,16 @@
         msg:
           "INFO: {{ oa_environment.project | default('default') | title }} project configured for dual-screen. Detected {{ display_count.stdout }} display(s)."
       when:
-        - player.dual_screen | default(false)
-        - (player.videos | default([]) | selectattr('display', 'equalto', 2) | list | length) > 0
+        - global_player_config.dual_screen | default(false)
+        - (global_player_config.videos | default([]) | selectattr('display', 'equalto', 2) | list | length) > 0
 
     - name: Fail if dual-screen configured but insufficient displays
       ansible.builtin.fail:
         msg:
-          "ERROR: {{ oa_environment.project | default('default') | title }} project requires dual-screen setup ({{ (player.videos | default([]) |
-          selectattr('display', 'equalto', 2) | list | length) + (player.videos | default([]) | selectattr('display', 'equalto', 1) | list | length) }} screens
+          "ERROR: {{ oa_environment.project | default('default') | title }} project requires dual-screen setup ({{ (global_player_config.videos | default([]) |
+          selectattr('display', 'equalto', 2) | list | length) + (global_player_config.videos | default([]) | selectattr('display', 'equalto', 1) | list | length) }} screens
           configured), but only {{ display_count.stdout }} detected. Please connect additional display(s)."
       when:
-        - player.dual_screen | default(false)
-        - (player.videos | default([]) | selectattr('display', 'equalto', 2) | list | length) > 0
+        - global_player_config.dual_screen | default(false)
+        - (global_player_config.videos | default([]) | selectattr('display', 'equalto', 2) | list | length) > 0
         - display_count.stdout | int < 2

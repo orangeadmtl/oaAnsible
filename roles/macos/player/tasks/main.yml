@@ -14,28 +14,17 @@
         verbosity: 1
       tags: ["player", "config"]
 
-    - name: Load inventory file directly to get global config
-      ansible.builtin.include_vars:
-        ansible.builtin.file: "{{ inventory_file }}"
-        name: inventory_data
-      tags: ["player", "config"]
-
-    - name: Extract global player configuration from inventory data
+    - name: Merge player configuration with host-specific overrides
       ansible.builtin.set_fact:
-        base_player_config: "{{ inventory_data.all.vars.player }}"
-      tags: ["player", "config"]
-
-    - name: Merge with host-specific overrides
-      ansible.builtin.set_fact:
-        global_player_config: "{{ base_player_config | combine(player | default({}), recursive=True) }}"
+        global_player_config: "{{ player | combine(player_overrides | default({}), recursive=true) }}"
       tags: ["player", "config"]
 
     - name: Debug final configuration
       ansible.builtin.debug:
         msg:
           - "=== FINAL CONFIGURATION DEBUG ==="
-          - "Base config enabled: {{ base_player_config.enabled | default('UNDEFINED') }}"
-          - "Host override: {{ player | default({}) }}"
+          - "Base config enabled: {{ player.enabled | default('UNDEFINED') }}"
+          - "Host overrides: {{ player_overrides | default({}) }}"
           - "Final config enabled: {{ global_player_config.enabled | default('UNDEFINED') }}"
         verbosity: 0
       tags: ["player", "debug"]
@@ -86,7 +75,7 @@
         msg:
           - "=== PLAYER CONFIGURATION DEBUG ==="
           - "Player enabled: {{ player.enabled | default('UNDEFINED') }}"
-          - "Player dual_screen: {{ player.dual_screen | default('UNDEFINED') }}"
+          - "Player dual_screen: {{ global_player_config.dual_screen | default('UNDEFINED') }}"
           - "Player videos: {{ player.videos | default('UNDEFINED') }}"
           - "Videos count: {{ (player.videos | default([])) | length }}"
           - "=== CONFIGURATION READY ==="

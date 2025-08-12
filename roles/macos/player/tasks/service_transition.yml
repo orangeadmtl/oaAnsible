@@ -82,7 +82,7 @@
       Service transition failed!
       - Service status: {{ new_service_status.stdout }}
       - MPV processes: {{ new_mpv_count.stdout }}
-      - Expected processes: {{ '2' if player.dual_screen | default(true) else '1' }}
+      - Expected processes: {{ '2' if global_player_config.dual_screen | default(true) else '1' }}
   when:
     - new_service_status.stdout == 'not loaded' or new_mpv_count.stdout|int < 1
 
@@ -92,5 +92,5 @@
       ✅ Blue-green service transition completed successfully!
       - Service: {{ player.service_name }} ({{ 'LOADED' if new_service_status.stdout != 'not loaded' else 'NOT LOADED' }})
       - MPV processes: {{ new_mpv_count.stdout }}
-      - Expected: {{ '2' if player.dual_screen | default(true) else '1' }}
+      - Expected: {{ '2' if global_player_config.dual_screen | default(true) else '1' }}
       - Downtime: ~2-3 seconds (minimal impact)

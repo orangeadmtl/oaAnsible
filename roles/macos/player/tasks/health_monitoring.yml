@@ -17,6 +17,9 @@
         group: "{{ ansible_user_group | default('staff') }}"
         mode: "0755"
         backup: true
+      vars:
+        # Pass the merged configuration to the template
+        merged_player_config: "{{ global_player_config }}"
       register: health_script_result
 
     - name: Validate health check script syntax

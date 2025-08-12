@@ -22,15 +22,19 @@ log_message() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$HEALTH_CHECK_LOG"
 }
 
-# Check if MPV player processes are running
+# Enhanced process detection with better tolerance for temporary fluctuations
 check_player_process() {
     # Check for MPV processes with --screen parameter (our player instances)
     local mpv_count
     mpv_count=$(pgrep -f "mpv.*--screen=" 2>/dev/null | wc -l | tr -d ' ')
     
-    log_message "INFO: Found $mpv_count MPV player process(es)"
+    # Get detailed process info for logging
+    local mpv_processes
+    mpv_processes=$(pgrep -f "mpv.*--screen=" 2>/dev/null | tr '\n' ' ')
     
-    {% if player.dual_screen | default(true) %}
+    log_message "INFO: Found $mpv_count MPV player process(es) [PIDs: ${mpv_processes:-none}]"
+    
+    {% if merged_player_config.dual_screen | default(true) %}
     # For dual-screen setup, expect 2 MPV processes
     local expected_count=2
     {% else %}
@@ -38,26 +42,45 @@ check_player_process() {
     local expected_count=1
     {% endif %}
     
-    # Consider healthy if we have the expected number of MPV processes
-    if [ "$mpv_count" -ge "$expected_count" ]; then
-        log_message "INFO: MPV player processes are running ($mpv_count/$expected_count)"
+    # ENHANCED TOLERANCE: Accept at least 1 process for dual-screen (partial operation)
+    local minimum_count=1
+    
+    # Consider healthy if we have at least minimum processes
+    if [ "$mpv_count" -ge "$minimum_count" ]; then
+        if [ "$mpv_count" -ge "$expected_count" ]; then
+            log_message "SUCCESS: All expected MPV processes running ($mpv_count/$expected_count)"
+        else
+            log_message "INFO: Partial MPV operation detected ($mpv_count/$expected_count) - monitoring for improvement"
+        fi
         return 0
     else
-        # Give MPV player time to start up - single recheck only
-        log_message "INFO: Insufficient MPV processes found ($mpv_count/$expected_count), waiting 10 seconds..."
-        sleep 10
+        # EXTENDED GRACE PERIOD: Multiple checks with longer waits
+        log_message "WARNING: No MPV processes found, starting extended verification..."
         
-        # Single recheck after waiting
-        mpv_count=$(pgrep -f "mpv.*--screen=" 2>/dev/null | wc -l | tr -d ' ')
-        log_message "INFO: After waiting, found $mpv_count MPV player process(es)"
+        local attempt=1
+        local max_attempts=3
+        local wait_time=15
         
-        if [ "$mpv_count" -ge "$expected_count" ]; then
-            log_message "INFO: MPV player processes found after waiting ($mpv_count/$expected_count)"
-            return 0
-        else
-            log_message "WARNING: Insufficient MPV processes found after grace period ($mpv_count/$expected_count)"
-            return 1
-        fi
+        while [ $attempt -le $max_attempts ]; do
+            log_message "INFO: Verification attempt $attempt/$max_attempts - waiting ${wait_time}s..."
+            sleep $wait_time
+            
+            mpv_count=$(pgrep -f "mpv.*--screen=" 2>/dev/null | wc -l | tr -d ' ')
+            mpv_processes=$(pgrep -f "mpv.*--screen=" 2>/dev/null | tr '\n' ' ')
+            log_message "INFO: Attempt $attempt found $mpv_count process(es) [PIDs: ${mpv_processes:-none}]"
+            
+            if [ "$mpv_count" -ge "$minimum_count" ]; then
+                log_message "SUCCESS: MPV processes recovered during verification ($mpv_count/$expected_count)"
+                return 0
+            fi
+            
+            attempt=$((attempt + 1))
+            # Increase wait time for subsequent attempts
+            wait_time=$((wait_time + 5))
+        done
+        
+        log_message "CRITICAL: No MPV processes found after extended verification (0/$expected_count)"
+        return 1
     fi
 }
 
@@ -94,25 +117,75 @@ check_video_files() {
     fi
 }
 
-# Restart player service
+# Enhanced restart with detailed logging and graceful handling
 restart_player_service() {
-    log_message "INFO: Attempting to restart MPV player service '$SERVICE_NAME'"
+    local restart_reason="$1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     
-    # Stop the service gracefully
-    launchctl stop "$SERVICE_NAME" 2>/dev/null || true
+    log_message "RESTART_INITIATED: Starting service restart at $timestamp"
+    log_message "RESTART_REASON: $restart_reason"
+    
+    # Log current process state before restart
+    local current_processes
+    current_processes=$(pgrep -f "mpv.*--screen=" 2>/dev/null | tr '\n' ' ')
+    log_message "PRE_RESTART_STATE: MPV PIDs before restart: [${current_processes:-none}]"
+    
+    # Stop the service gracefully with timeout
+    log_message "RESTART_STEP_1: Stopping LaunchAgent service '$SERVICE_NAME'"
+    if timeout 10 launchctl stop "$SERVICE_NAME" 2>/dev/null; then
+        log_message "RESTART_STEP_1: LaunchAgent stop completed successfully"
+    else
+        log_message "RESTART_STEP_1: LaunchAgent stop timed out or failed"
+    fi
     sleep 3
     
-    # Kill any remaining MPV processes
-    pkill -f "mpv.*--screen=" 2>/dev/null || true
-    pkill -f "oemplayer.sh" 2>/dev/null || true
+    # Kill any remaining processes with detailed logging
+    log_message "RESTART_STEP_2: Cleaning up remaining processes"
+    local remaining_mpv
+    remaining_mpv=$(pgrep -f "mpv.*--screen=" 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$remaining_mpv" -gt 0 ]; then
+        log_message "RESTART_STEP_2: Found $remaining_mpv remaining MPV processes - terminating"
+        pkill -f "mpv.*--screen=" 2>/dev/null || true
+        sleep 1
+        pkill -9 -f "mpv.*--screen=" 2>/dev/null || true
+    else
+        log_message "RESTART_STEP_2: No remaining MPV processes found"
+    fi
+    
+    local remaining_scripts
+    remaining_scripts=$(pgrep -f "oemplayer.sh" 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$remaining_scripts" -gt 0 ]; then
+        log_message "RESTART_STEP_2: Found $remaining_scripts remaining script processes - terminating"
+        pkill -f "oemplayer.sh" 2>/dev/null || true
+        sleep 1
+        pkill -9 -f "oemplayer.sh" 2>/dev/null || true
+    else
+        log_message "RESTART_STEP_2: No remaining script processes found"
+    fi
     sleep 2
     
     # Start the service
+    log_message "RESTART_STEP_3: Starting LaunchAgent service '$SERVICE_NAME'"
     if launchctl start "$SERVICE_NAME" 2>/dev/null; then
-        log_message "INFO: Successfully restarted MPV player service"
+        log_message "RESTART_STEP_3: LaunchAgent start command completed successfully"
+        
+        # Wait and verify startup
+        local startup_wait=10
+        log_message "RESTART_VERIFICATION: Waiting ${startup_wait}s for service startup"
+        sleep $startup_wait
+        
+        local new_processes
+        new_processes=$(pgrep -f "mpv.*--screen=" 2>/dev/null | tr '\n' ' ')
+        local new_count
+        new_count=$(pgrep -f "mpv.*--screen=" 2>/dev/null | wc -l | tr -d ' ')
+        
+        log_message "POST_RESTART_STATE: New MPV PIDs after restart: [${new_processes:-none}] (count: $new_count)"
+        log_message "RESTART_COMPLETED: Service restart completed at $(date '+%Y-%m-%d %H:%M:%S')"
+        
         return 0
     else
-        log_message "ERROR: Failed to restart MPV player service"
+        log_message "RESTART_STEP_3: LaunchAgent start command failed"
+        log_message "RESTART_FAILED: Service restart failed at $(date '+%Y-%m-%d %H:%M:%S')"
         return 1
     fi
 }
@@ -169,21 +242,43 @@ main() {
         process_ok=false
     fi
     
-    # If either check failed, attempt restart
-    if [ "$service_ok" = false ] || [ "$process_ok" = false ]; then
+    # Determine exact restart reason and attempt restart only if necessary
+    local restart_needed=false
+    local restart_reason=""
+    
+    if [ "$service_ok" = false ] && [ "$process_ok" = false ]; then
+        restart_needed=true
+        restart_reason="Both LaunchAgent service and MPV processes failed"
+    elif [ "$service_ok" = false ]; then
+        restart_needed=true
+        restart_reason="LaunchAgent service not loaded (MPV processes may be orphaned)"
+    elif [ "$process_ok" = false ]; then
+        restart_needed=true
+        restart_reason="No MPV processes detected after extended verification"
+    fi
+    
+    if [ "$restart_needed" = true ]; then
+        log_message "HEALTH_CHECK_FAILED: $restart_reason"
         log_message "WARNING: Health check failed - attempting service restart"
         
         local attempt=1
         while [ $attempt -le $MAX_RESTART_ATTEMPTS ]; do
             log_message "INFO: Restart attempt $attempt of $MAX_RESTART_ATTEMPTS"
             
-            if restart_player_service; then
+            if restart_player_service "$restart_reason (attempt $attempt)"; then
                 # Wait and verify the restart worked
+                log_message "RESTART_VERIFICATION: Waiting ${RESTART_DELAY}s before verification"
                 sleep $RESTART_DELAY
+                
+                log_message "RESTART_VERIFICATION: Checking if restart was successful"
                 if check_player_process && check_service_status; then
-                    log_message "SUCCESS: Player service restarted successfully"
+                    log_message "SUCCESS: Player service restarted successfully after attempt $attempt"
                     exit 0
+                else
+                    log_message "WARNING: Restart verification failed for attempt $attempt"
                 fi
+            else
+                log_message "ERROR: Restart attempt $attempt failed to execute"
             fi
             
             attempt=$((attempt + 1))
@@ -196,7 +291,7 @@ main() {
         log_message "CRITICAL: All restart attempts failed - player service is unhealthy"
         exit 1
     else
-        log_message "SUCCESS: Player service is healthy"
+        log_message "SUCCESS: Player service is healthy - no restart needed"
         exit 0
     fi
 }

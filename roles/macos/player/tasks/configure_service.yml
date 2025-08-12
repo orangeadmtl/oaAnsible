@@ -39,6 +39,9 @@
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user_group | default('staff') }}"
         mode: "0755"
+      vars:
+        # Pass the merged configuration to the template
+        merged_player_config: "{{ global_player_config }}"
 
     - name: Create player LaunchAgent plist
       ansible.builtin.template:

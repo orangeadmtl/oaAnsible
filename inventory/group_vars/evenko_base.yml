@@ -29,6 +29,10 @@ player:
   video_selection_strategy: "sequential"
   health_check: true
   restart_on_failure: true
+  # Enhanced uptime optimization settings
+  health_check_interval: 180 # 3 minutes - reduced frequency to prevent false positive restarts
+  restart_attempts: 3
+  restart_delay: 15 # Slightly longer delay between restart attempts
   volume: 0.0
 
   # Kiosk mode settings
@@ -39,33 +43,83 @@ player:
   system_volume_muted: true
   hide_desktop_icons: true
 
-  # Time-based scheduling configuration
+  # Time-based scheduling configuration with day-of-week support
   schedule_enabled: true
   schedules:
-    - name: "daytime"
-      start_time: "01:00"
-      end_time: "22:30"
+    # Friday schedules
+    - name: "friday_daytime"
+      start_time: "00:00"
+      end_time: "22:50"
+      day_of_week: "friday"
       videos:
-        - name: "SLIDESHOW_ILESONIQ.mp4"
+        - name: "LASSO_vendredi.mp4"
           display: 1
           enabled: true
           loop: true
           volume: 0.0
-        - name: "SLIDESHOW_ILESONIQ.mp4"
+        - name: "LASSO_vendredi.mp4"
           display: 2
           enabled: true
           loop: true
           volume: 0.0
-    - name: "nighttime"
-      start_time: "22:30"
-      end_time: "01:00"
+    - name: "friday_nighttime"
+      start_time: "22:50"
+      end_time: "23:59"
+      day_of_week: "friday"
       videos:
-        - name: "POUR22h30_SLIDESHOW_ILESONIQ.mp4"
+        - name: "POUR22h50_LASSO_vendredi.mp4"
           display: 1
           enabled: true
           loop: true
           volume: 0.0
-        - name: "POUR22h30_SLIDESHOW_ILESONIQ.mp4"
+        - name: "POUR22h50_LASSO_vendredi.mp4"
+          display: 2
+          enabled: true
+          loop: true
+          volume: 0.0
+    # Saturday schedules
+    - name: "saturday_daytime"
+      start_time: "00:00"
+      end_time: "22:50"
+      day_of_week: "saturday"
+      videos:
+        - name: "LASSO_samedi.mp4"
+          display: 1
+          enabled: true
+          loop: true
+          volume: 0.0
+        - name: "LASSO_samedi.mp4"
+          display: 2
+          enabled: true
+          loop: true
+          volume: 0.0
+    - name: "saturday_nighttime"
+      start_time: "22:50"
+      end_time: "23:59"
+      day_of_week: "saturday"
+      videos:
+        - name: "POUR22h50_LASSO_samedi.mp4"
+          display: 1
+          enabled: true
+          loop: true
+          volume: 0.0
+        - name: "POUR22h50_LASSO_samedi.mp4"
+          display: 2
+          enabled: true
+          loop: true
+          volume: 0.0
+    # Weekday schedule (Sunday-Thursday): One video all day
+    - name: "weekday_allday"
+      start_time: "00:00"
+      end_time: "23:59"
+      day_of_week: "weekday"
+      videos:
+        - name: "POUR22h50_LASSO_samedi.mp4"
+          display: 1
+          enabled: true
+          loop: true
+          volume: 0.0
+        - name: "POUR22h50_LASSO_samedi.mp4"
           display: 2
           enabled: true
           loop: true
@@ -73,12 +127,12 @@ player:
 
   # Fallback videos configuration (for backward compatibility)
   videos:
-    - name: "SLIDESHOW_ILESONIQ.mp4"
+    - name: "LASSO_vendredi.mp4"
       display: 1
       enabled: true
       loop: true
       volume: 0.0
-    - name: "SLIDESHOW_ILESONIQ.mp4"
+    - name: "LASSO_vendredi.mp4"
       display: 2
       enabled: true
       loop: true

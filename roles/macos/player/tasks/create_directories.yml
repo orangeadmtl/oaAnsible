@@ -33,9 +33,26 @@
         group: "{{ ansible_user_group | default('staff') }}"
         mode: "0755"
 
+    - name: Build comprehensive video file list from schedules and fallback
+      ansible.builtin.set_fact:
+        all_required_videos: >-
+          {{
+            (
+              player.schedules | default([]) | selectattr('videos', 'defined') | 
+              map(attribute='videos') | flatten | selectattr('enabled', 'equalto', true) | 
+              map(attribute='name') | list
+            ) + 
+            (
+              player.videos | default([]) | selectattr('enabled', 'equalto', true) | 
+              map(attribute='name') | list
+            )
+          | unique | list
+          }}
+      when: player.schedule_enabled | default(false) or (player.videos is defined and player.videos | length > 0)
+
     - name: Check if required video files exist
       ansible.builtin.stat:
-        path: "{{ player.video_source }}/{{ item.name }}"
+        path: "{{ player.video_source }}/{{ item }}"
       register: video_files_check
-      loop: "{{ player.videos | default([]) | selectattr('enabled', 'equalto', true) | list }}"
-      when: player.videos is defined and player.videos | length > 0
+      loop: "{{ all_required_videos | default([]) }}"
+      when: all_required_videos is defined and all_required_videos | length > 0
