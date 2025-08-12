@@ -8,6 +8,6 @@
   become: true
 
 - name: Enable ufw
-  ufw:
+  community.general.ufw:
     state: enabled
   become: true

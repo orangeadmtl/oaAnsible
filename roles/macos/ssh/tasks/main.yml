@@ -39,9 +39,10 @@
 
 - name: Show SSH key error or verification issue
   ansible.builtin.debug:
-    msg: "SSH key was likely added by 'authorized_key' module, but 'grep' verification failed for host {{ inventory_hostname }}. Public key segment used for grep:
-      '{{ public_key_fingerprint_segment | default('COULD_NOT_EXTRACT_SEGMENT') }}'. Please manually check ~/.ssh/authorized_keys on the target. Possible whitespace/format
-      differences in vault vs. file."
+    msg:
+      "SSH key was likely added by 'authorized_key' module, but 'grep' verification failed for host {{ inventory_hostname }}. Public key segment used for grep:
+      '{{ public_key_fingerprint_segment | default('COULD_NOT_EXTRACT_SEGMENT') }}'. Please manually check ~/.ssh/authorized_keys on the target. Possible
+      whitespace/format differences in vault vs. file."
   when: key_check is defined and key_check.rc != 0
 
 - name: Notify if public key segment could not be extracted

@@ -67,6 +67,7 @@
         "{{ go_executable_path }}" install tailscale.com/cmd/tailscaled@v1.82.1
       register: tailscale_install_fallback
       when: tailscale_install_with_buildinfo.failed | default(false)
+      changed_when: tailscale_install_fallback.rc == 0
 
 - name: Verify Tailscale binaries are installed
   ansible.builtin.command: "{{ go_bin_path_for_tailscale }}/{{ item }}"

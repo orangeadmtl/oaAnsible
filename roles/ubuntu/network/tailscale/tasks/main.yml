@@ -107,7 +107,7 @@
   when: not skip_routing and ubuntu_tailscale_advertise_routes | length > 0
   block:
     - name: Enable IP forwarding for subnet routing
-      ansible.builtin.sysctl:
+      ansible.posix.sysctl:
         name: net.ipv4.ip_forward
         value: "1"
         state: present
@@ -115,7 +115,7 @@
       become: true
 
     - name: Enable IPv6 forwarding for subnet routing
-      ansible.builtin.sysctl:
+      ansible.posix.sysctl:
         name: net.ipv6.conf.all.forwarding
         value: "1"
         state: present

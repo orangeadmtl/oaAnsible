@@ -165,8 +165,8 @@
       ansible.builtin.git:
         repo: "https://github.com/zsh-users/zsh-syntax-highlighting"
         dest: "/home/{{ ansible_user }}/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
-        version: "0.8.0"  # Updated to latest stable version
-        force: true  # Force update to avoid conflicts
+        version: "0.8.0" # Updated to latest stable version
+        force: true # Force update to avoid conflicts
       become: true
       become_user: "{{ ansible_user }}"
 

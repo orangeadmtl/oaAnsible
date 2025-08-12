@@ -46,8 +46,9 @@
     - name: Set DHCP DNS servers fact
       ansible.builtin.set_fact:
         # Correctly assign a list by letting Jinja2 directly return the list structure
-        dhcp_dns_servers_list: "{% set dns_raw = dhcp_info.stdout | regex_findall('domain_name_server \\(ip_mult\\): \\{([^\\}]*)\\}') %}{% if dns_raw and dns_raw[0]
-          %}{{ dns_raw[0].split(',') | map('trim') | map('regex_replace', '[{}]', '') | list }}{% else %}[]{% endif %}"
+        dhcp_dns_servers_list:
+          "{% set dns_raw = dhcp_info.stdout | regex_findall('domain_name_server \\(ip_mult\\): \\{([^\\}]*)\\}') %}{% if dns_raw and dns_raw[0] %}{{
+          dns_raw[0].split(',') | map('trim') | map('regex_replace', '[{}]', '') | list }}{% else %}[]{% endif %}"
 
     - name: Define fallback public DNS servers
       ansible.builtin.set_fact:

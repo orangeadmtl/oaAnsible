@@ -50,15 +50,17 @@
       ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /usr/local/bin/tailscaled
       become: true
       register: tailscaled_unblock_result
-      changed_when: tailscaled_unblock_result.rc == 0 and "not blocked" not in (tailscaled_unblock_result.stdout | default('') +
-        tailscaled_unblock_result.stderr | default(''))
+      changed_when:
+        tailscaled_unblock_result.rc == 0 and "not blocked" not in (tailscaled_unblock_result.stdout | default('') + tailscaled_unblock_result.stderr |
+        default(''))
       failed_when: false # It's okay if it wasn't blocked
 
     - name: Unblock Tailscale Daemon (tailscaled) - user compiled path
       ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp {{ ansible_user_dir }}/go/bin/tailscaled
       become: true
       register: tailscaled_user_unblock_result
-      changed_when: tailscaled_user_unblock_result.rc == 0 and "not blocked" not in (tailscaled_user_unblock_result.stdout | default('') +
+      changed_when:
+        tailscaled_user_unblock_result.rc == 0 and "not blocked" not in (tailscaled_user_unblock_result.stdout | default('') +
         tailscaled_user_unblock_result.stderr | default(''))
       failed_when: false # It's okay if it wasn't blocked or doesn't exist
 
