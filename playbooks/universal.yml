@@ -48,6 +48,11 @@
           "oasentinel-train": "oasentinel-train"
           "oasentinel-full": "oasentinel-full"
           "oasentinel": "oasentinel-full"
+          "tailscale": "tailscale"
+          "vpn": "tailscale"
+          "monitoring": "monitoring"
+          "orangepi": "orangepi"
+          "opi": "orangepi"
         # Extract component names from provided tags
         tag_components: >
           {%- set tag_map = {
@@ -74,7 +79,12 @@
             "oasentinel-data": "oasentinel-data",
             "oasentinel-train": "oasentinel-train",
             "oasentinel-full": "oasentinel-full",
-            "oasentinel": "oasentinel-full"
+            "oasentinel": "oasentinel-full",
+            "tailscale": "tailscale",
+            "vpn": "tailscale",
+            "monitoring": "monitoring",
+            "orangepi": "orangepi",
+            "opi": "orangepi"
           } -%} {%- set components = [] -%} {%- for tag in (provided_tags | default('')).split(',') -%}
             {%- set clean_tag = tag.strip() -%}
             {%- if clean_tag in tag_map -%}
@@ -236,6 +246,16 @@
       when:
         - execution_mode == "full"
         - detected_platform == "ubuntu"
+        - tag_components | default([]) | length == 0
+
+    - name: Execute OrangePi full configuration
+      ansible.builtin.include_tasks: ../tasks/deploy-components.yml
+      vars:
+        target_platform: "orangepi"
+        deployment_components: ["base", "shell", "tailscale", "player", "monitoring"]
+      when:
+        - execution_mode == "full"
+        - detected_platform == "orangepi"
         - tag_components | default([]) | length == 0
 
     - name: Advanced component-specific deployment
