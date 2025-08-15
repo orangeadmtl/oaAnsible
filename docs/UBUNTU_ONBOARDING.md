@@ -146,7 +146,7 @@ Components: base + security only
 
 ### Target System Requirements
 
-- **OS:** Ubuntu 18.04+ (20.04, 22.04, 24.04 tested)
+- **OS:** Ubuntu 18.04+ (20.04, 22.04 tested)
 - **Architecture:** x86_64 (amd64)
 - **Memory:** Minimum 1GB (2GB+ recommended)
 - **Storage:** 20GB+ available space
