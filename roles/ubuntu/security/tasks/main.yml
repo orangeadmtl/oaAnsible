@@ -1,13 +1,25 @@
 ---
 # Ubuntu security configuration tasks with intelligent checks
+# Priority: Configure sudo first to enable subsequent privileged operations
 
-- name: Check current security configuration
+- name: Check if sudoers file exists for ansible user
+  ansible.builtin.stat:
+    path: "/etc/sudoers.d/{{ ansible_user }}"
+  register: sudoers_file
+
+- name: Create sudoers file for ansible user (priority)
+  ansible.builtin.template:
+    src: sudoers.j2
+    dest: "/etc/sudoers.d/{{ ansible_user }}"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: "visudo -cf %s"
+  become: true
+  when: not sudoers_file.stat.exists
+
+- name: Check current security configuration (post-sudo)
   block:
-    - name: Check if sudoers file exists for ansible user
-      ansible.builtin.stat:
-        path: "/etc/sudoers.d/{{ ansible_user }}"
-      register: sudoers_file
-
     - name: Check SSH configuration
       ansible.builtin.slurp:
         src: /etc/ssh/sshd_config
@@ -35,20 +47,9 @@
   ansible.builtin.debug:
     msg: |
       Security Configuration Status:
-      - Sudoers file: {{ 'Already configured' if skip_sudoers else 'Needs creation' }}
+      - Sudoers file: {{ 'Already configured' if skip_sudoers else 'Just created' }}
       - SSH hardening: {{ 'Already configured' if skip_ssh_config else 'Needs configuration' }}
       - Firewall (UFW): {{ 'Already active' if skip_firewall else 'Needs activation' }}
-
-- name: Create sudoers file for ansible user
-  ansible.builtin.template:
-    src: sudoers.j2
-    dest: "/etc/sudoers.d/{{ ansible_user }}"
-    owner: root
-    group: root
-    mode: "0440"
-    validate: "visudo -cf %s"
-  become: true
-  when: not skip_sudoers
 
 - name: Ensure SSH directory exists for ansible user
   ansible.builtin.file:
