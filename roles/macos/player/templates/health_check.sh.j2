@@ -34,12 +34,29 @@ check_player_process() {
     
     log_message "INFO: Found $mpv_count MPV player process(es) [PIDs: ${mpv_processes:-none}]"
     
-    {% if merged_player_config.dual_screen | default(true) %}
-    # For dual-screen setup, expect 2 MPV processes
+    # Use autonomous calculation based on configuration strategy
+    {% if player.display_strategy == 'config' %}
+        {% if player.dual_screen == true %}
     local expected_count=2
-    {% else %}
-    # For single-screen setup, expect 1 MPV process
+        {% elif player.dual_screen == false %}
     local expected_count=1
+        {% else %}
+    # Auto mode with config strategy - check displays dynamically
+    local display_count=$(system_profiler SPDisplaysDataType 2>/dev/null | grep -c "Resolution:" || echo "1")
+    local expected_count=$([ "$display_count" -ge 2 ] && echo "2" || echo "1")
+        {% endif %}
+    {% elif player.display_strategy == 'auto' %}
+    # Full autonomous detection
+    local display_count=$(system_profiler SPDisplaysDataType 2>/dev/null | grep -c "Resolution:" || echo "1")
+    local expected_count=$([ "$display_count" -ge 2 ] && echo "2" || echo "1")
+    {% else %}
+    # Hybrid mode (default) - honor dual_screen=false override
+        {% if player.dual_screen == false %}
+    local expected_count=1
+        {% else %}
+    local display_count=$(system_profiler SPDisplaysDataType 2>/dev/null | grep -c "Resolution:" || echo "1")
+    local expected_count=$([ "$display_count" -ge 2 ] && echo "2" || echo "1")
+        {% endif %}
     {% endif %}
     
     # ENHANCED TOLERANCE: Accept at least 1 process for dual-screen (partial operation)
