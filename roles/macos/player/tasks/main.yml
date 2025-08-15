@@ -46,16 +46,8 @@
         success_msg: "Player configuration validation passed"
       tags: ["player", "config", "validation"]
 
-    - name: Merge global and host-specific player configuration
-      ansible.builtin.set_fact:
-        merged_player_config: "{{ global_player_config | combine(player | default({}), recursive=True) }}"
-      tags: ["player", "config"]
-
     - name: Set role defaults for technical settings
       ansible.builtin.set_fact:
-        player: "{{ role_defaults | combine(merged_player_config, recursive=True) }}"
-      vars:
-        # Only technical defaults - let Ansible handle inventory inheritance naturally
         role_defaults:
           video_source: "{{ ansible_user_dir }}/orangead/videos"
           player_binary: "/opt/homebrew/bin/mpv"
@@ -68,6 +60,18 @@
           health_check_interval: 60
           restart_attempts: 3
           restart_delay: 10
+          # Enhanced autonomous display management
+          display_strategy: "hybrid"  # config|auto|hybrid
+          display_detection_interval: 2
+          display_min_count: 1
+          display_max_count: 2
+          startup_sync_delay: 0.1
+          display_debounce_time: 3
+      tags: ["player", "config"]
+
+    - name: Create final player configuration (preserving overrides)
+      ansible.builtin.set_fact:
+        player: "{{ role_defaults | combine(global_player_config, recursive=True) }}"
       tags: ["player", "config"]
 
     - name: Debug merged player configuration
@@ -75,7 +79,9 @@
         msg:
           - "=== PLAYER CONFIGURATION DEBUG ==="
           - "Player enabled: {{ player.enabled | default('UNDEFINED') }}"
-          - "Player dual_screen: {{ global_player_config.dual_screen | default('UNDEFINED') }}"
+          - "Player dual_screen: {{ player.dual_screen | default('UNDEFINED') }}"
+          - "Player display_strategy: {{ player.display_strategy | default('UNDEFINED') }}"
+          - "Player display_detection_interval: {{ player.display_detection_interval | default('UNDEFINED') }}"
           - "Player videos: {{ player.videos | default('UNDEFINED') }}"
           - "Videos count: {{ (player.videos | default([])) | length }}"
           - "=== CONFIGURATION READY ==="
