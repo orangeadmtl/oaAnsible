@@ -34,19 +34,23 @@ check_yq_installed
 check_vault_password_file
 
 show_usage() {
-    echo "Usage: $0 [inventory_name] [host_pattern]"
+    echo "Usage: $0 [inventory_name] [options]"
     echo ""
     echo "Reboot machines in the specified inventory"
     echo ""
     echo "Arguments:"
     echo "  inventory_name  - Target inventory (optional, will prompt if not provided)"
-    echo "  host_pattern    - Host pattern to target (optional, will target all if not provided)"
+    echo ""
+    echo "Options:"
+    echo "  -l, --limit HOST    - Limit reboot to specific host(s)"
+    echo "  -h, --help         - Show this help message"
     echo ""
     echo "Examples:"
     echo "  $0                          # Interactive: select inventory and reboot all hosts"
     echo "  $0 f1-prod                  # Reboot all hosts in f1-prod inventory"
-    echo "  $0 f1-staging f1-ca-001     # Reboot specific host in f1-staging"
-    echo "  $0 f1-prod \"f1-ca-*\"        # Reboot hosts matching pattern in f1-prod"
+    echo "  $0 f1-staging -l f1-ca-001  # Reboot specific host in f1-staging"
+    echo "  $0 f1-prod -l \"f1-ca-*\"     # Reboot hosts matching pattern in f1-prod"
+    echo "  $0 projects/evenko/preprod -l f1-ca-001  # Reboot specific host using new inventory format"
     echo ""
     echo "Available inventories:"
     discover_inventories | sed 's/^/  /'
@@ -62,6 +66,10 @@ while [[ $# -gt 0 ]]; do
             show_usage
             exit 0
             ;;
+        -l|--limit)
+            HOST_PATTERN="$2"
+            shift 2
+            ;;
         *)
             if [ -z "$INVENTORY_NAME" ]; then
                 INVENTORY_NAME="$1"
@@ -71,9 +79,9 @@ while [[ $# -gt 0 ]]; do
                 log_error "Too many arguments. Use --help for usage information."
                 exit 1
             fi
+            shift
             ;;
     esac
-    shift
 done
 
 # Interactive inventory selection if not provided
