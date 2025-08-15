@@ -59,7 +59,7 @@ ubuntu_ml_packages:
     - libatlas-base-dev
     - gfortran
     - libhdf5-dev
-    # OpenGL libraries for headless OpenCV operations (Ubuntu 24.04+ compatible)
+    # OpenGL libraries for headless OpenCV operations (Ubuntu 22.04+ compatible)
     - libgl1-mesa-dri
     - libgl1
     - libglx-mesa0
