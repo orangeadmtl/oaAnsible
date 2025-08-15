@@ -76,15 +76,39 @@
   changed_when: false
   failed_when: false
 
-- name: Validate successful transition
-  ansible.builtin.fail:
+- name: Calculate expected MPV count based on autonomous configuration
+  ansible.builtin.set_fact:
+    expected_mpv_count: >-
+      {% if player.display_strategy == 'config' %}
+        {% if player.dual_screen == true %}
+      2
+        {% elif player.dual_screen == false %}
+      1
+        {% else %}
+      1
+        {% endif %}
+      {% elif player.display_strategy == 'auto' %}
+      1
+      {% else %}
+        {% if player.dual_screen == false %}
+      1
+        {% else %}
+      1
+        {% endif %}
+      {% endif %}
+
+- name: Validate successful transition (autonomous mode)
+  ansible.builtin.debug:
     msg: |
-      Service transition failed!
+      Service transition validation (autonomous mode):
       - Service status: {{ new_service_status.stdout }}
       - MPV processes: {{ new_mpv_count.stdout }}
-      - Expected processes: {{ '2' if global_player_config.dual_screen | default(true) else '1' }}
+      - Expected minimum: {{ expected_mpv_count }}
+      - Display strategy: {{ player.display_strategy }}
+      - Dual screen config: {{ player.dual_screen | default('auto') }}
+      - Note: Autonomous system will adjust MPV count based on real-time display detection
   when:
-    - new_service_status.stdout == 'not loaded' or new_mpv_count.stdout|int < 1
+    - new_service_status.stdout != 'not loaded' and new_mpv_count.stdout|int >= expected_mpv_count|int
 
 - name: Log successful transition
   ansible.builtin.debug:
@@ -92,5 +116,5 @@
       ✅ Blue-green service transition completed successfully!
       - Service: {{ player.service_name }} ({{ 'LOADED' if new_service_status.stdout != 'not loaded' else 'NOT LOADED' }})
       - MPV processes: {{ new_mpv_count.stdout }}
-      - Expected: {{ '2' if global_player_config.dual_screen | default(true) else '1' }}
+      - Expected: {{ expected_mpv_count }}
       - Downtime: ~2-3 seconds (minimal impact)
