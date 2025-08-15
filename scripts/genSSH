@@ -11,7 +11,7 @@
 #   Non-interactive: ./genSSH <ip> <user> [password]
 #
 # Examples:
-#   ./genSSH 192.168.1.247 kai
+#   ./genSSH 192.168.1.244 kai
 #   ./genSSH 192.168.1.100 ubuntu mypassword
 #
 # Supports the new inventory/projects/{project}/{env}.yml structure

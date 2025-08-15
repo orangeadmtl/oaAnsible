@@ -321,6 +321,13 @@ select_target_host() {
       host_aliases+=("$line [Ubuntu]")
     fi
   done < <(yq e '.all.children.ubuntu.hosts | keys | .[]' "$selected_inventory_path" 2>/dev/null)
+  
+  # Get hosts from orangepi_devices group
+  while IFS= read -r line; do
+    if [ -n "$line" ]; then
+      host_aliases+=("$line [OrangePi]")
+    fi
+  done < <(yq e '.all.children.orangepi_devices.hosts | keys | .[]' "$selected_inventory_path" 2>/dev/null)
 
   if [ ${#host_aliases[@]} -eq 0 ]; then
     log_error "No hosts found in any supported groups of $selected_inventory_path, or error parsing inventory."
@@ -331,13 +338,14 @@ select_target_host() {
   select host_choice in "${host_aliases[@]}"; do
     if [[ -n "$host_choice" ]]; then
       # Extract hostname and group from the display format "hostname [group]"
-      if [[ "$host_choice" =~ ^(.+)\ \[(macOS|Ubuntu-servers|Ubuntu)\]$ ]]; then
+      if [[ "$host_choice" =~ ^(.+)\ \[(macOS|Ubuntu-servers|Ubuntu|OrangePi)\]$ ]]; then
         selected_host_alias="${BASH_REMATCH[1]}"
         TARGET_HOST_GROUP_DISPLAY="${BASH_REMATCH[2]}"
         case "$TARGET_HOST_GROUP_DISPLAY" in
           "macOS") TARGET_HOST_GROUP="macos" ;;
           "Ubuntu-servers") TARGET_HOST_GROUP="ubuntu_servers" ;;
           "Ubuntu") TARGET_HOST_GROUP="ubuntu" ;;
+          "OrangePi") TARGET_HOST_GROUP="orangepi_devices" ;;
         esac
         log_info "Selected host: $selected_host_alias [$TARGET_HOST_GROUP_DISPLAY]"
       else
