@@ -165,7 +165,6 @@ sudo update-initramfs -u
 Tested and validated on:
 - Ubuntu 20.04 LTS
 - Ubuntu 22.04 LTS
-- Ubuntu 24.04 LTS
 - Various Realtek ethernet controllers
 - kampus-rig (validation system)
 
