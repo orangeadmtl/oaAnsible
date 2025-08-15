@@ -139,9 +139,6 @@ all:
                   ansible_user: studio
                   ansible_port: 22
                   ansible_become_password: "{{ vault_sudo_passwords['f1-ca-001'] }}"
-                  # Single-screen override for this device - everything else inherited!
-                  player_overrides:
-                    dual_screen: false
                 f1-ca-002:
                   ansible_host: 100.122.121.83
                   ansible_user: ek003
