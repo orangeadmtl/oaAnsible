@@ -1,6 +1,6 @@
 #!/bin/bash
-# OrangeAd MPV Player - Simple and effective dual-screen player
-# Detects displays and deploys the right number of instances
+# OrangeAd Autonomous MPV Player - Configuration-driven with real-time display adaptation
+# Enhanced with autonomous display management and synchronized dual-screen support
 
 set -e
 
@@ -11,7 +11,49 @@ PLAYER_DIR="{{ player.video_source }}"
 LOGS_DIR="${PLAYER_DIR}/logs"
 LOG_FILE="${LOGS_DIR}/player.log"
 
-# Video configuration - works with both scheduled and static configurations
+# === CONFIGURATION RESOLUTION ===
+# Multi-level configuration with autonomous capabilities
+
+# Display management strategy
+DISPLAY_STRATEGY="{{ player.display_strategy | default('hybrid') }}"  # config|auto|hybrid
+DUAL_SCREEN_CONFIG="{{ player.dual_screen | default('auto') | lower }}"       # true|false|auto
+DETECTION_INTERVAL="{{ player.display_detection_interval | default(2) }}"
+DISPLAY_MIN_COUNT="{{ player.display_min_count | default(1) }}"
+DISPLAY_MAX_COUNT="{{ player.display_max_count | default(2) }}"
+STARTUP_SYNC_DELAY="{{ player.startup_sync_delay | default(0.1) }}"
+DISPLAY_DEBOUNCE_TIME="{{ player.display_debounce_time | default(3) }}"
+
+# MPV arguments
+MPV_ARGS="--loop --fullscreen --no-audio --no-border --ontop --no-input-default-bindings --no-input-cursor --no-osd-bar"
+
+# Global state variables
+MPV_PID_1=""
+MPV_PID_2=""
+CURRENT_DISPLAY_COUNT=0
+EXPECTED_MPV_COUNT=1
+LAST_DISPLAY_CHANGE=0
+SCRIPT_START_TIME=$(date +%s)
+
+# Ensure logs directory exists
+mkdir -p "$LOGS_DIR"
+
+# === LOGGING FUNCTIONS ===
+log_message() {
+    local level="${2:-INFO}"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $1" | tee -a "$LOG_FILE"
+}
+
+log_config() {
+    log_message "=== CONFIGURATION SUMMARY ===" "CONFIG"
+    log_message "Display strategy: $DISPLAY_STRATEGY" "CONFIG"
+    log_message "Dual screen config: $DUAL_SCREEN_CONFIG" "CONFIG"
+    log_message "Detection interval: ${DETECTION_INTERVAL}s" "CONFIG"
+    log_message "Display limits: min=$DISPLAY_MIN_COUNT, max=$DISPLAY_MAX_COUNT" "CONFIG"
+    log_message "Startup sync delay: ${STARTUP_SYNC_DELAY}s" "CONFIG"
+    log_message "Debounce time: ${DISPLAY_DEBOUNCE_TIME}s" "CONFIG"
+}
+
+# === VIDEO CONFIGURATION RESOLUTION ===
 {% if player.schedule_enabled | default(false) and player.schedules is defined %}
 # Time-based scheduling functions with day-of-week support
 get_current_schedule() {
@@ -105,202 +147,388 @@ get_schedule_videos() {
     echo ""
 }
 
-# Dynamic video file resolution based on current schedule
-CURRENT_SCHEDULE=$(get_current_schedule)
-VIDEO_FILE_DISPLAY1="${PLAYER_DIR}/$(get_schedule_videos "$CURRENT_SCHEDULE" "1")"
-VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/$(get_schedule_videos "$CURRENT_SCHEDULE" "2")"
-
-# Fallback to static configuration if scheduling fails
-if [[ -z "$(get_schedule_videos "$CURRENT_SCHEDULE" "1")" ]]; then
-    {% if player.videos is defined and player.videos %}
-        {% set fallback_display1 = player.videos | selectattr('display', 'equalto', 1) | selectattr('enabled', 'equalto', true) | first %}
-        {% if fallback_display1 %}
-    VIDEO_FILE_DISPLAY1="${PLAYER_DIR}/{{ fallback_display1.name }}"
-        {% endif %}
-    {% endif %}
-fi
-
-if [[ -z "$(get_schedule_videos "$CURRENT_SCHEDULE" "2")" ]]; then
-    {% if player.videos is defined and player.videos %}
-        {% set fallback_display2 = player.videos | selectattr('display', 'equalto', 2) | selectattr('enabled', 'equalto', true) | first %}
-        {% if fallback_display2 %}
-    VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/{{ fallback_display2.name }}"
-        {% else %}
-    VIDEO_FILE_DISPLAY2="$VIDEO_FILE_DISPLAY1"  # Use same video for both displays
-        {% endif %}
-    {% endif %}
-fi
-
-{% else %}
-# Traditional static video configuration (backward compatibility)
-{% if player.videos is defined and player.videos %}
-  {% if merged_player_config.dual_screen | default(true) %}
-    # Dual-screen mode: use explicit display assignments
-    {% set display1_videos = player.videos | selectattr('display', 'equalto', 1) | selectattr('enabled', 'equalto', true) | list %}
-    {% set display2_videos = player.videos | selectattr('display', 'equalto', 2) | selectattr('enabled', 'equalto', true) | list %}
+# Initialize video files based on current schedule
+resolve_video_files() {
+    local current_schedule=$(get_current_schedule)
+    VIDEO_FILE_DISPLAY1="${PLAYER_DIR}/$(get_schedule_videos "$current_schedule" "1")"
+    VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/$(get_schedule_videos "$current_schedule" "2")"
     
-    # Fallback if no display-specific videos found
-    {% if not display1_videos %}
-      {% set display1_videos = player.videos | selectattr('enabled', 'equalto', true) | list %}
-    {% endif %}
-    {% if not display2_videos and display1_videos %}
-      {% set display2_videos = display1_videos %}
-    {% endif %}
-  {% else %}
-    # Single-screen mode: use first enabled video for display 1 only
-    {% set all_enabled_videos = player.videos | selectattr('enabled', 'equalto', true) | list %}
-    {% if all_enabled_videos %}
-      {% set display1_videos = [all_enabled_videos[0]] %}
-    {% else %}
-      {% set display1_videos = [player.videos[0]] %}
-    {% endif %}
-    {% set display2_videos = [] %}
-  {% endif %}
-{% else %}
-  # NO VIDEOS DEFINED - Exit with error rather than using hardcoded fallback
-  {% set display1_videos = [] %}
-  {% set display2_videos = [] %}
-{% endif %}
-
-# Set video file paths - no fallbacks, proper inventory-driven configuration
-{% if display1_videos and display1_videos[0].name is defined %}
-VIDEO_FILE_DISPLAY1="${PLAYER_DIR}/{{ display1_videos[0].name }}"
-{% else %}
-echo "ERROR: No videos configured in inventory for display 1"
-exit 1
-{% endif %}
-
-{% if display2_videos and display2_videos[0].name is defined %}
-VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/{{ display2_videos[0].name }}"
-{% else %}
-VIDEO_FILE_DISPLAY2=""
-{% endif %}
-{% endif %}
-
-# MPV arguments
-MPV_ARGS="--loop --fullscreen --no-audio --no-border --ontop --no-input-default-bindings --no-input-cursor --no-osd-bar"
-
-# Global variables
-MPV_PID_1=""
-MPV_PID_2=""
-DUAL_RUNNING=false
-
-# Ensure logs directory exists
-mkdir -p "$LOGS_DIR"
-
-# Function to log messages
-log_message() {
-    local level="${2:-INFO}"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $1" >> "$LOG_FILE"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $1"
+    # Fallback to static configuration if scheduling fails
+    if [[ -z "$(get_schedule_videos "$current_schedule" "1")" ]]; then
+        {% if player.videos is defined and player.videos %}
+            {% set fallback_display1 = player.videos | selectattr('display', 'equalto', 1) | selectattr('enabled', 'equalto', true) | first %}
+            {% if fallback_display1 %}
+        VIDEO_FILE_DISPLAY1="${PLAYER_DIR}/{{ fallback_display1.name }}"
+            {% endif %}
+        {% endif %}
+    fi
+    
+    if [[ -z "$(get_schedule_videos "$current_schedule" "2")" ]]; then
+        {% if player.videos is defined and player.videos %}
+            {% set fallback_display2 = player.videos | selectattr('display', 'equalto', 2) | selectattr('enabled', 'equalto', true) | first %}
+            {% if fallback_display2 %}
+        VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/{{ fallback_display2.name }}"
+            {% else %}
+        VIDEO_FILE_DISPLAY2="$VIDEO_FILE_DISPLAY1"  # Use same video for both displays
+            {% endif %}
+        {% endif %}
+    fi
+    
+    log_message "Schedule: $current_schedule → Display1: $(basename "$VIDEO_FILE_DISPLAY1"), Display2: $(basename "$VIDEO_FILE_DISPLAY2")" "SCHEDULE"
 }
 
-{% if player.schedule_enabled | default(false) %}
 # Function to check if schedule has changed and restart if needed
 check_schedule_change() {
     local new_schedule=$(get_current_schedule)
     if [ "$new_schedule" != "$CURRENT_SCHEDULE" ]; then
-        log_message "Schedule changed from $CURRENT_SCHEDULE to $new_schedule - restarting player" "SCHEDULE"
+        log_message "Schedule changed from $CURRENT_SCHEDULE to $new_schedule - updating videos" "SCHEDULE"
         CURRENT_SCHEDULE="$new_schedule"
-        
-        # Update video paths
-        VIDEO_FILE_DISPLAY1="${PLAYER_DIR}/$(get_schedule_videos "$CURRENT_SCHEDULE" "1")"
-        VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/$(get_schedule_videos "$CURRENT_SCHEDULE" "2")"
-        
-        # Clean restart
-        cleanup_mpv_processes
-        sleep 2
-        return 1  # Signal to restart
+        resolve_video_files
+        return 1  # Signal video change
     fi
     return 0  # No change
 }
 
-# Function to cleanup existing MPV processes
-cleanup_mpv_processes() {
-    log_message "Stopping existing MPV processes for schedule change..." "CLEANUP"
-    pkill -f "mpv.*--screen=" || true
-    sleep 1
-    pkill -9 -f "mpv.*--screen=" 2>/dev/null || true
+{% else %}
+# Static video configuration
+resolve_video_files() {
+    {% if player.videos is defined and player.videos %}
+        {% set display1_videos = player.videos | selectattr('display', 'equalto', 1) | selectattr('enabled', 'equalto', true) | list %}
+        {% set display2_videos = player.videos | selectattr('display', 'equalto', 2) | selectattr('enabled', 'equalto', true) | list %}
+        
+        # Fallback if no display-specific videos found
+        {% if not display1_videos %}
+            {% set display1_videos = player.videos | selectattr('enabled', 'equalto', true) | list %}
+        {% endif %}
+        {% if not display2_videos and display1_videos %}
+            {% set display2_videos = display1_videos %}
+        {% endif %}
+        
+        {% if display1_videos and display1_videos[0].name is defined %}
+    VIDEO_FILE_DISPLAY1="${PLAYER_DIR}/{{ display1_videos[0].name }}"
+        {% else %}
+    log_message "ERROR: No videos configured for display 1" "ERROR"
+    exit 1
+        {% endif %}
+        
+        {% if display2_videos and display2_videos[0].name is defined %}
+    VIDEO_FILE_DISPLAY2="${PLAYER_DIR}/{{ display2_videos[0].name }}"
+        {% else %}
+    VIDEO_FILE_DISPLAY2="$VIDEO_FILE_DISPLAY1"
+        {% endif %}
+    {% else %}
+    log_message "ERROR: No videos configured in inventory" "ERROR"
+    exit 1
+    {% endif %}
+    
+    log_message "Static config → Display1: $(basename "$VIDEO_FILE_DISPLAY1"), Display2: $(basename "$VIDEO_FILE_DISPLAY2")" "CONFIG"
+}
+
+# No schedule checking needed for static config
+check_schedule_change() {
+    return 0  # No change possible
 }
 {% endif %}
 
-# Simple and effective display detection
-detect_displays() {
+# === ENHANCED DISPLAY DETECTION ===
+# Fast, reliable display detection with multiple methods and fallbacks
+
+detect_displays_fast() {
+    local display_count=1  # Safe default
+    
+    # Method 1: system_profiler (most reliable but slower)
     if command -v system_profiler >/dev/null 2>&1; then
-        display_count=$(system_profiler SPDisplaysDataType 2>/dev/null | grep -c "Resolution:" || echo "0")
-        if [ "$display_count" -eq 0 ]; then
-            # Fallback: try counting displays via system_profiler differently
-            display_count=$(system_profiler SPDisplaysDataType 2>/dev/null | grep -c "Display Type:" || echo "1")
+        local sp_count=$(system_profiler SPDisplaysDataType 2>/dev/null | grep -c "Resolution:" || echo "0")
+        if [ "$sp_count" -gt 0 ]; then
+            display_count=$sp_count
+        else
+            # Fallback: try counting displays via Display Type
+            sp_count=$(system_profiler SPDisplaysDataType 2>/dev/null | grep -c "Display Type:" || echo "1")
+            display_count=$sp_count
         fi
-    else
-        display_count="1"
     fi
+    
+    # Method 2: osascript fallback (faster but less reliable)
+    if [ "$display_count" -eq 1 ] && command -v osascript >/dev/null 2>&1; then
+        local osa_count=$(osascript -e 'tell application "System Events" to get count of (every desktop)' 2>/dev/null || echo "1")
+        if [ "$osa_count" -gt 1 ]; then
+            display_count=$osa_count
+        fi
+    fi
+    
+    # Clamp to configured limits
+    if [ "$display_count" -lt $DISPLAY_MIN_COUNT ]; then
+        display_count=$DISPLAY_MIN_COUNT
+    elif [ "$display_count" -gt $DISPLAY_MAX_COUNT ]; then
+        display_count=$DISPLAY_MAX_COUNT
+    fi
+    
     echo "$display_count"
 }
 
-# Simple MPV startup - sets global PID variable
-start_mpv() {
-    local screen_num="$1"
-    local video_file="$2"
-    local pid_var="$3"
+# Debounced display detection to handle slow-appearing displays
+get_stable_display_count() {
+    local current_time=$(date +%s)
+    local detected_count=$(detect_displays_fast)
     
-    log_message "Starting MPV on screen $screen_num: $(basename "$video_file")" "START"
+    # If display count changed, start debounce period
+    if [ "$detected_count" != "$CURRENT_DISPLAY_COUNT" ]; then
+        LAST_DISPLAY_CHANGE=$current_time
+        log_message "Display count changed: $CURRENT_DISPLAY_COUNT → $detected_count (debouncing...)" "DISPLAY"
+    fi
     
-    # Start MPV and get its PID
-    mpv --screen="$screen_num" $MPV_ARGS "$video_file" &
-    local mpv_pid=$!
-    
-    # Simple verification - just check if process exists
-    sleep 2
-    if kill -0 $mpv_pid 2>/dev/null; then
-        log_message "✓ MPV started successfully on screen $screen_num, PID: $mpv_pid" "SUCCESS"
-        # Set the global variable
-        if [ "$pid_var" = "MPV_PID_1" ]; then
-            MPV_PID_1=$mpv_pid
-        elif [ "$pid_var" = "MPV_PID_2" ]; then
-            MPV_PID_2=$mpv_pid
+    # Check if debounce period has passed
+    local time_since_change=$((current_time - LAST_DISPLAY_CHANGE))
+    if [ $time_since_change -ge $DISPLAY_DEBOUNCE_TIME ]; then
+        # Stable display count
+        if [ "$detected_count" != "$CURRENT_DISPLAY_COUNT" ]; then
+            log_message "Display count stabilized: $CURRENT_DISPLAY_COUNT → $detected_count" "DISPLAY"
+            CURRENT_DISPLAY_COUNT=$detected_count
         fi
+    fi
+    
+    echo "$CURRENT_DISPLAY_COUNT"
+}
+
+# === CONFIGURATION-DRIVEN DISPLAY LOGIC ===
+# Determine expected MPV count based on strategy and configuration
+
+calculate_expected_mpv() {
+    local stable_displays="$1"
+    local expected=1  # Always at least 1 (user requirement)
+    
+    case "$DISPLAY_STRATEGY" in
+        "config")
+            # Honor configuration only, ignore hardware
+            if [ "$DUAL_SCREEN_CONFIG" = "true" ]; then
+                expected=2
+            elif [ "$DUAL_SCREEN_CONFIG" = "false" ]; then
+                expected=1
+            else  # auto
+                expected=$([ "$stable_displays" -ge 2 ] && echo "2" || echo "1")
+            fi
+            ;;
+        "auto")
+            # Full autonomous detection, ignore configuration
+            expected=$([ "$stable_displays" -ge 2 ] && echo "2" || echo "1")
+            ;;
+        "hybrid")
+            # Configuration with runtime adjustment (recommended)
+            if [ "$DUAL_SCREEN_CONFIG" = "false" ]; then
+                expected=1  # Force single screen
+            elif [ "$DUAL_SCREEN_CONFIG" = "true" ]; then
+                # Want dual screen, but adapt to hardware
+                expected=$([ "$stable_displays" -ge 2 ] && echo "2" || echo "1")
+            else  # auto
+                expected=$([ "$stable_displays" -ge 2 ] && echo "2" || echo "1")
+            fi
+            ;;
+    esac
+    
+    echo "$expected"
+}
+
+# === MPV PROCESS MANAGEMENT ===
+# Functions for managing MPV lifecycle with proper synchronization
+
+count_running_mpv() {
+    pgrep -f "mpv.*--screen=" | wc -l || echo "0"
+}
+
+get_mpv_pids() {
+    pgrep -f "mpv.*--screen=" | tr '\n' ' ' || echo ""
+}
+
+# Stop all MPV instances cleanly
+stop_all_mpv() {
+    log_message "Stopping all MPV instances..." "STOP"
+    
+    # Graceful termination first
+    pkill -TERM -f "mpv.*--screen=" || true
+    sleep 1
+    
+    # Force kill if still running
+    pkill -KILL -f "mpv.*--screen=" 2>/dev/null || true
+    sleep 0.5
+    
+    # Clear PID tracking
+    MPV_PID_1=""
+    MPV_PID_2=""
+    
+    log_message "All MPV instances stopped" "STOP"
+}
+
+# Start single MPV instance
+start_mpv_single() {
+    local video_file="$1"
+    
+    log_message "Starting single-screen MPV: $(basename "$video_file")" "START"
+    
+    mpv --screen=0 $MPV_ARGS "$video_file" &
+    MPV_PID_1=$!
+    
+    sleep 1
+    if kill -0 $MPV_PID_1 2>/dev/null; then
+        log_message "✓ Single-screen MPV started (PID: $MPV_PID_1)" "SUCCESS"
         return 0
     else
-        log_message "✗ MPV failed to start on screen $screen_num" "ERROR"
+        log_message "✗ Single-screen MPV failed to start" "ERROR"
+        MPV_PID_1=""
         return 1
     fi
 }
 
-# Async MPV startup for parallel execution
-start_mpv_async() {
-    local screen_num="$1"
-    local video_file="$2"
+# Start dual MPV instances with synchronization
+start_mpv_dual() {
+    local video1="$1"
+    local video2="$2"
     
-    log_message "Starting MPV on screen $screen_num: $(basename "$video_file")" "START"
+    log_message "Starting dual-screen MPV: $(basename "$video1") + $(basename "$video2")" "START"
     
-    # Start MPV and get its PID
-    mpv --screen="$screen_num" $MPV_ARGS "$video_file" &
-    local mpv_pid=$!
+    # Synchronized startup - both instances launched nearly simultaneously
+    mpv --screen=0 $MPV_ARGS "$video1" &
+    MPV_PID_1=$!
+    
+    sleep $STARTUP_SYNC_DELAY
+    
+    mpv --screen=1 $MPV_ARGS "$video2" &
+    MPV_PID_2=$!
+    
+    log_message "Both MPV instances launched (PIDs: $MPV_PID_1, $MPV_PID_2)" "START"
     
     # Quick verification
-    sleep 1
-    if kill -0 $mpv_pid 2>/dev/null; then
-        log_message "✓ MPV started on screen $screen_num, PID: $mpv_pid" "SUCCESS"
-        # Set the appropriate global variable
-        if [ "$screen_num" = "0" ]; then
-            MPV_PID_1=$mpv_pid
-        elif [ "$screen_num" = "1" ]; then
-            MPV_PID_2=$mpv_pid
-        fi
-        return 0
+    sleep 2
+    
+    local primary_ok=false
+    local secondary_ok=false
+    
+    if kill -0 $MPV_PID_1 2>/dev/null; then
+        log_message "✓ Primary display running (PID: $MPV_PID_1)" "SUCCESS"
+        primary_ok=true
     else
-        log_message "✗ MPV failed on screen $screen_num" "ERROR"
+        log_message "✗ Primary display failed" "ERROR"
+        MPV_PID_1=""
+    fi
+    
+    if kill -0 $MPV_PID_2 2>/dev/null; then
+        log_message "✓ Secondary display running (PID: $MPV_PID_2)" "SUCCESS" 
+        secondary_ok=true
+    else
+        log_message "✗ Secondary display failed" "ERROR"
+        MPV_PID_2=""
+    fi
+    
+    if [ "$primary_ok" = true ] && [ "$secondary_ok" = true ]; then
+        log_message "✓ DUAL-SCREEN: Both displays synchronized (PIDs: $MPV_PID_1, $MPV_PID_2)" "SUCCESS"
+        return 0
+    elif [ "$primary_ok" = true ]; then
+        log_message "⚠ Partial success: Primary only, secondary failed" "WARNING"
         return 1
+    else
+        log_message "✗ Complete failure: Both displays failed" "ERROR"
+        return 2
     fi
 }
 
+# Adjust MPV instances based on expected count
+adjust_mpv_instances() {
+    local expected="$1"
+    local current="$2"
+    
+    if [ "$expected" -eq "$current" ]; then
+        return 0  # No change needed
+    fi
+    
+    log_message "Adjusting MPV instances: $current → $expected" "ADJUST"
+    
+    # Stop all current instances
+    stop_all_mpv
+    
+    # Start appropriate number of instances
+    if [ "$expected" -eq 1 ]; then
+        if start_mpv_single "$VIDEO_FILE_DISPLAY1"; then
+            log_message "✓ Adjusted to single-screen mode" "ADJUST"
+        else
+            log_message "✗ Failed to adjust to single-screen mode" "ERROR"
+            return 1
+        fi
+    elif [ "$expected" -eq 2 ]; then
+        local result=0
+        start_mpv_dual "$VIDEO_FILE_DISPLAY1" "$VIDEO_FILE_DISPLAY2"
+        result=$?
+        
+        if [ $result -eq 0 ]; then
+            log_message "✓ Adjusted to dual-screen mode" "ADJUST"
+        elif [ $result -eq 1 ]; then
+            log_message "⚠ Partial adjustment: primary only" "ADJUST"
+        else
+            log_message "✗ Failed to adjust to dual-screen mode" "ERROR"
+            # Fallback to single screen
+            if start_mpv_single "$VIDEO_FILE_DISPLAY1"; then
+                log_message "✓ Fallback to single-screen successful" "ADJUST"
+            else
+                log_message "✗ Critical: All fallbacks failed" "ERROR"
+                return 1
+            fi
+        fi
+    fi
+    
+    return 0
+}
+
+# Restart crashed MPV instances
+restart_failed_mpv() {
+    local expected="$1"
+    
+    log_message "Restarting failed MPV instances..." "RESTART"
+    
+    # Check which instances failed
+    local primary_failed=false
+    local secondary_failed=false
+    
+    if [ -n "$MPV_PID_1" ] && ! kill -0 $MPV_PID_1 2>/dev/null; then
+        primary_failed=true
+        MPV_PID_1=""
+    fi
+    
+    if [ -n "$MPV_PID_2" ] && ! kill -0 $MPV_PID_2 2>/dev/null; then
+        secondary_failed=true
+        MPV_PID_2=""
+    fi
+    
+    # Restart individual instances to maintain sync
+    if [ "$primary_failed" = true ]; then
+        log_message "Restarting primary display..." "RESTART"
+        mpv --screen=0 $MPV_ARGS "$VIDEO_FILE_DISPLAY1" &
+        MPV_PID_1=$!
+        
+        if [ "$expected" -eq 2 ] && [ "$secondary_failed" = false ]; then
+            # Need to restart secondary too for sync
+            if [ -n "$MPV_PID_2" ]; then
+                kill $MPV_PID_2 2>/dev/null || true
+                sleep $STARTUP_SYNC_DELAY
+                mpv --screen=1 $MPV_ARGS "$VIDEO_FILE_DISPLAY2" &
+                MPV_PID_2=$!
+                log_message "Restarted both displays for synchronization" "RESTART"
+            fi
+        fi
+    fi
+    
+    if [ "$secondary_failed" = true ] && [ "$expected" -eq 2 ]; then
+        log_message "Restarting secondary display..." "RESTART"
+        mpv --screen=1 $MPV_ARGS "$VIDEO_FILE_DISPLAY2" &
+        MPV_PID_2=$!
+    fi
+    
+    sleep 1
+    log_message "Restart complete - PIDs: ${MPV_PID_1:-none}, ${MPV_PID_2:-none}" "RESTART"
+}
+
+# === MAIN EXECUTION ===
 # Cleanup function
 cleanup() {
-    log_message "Cleaning up MPV processes..." "SHUTDOWN"
-    pkill -f "mpv.*--screen=" || true
-    sleep 1
-    pkill -9 -f "mpv.*--screen=" 2>/dev/null || true
+    log_message "Shutting down player..." "SHUTDOWN"
+    stop_all_mpv
     log_message "Player shutdown complete" "EXIT"
     exit 0
 }
@@ -308,21 +536,18 @@ cleanup() {
 # Set up signal handlers
 trap cleanup SIGTERM SIGINT
 
-# Start player
-log_message "=== OrangeAd MPV Player Starting ===" "SYSTEM"
+# Initialize
+log_message "=== OrangeAd Autonomous MPV Player Starting ===" "SYSTEM"
 log_message "Hostname: $(hostname)" "SYSTEM"
 log_message "User: $(whoami)" "SYSTEM"
+log_config
 
+# Resolve video files
 {% if player.schedule_enabled | default(false) %}
+CURRENT_SCHEDULE=$(get_current_schedule)
 log_message "Schedule-based player enabled" "SYSTEM"
-log_message "Current schedule: $CURRENT_SCHEDULE" "SCHEDULE"
-log_message "Display 1 video: $(basename "$VIDEO_FILE_DISPLAY1")" "SCHEDULE"
-if [[ -n "$VIDEO_FILE_DISPLAY2" ]]; then
-    log_message "Display 2 video: $(basename "$VIDEO_FILE_DISPLAY2")" "SCHEDULE"
-else
-    log_message "Display 2: Same as display 1" "SCHEDULE"
-fi
 {% endif %}
+resolve_video_files
 
 # Validate video files exist
 if [[ ! -f "$VIDEO_FILE_DISPLAY1" ]]; then
@@ -330,152 +555,101 @@ if [[ ! -f "$VIDEO_FILE_DISPLAY1" ]]; then
     exit 1
 fi
 
-# Check secondary video file exists if configured
 if [[ -n "$VIDEO_FILE_DISPLAY2" && ! -f "$VIDEO_FILE_DISPLAY2" ]]; then
-    log_message "ERROR: Secondary video file not found: $VIDEO_FILE_DISPLAY2" "ERROR"
-    exit 1
+    log_message "WARNING: Secondary video file not found: $VIDEO_FILE_DISPLAY2, using primary" "WARNING"
+    VIDEO_FILE_DISPLAY2="$VIDEO_FILE_DISPLAY1"
 fi
 
 # Clean up any existing MPV processes
 log_message "Cleaning up existing MPV processes..." "CLEANUP"
-pkill -f "mpv.*--screen=" || true
-sleep 1
+stop_all_mpv
 
-# Detect displays
-DISPLAY_COUNT=$(detect_displays)
-log_message "Detected $DISPLAY_COUNT display(s)" "DISPLAY"
+# Initial display detection with debouncing
+log_message "Detecting displays..." "DISPLAY"
+CURRENT_DISPLAY_COUNT=$(detect_displays_fast)
+LAST_DISPLAY_CHANGE=$SCRIPT_START_TIME
 
-# Deploy based on display count
-if [ "$DISPLAY_COUNT" -ge 2 ]; then
-    log_message "=== DUAL-SCREEN MODE ===" "MODE"
-    
-    # Start both displays truly simultaneously - no delays
-    log_message "Starting both displays simultaneously..." "START"
-    
-    # Launch both MPV instances at exactly the same time
-    mpv --screen=0 $MPV_ARGS "$VIDEO_FILE_DISPLAY1" &
-    MPV_PID_1=$!
-    
-    # Start secondary display
-    if [[ -n "$VIDEO_FILE_DISPLAY2" ]]; then
-        mpv --screen=1 $MPV_ARGS "$VIDEO_FILE_DISPLAY2" &
-        MPV_PID_2=$!
+# Wait for displays to stabilize
+sleep $DISPLAY_DEBOUNCE_TIME
+CURRENT_DISPLAY_COUNT=$(get_stable_display_count)
+
+# Calculate initial expected MPV count
+EXPECTED_MPV_COUNT=$(calculate_expected_mpv $CURRENT_DISPLAY_COUNT)
+
+log_message "Initial state: $CURRENT_DISPLAY_COUNT display(s) detected, $EXPECTED_MPV_COUNT MPV instance(s) expected" "STATE"
+
+# Start initial MPV instances
+if [ "$EXPECTED_MPV_COUNT" -eq 1 ]; then
+    if start_mpv_single "$VIDEO_FILE_DISPLAY1"; then
+        log_message "✓ Initial single-screen startup successful" "INIT"
     else
-        mpv --screen=1 $MPV_ARGS "$VIDEO_FILE_DISPLAY1" &
-        MPV_PID_2=$!
-    fi
-    
-    log_message "Both MPV instances launched (PIDs: $MPV_PID_1, $MPV_PID_2)" "START"
-    
-    # Quick verification after a brief moment
-    sleep 2
-    
-    PRIMARY_SUCCESS=false
-    SECONDARY_SUCCESS=false
-    
-    if kill -0 $MPV_PID_1 2>/dev/null; then
-        log_message "✓ Primary display running (PID: $MPV_PID_1)" "SUCCESS"
-        PRIMARY_SUCCESS=true
-    else
-        log_message "✗ Primary display failed to start" "ERROR"
-    fi
-    
-    if kill -0 $MPV_PID_2 2>/dev/null; then
-        log_message "✓ Secondary display running (PID: $MPV_PID_2)" "SUCCESS"
-        SECONDARY_SUCCESS=true
-    else
-        log_message "✗ Secondary display failed to start" "ERROR"
-    fi
-    
-    # Check results
-    if [ "$PRIMARY_SUCCESS" = false ]; then
-        log_message "CRITICAL: Primary display failed" "ERROR"
+        log_message "✗ Initial single-screen startup failed" "ERROR"
         exit 1
-    fi
-    
-    if [ "$SECONDARY_SUCCESS" = true ]; then
-        log_message "✓ DUAL-SCREEN: Both displays running simultaneously (PIDs: $MPV_PID_1, $MPV_PID_2)" "SUCCESS"
-        DUAL_RUNNING=true
-    else
-        log_message "⚠ Secondary display failed - continuing with primary only" "WARNING"
-        DUAL_RUNNING=false
     fi
 else
-    log_message "=== SINGLE-SCREEN MODE ===" "MODE"
+    result=0
+    start_mpv_dual "$VIDEO_FILE_DISPLAY1" "$VIDEO_FILE_DISPLAY2"
+    result=$?
     
-    # Start single display (screen 0)
-    if start_mpv 0 "$VIDEO_FILE_DISPLAY1" "MPV_PID_1"; then
-        log_message "✓ SINGLE-SCREEN: Running (PID: $MPV_PID_1)" "SUCCESS"
-        DUAL_RUNNING=false
+    if [ $result -eq 0 ]; then
+        log_message "✓ Initial dual-screen startup successful" "INIT"
+    elif [ $result -eq 1 ]; then
+        log_message "⚠ Initial partial startup: primary only" "INIT"
+        EXPECTED_MPV_COUNT=1  # Adjust expectation
     else
-        log_message "CRITICAL: Display failed" "ERROR"
-        exit 1
+        log_message "✗ Initial dual-screen startup failed, falling back to single" "INIT"
+        if start_mpv_single "$VIDEO_FILE_DISPLAY1"; then
+            EXPECTED_MPV_COUNT=1
+            log_message "✓ Fallback single-screen startup successful" "INIT"
+        else
+            log_message "✗ All startup methods failed" "ERROR"
+            exit 1
+        fi
     fi
 fi
 
-# Monitor processes
-log_message "Starting monitoring loop..." "MONITOR"
+# === AUTONOMOUS MONITORING LOOP ===
+log_message "Starting autonomous monitoring (${DETECTION_INTERVAL}s intervals)..." "MONITOR"
 MONITOR_COUNT=0
 
 while true; do
     MONITOR_COUNT=$((MONITOR_COUNT + 1))
     
-    # Check primary display
-    if ! kill -0 $MPV_PID_1 2>/dev/null; then
-        log_message "Primary display died - restarting..." "RESTART"
-        if start_mpv 0 "$VIDEO_FILE_DISPLAY1" "MPV_PID_1"; then
-            log_message "Primary display restarted (PID: $MPV_PID_1)" "RESTART"
-        else
-            log_message "CRITICAL: Primary display restart failed" "ERROR"
-        fi
-    fi
+    # Fast display detection and debouncing
+    stable_displays=$(get_stable_display_count)
+    expected_mpv=$(calculate_expected_mpv $stable_displays)
+    current_mpv=$(count_running_mpv)
     
-    # Check secondary display if dual-screen
-    if [ "$DUAL_RUNNING" = true ] && ! kill -0 $MPV_PID_2 2>/dev/null; then
-        log_message "Secondary display died - restarting..." "RESTART"
-        # Restart secondary display with appropriate video
-        if [[ -n "$VIDEO_FILE_DISPLAY2" ]]; then
-            if start_mpv 1 "$VIDEO_FILE_DISPLAY2" "MPV_PID_2"; then
-                log_message "Secondary display restarted (PID: $MPV_PID_2)" "RESTART"
-            else
-                log_message "Secondary display restart failed" "ERROR"
-                DUAL_RUNNING=false
-            fi
-        else
-            if start_mpv 1 "$VIDEO_FILE_DISPLAY1" "MPV_PID_2"; then
-                log_message "Secondary display restarted (PID: $MPV_PID_2)" "RESTART"
-            else
-                log_message "Secondary display restart failed" "ERROR"
-                DUAL_RUNNING=false
-            fi
-        fi
+    # Check for display/configuration changes
+    if [ "$expected_mpv" != "$EXPECTED_MPV_COUNT" ]; then
+        log_message "Display change detected: ${EXPECTED_MPV_COUNT} → ${expected_mpv} expected MPV instances" "CHANGE"
+        EXPECTED_MPV_COUNT=$expected_mpv
+        adjust_mpv_instances $expected_mpv $current_mpv
+    elif [ "$current_mpv" != "$expected_mpv" ]; then
+        # MPV instance count doesn't match expected (crash recovery)
+        log_message "MPV instance mismatch: $current_mpv running, $expected_mpv expected" "MISMATCH"
+        restart_failed_mpv $expected_mpv
     fi
     
     {% if player.schedule_enabled | default(false) %}
-    # Check for schedule changes every cycle
+    # Check for schedule changes
     if ! check_schedule_change; then
-        log_message "Restarting due to schedule change..." "RESTART"
-        break  # Exit monitoring loop to restart with new schedule
+        log_message "Video change due to schedule update" "SCHEDULE"
+        # Re-resolve video files and restart if needed
+        resolve_video_files
+        # Force restart to pick up new videos
+        adjust_mpv_instances $expected_mpv 0
     fi
     {% endif %}
     
-    # Health check every 10 cycles
+    # Periodic health logging
     if [ $((MONITOR_COUNT % 10)) -eq 0 ]; then
-        if [ "$DUAL_RUNNING" = true ]; then
-            log_message "HEALTH #$MONITOR_COUNT: Dual-screen (PIDs: $MPV_PID_1, $MPV_PID_2)" "HEALTH"
-        else
-            log_message "HEALTH #$MONITOR_COUNT: Single-screen (PID: $MPV_PID_1)" "HEALTH"
-        fi
+        mpv_pids=$(get_mpv_pids)
+        log_message "HEALTH #$MONITOR_COUNT: ${current_mpv}/${expected_mpv} MPV, ${stable_displays} displays [PIDs: ${mpv_pids:-none}]" "HEALTH"
         {% if player.schedule_enabled | default(false) %}
-        log_message "Current schedule: $CURRENT_SCHEDULE" "HEALTH"
+        log_message "Current schedule: ${CURRENT_SCHEDULE:-none}" "HEALTH"
         {% endif %}
     fi
     
-    sleep {{ player.health_check_interval | default(180) }}
+    sleep $DETECTION_INTERVAL
 done
-
-{% if player.schedule_enabled | default(false) %}
-# If we exit the monitoring loop due to schedule change, restart the entire script
-log_message "Restarting player with new schedule: $CURRENT_SCHEDULE" "RESTART"
-exec "$0"  # Restart the script
-{% endif %}
