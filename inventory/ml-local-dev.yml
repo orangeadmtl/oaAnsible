@@ -20,7 +20,7 @@ all:
       vars:
         # Platform identification
         ansible_distribution: Ubuntu
-        ansible_distribution_version: "24.04"
+        ansible_distribution_version: "22.04"
 
         # Component-based deployment configuration
         selected_components:
