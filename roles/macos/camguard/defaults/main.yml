@@ -40,7 +40,7 @@ macos_camguard_defaults:
     monday_end_hour: 12 # Stop recording Monday at 12 PM (noon)
 
   # Service settings
-  ansible.builtin.service:
+  service:
     name: "com.orangead.camguard"
     user: "{{ ansible_user }}"
     keep_alive: true
