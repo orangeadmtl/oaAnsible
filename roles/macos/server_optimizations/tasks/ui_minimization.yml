@@ -42,7 +42,10 @@
 
     - name: Add essential apps to dock
       ansible.builtin.shell: |
-        defaults write com.apple.dock persistent-apps -array-add '<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>{{ item }}</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>'
+        # Check if the app exists before adding it
+        if [ -e "{{ item }}" ]; then
+          defaults write com.apple.dock persistent-apps -array-add '<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>{{ item }}</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>'
+        fi
       loop: "{{ macos_dock_essential_apps }}"
       register: dock_apps_result
       changed_when: dock_apps_result.rc == 0
