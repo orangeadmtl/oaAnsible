@@ -7,6 +7,11 @@
   ansible.builtin.include_tasks: setup_prerequisites.yml
   tags: ["tailscale", "prerequisites", "go"]
 
+# Hostname configuration for Tailscale
+- name: Configure system hostname
+  ansible.builtin.include_tasks: hostname_config.yml
+  tags: ["tailscale", "hostname", "network"]
+
 # Cleanup existing installations
 - name: Cleanup existing Tailscale installations
   ansible.builtin.include_tasks: cleanup_existing.yml

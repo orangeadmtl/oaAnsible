@@ -1,0 +1,34 @@
+---
+# Hostname configuration for Tailscale integration
+# Ensures system hostname matches inventory configuration
+
+- name: Configure system hostname
+  block:
+    - name: Get current hostname
+      ansible.builtin.command: hostname
+      register: current_hostname
+      changed_when: false
+
+    - name: Set hostname to match inventory
+      ansible.builtin.command: |
+        scutil --set HostName {{ inventory_hostname }}
+      become: true
+      when: current_hostname.stdout != inventory_hostname
+      register: hostname_result
+      changed_when: hostname_result.rc == 0
+
+    - name: Set ComputerName to match inventory
+      ansible.builtin.command: |
+        scutil --set ComputerName {{ inventory_hostname }}
+      become: true
+      when: current_hostname.stdout != inventory_hostname
+      register: computername_result
+      changed_when: computername_result.rc == 0
+
+    - name: Set LocalHostName to match inventory
+      ansible.builtin.command: |
+        scutil --set LocalHostName {{ inventory_hostname }}
+      become: true
+      when: current_hostname.stdout != inventory_hostname
+      register: localhostname_result
+      changed_when: localhostname_result.rc == 0
