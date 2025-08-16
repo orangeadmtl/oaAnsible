@@ -36,8 +36,6 @@ all:
       deploy_player: false
       deploy_camguard: true
 
-    # Custom wallpaper deployment
-    deploy_custom_wallpaper: false
 
     # System packages (minimal for CamGuard production)
     system:
@@ -77,7 +75,7 @@ all:
         max_size_gb: 0 # No size limit - cleanup via transfer only
 
       # Service settings
-      ansible.builtin.service:
+      service:
         name: "com.orangead.camguard"
         user: "{{ ansible_user }}"
         keep_alive: true
