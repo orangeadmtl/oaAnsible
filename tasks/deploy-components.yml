@@ -1,15 +1,23 @@
 ---
 # Component Deployment Task File
 # Handles selective deployment of individual components based on platform
+
+- name: DEBUG - Component deployment starting
+  ansible.builtin.debug:
+    msg: "Deploy-components.yml has been reached!"
+  tags: ["always"]
+
 - name: Validate component compatibility with platform
   ansible.builtin.set_fact:
     compatible_components: []
+  tags: ["always"]
 
 - name: Check macOS component compatibility
   ansible.builtin.set_fact:
     compatible_components:
       "{{ compatible_components + ['macos-api', 'tracker', 'alpr', 'player', 'camguard', 'cursorcerer', 'base', 'network', 'security', 'ssh'] }}"
   when: target_platform == "macos"
+  tags: ["always"]
 
 - name: Check Ubuntu component compatibility
   ansible.builtin.set_fact:
@@ -17,12 +25,14 @@
       "{{ compatible_components + ['base', 'network', 'security', 'docker', 'monitoring', 'nvidia', 'ml', 'health', 'oasentinel-setup', 'oasentinel-data',
       'oasentinel-train', 'oasentinel-full'] }}"
   when: target_platform == "ubuntu"
+  tags: ["always"]
 
 - name: Check OrangePi component compatibility
   ansible.builtin.set_fact:
     compatible_components:
       "{{ compatible_components + ['base', 'shell', 'tailscale', 'player', 'monitoring'] }}"
   when: target_platform == "orangepi"
+  tags: ["always"]
 
 - name: Validate selected components
   ansible.builtin.fail:
@@ -31,6 +41,7 @@
       Available components: {{ compatible_components | join(', ') }}
   when: item not in compatible_components
   loop: "{{ deployment_components | default(selected_components) }}"
+  tags: ["always"]
 
 - name: Display deployment plan
   ansible.builtin.debug:
@@ -39,6 +50,9 @@
       - Platform: {{ target_platform }}
       - Components: {{ deployment_components | default(selected_components) | join(', ') }}
       - Compatible: {{ compatible_components | join(', ') }}
+      - Target Platform: {{ target_platform | default('UNDEFINED') }}
+      - Selected Components: {{ selected_components | default([]) | join(', ') }}
+  tags: ["always"]
 
 # Deploy components in dependency order: security -> base -> network -> applications
 # Security must be first to configure passwordless sudo for Ubuntu
@@ -59,7 +73,7 @@
 
 - name: Deploy base system component
   when: "'base' in deployment_components | default(selected_components)"
-  tags: ["base"]
+  tags: ["base", "reboot", "stability"]
   block:
     - name: Deploy macOS base
       ansible.builtin.include_role:
