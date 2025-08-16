@@ -1,0 +1,76 @@
+---
+# Essential system preferences for macOS server operation
+
+- name: Configure essential system preferences
+  block:
+    - name: Disable guest user (security)
+      ansible.builtin.command: |
+        defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool NO
+      become: true
+      register: guest_result
+      changed_when: false
+
+    - name: Set time zone to America/New_York
+      ansible.builtin.command: |
+        systemsetup -settimezone America/New_York
+      become: true
+      register: timezone_result
+      changed_when: "'America/New_York' not in timezone_result.stdout"
+      failed_when: false
+
+    - name: Enable remote login (SSH)
+      ansible.builtin.command: |
+        systemsetup -setremotelogin on
+      become: true
+      register: ssh_result
+      changed_when: "'already on' not in ssh_result.stdout"
+      failed_when: false
+
+    - name: Set restart on power failure
+      ansible.builtin.command: |
+        systemsetup -setrestartpowerfailure on
+      become: true
+      register: power_failure_result
+      changed_when: false
+      failed_when: false
+
+    - name: Set restart on freeze
+      ansible.builtin.command: |
+        systemsetup -setrestartfreeze on
+      become: true
+      register: freeze_result
+      changed_when: false
+      failed_when: false
+
+    - name: Enable auto restart after power loss
+      ansible.builtin.command: |
+        pmset autorestart 1
+      become: true
+      register: autorestart_result
+      changed_when: false
+      failed_when: false
+
+    # Power management settings (moved from display_config.yml)
+    - name: Disable sleep mode
+      ansible.builtin.command: |
+        systemsetup -setsleep Never
+      become: true
+      register: sleep_result
+      changed_when: false
+      failed_when: false
+
+    - name: Disable display sleep
+      ansible.builtin.command: |
+        systemsetup -setdisplaysleep Never
+      become: true
+      register: display_sleep_result
+      changed_when: false
+      failed_when: false
+
+    - name: Disable hard disk sleep
+      ansible.builtin.command: |
+        systemsetup -setharddisksleep Never
+      become: true
+      register: disk_sleep_result
+      changed_when: false
+      failed_when: false

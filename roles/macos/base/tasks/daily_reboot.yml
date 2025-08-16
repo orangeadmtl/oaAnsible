@@ -1,0 +1,32 @@
+---
+# Daily reboot configuration for macOS devices
+# Ensures system stability through scheduled reboots
+
+- name: Configure daily reboot service
+  when: oa_environment.allow_destructive_operations | default(true)
+  block:
+    - name: Ensure OrangeAd log directory exists
+      ansible.builtin.file:
+        path: /var/log/orangead
+        state: directory
+        owner: root
+        group: wheel
+        mode: "0755"
+      become: true
+
+    - name: Create daily reboot LaunchDaemon plist
+      ansible.builtin.template:
+        src: com.orangead.dailyreboot.plist.j2
+        dest: /Library/LaunchDaemons/com.orangead.dailyreboot.plist
+        owner: root
+        group: wheel
+        mode: "0644"
+      become: true
+      register: daily_reboot_plist
+      notify:
+        - Unload existing daily reboot service
+        - Load daily reboot service
+
+    - name: Reload daily reboot service when changed
+      ansible.builtin.meta: flush_handlers
+      when: daily_reboot_plist.changed
