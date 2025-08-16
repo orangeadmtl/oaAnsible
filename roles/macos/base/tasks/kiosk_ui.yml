@@ -32,11 +32,7 @@
     defaults write com.apple.dock tilesize -int 16
   changed_when: false
 
-- name: Remove all items from dock
-  ansible.builtin.shell: |
-    defaults write com.apple.dock persistent-apps -array
-    defaults write com.apple.dock persistent-others -array
-  changed_when: false
+# Note: Dock app management moved to desktop_config.yml to avoid conflicts
 
 - name: Disable recent applications in dock
   ansible.builtin.shell: |

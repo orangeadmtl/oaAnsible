@@ -2,9 +2,72 @@
 # Desktop and Dock configuration tasks for macOS base setup
 # Configures modern macOS desktop settings for kiosk environments
 
+- name: Deploy custom wallpaper files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ ansible_env.HOME }}/{{ item }}"
+    mode: "0644"
+  loop:
+    - desktop-background.png
+    - desktop-background-vertical.png
+  when: deploy_custom_wallpaper | default(false)
+
+- name: Detect screen orientation
+  ansible.builtin.shell: |
+    # Get primary display resolution using system_profiler
+    display_info=$(system_profiler SPDisplaysDataType | grep "Resolution:" | head -1)
+    
+    # Extract width and height using more robust parsing
+    if echo "$display_info" | grep -q "Resolution:"; then
+      # Parse resolution like "Resolution: 1920 x 1080"
+      resolution=$(echo "$display_info" | sed 's/.*Resolution: *\([0-9]* x [0-9]*\).*/\1/')
+      width=$(echo "$resolution" | cut -d' ' -f1)
+      height=$(echo "$resolution" | cut -d' ' -f3)
+      
+      # Determine orientation: horizontal if width >= height, vertical otherwise
+      if [ "$width" -ge "$height" ]; then
+        echo "horizontal"
+      else
+        echo "vertical"
+      fi
+    else
+      # Fallback: assume horizontal if detection fails
+      echo "horizontal"
+    fi
+  register: screen_orientation_result
+  when: deploy_custom_wallpaper | default(false)
+  changed_when: false
+
+- name: Set screen orientation fact
+  ansible.builtin.set_fact:
+    screen_orientation: "{{ screen_orientation_result.stdout | trim }}"
+  when: deploy_custom_wallpaper | default(false)
+
+- name: Display detected screen orientation
+  ansible.builtin.debug:
+    msg: "Detected screen orientation: {{ screen_orientation | default('not detected') }}"
+  when: deploy_custom_wallpaper | default(false)
+
+- name: Set wallpaper to custom background (horizontal)
+  ansible.builtin.shell: |
+    osascript -e 'tell application "System Events" to tell every desktop to set picture to "{{ ansible_env.HOME }}/desktop-background.png"'
+  when: 
+    - deploy_custom_wallpaper | default(false)
+    - screen_orientation == "horizontal"
+  changed_when: false
+
+- name: Set wallpaper to custom background (vertical)
+  ansible.builtin.shell: |
+    osascript -e 'tell application "System Events" to tell every desktop to set picture to "{{ ansible_env.HOME }}/desktop-background-vertical.png"'
+  when: 
+    - deploy_custom_wallpaper | default(false)
+    - screen_orientation == "vertical"
+  changed_when: false
+
 - name: Set wallpaper to solid color (dark gray)
   ansible.builtin.shell: |
     osascript -e 'tell application "System Events" to tell every desktop to set picture to "/System/Library/Desktop Pictures/Solid Colors/Stone.png"'
+  when: not (deploy_custom_wallpaper | default(false))
   changed_when: false
 
 - name: Configure dock position to bottom
@@ -27,9 +90,9 @@
     defaults write com.apple.dock largesize -int 64
   changed_when: false
 
-- name: Show only active applications in dock
+- name: Show all dock applications (not just active ones)
   ansible.builtin.shell: |
-    defaults write com.apple.dock static-only -bool true
+    defaults write com.apple.dock static-only -bool false
   changed_when: false
 
 - name: Configure hot corners - disable all
@@ -60,8 +123,24 @@
     defaults write com.apple.dock expose-group-apps -bool true
   changed_when: false
 
+- name: Clear existing dock items first
+  ansible.builtin.shell: |
+    defaults write com.apple.dock persistent-apps -array
+  changed_when: false
+
+- name: Add essential applications to dock
+  ansible.builtin.shell: |
+    # Check if the app exists before adding it
+    if [ -e "{{ item }}" ]; then
+      defaults write com.apple.dock persistent-apps -array-add '<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>{{ item }}</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>'
+    fi
+  loop: "{{ macos_dock_essential_apps }}"
+  changed_when: false
+
 - name: Apply desktop and dock settings
   ansible.builtin.shell: |
     killall Dock
+    killall Finder
+    killall SystemUIServer
   failed_when: false
   changed_when: false
