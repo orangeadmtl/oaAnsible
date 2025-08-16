@@ -2,6 +2,11 @@
 # macOS base system configuration
 # Modular task orchestration for improved maintainability and idempotency
 
+# Essential system preferences
+- name: Configure system preferences
+  ansible.builtin.include_tasks: system_preferences.yml
+  tags: ["base", "system", "preferences"]
+
 # Shell configuration and environment setup
 - name: Configure shell environment
   ansible.builtin.include_tasks: shell_config.yml
@@ -41,3 +46,8 @@
 - name: Configure notification suppression
   ansible.builtin.include_tasks: notification_config.yml
   tags: ["base", "kiosk", "notifications", "updates"]
+
+# Daily reboot service for system stability
+- name: Configure daily reboot service
+  ansible.builtin.include_tasks: daily_reboot.yml
+  tags: ["base", "reboot", "stability"]

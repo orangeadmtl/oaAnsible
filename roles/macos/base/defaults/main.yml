@@ -46,3 +46,16 @@ macos_shell_config:
   bash:
     rc_file: .bashrc
     profile_file: .bash_profile
+
+# Desktop Configuration
+# ---------------------
+# Essential applications for dock in logical order (Finder is always present by default)
+macos_dock_essential_apps:
+  - "/System/Applications/Launchpad.app"                                         # App launcher
+  - "/Applications/Google Chrome.app"                                            # Web browser (if installed)
+  - "/System/Applications/Photo Booth.app"                                       # Camera testing
+  - "/System/Applications/System Settings.app"                                   # System management
+  - "/System/Applications/Utilities/Terminal.app"                                # System administration
+
+# Wallpaper deployment (set to false in inventory for environments that don't need custom wallpaper)
+deploy_custom_wallpaper: true
