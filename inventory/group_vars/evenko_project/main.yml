@@ -14,8 +14,6 @@ oa_environment_defaults:
   deploy_alpr_service: false
   deploy_player: true
 
-# Custom deployment features for Evenko
-deploy_custom_wallpaper: true
 
 # Additional packages required for Evenko
 evenko_additional_packages:
