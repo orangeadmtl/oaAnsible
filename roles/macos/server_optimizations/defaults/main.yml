@@ -34,7 +34,5 @@ macos_disable_animations: true
 macos_disable_desktop_icons: true
 
 # Dock configuration (when macos_disable_dock is false)
-macos_dock_essential_apps:
-  - "/System/Applications/Utilities/Terminal.app"
-  - "/System/Applications/System Settings.app"
-  - "/System/Applications/Photo Booth.app"
+# Note: macos_dock_essential_apps inherits from macos/base role defaults
+# Override in inventory if server environments need different dock apps
