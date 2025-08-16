@@ -50,8 +50,7 @@
     - role: macos/ssh
       tags: ["ssh", "security", "setup"]
 
-    - role: macos/settings
-      tags: ["settings", "configuration"]
+    # NOTE: macos/settings role consolidated into macos/base and macos/network/tailscale
 
     - role: macos/server_optimizations # Server-like optimizations for minimal UI and maximum uptime
       tags: ["server", "configuration", "optimization"]
