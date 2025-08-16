@@ -1,55 +1,13 @@
 ---
 all:
   vars:
-    # Ansible connection configuration
-    ansible_python_interpreter: /usr/bin/python3
-    ansible_connection: ssh
-    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-    ansible_ssh_pipelining: true
-    ansible_become_method: sudo
-
-    # Runtime versions (standardized structure)
-    runtime:
-      python:
-        version: "3.11.11"
-      node:
-        version: "22.11.0"
-
-    # Feature toggles
-    configure:
-      tailscale: false # Pre-production - Tailscale managed separately
-      pyenv: true
-      node: true
-
-    # Environment configuration (standardized single source of truth)
+    # Environment and project identification
+    target_env: "evenko-preprod"
+    deployment_environment: "preprod"
     oa_environment:
       name: "evenko-preprod"
-      project: "evenko"
       stage: "preprod"
-      allow_experimental: false
-      allow_server_optimizations: false # Conservative for stability - prevents SSH disconnections
-      allow_destructive_operations: false
-      # Evenko preprod project components: player + cursorcerer testing
-      deploy_macos_api: false
-      deploy_tracker: false
-      deploy_alpr_service: false
-      deploy_player: true
-      deploy_cursorcerer: true # NEW: System-wide cursor hiding for testing
 
-    # Custom wallpaper deployment
-    deploy_custom_wallpaper: true
-
-    # System packages (minimal for production-like testing)
-    system:
-      homebrew:
-        packages:
-          - go
-          - git
-          - wget
-          - jq
-          - curl
-          - lsd
-          - mpv # Required for video player
 
     # Player configuration for Evenko project (dual-screen kiosk mode)
     player:
@@ -59,7 +17,13 @@ all:
       video_selection_strategy: "sequential"
       health_check: true
       restart_on_failure: true
+      # Enhanced uptime optimization settings
+      health_check_interval: 180 # 3 minutes - reduced frequency to prevent false positive restarts
+      restart_attempts: 3
+      restart_delay: 15 # Slightly longer delay between restart attempts
       volume: 0.0
+
+      # Kiosk mode settings
       fullscreen: true
       hide_cursor: true
       black_background: true
@@ -67,10 +31,10 @@ all:
       system_volume_muted: true
       hide_desktop_icons: true
 
-      # Time-based scheduling configuration with day-of-week support (testing environment)
+      # Time-based scheduling configuration (Friday 00:00 through Sunday)
       schedule_enabled: true
       schedules:
-        # Friday schedules
+        # Friday daytime
         - name: "friday_daytime"
           start_time: "00:00"
           end_time: "22:50"
@@ -86,6 +50,7 @@ all:
               enabled: true
               loop: true
               volume: 0.0
+        # Friday nighttime (22:50-midnight)
         - name: "friday_nighttime"
           start_time: "22:50"
           end_time: "23:59"
@@ -101,7 +66,7 @@ all:
               enabled: true
               loop: true
               volume: 0.0
-        # Saturday schedules
+        # Saturday daytime
         - name: "saturday_daytime"
           start_time: "00:00"
           end_time: "22:50"
@@ -117,7 +82,8 @@ all:
               enabled: true
               loop: true
               volume: 0.0
-        - name: "saturday_nighttime"
+        # Saturday nighttime through end of Sunday
+        - name: "saturday_nighttime_extended"
           start_time: "22:50"
           end_time: "23:59"
           day_of_week: "saturday"
@@ -132,11 +98,11 @@ all:
               enabled: true
               loop: true
               volume: 0.0
-        # Weekday schedule (Sunday-Thursday): One video all day
-        - name: "weekday_allday"
+        # Sunday (continues Saturday nighttime video)
+        - name: "sunday_extended"
           start_time: "00:00"
           end_time: "23:59"
-          day_of_week: "weekday"
+          day_of_week: "sunday"
           videos:
             - name: "POUR22h50_LASSO_samedi.mp4"
               display: 1
@@ -149,35 +115,33 @@ all:
               loop: true
               volume: 0.0
 
-      # Fallback videos configuration (for backward compatibility)
+      # Smart fallback (last scheduled video based on time)
       videos:
-        - name: "LASSO_vendredi.mp4"
+        - name: "POUR22h50_LASSO_samedi.mp4"
           display: 1
           enabled: true
           loop: true
           volume: 0.0
-        - name: "LASSO_vendredi.mp4"
+        - name: "POUR22h50_LASSO_samedi.mp4"
           display: 2
           enabled: true
           loop: true
           volume: 0.0
 
-    # Cursorcerer configuration for system-wide cursor hiding
-    cursorcerer:
-      enabled: true
-      idle_timeout: 3 # Hide cursor after 3 seconds (testing mode)
-      hotkey_enabled: true # Keep hotkey enabled for testing/debugging
-      auto_start: true # Start on login
-      show_on_movement: true # Show cursor when mouse moves
-      coordinate_with_player: true # Work alongside MPV cursor hiding
-      system_wide_coverage: true # Provide complete system coverage
-
   children:
-    macos:
-      hosts:
-        f1-ca-001:
-          ansible_host: 100.103.229.95
-          ansible_user: studio
-          ansible_port: 22
-          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-001'] }}"
-          # Host-specific configuration (no overrides currently)
+    # Environment group
+    preprod:
+      children:
+        # Project group
+        evenko_project:
+          children:
+            macos:
+              hosts:
+                f1-ca-001:
+                  ansible_host: 100.103.229.95
+                  ansible_user: studio
+                  ansible_port: 22
+                  ansible_become_password: "{{ vault_sudo_passwords['f1-ca-001'] }}"
+                  # Single-screen override for preprod testing (only 1 display available)
+                  player_overrides:
+                    dual_screen: false
