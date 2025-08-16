@@ -1,0 +1,115 @@
+---
+all:
+  vars:
+    # Ansible connection configuration
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_connection: ssh
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    ansible_ssh_pipelining: true
+    ansible_become_method: sudo
+
+    # Runtime versions (standardized structure)
+    runtime:
+      python:
+        version: "3.11.11"
+      node:
+        version: "22.11.0"
+
+    # Feature toggles
+    configure:
+      tailscale: false # Preprod - Tailscale managed separately
+      pyenv: true
+      node: false # Not needed for CamGuard
+
+    # Environment configuration (CamGuard preprod environment)
+    oa_environment:
+      name: "evenko-camguard-preprod"
+      project: "evenko"
+      stage: "preprod"
+      allow_experimental: true # More permissive for preprod testing
+      allow_server_optimizations: true # Allow optimizations for testing
+      allow_destructive_operations: false
+      # Evenko CamGuard project components: CamGuard and API only
+      deploy_macos_api: true # Needed for CamGuard monitoring endpoints
+      deploy_tracker: false
+      deploy_alpr_service: false
+      deploy_player: false
+      deploy_camguard: true
+
+
+    # System packages (minimal for CamGuard preprod)
+    system:
+      homebrew:
+        packages:
+          - go
+          - git
+          - wget
+          - jq
+          - curl
+          - lsd
+          - ffmpeg # Required for CamGuard
+
+    # CamGuard configuration for preprod
+    camguard:
+      enabled: true
+
+      # Recording settings optimized for preprod testing
+      recording:
+        resolution: "1920x1080" # 1080p recording
+        framerate: "30.000030" # Exact camera framerate (avoids NTSC conversion)
+        bitrate: "4M" # 4 Mbps for high quality
+        chunk_duration: 900 # 15 minutes per chunk for preprod (shorter for testing)
+        format: "mp4"
+        codec: "h264_videotoolbox" # Hardware acceleration on macOS
+
+      # Camera settings
+      camera:
+        device_id: "0" # Default camera device
+        input_format: "avfoundation" # macOS camera input
+
+      # Storage settings (preprod-grade, more aggressive cleanup)
+      storage:
+        recordings_dir: "{{ ansible_user_dir }}/orangead/camguard/recordings"
+        logs_dir: "{{ ansible_user_dir }}/orangead/camguard/logs"
+        retention_days: 7 # Keep recordings for 7 days in preprod
+        max_size_gb: 50 # 50GB limit for preprod environment
+
+      # Service settings
+      service:
+        name: "com.orangead.camguard"
+        user: "{{ ansible_user }}"
+        keep_alive: true
+        run_at_load: true
+        restart_on_failure: true
+        log_level: "debug" # More verbose logging for preprod
+
+      # Health monitoring (preprod-grade)
+      health:
+        enabled: true
+        check_interval: 300 # 5 minutes (shorter interval for preprod testing)
+        max_failures: 3 # Less tolerance for preprod (fail faster for testing)
+        restart_delay: 30 # Shorter delay between restarts
+
+      # Video transfer settings (preprod-optimized)
+      transfer:
+        enabled: false # Disabled by default - enable when ready for preprod testing
+        remote_server: "your-preprod-server.example.com" # Replace with your preprod server
+        remote_path: "/path/to/preprod/video/storage" # Replace with your preprod storage path
+        username: "your-username" # Replace with your SSH username
+        port: 22
+        rate_limit_mbps: 10 # Lower speed for preprod (conservative)
+        transfer_interval_hours: 2 # Transfer every 2 hours (more frequent for testing)
+        delete_after_transfer: true # Clean up local files after successful transfer
+        retry_attempts: 2 # Fewer retry attempts for preprod
+        connection_timeout: 15 # Shorter timeout for preprod
+        verify_transfer: true
+
+  children:
+    macos:
+      hosts:
+        f1-ca-001:
+          ansible_host: 100.103.229.95
+          ansible_user: studio
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-001'] }}"
+          cam_id: "22222222-2222-2222-2222-222222222222"
