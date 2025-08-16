@@ -8,6 +8,7 @@ all:
       name: "evenko-prod"
       stage: "production"
 
+
     # Player configuration for Evenko project (dual-screen kiosk mode)
     player:
       enabled: true
@@ -30,10 +31,10 @@ all:
       system_volume_muted: true
       hide_desktop_icons: true
 
-      # Time-based scheduling configuration with day-of-week support
+      # Time-based scheduling configuration (Friday 00:00 through Sunday)
       schedule_enabled: true
       schedules:
-        # Friday schedules
+        # Friday daytime
         - name: "friday_daytime"
           start_time: "00:00"
           end_time: "22:50"
@@ -49,6 +50,7 @@ all:
               enabled: true
               loop: true
               volume: 0.0
+        # Friday nighttime (22:50-midnight)
         - name: "friday_nighttime"
           start_time: "22:50"
           end_time: "23:59"
@@ -64,7 +66,7 @@ all:
               enabled: true
               loop: true
               volume: 0.0
-        # Saturday schedules
+        # Saturday daytime
         - name: "saturday_daytime"
           start_time: "00:00"
           end_time: "22:50"
@@ -80,7 +82,8 @@ all:
               enabled: true
               loop: true
               volume: 0.0
-        - name: "saturday_nighttime"
+        # Saturday nighttime through end of Sunday
+        - name: "saturday_nighttime_extended"
           start_time: "22:50"
           end_time: "23:59"
           day_of_week: "saturday"
@@ -95,11 +98,11 @@ all:
               enabled: true
               loop: true
               volume: 0.0
-        # Weekday schedule (Sunday-Thursday): One video all day
-        - name: "weekday_allday"
+        # Sunday (continues Saturday nighttime video)
+        - name: "sunday_extended"
           start_time: "00:00"
           end_time: "23:59"
-          day_of_week: "weekday"
+          day_of_week: "sunday"
           videos:
             - name: "POUR22h50_LASSO_samedi.mp4"
               display: 1
@@ -112,14 +115,14 @@ all:
               loop: true
               volume: 0.0
 
-      # Fallback videos configuration (for backward compatibility)
+      # Smart fallback (last scheduled video based on time)
       videos:
-        - name: "LASSO_vendredi.mp4"
+        - name: "POUR22h50_LASSO_samedi.mp4"
           display: 1
           enabled: true
           loop: true
           volume: 0.0
-        - name: "LASSO_vendredi.mp4"
+        - name: "POUR22h50_LASSO_samedi.mp4"
           display: 2
           enabled: true
           loop: true
@@ -139,6 +142,9 @@ all:
                   ansible_user: studio
                   ansible_port: 22
                   ansible_become_password: "{{ vault_sudo_passwords['f1-ca-001'] }}"
+                  # Single-screen override for this device - everything else inherited!
+                  player_overrides:
+                    dual_screen: false
                 f1-ca-002:
                   ansible_host: 100.122.121.83
                   ansible_user: ek003
