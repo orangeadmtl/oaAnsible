@@ -1,0 +1,96 @@
+#!/bin/bash
+# Storage monitoring script for Ubuntu storage server
+# Monitors disk usage and system health
+
+set -euo pipefail
+
+# Configuration
+BASE_PATH="{{ storage_server.storage.base_path }}"
+LOGS_PATH="{{ storage_server.storage.logs_path }}"
+ALERT_THRESHOLD="{{ storage_server.monitoring.disk_usage_alert_threshold }}"
+
+# Logging
+LOG_FILE="${LOGS_PATH}/monitor.log"
+mkdir -p "$(dirname "$LOG_FILE")"
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+}
+
+# Get disk usage information
+get_disk_info() {
+    df -h "$BASE_PATH" | awk 'NR==2 {print $2, $3, $4, $5}' | while read -r size used avail percent; do
+        echo "Size: $size, Used: $used, Available: $avail, Usage: $percent"
+    done
+}
+
+# Get disk usage percentage
+get_disk_usage_percent() {
+    df "$BASE_PATH" | awk 'NR==2 {print int($5)}'
+}
+
+# Count files in storage directories
+count_storage_files() {
+    local recordings_count=0
+    local logs_count=0
+    
+    if [ -d "{{ storage_server.storage.recordings_path }}" ]; then
+        recordings_count=$(find "{{ storage_server.storage.recordings_path }}" -type f -name "*.mp4" -o -name "*.mov" -o -name "*.avi" | wc -l)
+    fi
+    
+    if [ -d "$LOGS_PATH" ]; then
+        logs_count=$(find "$LOGS_PATH" -type f -name "*.log*" | wc -l)
+    fi
+    
+    echo "Recordings: $recordings_count files, Logs: $logs_count files"
+}
+
+# Check system resources
+check_system_resources() {
+    local cpu_usage
+    local mem_usage
+    local load_avg
+    
+    cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)
+    mem_usage=$(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
+    load_avg=$(uptime | awk -F'load average:' '{print $2}' | cut -d',' -f1 | xargs)
+    
+    echo "CPU: ${cpu_usage}%, Memory: ${mem_usage}%, Load: ${load_avg}"
+}
+
+# Main monitoring function
+main() {
+    local disk_usage
+    local disk_info
+    local file_counts
+    local system_info
+    
+    # Get current metrics
+    disk_usage=$(get_disk_usage_percent)
+    disk_info=$(get_disk_info)
+    file_counts=$(count_storage_files)
+    system_info=$(check_system_resources)
+    
+    # Log current status
+    log "Storage Monitor Report:"
+    log "  Disk Info: $disk_info"
+    log "  File Counts: $file_counts"
+    log "  System: $system_info"
+    
+    # Check for alerts
+    if [ "$disk_usage" -gt "$ALERT_THRESHOLD" ]; then
+        log "ALERT: Disk usage ($disk_usage%) exceeds threshold ($ALERT_THRESHOLD%)"
+        
+        # Log to syslog for system monitoring
+        logger -t "storage-monitor" "ALERT: Storage server disk usage at $disk_usage%"
+    fi
+    
+    # Check for very high usage (emergency)
+    if [ "$disk_usage" -gt 95 ]; then
+        log "CRITICAL: Disk usage at $disk_usage% - emergency cleanup may be needed"
+        logger -t "storage-monitor" "CRITICAL: Storage server disk usage at $disk_usage%"
+    fi
+}
+
+# Run monitoring
+main "$@"

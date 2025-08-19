@@ -1,0 +1,139 @@
+#!/bin/bash
+# Storage cleanup script for Ubuntu storage server
+# Manages disk space by cleaning old recordings and logs
+
+set -euo pipefail
+
+# Configuration
+BASE_PATH="{{ storage_server.storage.base_path }}"
+RECORDINGS_PATH="{{ storage_server.storage.recordings_path }}"
+LOGS_PATH="{{ storage_server.storage.logs_path }}"
+TEMP_PATH="{{ storage_server.storage.temp_path }}"
+BACKUP_PATH="{{ storage_server.storage.backup_path }}"
+RETENTION_DAYS="{{ storage_server.storage.retention_days }}"
+CLEANUP_THRESHOLD="{{ storage_server.storage.cleanup_threshold_percent }}"
+MAX_STORAGE_GB="{{ storage_server.storage.max_storage_gb }}"
+
+# Logging
+LOG_FILE="${LOGS_PATH}/cleanup.log"
+mkdir -p "$(dirname "$LOG_FILE")"
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+}
+
+# Check disk usage
+get_disk_usage_percent() {
+    df "$BASE_PATH" | awk 'NR==2 {print int($5)}'
+}
+
+# Clean old recordings
+cleanup_old_recordings() {
+    log "Cleaning recordings older than $RETENTION_DAYS days..."
+    
+    if [ -d "$RECORDINGS_PATH" ]; then
+        find "$RECORDINGS_PATH" -type f -name "*.mp4" -mtime +$RETENTION_DAYS -delete 2>/dev/null || true
+        find "$RECORDINGS_PATH" -type f -name "*.mov" -mtime +$RETENTION_DAYS -delete 2>/dev/null || true
+        find "$RECORDINGS_PATH" -type f -name "*.avi" -mtime +$RETENTION_DAYS -delete 2>/dev/null || true
+        
+        # Remove empty directories
+        find "$RECORDINGS_PATH" -type d -empty -delete 2>/dev/null || true
+    fi
+    
+    log "Old recordings cleanup completed"
+}
+
+# Clean old logs
+cleanup_old_logs() {
+    log "Cleaning logs older than 7 days..."
+    
+    if [ -d "$LOGS_PATH" ]; then
+        find "$LOGS_PATH" -type f -name "*.log" -mtime +7 -delete 2>/dev/null || true
+        find "$LOGS_PATH" -type f -name "*.log.*" -mtime +7 -delete 2>/dev/null || true
+    fi
+    
+    log "Old logs cleanup completed"
+}
+
+# Clean temporary files
+cleanup_temp_files() {
+    log "Cleaning temporary files..."
+    
+    if [ -d "$TEMP_PATH" ]; then
+        find "$TEMP_PATH" -type f -mtime +1 -delete 2>/dev/null || true
+        find "$TEMP_PATH" -type d -empty -delete 2>/dev/null || true
+    fi
+    
+    log "Temporary files cleanup completed"
+}
+
+# Clean old backups
+cleanup_old_backups() {
+    log "Cleaning backups older than 7 days..."
+    
+    if [ -d "$BACKUP_PATH" ]; then
+        find "$BACKUP_PATH" -type f -mtime +7 -delete 2>/dev/null || true
+        find "$BACKUP_PATH" -type d -empty -delete 2>/dev/null || true
+    fi
+    
+    log "Old backups cleanup completed"
+}
+
+# Emergency cleanup - more aggressive when disk is very full
+emergency_cleanup() {
+    log "EMERGENCY: Disk usage critical, performing aggressive cleanup..."
+    
+    # Clean recordings older than 7 days (regardless of retention setting)
+    if [ -d "$RECORDINGS_PATH" ]; then
+        find "$RECORDINGS_PATH" -type f -name "*.mp4" -mtime +7 -delete 2>/dev/null || true
+        find "$RECORDINGS_PATH" -type f -name "*.mov" -mtime +7 -delete 2>/dev/null || true
+        find "$RECORDINGS_PATH" -type f -name "*.avi" -mtime +7 -delete 2>/dev/null || true
+    fi
+    
+    # Clean all temporary files
+    if [ -d "$TEMP_PATH" ]; then
+        rm -rf "${TEMP_PATH:?}"/* 2>/dev/null || true
+    fi
+    
+    # Clean all logs older than 1 day
+    if [ -d "$LOGS_PATH" ]; then
+        find "$LOGS_PATH" -type f -name "*.log" -mtime +1 -delete 2>/dev/null || true
+        find "$LOGS_PATH" -type f -name "*.log.*" -mtime +1 -delete 2>/dev/null || true
+    fi
+    
+    log "Emergency cleanup completed"
+}
+
+# Main cleanup logic
+main() {
+    log "Starting storage cleanup process..."
+    
+    # Get current disk usage
+    CURRENT_USAGE=$(get_disk_usage_percent)
+    log "Current disk usage: ${CURRENT_USAGE}%"
+    
+    # Perform regular cleanup
+    cleanup_temp_files
+    cleanup_old_logs
+    cleanup_old_backups
+    cleanup_old_recordings
+    
+    # Check if we need emergency cleanup
+    CURRENT_USAGE=$(get_disk_usage_percent)
+    if [ "$CURRENT_USAGE" -gt 95 ]; then
+        emergency_cleanup
+    fi
+    
+    # Final disk usage report
+    FINAL_USAGE=$(get_disk_usage_percent)
+    log "Final disk usage: ${FINAL_USAGE}%"
+    
+    if [ "$FINAL_USAGE" -gt "$CLEANUP_THRESHOLD" ]; then
+        log "WARNING: Disk usage still above threshold (${CLEANUP_THRESHOLD}%)"
+    else
+        log "Cleanup completed successfully"
+    fi
+}
+
+# Run main function
+main "$@"

@@ -1,0 +1,210 @@
+---
+- name: Ubuntu Storage Server deployment
+  when: storage_server.enabled | default(true)
+  tags: ["storage_server", "storage"]
+  block:
+    - name: Merge storage_server defaults with inventory overrides
+      ansible.builtin.set_fact:
+        storage_server: "{{ ubuntu_storage_server_defaults | combine(storage_server | default({}), recursive=True) }}"
+      tags: ["storage_server", "config"]
+
+    - name: Create orangead system group
+      ansible.builtin.group:
+        name: "{{ storage_server.storage.group }}"
+        system: true
+      become: true
+      tags: ["storage_server", "setup"]
+
+    - name: Create orangead system user
+      ansible.builtin.user:
+        name: "{{ storage_server.storage.owner }}"
+        group: "{{ storage_server.storage.group }}"
+        system: true
+        shell: /bin/bash
+        home: "{{ storage_server.storage.base_path }}"
+        create_home: true
+      become: true
+      tags: ["storage_server", "setup"]
+
+    - name: Create storage directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ storage_server.storage.group }}"
+        mode: '0775'
+      become: true
+      loop:
+        - "{{ storage_server.storage.base_path }}"
+        - "{{ storage_server.storage.camguard_path }}"
+        - "{{ storage_server.storage.recordings_path }}"
+        - "{{ storage_server.storage.logs_path }}"
+        - "{{ storage_server.storage.temp_path }}"
+        - "{{ storage_server.storage.backup_path }}"
+      tags: ["storage_server", "setup"]
+
+    - name: Update package cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      become: true
+      tags: ["storage_server", "packages"]
+
+    - name: Install required packages (skip broken packages)
+      ansible.builtin.apt:
+        name:
+          - rsync
+          - openssh-server
+          - ufw
+          - cron
+          - logrotate
+        state: present
+        force_apt_get: true
+      become: true
+      tags: ["storage_server", "packages"]
+      
+    - name: Install fail2ban separately (optional)
+      ansible.builtin.apt:
+        name: fail2ban
+        state: present
+        force_apt_get: true
+      become: true
+      ignore_errors: true
+      tags: ["storage_server", "packages"]
+
+    - name: Configure SSH for secure file transfers
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        backup: true
+      become: true
+      loop:
+        - { regexp: '^#?Port ', line: 'Port {{ storage_server.sharing.ssh_port }}' }
+        - { regexp: '^#?PermitRootLogin ', line: 'PermitRootLogin no' }
+        - { regexp: '^#?PasswordAuthentication ', line: 'PasswordAuthentication no' }
+        - { regexp: '^#?PubkeyAuthentication ', line: 'PubkeyAuthentication yes' }
+        - { regexp: '^#?X11Forwarding ', line: 'X11Forwarding no' }
+      notify: restart ssh
+      tags: ["storage_server", "security"]
+
+    - name: Configure UFW firewall
+      when: storage_server.security.firewall_enabled
+      become: true
+      tags: ["storage_server", "security"]
+      block:
+        - name: Reset UFW to defaults
+          community.general.ufw:
+            state: reset
+
+        - name: Set UFW default policies
+          community.general.ufw:
+            policy: "{{ item.policy }}"
+            direction: "{{ item.direction }}"
+          loop:
+            - { direction: incoming, policy: deny }
+            - { direction: outgoing, policy: allow }
+
+        - name: Allow SSH from specific networks
+          community.general.ufw:
+            rule: allow
+            port: "{{ storage_server.sharing.ssh_port }}"
+            proto: tcp
+            src: "{{ item }}"
+          loop: "{{ storage_server.security.allowed_ips }}"
+
+        - name: Allow transfer service port
+          community.general.ufw:
+            rule: allow
+            port: "{{ storage_server.transfer_service.listen_port }}"
+            proto: tcp
+            src: "{{ item }}"
+          loop: "{{ storage_server.security.allowed_ips }}"
+          when: storage_server.transfer_service.enabled
+
+        - name: Enable UFW
+          community.general.ufw:
+            state: enabled
+
+    - name: Configure fail2ban for SSH protection
+      when: storage_server.security.fail2ban_enabled
+      become: true
+      tags: ["storage_server", "security"]
+      block:
+        - name: Create fail2ban SSH jail configuration
+          ansible.builtin.copy:
+            content: |
+              [sshd]
+              enabled = true
+              port = {{ storage_server.sharing.ssh_port }}
+              filter = sshd
+              logpath = /var/log/auth.log
+              maxretry = 3
+              bantime = 3600
+              findtime = 600
+            dest: /etc/fail2ban/jail.d/sshd.conf
+            mode: '0644'
+          notify: restart fail2ban
+
+    - name: Create storage cleanup script
+      ansible.builtin.template:
+        src: storage_cleanup.sh.j2
+        dest: "{{ storage_server.storage.base_path }}/scripts/storage_cleanup.sh"
+        owner: "{{ storage_server.storage.owner }}"
+        group: "{{ storage_server.storage.group }}"
+        mode: '0755'
+      become: true
+      tags: ["storage_server", "scripts"]
+
+    - name: Create storage monitoring script
+      ansible.builtin.template:
+        src: storage_monitor.sh.j2
+        dest: "{{ storage_server.storage.base_path }}/scripts/storage_monitor.sh"
+        owner: "{{ storage_server.storage.owner }}"
+        group: "{{ storage_server.storage.group }}"
+        mode: '0755'
+      become: true
+      tags: ["storage_server", "scripts"]
+
+    - name: Setup cron jobs for maintenance
+      ansible.builtin.cron:
+        name: "{{ item.name }}"
+        job: "{{ item.job }}"
+        minute: "{{ item.minute }}"
+        hour: "{{ item.hour }}"
+        user: "{{ storage_server.storage.owner }}"
+      become: true
+      loop:
+        - name: "Storage cleanup"
+          job: "{{ storage_server.storage.base_path }}/scripts/storage_cleanup.sh"
+          minute: "0"
+          hour: "3"
+        - name: "Storage monitoring"
+          job: "{{ storage_server.storage.base_path }}/scripts/storage_monitor.sh"
+          minute: "*/5"
+          hour: "*"
+      tags: ["storage_server", "cron"]
+
+    - name: Create scripts directory
+      ansible.builtin.file:
+        path: "{{ storage_server.storage.base_path }}/scripts"
+        state: directory
+        owner: "{{ storage_server.storage.owner }}"
+        group: "{{ storage_server.storage.group }}"
+        mode: '0755'
+      become: true
+      tags: ["storage_server", "setup"]
+
+    - name: Display storage server deployment summary
+      ansible.builtin.debug:
+        msg: |
+          Ubuntu Storage Server Deployed Successfully:
+          - Base Path: {{ storage_server.storage.base_path }}
+          - CamGuard Storage: {{ storage_server.storage.recordings_path }}
+          - Available Space: {{ storage_server.storage.max_storage_gb }}GB
+          - SSH Port: {{ storage_server.sharing.ssh_port }}
+          - Transfer Port: {{ storage_server.transfer_service.listen_port }}
+          - Cleanup Threshold: {{ storage_server.storage.cleanup_threshold_percent }}%
+          - Retention: {{ storage_server.storage.retention_days }} days
+          - Owner: {{ storage_server.storage.owner }}:{{ storage_server.storage.group }}
+      tags: ["storage_server", "summary"]
