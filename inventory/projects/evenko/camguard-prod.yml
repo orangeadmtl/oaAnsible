@@ -90,13 +90,14 @@ all:
         max_failures: 5 # More tolerance for production
         restart_delay: 60 # Longer delay between restarts
 
-      # Video transfer settings (production-optimized)
+      # Video transfer settings (production-optimized with storage server)
       transfer:
-        enabled: false # Disabled by default - enable when ready for production
-        remote_server: "your-server.example.com" # Replace with your production server
-        remote_path: "/path/to/video/storage" # Replace with your storage path
-        username: "your-username" # Replace with your SSH username
+        enabled: true # Enabled for production with kampus-rig storage server
+        remote_server: "100.67.244.94" # kampus-rig Tailscale IP
+        remote_path: "/data/orangead/camguard/recordings"
+        username: "kai"
         port: 22
+        ssh_key_path: "~/.ssh/kampus-rig_ed25519"
         rate_limit_mbps: 30 # High-speed transfer for production (7.5x recording rate)
         transfer_interval_hours: 6 # Transfer every 6 hours
         delete_after_transfer: true # Clean up local files after successful transfer
