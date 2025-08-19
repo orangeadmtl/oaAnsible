@@ -53,6 +53,8 @@
           "monitoring": "monitoring"
           "orangepi": "orangepi"
           "opi": "orangepi"
+          "storage": "storage"
+          "storage-server": "storage"
           "reboot": "base"
           "stability": "base"
         # Extract component names from provided tags
@@ -87,6 +89,8 @@
             "monitoring": "monitoring",
             "orangepi": "orangepi",
             "opi": "orangepi",
+            "storage": "storage",
+            "storage-server": "storage",
             "reboot": "base",
             "stability": "base"
           } -%} {%- set components = [] -%} {%- for tag in (provided_tags | default('')).split(',') -%}
@@ -133,7 +137,7 @@
           Valid component tags are:
           - Infrastructure: base, network, security, ssh, reboot, stability
           - Applications: macos-api, api, tracker, player, alpr, camguard, cursorcerer, transfer
-          - Platform-specific: docker, nvidia, gpu, ml, health
+          - Platform-specific: docker, nvidia, gpu, ml, health, storage, storage-server
           - oaSentinel: oasentinel-setup, oasentinel-data, oasentinel-train, oasentinel-full, oasentinel
 
           Did you mean one of these similar tags?
@@ -279,7 +283,7 @@
               Available component tags:
               - Infrastructure: base, network, security, ssh, reboot, stability
               - Applications: macos-api (or 'api'), tracker, player, alpr, camguard, cursorcerer
-              - Platform-specific: docker, nvidia, gpu, ml, health
+              - Platform-specific: docker, nvidia, gpu, ml, health, storage, storage-server
               - oaSentinel: oasentinel-setup, oasentinel-data, oasentinel-train, oasentinel-full, oasentinel
 
               Usage Examples:

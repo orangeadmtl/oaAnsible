@@ -22,7 +22,7 @@
 - name: Check Ubuntu component compatibility
   ansible.builtin.set_fact:
     compatible_components:
-      "{{ compatible_components + ['base', 'network', 'security', 'docker', 'monitoring', 'nvidia', 'ml', 'health', 'oasentinel-setup', 'oasentinel-data',
+      "{{ compatible_components + ['base', 'network', 'security', 'docker', 'monitoring', 'nvidia', 'ml', 'health', 'storage', 'oasentinel-setup', 'oasentinel-data',
       'oasentinel-train', 'oasentinel-full'] }}"
   when: target_platform == "ubuntu"
   tags: ["always"]
@@ -278,6 +278,15 @@
     - target_platform == "ubuntu"
     - "'oasentinel-train' in deployment_components | default(selected_components) or 'oasentinel-full' in deployment_components | default(selected_components)"
   tags: ["oasentinel-train", "oasentinel-full"]
+
+# Storage Server Component
+- name: Deploy storage server component
+  ansible.builtin.include_role:
+    name: ubuntu/storage_server
+  when:
+    - target_platform == "ubuntu"
+    - "'storage' in deployment_components | default(selected_components)"
+  tags: ["storage", "storage-server"]
 
 - name: Component deployment summary
   ansible.builtin.debug:
