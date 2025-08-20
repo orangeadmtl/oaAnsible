@@ -41,11 +41,8 @@ find inventory/projects -name "*.yml" | sort
 1. **Verify Path Format:**
 
    ```bash
-   # Correct format
-   ./scripts/run projects/f1/prod -t macos-api
-
-   # Wrong format (legacy)
-   ./scripts/run f1-prod -t macos-api  # ❌ Will fail
+   # Correct: ./scripts/run projects/{project}/{env} -t {component}
+   # Wrong: ./scripts/run {project}-{env} -t {component}  # ❌ Legacy format
    ```
 
 2. **Check Available Inventories:**
@@ -253,14 +250,10 @@ ansible macos -i projects/f1/prod.yml -m fetch -a "src=~/orangead/macos-api/logs
 1. **Restart Service with Maintenance Playbook:**
 
    ```bash
-   # Stop service
-   ansible-playbook -i projects/f1/prod.yml playbooks/maintenance/stop_services.yml --tags api
-
-   # Redeploy service
-   ./scripts/run projects/f1/prod -t macos-api
-
-   # Verify service is running
-   curl http://100.64.1.10:9090/health
+   # Stop, redeploy, verify pattern
+   ansible-playbook -i projects/{project}/{env}.yml playbooks/maintenance/stop_services.yml --tags {service}
+   ./scripts/run projects/{project}/{env} -t {service}
+   curl http://{host_ip}:{port}/health
    ```
 
 2. **Manual Service Management:**
@@ -313,14 +306,10 @@ ansible macos -i projects/f1/prod.yml -m shell -a "pgrep -f macos-api"
 1. **Stop Conflicting Services:**
 
    ```bash
-   # Stop all OrangeAd services
-   ansible-playbook -i projects/f1/prod.yml playbooks/maintenance/stop_services.yml
-
-   # Kill conflicting processes
-   ansible macos -i projects/f1/prod.yml -m shell -a "pkill -f 'macos-api'"
-
-   # Restart clean
-   ./scripts/run projects/f1/prod -t macos-api
+   # Stop services, kill processes, restart pattern
+   ansible-playbook -i projects/{project}/{env}.yml playbooks/maintenance/stop_services.yml
+   ansible macos -i projects/{project}/{env}.yml -m shell -a "pkill -f '{service}'"
+   ./scripts/run projects/{project}/{env} -t {service}
    ```
 
 2. **Change Service Port:**
@@ -449,11 +438,9 @@ ansible all -i projects/f1/prod.yml -m ping -f 1
 1. **Reduce Parallelism:**
 
    ```bash
-   # Deploy to fewer hosts at once
-   ./scripts/run projects/f1/prod -t macos-api -f 1
-
-   # Deploy to single host first
-   ./scripts/run projects/f1/prod -t macos-api -l f1-ca-001
+   # Deploy to fewer hosts or single host
+   ./scripts/run projects/{project}/{env} -t {component} -f 1
+   ./scripts/run projects/{project}/{env} -t {component} -l {hostname}
    ```
 
 2. **Check System Resources:**
@@ -526,12 +513,11 @@ changed: [f1-ca-001]
 
    ```bash
    # Update CI/CD pipelines
-   # Old: ./scripts/check f1-prod
-   # New: ./scripts/run projects/f1/prod --check
-
-   # Update deployment scripts
-   # Old: ./scripts/stop f1-prod --api
-   # New: ansible-playbook -i projects/f1/prod.yml playbooks/maintenance/stop_services.yml --tags api
+   # Old: ./scripts/check {project}-{env}
+   # New: ./scripts/run projects/{project}/{env} --check
+   
+   # Old: ./scripts/stop {project}-{env} --{service}
+   # New: ansible-playbook -i projects/{project}/{env}.yml playbooks/maintenance/stop_services.yml --tags {service}
    ```
 
 2. **Update Documentation:**
@@ -629,11 +615,9 @@ ansible all -i projects/f1/prod.yml -m shell -a "ping -c 3 8.8.8.8"
 2. **Use Tags for Targeted Deployment:**
 
    ```bash
-   # Deploy only what's needed
-   ./scripts/run projects/f1/prod -t macos-api,tracker
-
-   # Skip expensive tasks if not needed
-   ./scripts/run projects/f1/prod -t base --skip-tags "slow_tasks"
+   # Deploy only needed components
+   ./scripts/run projects/{project}/{env} -t component1,component2
+   ./scripts/run projects/{project}/{env} -t base --skip-tags "slow_tasks"
    ```
 
 ## 🆘 Emergency Procedures
