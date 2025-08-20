@@ -64,11 +64,7 @@ inventory/
 6. Host variables (inventory/projects/f1/prod.yml)
 ```
 
-**Example inheritance for `f1-ca-001` in production:**
-
-```text
-all → macos → f1_base → production → host_specific
-```
+**Example inheritance:** `all → platform → project → environment → host`
 
 ## 🔄 Deployment Flow Architecture
 
@@ -116,13 +112,13 @@ graph TD
 
 ```bash
 # Primary workflow
-./scripts/run projects/f1/prod -t macos-api
+./scripts/run projects/{project}/{env} -t {component}
     ↓
-1. Parse arguments (inventory, tags, options)
-2. Validate inventory structure
-3. Load SSH keys from vault
-4. Execute: ansible-playbook universal.yml -i inventory -t tags
-5. Verify deployment success
+1. Parse arguments
+2. Validate inventory
+3. Load vault
+4. Execute playbook
+5. Verify
 ```
 
 ## 🧩 Component Architecture
@@ -411,11 +407,9 @@ graph TD
 **Parallel execution support:**
 
 ```bash
-# Multiple host deployment
-ansible-playbook -f 10 universal.yml -i projects/f1/prod.yml
-
-# Component-specific parallel deployment
-ansible-playbook universal.yml -i projects/spectra/prod.yml -t "base,network" -f 5
+# Parallel execution patterns
+ansible-playbook -f 10 universal.yml -i projects/{project}/{env}.yml
+ansible-playbook universal.yml -i projects/{project}/{env}.yml -t "component1,component2" -f 5
 ```
 
 ## 🔄 Integration Architecture
@@ -425,12 +419,11 @@ ansible-playbook universal.yml -i projects/spectra/prod.yml -t "base,network" -f
 **Pipeline-friendly design:**
 
 ```yaml
-# Example GitHub Actions integration
+# CI/CD integration pattern
 - name: Deploy Infrastructure
   run: |
-    ./scripts/run projects/f1/preprod --check
-    ./scripts/run projects/f1/preprod -t macos-api
-    ./scripts/run projects/f1/preprod --verify
+    ./scripts/run projects/{project}/{env} --check
+    ./scripts/run projects/{project}/{env} -t {component}
 ```
 
 ### Monitoring Integration
@@ -466,11 +459,9 @@ f1/                      prod.yml (10+ hosts)      Parallel execution
 **Independent component deployment:**
 
 ```bash
-# Scale individual services
-./scripts/run projects/f1/prod -t macos-api -l "f1-ca-001,f1-ca-002"
-
-# Scale infrastructure components
-./scripts/run projects/spectra/prod -t "base,network" -f 10
+# Scalable deployment patterns
+./scripts/run projects/{project}/{env} -t {component} -l "host1,host2"
+./scripts/run projects/{project}/{env} -t "component1,component2" -f 10
 ```
 
 This architecture provides a solid foundation for scalable, maintainable infrastructure automation that can grow with organizational needs while maintaining
