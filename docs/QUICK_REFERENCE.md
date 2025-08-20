@@ -12,8 +12,7 @@ Fast reference for common commands, deployment patterns, and operational tasks u
 
 # Examples
 ./scripts/run projects/f1/prod -t macos-api
-./scripts/run projects/spectra/preprod -t tracker,security  
-./scripts/run projects/evenko/prod -t camguard
+./scripts/run projects/spectra/preprod -t tracker,security
 ```
 
 ### Maintenance Operations
@@ -86,47 +85,22 @@ all:
 
 ## 🛠️ Deployment Patterns
 
-### Single Component
-
 ```bash
-# Deploy one service to environment
-./scripts/run projects/f1/prod -t macos-api
+# Single component
+./scripts/run projects/{project}/{env} -t {component}
 
-# Deploy with host limit
-./scripts/run projects/f1/prod -t tracker -l f1-ca-001
-```
+# Multiple components
+./scripts/run projects/{project}/{env} -t "component1,component2"
 
-### Multiple Components
+# Host limiting
+./scripts/run projects/{project}/{env} -t {component} -l hostname
 
-```bash
-# Deploy infrastructure stack
-./scripts/run projects/spectra/preprod -t "base,network,security"
+# Preview changes
+./scripts/run projects/{project}/{env} --dry-run
+./scripts/run projects/{project}/{env} --check --diff
 
-# Deploy service stack
-./scripts/run projects/f1/prod -t "macos-api,tracker,player"
-```
-
-### Environment Management
-
-```bash
-# Production deployment (requires confirmation)
-./scripts/run projects/f1/prod -t macos-api
-# Prompts: Type 'YES' to confirm production deployment
-
-# Preview changes first
-./scripts/run projects/f1/prod --dry-run
-./scripts/run projects/spectra/prod --check --diff
-```
-
-### Debug and Verification
-
-```bash
-# Verbose output for troubleshooting
-./scripts/run projects/f1/preprod -t base -v
-./scripts/run projects/f1/preprod -t base -vvv  # Max verbosity
-
-# Check mode (no changes)
-./scripts/run projects/spectra/prod --check
+# Verbose output
+./scripts/run projects/{project}/{env} -t {component} -v
 ```
 
 ## 📊 Monitoring & Verification
@@ -323,45 +297,26 @@ vault_sudo_passwords:
 
 ## 🚨 Emergency Procedures
 
-### Complete Service Restart
-
 ```bash
-# Stop all services
-ansible-playbook -i projects/f1/prod.yml playbooks/maintenance/stop_services.yml
-
-# Wait and restart
+# Complete service restart
+ansible-playbook -i projects/{project}/{env}.yml playbooks/maintenance/stop_services.yml
 sleep 30
-./scripts/run projects/f1/prod -t "macos-api,tracker"
-```
+./scripts/run projects/{project}/{env} -t "macos-api,tracker"
 
-### System Recovery
-
-```bash
-# Clear all application data
-ansible macos -i projects/f1/prod.yml -m file -a "path=~/orangead state=absent"
-
-# Redeploy from scratch
-./scripts/run projects/f1/prod -t "base,macos-api,tracker"
+# System recovery
+ansible macos -i projects/{project}/{env}.yml -m file -a "path=~/orangead state=absent"
+./scripts/run projects/{project}/{env} -t "base,macos-api,tracker"
 ```
 
 ### Emergency Host Access
 
 ```bash
-# Direct SSH to host
-ssh admin@100.64.1.10
-
-# Emergency service stop
+# Direct SSH and emergency procedures
+ssh admin@{host_ip}
 launchctl unload ~/Library/LaunchAgents/com.orangead.*.plist
-
-# Emergency reboot
 sudo shutdown -r now
 ```
 
 ---
 
-💡 **Tips**:
-
-- Always test with `--dry-run` or `--check` first
-- Use `projects/` prefix for all inventory paths  
-- Production deployments require `YES` confirmation
-- Keep this reference handy for daily operations
+💡 **Tips**: Always test with `--dry-run` first • Use `projects/` prefix • Production requires `YES` confirmation
