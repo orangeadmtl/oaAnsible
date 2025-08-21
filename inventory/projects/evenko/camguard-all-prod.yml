@@ -70,7 +70,7 @@ all:
       # Storage settings
       storage:
         retention_days: 7 # Keep recordings for 1 week
-        max_storage_gb: 50 # Limit storage per machine
+        max_storage_gb: 150 # Limit storage per machine
         cleanup_enabled: true
         auto_cleanup_hour: 2 # Cleanup at 2 AM daily
       # RTSP streaming for live monitoring
