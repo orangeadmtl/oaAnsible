@@ -18,6 +18,17 @@
     path: "{{ orangepi_project_root }}"
   register: opi_setup_exists
 
+- name: Configure passwordless sudo for orangepi user
+  ansible.builtin.template:
+    src: sudoers.j2
+    dest: "/etc/sudoers.d/{{ orangepi_user }}"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: "visudo -cf %s"
+  become: true
+  when: configure_sudo_rights | default(true)
+
 - name: Create Orangead directory structure
   ansible.builtin.file:
     path: "{{ orangepi_home }}/Orangead"
