@@ -7,10 +7,13 @@
   ansible.builtin.include_tasks: system_preferences.yml
   tags: ["base", "system", "preferences"]
 
-# Shell configuration and environment setup
-- name: Configure shell environment
-  ansible.builtin.include_tasks: shell_config.yml
-  tags: ["base", "shell"]
+# Shell configuration via centralized shell manager
+- name: Configure shell environment (Shell Manager)
+  ansible.builtin.include_role:
+    name: common/shell_manager
+  vars:
+    shell_manager_overrides: "{{ macos_shell_overrides | default({}) }}"
+  tags: ["base", "shell", "shell_manager"]
 
 # Sudo configuration for passwordless operations
 - name: Configure sudo permissions

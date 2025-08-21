@@ -80,22 +80,11 @@
             - pyenv_removed is defined and pyenv_removed.changed
             - pyenv_backup_result.stdout is search('BACKUP_CREATED')
 
-        # Configure shell integration (only if not already present)
-        - name: Configure shell integration for pyenv
-          ansible.builtin.blockinfile:
-            path: "{{ ansible_user_dir }}/{{ item }}"
-            marker: "# {mark} ANSIBLE MANAGED BLOCK - pyenv"
-            create: true
-            mode: "0644"
-            block: |
-              # Pyenv configuration
-              export PYENV_ROOT="$HOME/.pyenv"
-              export PATH="$PYENV_ROOT/bin:$PATH"
-              eval "$(pyenv init -)"
-          loop:
-            - .zshrc
-            - .bash_profile
-          register: shell_config_updated
+        # Shell integration now handled by common/shell_manager role
+        # This ensures no duplicate PATH exports and proper idempotency
+        - name: Shell integration handled by shell_manager
+          ansible.builtin.debug:
+            msg: "Pyenv shell integration is now managed by common/shell_manager role"
 
         # Install required dependencies for Python compilation (only if not present)
         - name: Install Python build dependencies
@@ -178,18 +167,10 @@
             creates: "{{ ansible_user_dir }}/.cargo/bin/uv"
           register: uv_installation
 
-        - name: Add UV to shell PATH
-          ansible.builtin.blockinfile:
-            path: "{{ ansible_user_dir }}/{{ item }}"
-            marker: "# {mark} ANSIBLE MANAGED BLOCK - uv"
-            create: true
-            mode: "0644"
-            block: |
-              # UV package manager
-              export PATH="$HOME/.cargo/bin:$PATH"
-          loop:
-            - .zshrc
-            - .bash_profile
+        # UV shell PATH integration now handled by common/shell_manager role
+        - name: UV shell integration handled by shell_manager
+          ansible.builtin.debug:
+            msg: "UV PATH configuration is now managed by common/shell_manager role (cargo component)"
           when: uv_installation.changed
 
     # Final verification
