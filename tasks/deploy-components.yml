@@ -22,7 +22,7 @@
 - name: Check Ubuntu component compatibility
   ansible.builtin.set_fact:
     compatible_components:
-      "{{ compatible_components + ['base', 'network', 'security', 'docker', 'monitoring', 'nvidia', 'ml', 'health', 'storage', 'oasentinel-setup', 'oasentinel-data',
+      "{{ compatible_components + ['base', 'network', 'security', 'docker', 'monitoring', 'nvidia', 'ml', 'health', 'storage', 'shell', 'oasentinel-setup', 'oasentinel-data',
       'oasentinel-train', 'oasentinel-full'] }}"
   when: target_platform == "ubuntu"
   tags: ["always"]
@@ -222,13 +222,13 @@
     - "'docker' in deployment_components | default(selected_components)"
   tags: ["docker"]
 
-# CUDA 12.8 Installation - Direct and streamlined
-- name: Install CUDA 12.8 and compatible drivers
-  ansible.builtin.include_tasks: ../roles/ubuntu/ml_workstation/tasks/nvidia_setup.yml
+# Modern NVIDIA Installation - PPA + CUDA Keyring Approach
+- name: Install NVIDIA Driver 570-server + CUDA 12.8 (Modern Workflow)
+  ansible.builtin.include_tasks: ../roles/ubuntu/ml_workstation/tasks/nvidia_setup_modern.yml
   when:
     - target_platform == "ubuntu"
     - "'nvidia' in deployment_components | default(selected_components)"
-  tags: ["nvidia", "gpu"]
+  tags: ["nvidia", "gpu", "cuda", "ml"]
 
 - name: Deploy ML workstation component
   ansible.builtin.include_role:

@@ -22,6 +22,14 @@
   ansible.builtin.include_tasks: gpu_detection.yml
   tags: ["ml", "gpu", "nvidia"]
 
+# Modern NVIDIA installation (activated by -t nvidia or install_nvidia variable)
+- name: Modern NVIDIA installation (Driver 570-server + CUDA 12.8)
+  ansible.builtin.include_tasks: nvidia_setup_modern.yml
+  when: >
+    install_nvidia | default(false) or
+    'nvidia' in (ansible_run_tags | default([]))
+  tags: ["nvidia", "gpu", "cuda"]
+
 # ML environment and data setup
 - name: ML environment setup
   ansible.builtin.include_tasks: ml_environment.yml
