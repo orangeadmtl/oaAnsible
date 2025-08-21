@@ -146,6 +146,16 @@
             mode: '0644'
           notify: restart fail2ban
 
+    - name: Create scripts directory
+      ansible.builtin.file:
+        path: "{{ storage_server.storage.base_path }}/scripts"
+        state: directory
+        owner: "{{ storage_server.storage.owner }}"
+        group: "{{ storage_server.storage.group }}"
+        mode: '0755'
+      become: true
+      tags: ["storage_server", "setup"]
+
     - name: Create storage cleanup script
       ansible.builtin.template:
         src: storage_cleanup.sh.j2
@@ -184,16 +194,6 @@
           minute: "*/5"
           hour: "*"
       tags: ["storage_server", "cron"]
-
-    - name: Create scripts directory
-      ansible.builtin.file:
-        path: "{{ storage_server.storage.base_path }}/scripts"
-        state: directory
-        owner: "{{ storage_server.storage.owner }}"
-        group: "{{ storage_server.storage.group }}"
-        mode: '0755'
-      become: true
-      tags: ["storage_server", "setup"]
 
     - name: Display storage server deployment summary
       ansible.builtin.debug:
