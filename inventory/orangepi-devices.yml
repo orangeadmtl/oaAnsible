@@ -13,8 +13,7 @@ all:
     tailscale_auth_key: "{{ vault_tailscale_auth_key }}"
     tailscale_enable_ssh: true
     tailscale_tags:
-      - "tag:oa-orangepi"
-      - "tag:oa-device"
+      - "tag:oa-opi"
 
     # OrangePi-specific configuration
     orangepi_user: "orangepi"
