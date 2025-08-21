@@ -24,7 +24,7 @@ all:
         ansible_become_password: "{{ vault_ubuntu_sudo_password }}"
       hosts:
         kampus-rig:
-          ansible_host: "192.168.1.244"
+          ansible_host: "192.168.1.245"
           ansible_user: "kai"
           ansible_port: 22
           tailscale_hostname: "kampus-rig"

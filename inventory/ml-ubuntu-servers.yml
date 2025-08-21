@@ -8,7 +8,7 @@ all:
       hosts:
         # Production storage and ML server
         kampus-rig:
-          ansible_host: 192.168.1.244
+          ansible_host: 192.168.1.245
           ansible_user: kai
           ansible_ssh_private_key_file: ~/.ssh/kampus-rig_ed25519
           gpu_count: 0

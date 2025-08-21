@@ -36,7 +36,6 @@ all:
       deploy_player: false
       deploy_camguard: true
 
-
     # System packages (minimal for CamGuard production)
     system:
       homebrew:
@@ -93,7 +92,7 @@ all:
       # Video transfer settings (production-optimized with storage server)
       transfer:
         enabled: true # Enabled for production with kampus-rig storage server
-        remote_server: "100.67.244.94" # kampus-rig Tailscale IP
+        remote_server: "100.101.201.95" # kampus-rig Tailscale IP
         remote_path: "/data/orangead/camguard/recordings"
         username: "kai"
         port: 22

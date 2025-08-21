@@ -7,14 +7,14 @@ all:
     storage_servers:
       hosts:
         kampus-rig:
-          ansible_host: 100.67.244.94  # Tailscale IP
+          ansible_host: 100.101.201.95 # Tailscale IP
           ansible_user: kai
           ansible_ssh_private_key_file: ~/.ssh/kampus-rig_ed25519
-          
+
           # Storage server configuration
           storage_server:
             enabled: true
-            
+
             # Storage paths optimized for large media files
             storage:
               base_path: "/data/orangead"
@@ -23,30 +23,30 @@ all:
               logs_path: "/data/orangead/camguard/logs"
               temp_path: "/data/orangead/temp"
               backup_path: "/data/orangead/backups"
-              max_storage_gb: 400  # Use 400GB of the 430GB available
-              cleanup_threshold_percent: 85
-              retention_days: 45  # Keep recordings for 45 days
-              
+              max_storage_gb: 400 # Use 400GB of the 430GB available
+              cleanup_threshold_percent: 90
+              retention_days: 365 # Keep recordings for 365 days
+
             # Network sharing for camguard clients
             sharing:
               ssh_enabled: true
               ssh_port: 22
-              
+
             # Transfer service for receiving files from Mac clients
             transfer_service:
               enabled: true
               listen_port: 8022
               max_concurrent_transfers: 10
-              bandwidth_limit_mbps: 100  # High bandwidth for local network
-              
+              bandwidth_limit_mbps: 100 # High bandwidth for local network
+
             # Security settings
             security:
               firewall_enabled: true
               allowed_ips:
-                - "192.168.1.0/24"  # Local network
-                - "100.64.0.0/10"   # Tailscale network
+                - "192.168.1.0/24" # Local network
+                - "100.64.0.0/10" # Tailscale network
               fail2ban_enabled: true
-              
+
             # Monitoring
             monitoring:
               enabled: true
@@ -56,15 +56,15 @@ all:
       vars:
         # Platform identification
         ansible_distribution: Ubuntu
-        
+
         # Ubuntu system configuration
         ansible_python_interpreter: /usr/bin/python3
-        ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
-        ansible_ssh_extra_args: '-o ControlMaster=no'
-        
+        ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+        ansible_ssh_extra_args: "-o ControlMaster=no"
+
         # Server type
         server_type: storage
-        
+
         # Role execution control
         execute_base_setup: true
         execute_storage_setup: true

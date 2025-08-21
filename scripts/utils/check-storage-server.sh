@@ -6,7 +6,7 @@
 set -e
 
 # Configuration
-STORAGE_HOST="${1:-100.67.244.94}"
+STORAGE_HOST="${1:-100.101.201.95}"
 SSH_KEY="$HOME/.ssh/kampus-rig_ed25519"
 SSH_USER="kai"
 STORAGE_PATH="/data/orangead"
