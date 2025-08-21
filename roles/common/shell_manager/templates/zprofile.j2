@@ -1,0 +1,52 @@
+# {{ ansible_managed }}
+# Shell Environment Configuration - macOS (.zprofile)
+# ===================================================
+
+# System PATH Configuration
+{% if shell_config.components.homebrew.enabled and shell_platform == "macos" %}
+# Homebrew Configuration
+{% if ansible_architecture == "arm64" %}
+export PATH="{{ shell_config.components.homebrew.prefix_arm64 }}/bin:$PATH"
+eval "$({{ shell_config.components.homebrew.prefix_arm64 }}/bin/brew shellenv)"
+{% else %}
+export PATH="{{ shell_config.components.homebrew.prefix_x86 }}/bin:$PATH"  
+eval "$({{ shell_config.components.homebrew.prefix_x86 }}/bin/brew shellenv)"
+{% endif %}
+{% endif %}
+
+{% if shell_config.components.pyenv.enabled and shell_platform in shell_config.components.pyenv.enabled_platforms %}
+# Pyenv Configuration
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+{% endif %}
+
+{% if shell_config.components.nvm.enabled and shell_platform in shell_config.components.nvm.enabled_platforms %}
+# Node.js Configuration via NVM
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+{% endif %}
+
+{% if shell_config.components.bun.enabled and shell_platform in shell_config.components.bun.enabled_platforms %}
+# Bun Configuration
+export BUN_INSTALL="{{ shell_config.components.bun.install_location }}"
+export PATH="$BUN_INSTALL/bin:$PATH"
+{% endif %}
+
+{% if shell_config.components.cargo.enabled and shell_platform in shell_config.components.cargo.enabled_platforms %}
+# Rust/Cargo Configuration
+export PATH="{{ shell_config.components.cargo.install_location }}/bin:$PATH"
+{% endif %}
+
+# Core Environment Variables
+{% for key, value in shell_config.environment.items() %}
+export {{ key }}="{{ value }}"
+{% endfor %}
+
+# Project-specific Environment Variables
+{% if shell_config.custom is defined and shell_config.custom.exports is defined %}
+{% for key, value in shell_config.custom.exports.items() %}
+export {{ key }}="{{ value }}"
+{% endfor %}
+{% endif %}

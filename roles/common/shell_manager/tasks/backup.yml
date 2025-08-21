@@ -1,0 +1,101 @@
+---
+# Shell Manager Backup Tasks
+# ==========================
+
+- name: Create shell configuration backup
+  tags: ["shell_manager", "backup"]
+  when: shell_config.backup.enabled
+  block:
+    - name: Generate backup timestamp
+      ansible.builtin.set_fact:
+        backup_timestamp: "{{ ansible_date_time.epoch }}"
+        backup_suffix: "{{ shell_config.files.backup_suffix }}.{{ ansible_date_time.epoch }}"
+        
+    - name: Create backup directory
+      ansible.builtin.file:
+        path: "{{ user_home }}/.shell_manager_backups"
+        state: directory
+        mode: "0755"
+        
+    - name: Backup existing shell configuration files
+      ansible.builtin.copy:
+        src: "{{ user_home }}/{{ item }}"
+        dest: "{{ user_home }}/.shell_manager_backups/{{ item }}{{ backup_suffix }}"
+        remote_src: true
+        mode: "0644"
+      loop:
+        - "{{ shell_profile_file }}"
+        - "{{ shell_rc_file }}"
+      ignore_errors: true  # Files might not exist on first run
+      register: backup_results
+      
+    - name: Record backup metadata
+      ansible.builtin.copy:
+        dest: "{{ user_home }}/.shell_manager_backups/backup_{{ backup_timestamp }}.json"
+        mode: "0644"
+        content: |
+          {
+            "timestamp": "{{ backup_timestamp }}",
+            "date": "{{ ansible_date_time.iso8601 }}",
+            "platform": "{{ shell_platform }}",
+            "shell": "{{ target_shell }}",
+            "files": [
+              "{{ shell_profile_file }}{{ backup_suffix }}",
+              "{{ shell_rc_file }}{{ backup_suffix }}"
+            ],
+            "ansible_managed": true
+          }
+          
+    - name: Clean up old backups
+      tags: ["shell_manager", "backup", "cleanup"]
+      block:
+        - name: Find backup files older than retention period
+          ansible.builtin.find:
+            paths: "{{ user_home }}/.shell_manager_backups"
+            age: "{{ shell_config.backup.retention_days }}d"
+            patterns: 
+              - "{{ shell_profile_file }}{{ shell_config.files.backup_suffix }}.*"
+              - "{{ shell_rc_file }}{{ shell_config.files.backup_suffix }}.*"
+              - "backup_*.json"
+          register: old_backups
+          
+        - name: Count current backups
+          ansible.builtin.find:
+            paths: "{{ user_home }}/.shell_manager_backups"
+            patterns:
+              - "backup_*.json"
+          register: all_backups
+          
+        - name: Remove old backups (age-based cleanup)
+          ansible.builtin.file:
+            path: "{{ item.path }}"
+            state: absent
+          loop: "{{ old_backups.files }}"
+          when: old_backups.files | length > 0
+          
+        - name: Remove excess backups (count-based cleanup)
+          ansible.builtin.shell: |
+            cd "{{ user_home }}/.shell_manager_backups"
+            # Keep only the most recent {{ shell_config.backup.max_backups }} backups
+            ls -t backup_*.json | tail -n +{{ shell_config.backup.max_backups + 1 }} | while read backup; do
+              timestamp=$(echo "$backup" | sed 's/backup_\(.*\)\.json/\1/')
+              rm -f "{{ shell_profile_file }}{{ shell_config.files.backup_suffix }}.${timestamp}"
+              rm -f "{{ shell_rc_file }}{{ shell_config.files.backup_suffix }}.${timestamp}"
+              rm -f "$backup"
+            done
+          when: all_backups.files | length > shell_config.backup.max_backups
+          
+    - name: Set backup facts for potential rollback
+      ansible.builtin.set_fact:
+        latest_backup_timestamp: "{{ backup_timestamp }}"
+        backup_available: true
+        
+    - name: Display backup information
+      ansible.builtin.debug:
+        msg: |
+          Shell Configuration Backup Created:
+          - Timestamp: {{ backup_timestamp }}
+          - Location: {{ user_home }}/.shell_manager_backups/
+          - Files Backed Up: {{ backup_results.results | selectattr('changed') | list | length }}
+          - Retention: {{ shell_config.backup.retention_days }} days
+          - Max Backups: {{ shell_config.backup.max_backups }}

@@ -1,0 +1,70 @@
+# {{ ansible_managed }}
+# Zsh Interactive Shell Configuration - {{ shell_platform }}
+# =========================================================
+
+{% if shell_config.components.oh_my_zsh.enabled and shell_platform in shell_config.components.oh_my_zsh.enabled_platforms %}
+# Oh My Zsh Configuration
+export ZSH="$HOME/.oh-my-zsh"
+
+# Custom theme configuration
+ZSH_THEME="{{ shell_config.components.oh_my_zsh.theme }}"
+
+# Plugin configuration
+plugins=({{ shell_config.components.oh_my_zsh.plugins | join(' ') }})
+
+# Fix bracketed paste mode issues
+DISABLE_MAGIC_FUNCTIONS=true
+ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=20
+
+# Source Oh My Zsh
+source $ZSH/oh-my-zsh.sh
+
+# Additional bracketed paste mode fix
+unset zle_bracketed_paste
+{% endif %}
+
+# Source environment variables from profile
+if [ -f "$HOME/{{ shell_profile_file }}" ]; then
+    source "$HOME/{{ shell_profile_file }}"
+fi
+
+# Platform-specific aliases
+{% if shell_platform == "macos" %}
+# macOS-specific aliases
+alias ls='lsd --group-dirs first'
+alias l='ls -lah'
+alias la='ls -A'
+alias ll='ls -alhF'
+alias lsa='ls -lah'
+alias lt='lsd --tree'
+{% elif shell_platform in ["ubuntu", "orangepi"] %}
+# Linux-specific aliases
+alias ls='ls --color=auto --group-directories-first'
+alias l='ls -lah'
+alias la='ls -A'
+alias ll='ls -alhF'
+alias grep='grep --color=auto'
+{% endif %}
+
+# Universal aliases
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias h='history'
+alias c='clear'
+
+# Project-specific aliases
+{% if shell_config.custom is defined and shell_config.custom.aliases is defined %}
+{% for alias_name, alias_cmd in shell_config.custom.aliases.items() %}
+alias {{ alias_name }}='{{ alias_cmd }}'
+{% endfor %}
+{% endif %}
+
+# Project-specific functions
+{% if shell_config.custom is defined and shell_config.custom.functions is defined %}
+{% for func_name, func_body in shell_config.custom.functions.items() %}
+{{ func_name }}() {
+{{ func_body | indent(4, True) }}
+}
+{% endfor %}
+{% endif %}

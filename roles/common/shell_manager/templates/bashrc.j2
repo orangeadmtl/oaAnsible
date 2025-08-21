@@ -1,0 +1,62 @@
+# {{ ansible_managed }}
+# Bash Interactive Shell Configuration - {{ shell_platform }}
+# ===========================================================
+
+# Source environment variables from profile
+if [ -f "$HOME/{{ shell_profile_file }}" ]; then
+    source "$HOME/{{ shell_profile_file }}"
+fi
+
+# Bash history configuration
+export HISTCONTROL=ignoreboth:erasedups
+export HISTSIZE=10000
+export HISTFILESIZE=20000
+shopt -s histappend
+shopt -s checkwinsize
+
+# Enable programmable completion features
+if ! shopt -oq posix; then
+  if [ -f /usr/share/bash-completion/bash_completion ]; then
+    . /usr/share/bash-completion/bash_completion
+  elif [ -f /etc/bash_completion ]; then
+    . /etc/bash_completion
+  fi
+fi
+
+# Color support for ls and grep
+if [ -x /usr/bin/dircolors ]; then
+    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+    alias ls='ls --color=auto --group-directories-first'
+    alias grep='grep --color=auto'
+    alias fgrep='fgrep --color=auto'
+    alias egrep='egrep --color=auto'
+fi
+
+# Common aliases
+alias l='ls -lah'
+alias la='ls -A'
+alias ll='ls -alhF'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias h='history'
+alias c='clear'
+
+# Project-specific aliases
+{% if shell_config.custom is defined and shell_config.custom.aliases is defined %}
+{% for alias_name, alias_cmd in shell_config.custom.aliases.items() %}
+alias {{ alias_name }}='{{ alias_cmd }}'
+{% endfor %}
+{% endif %}
+
+# Project-specific functions
+{% if shell_config.custom is defined and shell_config.custom.functions is defined %}
+{% for func_name, func_body in shell_config.custom.functions.items() %}
+{{ func_name }}() {
+{{ func_body | indent(4, True) }}
+}
+{% endfor %}
+{% endif %}
+
+# Prompt configuration (simple and effective)
+PS1='\u@\h:\w\$ '

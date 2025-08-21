@@ -1,0 +1,101 @@
+---
+# Shell Manager Validation Tasks
+# ==============================
+
+- name: Shell Configuration Validation - {{ validation_phase | default('general') }}
+  tags: ["shell_manager", "validation"]
+  block:
+    - name: Check if shell files exist
+      ansible.builtin.stat:
+        path: "{{ user_home }}/{{ item }}"
+      register: shell_files_check
+      loop:
+        - "{{ shell_profile_file }}"
+        - "{{ shell_rc_file }}"
+      when: validation_phase == "post_deployment"
+      
+    - name: Validate shell syntax
+      ansible.builtin.shell: |
+        if [ "{{ target_shell }}" = "zsh" ]; then
+          zsh -n "{{ user_home }}/{{ shell_rc_file }}"
+          zsh -n "{{ user_home }}/{{ shell_profile_file }}"
+        else
+          bash -n "{{ user_home }}/{{ shell_rc_file }}"
+          bash -n "{{ user_home }}/{{ shell_profile_file }}"
+        fi
+      register: syntax_check
+      failed_when: syntax_check.rc != 0
+      when: 
+        - validation_phase == "post_deployment"
+        - shell_config.validation.syntax_check
+        
+    - name: Check for PATH duplicates
+      ansible.builtin.shell: |
+        # Source the profile and check for PATH duplicates
+        source "{{ user_home }}/{{ shell_profile_file }}"
+        echo "$PATH" | tr ':' '\n' | sort | uniq -d
+      register: path_duplicates
+      failed_when: path_duplicates.stdout != ""
+      when:
+        - validation_phase == "post_deployment"
+        - shell_config.path_management.deduplication
+        
+    - name: Validate component availability
+      ansible.builtin.shell: |
+        source "{{ user_home }}/{{ shell_profile_file }}"
+        {% if shell_config.components.pyenv.enabled and shell_platform in shell_config.components.pyenv.enabled_platforms %}
+        command -v pyenv >/dev/null || exit 1
+        {% endif %}
+        {% if shell_config.components.nvm.enabled and shell_platform in shell_config.components.nvm.enabled_platforms %}
+        [ -s "$NVM_DIR/nvm.sh" ] || exit 1
+        {% endif %}
+        {% if shell_config.components.bun.enabled and shell_platform in shell_config.components.bun.enabled_platforms %}
+        command -v bun >/dev/null || exit 1
+        {% endif %}
+        {% if shell_config.components.cargo.enabled and shell_platform in shell_config.components.cargo.enabled_platforms %}
+        command -v cargo >/dev/null || exit 1
+        {% endif %}
+      register: component_check
+      failed_when: component_check.rc != 0
+      when:
+        - validation_phase == "post_deployment"
+        - shell_config.validation.component_check
+        
+    - name: Performance validation - shell load time
+      ansible.builtin.shell: |
+        start_time=$(date +%s.%N)
+        {{ target_shell }} -i -c exit 2>/dev/null
+        end_time=$(date +%s.%N)
+        load_time=$(echo "$end_time - $start_time" | bc)
+        echo "Shell load time: ${load_time}s"
+        # Check if load time exceeds threshold
+        if (( $(echo "$load_time > {{ shell_config.validation.max_load_time }}" | bc -l) )); then
+          exit 1
+        fi
+      register: performance_check
+      failed_when: performance_check.rc != 0
+      when:
+        - validation_phase == "post_deployment"
+        - shell_config.validation.performance_check
+        
+    - name: Validation summary
+      ansible.builtin.debug:
+        msg: |
+          Shell Configuration Validation ({{ validation_phase }}): PASSED
+          {% if validation_phase == "post_deployment" %}
+          - Syntax Check: {{ 'PASSED' if syntax_check.rc == 0 else 'FAILED' }}
+          - PATH Duplicates: {{ 'NONE' if path_duplicates.stdout == '' else 'FOUND' }}
+          - Components: {{ 'AVAILABLE' if component_check.rc == 0 else 'MISSING' }}
+          - Performance: {{ performance_check.stdout if performance_check is defined else 'SKIPPED' }}
+          {% endif %}
+      when: validation_phase == "post_deployment"
+      
+  rescue:
+    - name: Validation failed - initiate rollback
+      ansible.builtin.include_tasks: rollback.yml
+      vars:
+        rollback_reason: "validation_failed"
+        failed_check: "{{ ansible_failed_task.name }}"
+      when: 
+        - validation_phase == "post_deployment"
+        - shell_config.backup.auto_rollback

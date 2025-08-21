@@ -1,0 +1,105 @@
+---
+# Shell Manager Rollback Tasks
+# ============================
+
+- name: Emergency rollback to previous configuration
+  tags: ["shell_manager", "rollback"]
+  block:
+    - name: Find latest backup
+      ansible.builtin.find:
+        paths: "{{ user_home }}/.shell_manager_backups"
+        patterns: "backup_*.json"
+        age: -1h  # Only look for recent backups
+      register: recent_backups
+      
+    - name: Fail if no recent backup available
+      ansible.builtin.fail:
+        msg: |
+          No recent backup found for rollback.
+          Rollback reason: {{ rollback_reason | default('unknown') }}
+          Failed check: {{ failed_check | default('N/A') }}
+      when: recent_backups.files | length == 0
+      
+    - name: Identify latest backup
+      ansible.builtin.set_fact:
+        latest_backup: "{{ recent_backups.files | sort(attribute='mtime') | last }}"
+        
+    - name: Read backup metadata
+      ansible.builtin.slurp:
+        src: "{{ latest_backup.path }}"
+      register: backup_metadata_raw
+      
+    - name: Parse backup metadata
+      ansible.builtin.set_fact:
+        backup_metadata: "{{ backup_metadata_raw.content | b64decode | from_json }}"
+        
+    - name: Restore backed up files
+      ansible.builtin.copy:
+        src: "{{ user_home }}/.shell_manager_backups/{{ item }}"
+        dest: "{{ user_home }}/{{ item | regex_replace(shell_config.files.backup_suffix + '.*$', '') }}"
+        remote_src: true
+        mode: "0644"
+      loop: "{{ backup_metadata.files }}"
+      register: restore_results
+      
+    - name: Verify restored configuration
+      ansible.builtin.shell: |
+        if [ "{{ target_shell }}" = "zsh" ]; then
+          zsh -n "{{ user_home }}/{{ shell_rc_file }}"
+          zsh -n "{{ user_home }}/{{ shell_profile_file }}"
+        else
+          bash -n "{{ user_home }}/{{ shell_rc_file }}"
+          bash -n "{{ user_home }}/{{ shell_profile_file }}"
+        fi
+      register: rollback_verification
+      failed_when: rollback_verification.rc != 0
+      
+    - name: Create rollback log entry
+      ansible.builtin.copy:
+        dest: "{{ user_home }}/.shell_manager_backups/rollback_{{ ansible_date_time.epoch }}.log"
+        mode: "0644"
+        content: |
+          Rollback Event Log
+          ==================
+          Date: {{ ansible_date_time.iso8601 }}
+          Reason: {{ rollback_reason | default('unknown') }}
+          Failed Check: {{ failed_check | default('N/A') }}
+          Restored From: {{ backup_metadata.timestamp }}
+          Restored Date: {{ backup_metadata.date }}
+          Platform: {{ shell_platform }}
+          Shell: {{ target_shell }}
+          
+          Files Restored:
+          {% for item in backup_metadata.files %}
+          - {{ item }}
+          {% endfor %}
+          
+          Verification: {{ 'PASSED' if rollback_verification.rc == 0 else 'FAILED' }}
+          
+    - name: Display rollback summary
+      ansible.builtin.debug:
+        msg: |
+          ROLLBACK COMPLETED SUCCESSFULLY
+          ===============================
+          Reason: {{ rollback_reason | default('unknown') }}
+          Backup Source: {{ backup_metadata.date }}
+          Files Restored: {{ restore_results.results | selectattr('changed') | list | length }}
+          Verification: {{ 'PASSED' if rollback_verification.rc == 0 else 'FAILED' }}
+          
+          The shell configuration has been restored to the previous working state.
+          
+  rescue:
+    - name: Rollback failed - manual intervention required
+      ansible.builtin.fail:
+        msg: |
+          CRITICAL: Rollback procedure failed!
+          ===================================
+          Original Issue: {{ rollback_reason | default('unknown') }}
+          Rollback Failure: {{ ansible_failed_task.name }}
+          
+          Manual intervention is required to restore shell configuration.
+          
+          Backup location: {{ user_home }}/.shell_manager_backups/
+          Latest backup: {{ backup_metadata.date if backup_metadata is defined else 'unknown' }}
+          
+          Please restore configuration manually and investigate the issue.

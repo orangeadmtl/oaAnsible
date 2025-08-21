@@ -1,0 +1,121 @@
+---
+# Shell Manager Deployment Tasks
+# ==============================
+
+- name: Generate shell configuration files
+  tags: ["shell_manager", "deploy"]
+  block:
+    - name: Generate profile file (environment variables)
+      ansible.builtin.template:
+        src: "{{ shell_profile_file | replace('.', '') }}.j2"
+        dest: "{{ user_home }}/{{ shell_profile_file }}.new"
+        mode: "0644"
+        backup: false
+      register: profile_generated
+      
+    - name: Generate rc file (interactive shell settings)
+      ansible.builtin.template:
+        src: "{{ shell_rc_file | replace('.', '') }}.j2"
+        dest: "{{ user_home }}/{{ shell_rc_file }}.new"
+        mode: "0644"
+        backup: false
+      register: rc_generated
+
+    - name: Install shell enhancements (Oh My Zsh) for supported platforms
+      when: 
+        - shell_config.components.oh_my_zsh.enabled
+        - shell_platform in shell_config.components.oh_my_zsh.enabled_platforms
+        - target_shell == "zsh"
+      block:
+        - name: Check if Oh My Zsh is already installed
+          ansible.builtin.stat:
+            path: "{{ user_home }}/.oh-my-zsh"
+          register: ohmyzsh_check
+          
+        - name: Install Oh My Zsh
+          ansible.builtin.shell: |
+            sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+          when: not ohmyzsh_check.stat.exists
+          
+        - name: Install zsh-syntax-highlighting plugin
+          ansible.builtin.git:
+            repo: https://github.com/zsh-users/zsh-syntax-highlighting.git
+            dest: "{{ user_home }}/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
+            update: false
+          ignore_errors: true
+          
+        - name: Install zsh-autosuggestions plugin
+          ansible.builtin.git:
+            repo: https://github.com/zsh-users/zsh-autosuggestions.git
+            dest: "{{ user_home }}/.oh-my-zsh/custom/plugins/zsh-autosuggestions"
+            update: false
+          ignore_errors: true
+          
+        - name: Create custom theme
+          ansible.builtin.copy:
+            dest: "{{ user_home }}/.oh-my-zsh/custom/themes/robbyrussell-custom.zsh-theme"
+            mode: "0644"
+            content: |
+              PROMPT="%(?:%{$fg_bold[green]%}%n@%m:%{$fg_bold[red]%}%n@%m) %{$fg[cyan]%}%c%{$reset_color%} $(git_prompt_info)"
+              
+              ZSH_THEME_GIT_PROMPT_PREFIX="%{$fg_bold[blue]%}git:(%{$fg[red]%}"
+              ZSH_THEME_GIT_PROMPT_SUFFIX="%{$reset_color%} "
+              ZSH_THEME_GIT_PROMPT_DIRTY="%{$fg[blue]%}) %{$fg[yellow]%}✗"
+              ZSH_THEME_GIT_PROMPT_CLEAN="%{$fg[blue]%})"
+
+    - name: Validate generated configuration files
+      ansible.builtin.shell: |
+        # Syntax validation for shell files
+        if [ "{{ target_shell }}" = "zsh" ]; then
+          zsh -n "{{ user_home }}/{{ shell_rc_file }}.new"
+          zsh -n "{{ user_home }}/{{ shell_profile_file }}.new"
+        else
+          bash -n "{{ user_home }}/{{ shell_rc_file }}.new"
+          bash -n "{{ user_home }}/{{ shell_profile_file }}.new"  
+        fi
+      register: syntax_validation
+      failed_when: syntax_validation.rc != 0
+      
+    - name: Atomic file replacement
+      block:
+        - name: Replace profile file
+          ansible.builtin.copy:
+            src: "{{ user_home }}/{{ shell_profile_file }}.new"
+            dest: "{{ user_home }}/{{ shell_profile_file }}"
+            remote_src: true
+            mode: "0644"
+          register: profile_replaced
+          
+        - name: Replace rc file
+          ansible.builtin.copy:
+            src: "{{ user_home }}/{{ shell_rc_file }}.new"
+            dest: "{{ user_home }}/{{ shell_rc_file }}"
+            remote_src: true
+            mode: "0644"
+          register: rc_replaced
+          
+      rescue:
+        - name: Deployment failed - initiate rollback
+          ansible.builtin.include_tasks: rollback.yml
+          vars:
+            rollback_reason: "atomic_replacement_failed"
+            
+    - name: Clean up temporary files
+      ansible.builtin.file:
+        path: "{{ user_home }}/{{ item }}"
+        state: absent
+      loop:
+        - "{{ shell_profile_file }}.new"
+        - "{{ shell_rc_file }}.new"
+      changed_when: false
+      
+    - name: Display deployment summary
+      ansible.builtin.debug:
+        msg: |
+          Shell Manager Deployment Complete:
+          - Platform: {{ shell_platform }}
+          - Target Shell: {{ target_shell }}
+          - Profile File: {{ shell_profile_file }}
+          - RC File: {{ shell_rc_file }}
+          - Components Enabled: {{ shell_config.components.keys() | select('enabled') | list | join(', ') }}
+          - Validation: Passed

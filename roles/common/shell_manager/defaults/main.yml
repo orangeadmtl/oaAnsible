@@ -1,0 +1,135 @@
+---
+# Shell Manager Default Configuration
+# =================================
+
+# Platform-specific shell configuration
+shell_manager:
+  # Detection and platform support
+  supported_platforms: ["macos", "ubuntu", "orangepi"]
+  auto_detect_platform: true
+  
+  # Shell preferences by platform
+  platform_shells:
+    macos: "zsh"
+    ubuntu: "bash"  # Default to bash for Ubuntu compatibility
+    orangepi: "zsh"
+  
+  # File management strategy
+  files:
+    profile_suffix: "profile"  # .zprofile, .bash_profile
+    rc_suffix: "rc"          # .zshrc, .bashrc
+    backup_suffix: ".shell_manager.backup"
+    
+  # Template selection strategy  
+  template_strategy: "platform_specific"  # platform_specific | unified
+  
+  # Component management
+  components:
+    # Core system components
+    homebrew:
+      enabled_platforms: ["macos"]
+      auto_detect: true
+      prefix_arm64: "/opt/homebrew"
+      prefix_x86: "/usr/local"
+      
+    apt:
+      enabled_platforms: ["ubuntu", "orangepi"]
+      auto_detect: true
+      
+    # Development environments
+    pyenv:
+      enabled: true
+      enabled_platforms: ["macos", "ubuntu", "orangepi"]
+      default_version: "3.11.11"
+      auto_global: true
+      
+    nvm:
+      enabled: true  
+      enabled_platforms: ["macos", "ubuntu", "orangepi"]
+      default_version: "22.11.0"
+      auto_default: true
+      
+    bun:
+      enabled: true
+      enabled_platforms: ["macos", "ubuntu", "orangepi"]
+      install_location: "$HOME/.bun"
+      
+    cargo:
+      enabled: false  # Disabled by default
+      enabled_platforms: ["macos", "ubuntu", "orangepi"]
+      install_location: "$HOME/.cargo"
+      
+    # Shell enhancements (platform-specific)
+    oh_my_zsh:
+      enabled: true
+      enabled_platforms: ["macos", "orangepi"]
+      theme: "robbyrussell-custom"
+      plugins:
+        - "git"
+        - "zsh-syntax-highlighting" 
+        - "zsh-autosuggestions"
+        - "history-substring-search"
+        
+    bash_it:
+      enabled: false  # Alternative for Ubuntu
+      enabled_platforms: ["ubuntu"]
+      theme: "bobby"
+      
+  # PATH management
+  path_management:
+    strategy: "declarative"  # declarative | append | prepend
+    deduplication: true
+    order_enforcement: true
+    validation: true
+    
+    # Explicit PATH ordering (highest priority first)
+    order:
+      - "$HOME/.pyenv/bin"
+      - "$HOME/.cargo/bin"
+      - "$HOME/.bun/bin"
+      - "$HOME/.local/bin"
+      - "/opt/homebrew/bin"      # macOS ARM
+      - "/usr/local/bin"         # macOS Intel / Ubuntu
+      - "/usr/bin"
+      - "/bin"
+      
+  # Environment variables (platform-agnostic)
+  environment:
+    EDITOR: "vim"
+    LANG: "en_US.UTF-8"
+    TERM: "xterm-256color"
+    
+  # Validation settings
+  validation:
+    enabled: true
+    syntax_check: true
+    component_check: true
+    performance_check: true
+    max_load_time: 3  # seconds
+    
+  # Backup and rollback
+  backup:
+    enabled: true
+    retention_days: 7
+    max_backups: 5
+    auto_rollback: true
+    
+# Project-specific overrides (examples)
+# ====================================
+# These would be defined in inventory variables
+
+# Example evenko override:
+# shell_manager_overrides:
+#   components:
+#     cargo: false
+#   custom:
+#     aliases:
+#       logs: "tail -f $HOME/orangead/logs/*.log"
+
+# Example f1 override:  
+# shell_manager_overrides:
+#   components:
+#     cargo: true
+#   custom:
+#     aliases:
+#       f1status: "launchctl list | grep orangead"
