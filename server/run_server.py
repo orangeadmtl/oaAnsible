@@ -75,10 +75,10 @@ async def run_server():
                 allow_headers=["*"],
             )
         
-        # Add security middleware if enabled
-        if api_config["security_headers"]:
-            from fastapi.middleware.security import SecurityHeadersMiddleware
-            app.add_middleware(SecurityHeadersMiddleware)
+        # Add security middleware if enabled (commented out - module not available)
+        # if api_config["security_headers"]:
+        #     from fastapi.middleware.security import SecurityHeadersMiddleware
+        #     app.add_middleware(SecurityHeadersMiddleware)
         
         # Setup signal handlers
         signal.signal(signal.SIGINT, handle_shutdown)
