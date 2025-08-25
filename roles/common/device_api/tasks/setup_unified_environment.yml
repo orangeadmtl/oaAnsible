@@ -1,0 +1,70 @@
+---
+# Setup unified Device API environment
+# Handles submodule synchronization and directory structure
+
+- name: Ensure parent directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/orangead"
+    state: directory
+    owner: "{{ ansible_user }}"
+    mode: "0755"
+  become: true
+
+- name: Check if unified API directory exists
+  ansible.builtin.stat:
+    path: "{{ device_api_path }}"
+  register: unified_api_dir
+
+- name: Clone oaDeviceAPI repository (if not exists)
+  ansible.builtin.git:
+    repo: "https://github.com/oa-device/oaDeviceAPI.git"
+    dest: "{{ device_api_path }}"
+    version: "main"
+    force: false
+  when: not unified_api_dir.stat.exists
+  become_user: "{{ ansible_user }}"
+
+- name: Update oaDeviceAPI to latest version
+  ansible.builtin.git:
+    repo: "https://github.com/oa-device/oaDeviceAPI.git"
+    dest: "{{ device_api_path }}"
+    version: "main"
+    force: true
+  when: unified_api_dir.stat.exists
+  become_user: "{{ ansible_user }}"
+  register: unified_api_update
+
+- name: Ensure proper ownership
+  ansible.builtin.file:
+    path: "{{ device_api_path }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user if platform_state.is_linux else 'staff' }}"
+    recurse: true
+  become: true
+
+- name: Create logs directory
+  ansible.builtin.file:
+    path: "{{ device_api_path }}/logs"
+    state: directory
+    owner: "{{ ansible_user }}"
+    mode: "0755"
+  become: true
+
+- name: Setup platform-specific configuration
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ device_api_path }}/{{ item.dest }}"
+    owner: "{{ ansible_user }}"
+    mode: "0644"
+  loop:
+    - { src: "device_api.env.j2", dest: ".env" }
+  become_user: "{{ ansible_user }}"
+
+- name: Display environment setup results
+  ansible.builtin.debug:
+    msg: |
+      Unified Device API Environment:
+      - Path: {{ device_api_path }}
+      - Repository updated: {{ unified_api_update.changed | default(false) }}
+      - Platform: {{ platform_state.detected_platform }}
+      - Service name: {{ device_api_service_name }}

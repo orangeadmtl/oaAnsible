@@ -1,0 +1,27 @@
+---
+# Default variables for unified Device API deployment
+
+# API Configuration
+device_api_log_level: "INFO"
+device_api_service_timeout: 30
+
+# Network Configuration  
+tailscale_subnet: "100.64.0.0/10"
+
+# Platform-specific defaults
+device_api_screenshot_dir: "/tmp/screenshots"
+device_api_display_config: "/etc/orangead/display.conf"  
+device_api_player_service: "slideshow-player.service"
+
+# Deployment Configuration
+deviceapi_deployment_needed: true
+deviceapi_force_update: false
+
+# Service Configuration
+device_api_enable_service: true
+device_api_start_service: true
+
+# Health Check Configuration
+device_api_health_check_timeout: 30
+device_api_health_check_retries: 6
+device_api_health_check_delay: 5

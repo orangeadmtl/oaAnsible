@@ -1,0 +1,59 @@
+---
+# Setup Python environment for unified Device API
+
+- name: Check if virtual environment exists
+  ansible.builtin.stat:
+    path: "{{ device_api_path }}/venv"
+  register: venv_exists
+
+- name: Create virtual environment
+  ansible.builtin.shell: |
+    {{ device_api_python }} -m venv {{ device_api_path }}/venv
+  become_user: "{{ ansible_user }}"
+  when: not venv_exists.stat.exists
+
+- name: Upgrade pip in virtual environment
+  ansible.builtin.pip:
+    name: pip
+    state: latest
+    virtualenv: "{{ device_api_path }}/venv"
+    virtualenv_python: "{{ device_api_python }}"
+  become_user: "{{ ansible_user }}"
+
+- name: Install Python dependencies
+  ansible.builtin.pip:
+    requirements: "{{ device_api_path }}/requirements.txt"
+    virtualenv: "{{ device_api_path }}/venv"
+    virtualenv_python: "{{ device_api_python }}"
+  become_user: "{{ ansible_user }}"
+  register: pip_install
+
+- name: Update Python path for service
+  ansible.builtin.set_fact:
+    device_api_python: "{{ device_api_path }}/venv/bin/python"
+
+- name: Verify Python environment
+  ansible.builtin.shell: |
+    {{ device_api_python }} -c "
+    import sys
+    print('Python:', sys.version)
+    sys.path.insert(0, '{{ device_api_path }}')
+    try:
+        from src.oaDeviceAPI.core.config import settings
+        print('oaDeviceAPI import: SUCCESS')
+    except ImportError as e:
+        print('oaDeviceAPI import: FAILED -', e)
+        sys.exit(1)
+    "
+  register: python_verification
+  failed_when: "'FAILED' in python_verification.stdout"
+  become_user: "{{ ansible_user }}"
+
+- name: Display Python environment status
+  ansible.builtin.debug:
+    msg: |
+      Python Environment:
+      - Python path: {{ device_api_python }}
+      - Dependencies installed: {{ pip_install.changed }}
+      - Verification: {{ 'SUCCESS' if python_verification.rc == 0 else 'FAILED' }}
+      - Details: {{ python_verification.stdout_lines | join(' ') }}

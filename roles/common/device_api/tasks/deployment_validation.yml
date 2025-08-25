@@ -1,0 +1,91 @@
+---
+# Validate unified Device API deployment
+
+- name: Perform comprehensive health check
+  ansible.builtin.uri:
+    url: "http://localhost:9090/health"
+    method: GET
+    timeout: "{{ device_api_health_check_timeout }}"
+  register: health_check
+  until: health_check.status == 200
+  retries: "{{ device_api_health_check_retries }}"
+  delay: "{{ device_api_health_check_delay }}"
+  ignore_errors: true
+
+- name: Get platform information
+  ansible.builtin.uri:
+    url: "http://localhost:9090/platform"
+    method: GET
+    timeout: 10
+  register: platform_check
+  ignore_errors: true
+  when: health_check.status == 200
+
+- name: Get API root information  
+  ansible.builtin.uri:
+    url: "http://localhost:9090/"
+    method: GET
+    timeout: 10
+  register: root_check
+  ignore_errors: true
+  when: health_check.status == 200
+
+- name: Validate platform-specific endpoints
+  block:
+    - name: Test macOS-specific endpoints
+      ansible.builtin.uri:
+        url: "http://localhost:9090/cameras"
+        method: GET
+        timeout: 10
+      register: camera_check
+      ignore_errors: true
+      when: 
+        - platform_state.is_macos
+        - health_check.status == 200
+
+    - name: Test OrangePi-specific endpoints
+      ansible.builtin.uri:
+        url: "http://localhost:9090/screenshots/history"
+        method: GET  
+        timeout: 10
+      register: screenshot_check
+      ignore_errors: true
+      when:
+        - platform_state.is_linux
+        - health_check.status == 200
+
+- name: Set validation results
+  ansible.builtin.set_fact:
+    deviceapi_validation_results:
+      health_check: "{{ health_check.status == 200 }}"
+      platform_check: "{{ platform_check.status == 200 if platform_check is defined else false }}"
+      platform_detected: "{{ platform_check.json.platform | default('unknown') if platform_check is defined and platform_check.status == 200 else 'unknown' }}"
+      root_check: "{{ root_check.status == 200 if root_check is defined else false }}"
+      endpoints_available: "{{ root_check.json.endpoints | default({}) if root_check is defined and root_check.status == 200 else {} }}"
+      camera_endpoint: "{{ camera_check.status in [200, 500, 503] if camera_check is defined else 'n/a' }}"
+      screenshot_endpoint: "{{ screenshot_check.status in [200, 500, 503] if screenshot_check is defined else 'n/a' }}"
+
+- name: Display validation results
+  ansible.builtin.debug:
+    msg: |
+      Deployment Validation Results:
+      - Health Check: {{ '✅ PASS' if deviceapi_validation_results.health_check else '❌ FAIL' }}
+      - Platform Detection: {{ '✅ PASS' if deviceapi_validation_results.platform_check else '❌ FAIL' }}
+      - Detected Platform: {{ deviceapi_validation_results.platform_detected }}
+      - Root Endpoint: {{ '✅ PASS' if deviceapi_validation_results.root_check else '❌ FAIL' }}
+      - Available Endpoints: {{ deviceapi_validation_results.endpoints_available.keys() | list | join(', ') }}
+      {% if platform_state.is_macos %}
+      - Camera Endpoint: {{ '✅ AVAILABLE' if deviceapi_validation_results.camera_endpoint != 'n/a' else '⚠️ N/A' }}
+      {% endif %}
+      {% if platform_state.is_linux %}
+      - Screenshot Endpoint: {{ '✅ AVAILABLE' if deviceapi_validation_results.screenshot_endpoint != 'n/a' else '⚠️ N/A' }}
+      {% endif %}
+
+- name: Assert deployment success
+  ansible.builtin.assert:
+    that:
+      - deviceapi_validation_results.health_check
+      - deviceapi_validation_results.platform_check
+      - deviceapi_validation_results.platform_detected != 'unknown'
+    fail_msg: "Unified Device API deployment validation failed"
+    success_msg: "Unified Device API deployment validation successful"

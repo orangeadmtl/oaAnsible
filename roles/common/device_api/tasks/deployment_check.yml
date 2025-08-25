@@ -1,0 +1,49 @@
+---
+# Check if unified Device API deployment is needed
+
+- name: Check if unified Device API is already deployed
+  ansible.builtin.stat:
+    path: "{{ device_api_path }}/main.py"
+  register: unified_api_deployed
+
+- name: Check current service status
+  block:
+    - name: Check macOS service status
+      ansible.builtin.shell: |
+        launchctl print gui/$(id -u)/com.orangead.deviceapi 2>/dev/null | grep -q "state = running"
+      become_user: "{{ ansible_user }}"
+      register: macos_service_status
+      failed_when: false
+      changed_when: false
+      when: platform_state.is_macos
+
+    - name: Check Linux service status  
+      ansible.builtin.systemd:
+        name: orangead-deviceapi.service
+      register: linux_service_status
+      failed_when: false
+      when: platform_state.is_linux
+
+- name: Set deployment decision facts
+  ansible.builtin.set_fact:
+    deviceapi_deployment_needed: >
+      {{
+        not unified_api_deployed.stat.exists or
+        deviceapi_force_update | default(false) or
+        (platform_state.is_macos and macos_service_status.rc != 0) or
+        (platform_state.is_linux and linux_service_status.status.ActiveState != 'active')
+      }}
+    deviceapi_service_running: >
+      {{
+        (platform_state.is_macos and macos_service_status.rc == 0) or
+        (platform_state.is_linux and linux_service_status.status.ActiveState == 'active')
+      }}
+
+- name: Display deployment decision
+  ansible.builtin.debug:
+    msg: |
+      Deployment Decision:
+      - API deployed: {{ unified_api_deployed.stat.exists }}
+      - Service running: {{ deviceapi_service_running }}
+      - Deployment needed: {{ deviceapi_deployment_needed }}
+      - Force update: {{ deviceapi_force_update | default(false) }}
