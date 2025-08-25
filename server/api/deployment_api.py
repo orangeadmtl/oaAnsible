@@ -43,7 +43,7 @@ security = HTTPBearer()
 config = ServerConfig()
 job_manager = JobManager()
 auth_manager = AuthManager()
-ansible_executor = AnsibleExecutor()
+ansible_executor = AnsibleExecutor(str(config.ansible_root))
 
 # Pydantic Models
 class ComponentRequest(BaseModel):
