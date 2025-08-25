@@ -1,0 +1,23 @@
+---
+# Handlers for unified Device API service
+
+- name: restart_deviceapi_macos
+  ansible.builtin.shell: |
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.deviceapi.plist 2>/dev/null || true
+    sleep 2
+    launchctl load {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.deviceapi.plist
+    launchctl start com.orangead.deviceapi
+  become_user: "{{ ansible_user }}"
+  listen: "restart deviceapi"
+
+- name: restart_deviceapi_linux
+  ansible.builtin.systemd:
+    name: orangead-deviceapi.service
+    state: restarted
+  become: true
+  listen: "restart deviceapi"
+
+- name: reload_systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true

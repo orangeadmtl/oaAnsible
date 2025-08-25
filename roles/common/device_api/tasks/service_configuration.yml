@@ -1,0 +1,71 @@
+---
+# Service configuration for unified Device API
+# Handles both macOS (LaunchAgent) and Linux (systemd) services
+
+- name: Configure macOS LaunchAgent service
+  when: platform_state.is_macos
+  block:
+    - name: Create LaunchAgent plist for unified Device API
+      ansible.builtin.template:
+        src: com.orangead.deviceapi.plist.j2
+        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.deviceapi.plist"
+        owner: "{{ ansible_user }}"
+        mode: "0644"
+      become_user: "{{ ansible_user }}"
+      notify: restart_deviceapi_macos
+
+    - name: Load LaunchAgent service
+      ansible.builtin.shell: |
+        launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.deviceapi.plist 2>/dev/null || true
+        launchctl load {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.deviceapi.plist
+      become_user: "{{ ansible_user }}"
+      register: launchctl_load
+      changed_when: true
+
+    - name: Start LaunchAgent service
+      ansible.builtin.shell: |
+        launchctl start com.orangead.deviceapi
+      become_user: "{{ ansible_user }}"
+      register: launchctl_start
+      changed_when: true
+
+- name: Configure Linux systemd service
+  when: platform_state.is_linux
+  block:
+    - name: Create systemd service file for unified Device API
+      ansible.builtin.template:
+        src: orangead-deviceapi.service.j2
+        dest: /etc/systemd/system/orangead-deviceapi.service
+        owner: root
+        mode: "0644"
+      become: true
+      notify: restart_deviceapi_linux
+
+    - name: Reload systemd daemon
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true
+
+    - name: Enable and start systemd service
+      ansible.builtin.systemd:
+        name: orangead-deviceapi.service
+        enabled: true
+        state: started
+      become: true
+      register: systemd_service
+
+- name: Wait for service to be ready
+  ansible.builtin.uri:
+    url: "http://localhost:9090/platform"
+    method: GET
+    timeout: 30
+  register: service_health_check
+  until: service_health_check.status == 200
+  retries: 6
+  delay: 5
+  ignore_errors: true
+
+- name: Set service status facts
+  ansible.builtin.set_fact:
+    deviceapi_service_running: "{{ service_health_check.status == 200 }}"
+    deviceapi_service_platform: "{{ service_health_check.json.platform | default('unknown') if service_health_check.status == 200 else 'unknown' }}"

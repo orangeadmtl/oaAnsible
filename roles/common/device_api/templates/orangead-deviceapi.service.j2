@@ -1,0 +1,41 @@
+[Unit]
+Description=OrangeAd Unified Device API
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User={{ ansible_user }}
+Group={{ ansible_user }}
+WorkingDirectory={{ device_api_path }}
+ExecStart={{ device_api_python }} {{ device_api_path }}/main.py
+Environment=PYTHONPATH={{ device_api_path }}
+EnvironmentFile={{ device_api_path }}/.env
+
+# Logging
+StandardOutput=append:{{ device_api_path }}/logs/deviceapi.log  
+StandardError=append:{{ device_api_path }}/logs/deviceapi_error.log
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Security settings
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths={{ device_api_path }}/logs
+ReadWritePaths=/tmp
+{% if device_api_screenshot_dir is defined %}
+ReadWritePaths={{ device_api_screenshot_dir }}
+{% endif %}
+
+# Process settings
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
