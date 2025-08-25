@@ -3,6 +3,19 @@
 # run - Unified deployment script for oaAnsible
 # Usage: ./scripts/run [inventory] [component...] [options]
 # 
+# ⚠️  LEGACY INTERFACE: This CLI script is deprecated as of December 2024
+#    🚀 NEW: Use the oaDashboard Web Interface instead!
+#       • Real-time deployment logs with WebSocket streaming
+#       • Role-based access control and approval workflows  
+#       • Deployment templates and guided wizards
+#       • Drag-and-drop host selection interface
+#       • Comprehensive analytics and metrics dashboard
+#    
+#    🔗 Access: http://localhost:3000/deployments
+#    📚 Migration guide: docs/deployment/web_interface_migration.md
+#    
+#    This script remains for emergency use only.
+#
 # Modernized script supporting the new inventory/projects/{project}/{env}.yml structure
 # and optimized for efficient component-based deployments
 
