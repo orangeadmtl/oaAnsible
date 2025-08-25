@@ -1,6 +1,7 @@
 # oaAnsible - Modern Infrastructure Automation
 
-Complete infrastructure automation solution for deploying and managing OrangeAd services across Mac Mini and Ubuntu platforms using Ansible. **Fully refactored and modernized** with simplified architecture, project-based inventory structure, and comprehensive maintenance tooling.
+Complete infrastructure automation solution for deploying and managing OrangeAd services across Mac Mini and Ubuntu platforms using Ansible. **Fully refactored
+and modernized** with simplified architecture, project-based inventory structure, and **integrated web deployment interface**.
 
 ## 🎯 Overview
 
@@ -8,6 +9,29 @@ Complete infrastructure automation solution for deploying and managing OrangeAd 
 **Primary Services:** `macos-api` device monitoring, `oaTracker` AI tracking system  
 **Architecture:** Component-based deployment with `universal.yml` playbook and tag-based targeting  
 **Inventory:** Modern project-centric structure: `inventory/projects/{project}/{environment}.yml`
+
+## 🚀 New: Web-Based Deployment Management
+
+**oaAnsible is now fully integrated with oaDashboard** for modern deployment workflows:
+
+### Deployment Options
+
+1. **🌐 Web Interface (Recommended)**
+
+   - **Access:** oaDashboard → `/deployments`
+   - **Features:** Real-time logs, deployment templates, guided wizards
+   - **Benefits:** Visual interface, job history, success metrics
+
+2. **💻 CLI Interface (Legacy)**
+   - **Command:** `./scripts/run projects/spectra/prod -t macos-api`
+   - **Use Cases:** Automation scripts, CI/CD pipelines
+   - **Status:** Maintained for compatibility
+
+### Migration Path
+
+- **Current CLI users:** Web interface provides same functionality with enhanced UX
+- **Automation scripts:** API endpoints available for programmatic access
+- **New users:** Start with web interface for optimal experience
 
 ### Key Features
 
