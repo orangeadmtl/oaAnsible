@@ -11,7 +11,7 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Tuple
 import jwt
 import httpx
 
