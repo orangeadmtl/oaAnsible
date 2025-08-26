@@ -1,0 +1,57 @@
+---
+# MediaMTX Demo Role Defaults
+# Simple demo environment for MediaMTX streaming
+
+macos_mediamtx_demo_defaults:
+  enabled: false
+  
+  # Demo configuration
+  demo:
+    name: "MediaMTX Demo"
+    description: "Simple MediaMTX streaming demo"
+    base_dir: "{{ ansible_user_dir }}/mediamtx-demo"
+    
+  # MediaMTX binary configuration  
+  binary:
+    download_url_pattern: "https://api.github.com/repos/bluenviron/mediamtx/releases/latest"
+    install_dir: "{{ ansible_user_dir }}/mediamtx-demo/bin"
+    config_dir: "{{ ansible_user_dir }}/mediamtx-demo/config"
+    
+  # Streaming configuration
+  streaming:
+    rtsp_port: 8554
+    api_port: 9997
+    stream_path: "camera"
+    server_host: "0.0.0.0"  # Allow external connections
+    
+  # Camera configuration (CamGuard-compatible)
+  camera:
+    device_id: "0"
+    resolution: "640x480" 
+    framerate: "30.000030"  # CamGuard standard framerate
+    pixel_format: "uyvy422"  # Native camera format for better performance
+    preset: "ultrafast"
+    codec: "libx264"
+    
+  # Storage
+  storage:
+    logs_dir: "{{ ansible_user_dir }}/mediamtx-demo/logs"
+    scripts_dir: "{{ ansible_user_dir }}/mediamtx-demo/scripts"
+    
+  # Service configuration
+  service:
+    name: "com.orangead.mediamtx.demo"
+    user: "{{ ansible_user }}"
+    keep_alive: true
+    run_at_load: true
+    restart_on_failure: true
+    
+  # Python demo script
+  python:
+    enabled: true
+    script_name: "read_camera.py"
+    venv_name: ".venv"
+    venv_path: "{{ ansible_user_dir }}/mediamtx-demo/.venv"
+    dependencies:
+      - "opencv-python"
+      - "requests"

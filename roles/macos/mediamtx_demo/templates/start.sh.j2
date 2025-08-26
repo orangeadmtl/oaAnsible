@@ -1,0 +1,15 @@
+#!/bin/bash
+cd {{ mediamtx_demo.demo.base_dir }}
+echo "🚀 Starting MediaMTX Demo..."
+launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/{{ mediamtx_demo.service.name }}.plist 2>/dev/null || echo "Service already loaded"
+sleep 2
+if launchctl list {{ mediamtx_demo.service.name }} >/dev/null 2>&1; then
+    echo "✅ MediaMTX Demo started"
+    echo "🔗 RTSP: rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}"
+    echo "🌐 API: http://localhost:{{ mediamtx_demo.streaming.api_port }}"
+    echo ""
+    echo "💡 Start camera stream:"
+    echo "   ffmpeg -f avfoundation -framerate {{ mediamtx_demo.camera.framerate }} -pixel_format {{ mediamtx_demo.camera.pixel_format }} -i \"{{ mediamtx_demo.camera.device_id }}\" -c:v {{ mediamtx_demo.camera.codec }} -preset {{ mediamtx_demo.camera.preset }} -r {{ mediamtx_demo.camera.framerate }} -f rtsp rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}"
+else
+    echo "❌ Failed to start MediaMTX Demo"
+fi

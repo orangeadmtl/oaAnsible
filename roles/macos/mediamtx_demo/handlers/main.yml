@@ -1,0 +1,8 @@
+---
+- name: restart mediamtx demo service
+  ansible.builtin.shell: |
+    launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.mediamtx.demo.plist 2>/dev/null || true
+    sleep 2
+    launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.mediamtx.demo.plist
+  become: false
+  ignore_errors: true

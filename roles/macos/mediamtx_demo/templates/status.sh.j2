@@ -1,0 +1,54 @@
+#!/bin/bash
+echo "📊 MediaMTX Demo Status"
+echo "====================="
+
+# Check service status
+echo "🔧 Service Status:"
+if launchctl list {{ mediamtx_demo.service.name }} >/dev/null 2>&1; then
+    echo "✅ MediaMTX service is running"
+    PID=$(launchctl list {{ mediamtx_demo.service.name }} | grep PID | awk '{print $3}')
+    if [ "$PID" != "-" ]; then
+        echo "   PID: $PID"
+    fi
+else
+    echo "❌ MediaMTX service is not running"
+fi
+
+echo ""
+
+# Check API
+echo "🌐 API Status:"
+if curl -s http://localhost:{{ mediamtx_demo.streaming.api_port }}/v1/paths/list >/dev/null 2>&1; then
+    echo "✅ API responding on port {{ mediamtx_demo.streaming.api_port }}"
+    
+    # Show active paths
+    echo ""
+    echo "📡 Active Paths:"
+    curl -s http://localhost:{{ mediamtx_demo.streaming.api_port }}/v1/paths/list | python3 -m json.tool 2>/dev/null || echo "   (Unable to parse API response)"
+else
+    echo "❌ API not responding on port {{ mediamtx_demo.streaming.api_port }}"
+fi
+
+echo ""
+
+# Check RTSP port
+echo "🎥 RTSP Status:"
+if lsof -i :{{ mediamtx_demo.streaming.rtsp_port }} >/dev/null 2>&1; then
+    echo "✅ RTSP server listening on port {{ mediamtx_demo.streaming.rtsp_port }}"
+else
+    echo "❌ No RTSP server on port {{ mediamtx_demo.streaming.rtsp_port }}"
+fi
+
+echo ""
+
+# Show recent logs
+echo "📋 Recent Logs:"
+if [ -f "{{ mediamtx_demo.storage.logs_dir }}/stderr.log" ]; then
+    echo "Last 5 error lines:"
+    tail -n 5 "{{ mediamtx_demo.storage.logs_dir }}/stderr.log" 2>/dev/null || echo "   (No error logs)"
+else
+    echo "   No log files found"
+fi
+
+echo ""
+echo "🔗 Stream URL: rtsp://{{ inventory_hostname }}:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}"

@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# MediaMTX Demo - Environment and Service Test Script
+# Simplified approach - no direct camera access testing
+
+echo "📹 MediaMTX Demo - Environment Test"
+echo "===================================="
+
+# Check MediaMTX service status
+echo "🔍 1. Checking MediaMTX service..."
+if launchctl list {{ mediamtx_demo.service.name }} >/dev/null 2>&1; then
+    echo "✅ MediaMTX service is running"
+    SERVICE_OK=true
+else
+    echo "❌ MediaMTX service not running"
+    echo "   Start it with: ./scripts/start.sh"
+    SERVICE_OK=false
+fi
+
+# Check MediaMTX API
+echo -e "\n🔍 2. Testing MediaMTX API..."
+if curl -s -f http://localhost:{{ mediamtx_demo.streaming.api_port }}/v3/paths/list >/dev/null 2>&1; then
+    echo "✅ MediaMTX API responding on port {{ mediamtx_demo.streaming.api_port }}"
+    API_OK=true
+else
+    echo "❌ MediaMTX API not responding"
+    echo "   Check if service is running and port {{ mediamtx_demo.streaming.api_port }} is free"
+    API_OK=false
+fi
+
+# Check FFmpeg availability
+echo -e "\n🔍 3. Checking FFmpeg availability..."
+if command -v ffmpeg >/dev/null 2>&1; then
+    FFMPEG_VERSION=$(ffmpeg -version 2>/dev/null | head -1)
+    echo "✅ FFmpeg found: $FFMPEG_VERSION"
+    FFMPEG_OK=true
+else
+    echo "❌ FFmpeg not found"
+    echo "   Install with: brew install ffmpeg"
+    FFMPEG_OK=false
+fi
+
+# List available cameras (safe operation)
+echo -e "\n🔍 4. Listing available cameras..."
+if [ "$FFMPEG_OK" = true ]; then
+    echo "Available video devices:"
+    ffmpeg -f avfoundation -list_devices true -i "" 2>&1 | grep -E "\[AVFoundation.*\] \[[0-9]+\]" | head -5
+    echo ""
+    echo "📝 NOTE: Camera access permissions may be needed for actual streaming"
+    echo "   Grant camera permission to Terminal or your terminal app in:"
+    echo "   System Preferences → Security & Privacy → Camera"
+fi
+
+# Provide ready-to-use commands
+echo -e "\n🚀 5. Ready-to-use commands:"
+echo ""
+echo "📹 Start camera streaming:"
+echo "   ffmpeg -f avfoundation -framerate {{ mediamtx_demo.camera.framerate }} -pixel_format {{ mediamtx_demo.camera.pixel_format }} -i \"{{ mediamtx_demo.camera.device_id }}\" -c:v {{ mediamtx_demo.camera.codec }} -preset {{ mediamtx_demo.camera.preset }} -r {{ mediamtx_demo.camera.framerate }} -f rtsp rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}"
+echo ""
+echo "👀 View stream locally:"
+echo "   vlc rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}"
+echo ""
+echo "🌐 View stream remotely:"
+echo "   vlc rtsp://{{ inventory_hostname }}:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}"
+echo ""
+echo "📊 Check stream status:"
+echo "   curl http://localhost:{{ mediamtx_demo.streaming.api_port }}/v3/paths/list"
+
+# Summary
+echo -e "\n📋 Environment Summary:"
+if [ "$SERVICE_OK" = true ] && [ "$API_OK" = true ] && [ "$FFMPEG_OK" = true ]; then
+    echo "✅ All systems ready for streaming!"
+    echo "💡 Camera permissions may be needed - test the ffmpeg command above"
+else
+    echo "⚠️  Some components need attention:"
+    [ "$SERVICE_OK" = false ] && echo "   - MediaMTX service not running"
+    [ "$API_OK" = false ] && echo "   - MediaMTX API not responding"
+    [ "$FFMPEG_OK" = false ] && echo "   - FFmpeg not installed"
+fi

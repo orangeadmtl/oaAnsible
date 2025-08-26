@@ -1,0 +1,352 @@
+# MediaMTX Demo - Comprehensive Streaming Example
+
+> **🎯 SHOWCASE PROJECT**: This demo showcases MediaMTX integration with the OrangeAd CamGuard stack, demonstrating automated deployment, camera streaming, and Python data processing in a production-ready environment.
+
+Deployed to **{{ inventory_hostname }}** ({{ ansible_host }}) via Ansible automation.
+
+---
+
+## 📋 Overview
+
+This MediaMTX demo provides a complete example of:
+
+- **📹 Real-time camera streaming** via RTSP protocol
+- **🚀 Auto-start configuration** using macOS LaunchAgent
+- **🐍 Python integration** for camera data processing
+- **🔧 Infrastructure as Code** deployment via Ansible
+- **📊 API monitoring** and health checking
+- **🌐 Remote access** through Tailscale networking
+
+### Why This Demo Matters
+
+- **Production Integration**: Shows how MediaMTX integrates with existing CamGuard infrastructure
+- **Automation Excellence**: Demonstrates full deployment automation from bare metal to running service
+- **Cross-Platform Compatibility**: Uses CamGuard-standard framerates and configurations
+- **Developer-Friendly**: Includes comprehensive tooling, scripts, and documentation
+
+---
+
+## 🚀 Quick Start
+
+### 1. Verify Installation
+
+```bash
+# Check MediaMTX service status
+./scripts/status.sh
+
+# Test camera access and permissions
+./scripts/test_camera.sh
+```
+
+### 2. Start Camera Streaming
+
+```bash
+# Optimized command with native pixel format
+ffmpeg -f avfoundation -framerate {{ mediamtx_demo.camera.framerate }} -pixel_format {{ mediamtx_demo.camera.pixel_format }} -i "{{ mediamtx_demo.camera.device_id }}" -c:v {{ mediamtx_demo.camera.codec }} -preset {{ mediamtx_demo.camera.preset }} -r {{ mediamtx_demo.camera.framerate }} -f rtsp rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
+```
+
+### 3. View Stream
+
+**Local Viewing:**
+```bash
+# VLC Media Player
+vlc rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
+
+# FFplay (lightweight)
+ffplay rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
+```
+
+**Remote Viewing (via Tailscale):**
+```bash
+# From any device on Tailscale network
+vlc rtsp://{{ ansible_host }}:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
+```
+
+### 4. Python Data Processing (uv-powered)
+
+```bash
+# Using uv run (recommended - no activation needed)
+uv run --project . python scripts/{{ mediamtx_demo.python.script_name }} --headless
+
+# With display (shows video window)
+uv run --project . python scripts/{{ mediamtx_demo.python.script_name }}
+
+# Or using virtual environment (traditional approach)
+source {{ mediamtx_demo.python.venv_path }}/bin/activate
+python scripts/{{ mediamtx_demo.python.script_name }} --headless
+deactivate
+```
+
+---
+
+## 📚 Detailed Setup Guide
+
+### System Requirements
+
+- **macOS** with camera device
+- **Homebrew** package manager
+- **FFmpeg** with avfoundation support
+- **Python 3.8+** with uv package manager (faster than pip)
+- **Tailscale** for remote access (optional)
+
+### Service Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Camera Input  │───▶│   MediaMTX      │───▶│  RTSP Clients   │
+│   (avfoundation)│    │   (Port 8554)   │    │   (VLC, etc.)   │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │   API Monitor   │
+                       │   (Port 9997)   │
+                       └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │ Python Scripts  │
+                       │  Data Process   │
+                       └─────────────────┘
+```
+
+### Configuration Details
+
+| Component | Value | Description |
+|-----------|-------|-------------|
+| **RTSP Port** | `{{ mediamtx_demo.streaming.rtsp_port }}` | Main streaming port for RTSP clients |
+| **API Port** | `{{ mediamtx_demo.streaming.api_port }}` | HTTP API for monitoring and stats |
+| **Stream Path** | `{{ mediamtx_demo.streaming.stream_path }}` | RTSP endpoint path |
+| **Camera Device** | `{{ mediamtx_demo.camera.device_id }}` | macOS camera device index |
+| **Resolution** | `{{ mediamtx_demo.camera.resolution }}` | Video capture resolution |
+| **Framerate** | `{{ mediamtx_demo.camera.framerate }} fps` | CamGuard-standard framerate |
+| **Pixel Format** | `{{ mediamtx_demo.camera.pixel_format }}` | Native camera pixel format |
+| **Service Name** | `{{ mediamtx_demo.service.name }}` | macOS LaunchAgent identifier |
+
+---
+
+## 🛠️ Advanced Usage
+
+### Service Management
+
+```bash
+# Manual service control
+./scripts/start.sh    # Load and start LaunchAgent
+./scripts/stop.sh     # Unload LaunchAgent
+./scripts/status.sh   # Check service status
+
+# System-level control
+launchctl load -w ~/Library/LaunchAgents/{{ mediamtx_demo.service.name }}.plist
+launchctl unload ~/Library/LaunchAgents/{{ mediamtx_demo.service.name }}.plist
+launchctl list | grep {{ mediamtx_demo.service.name }}
+```
+
+### API Monitoring
+
+```bash
+# Check MediaMTX API
+curl http://localhost:{{ mediamtx_demo.streaming.api_port }}/v3/paths/list
+
+# Get stream statistics
+curl http://localhost:{{ mediamtx_demo.streaming.api_port }}/v3/paths/get/{{ mediamtx_demo.streaming.stream_path }}
+
+# Health check
+curl -f http://localhost:{{ mediamtx_demo.streaming.api_port }}/v3/paths/list || echo "Service down"
+```
+
+### Custom FFmpeg Parameters
+
+```bash
+# High quality (1080p, 60fps)
+ffmpeg -f avfoundation -framerate 60.000000 -video_size 1920x1080 -pixel_format {{ mediamtx_demo.camera.pixel_format }} -i "{{ mediamtx_demo.camera.device_id }}" -c:v {{ mediamtx_demo.camera.codec }} -preset medium -b:v 5M -f rtsp rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
+
+# Low latency (optimized for real-time)
+ffmpeg -f avfoundation -framerate {{ mediamtx_demo.camera.framerate }} -pixel_format {{ mediamtx_demo.camera.pixel_format }} -i "{{ mediamtx_demo.camera.device_id }}" -c:v {{ mediamtx_demo.camera.codec }} -preset ultrafast -tune zerolatency -f rtsp rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
+
+# Multi-camera setup (requires multiple streams)
+ffmpeg -f avfoundation -framerate {{ mediamtx_demo.camera.framerate }} -pixel_format {{ mediamtx_demo.camera.pixel_format }} -i "1" -c:v {{ mediamtx_demo.camera.codec }} -preset {{ mediamtx_demo.camera.preset }} -f rtsp rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/camera2
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**🚨 Camera Access Denied**
+```bash
+# Fix permissions automatically
+./scripts/fix_permissions.sh
+
+# Manual permission grant (if needed)
+# System Preferences → Security & Privacy → Privacy → Camera
+# Enable checkbox for Terminal or your streaming application
+```
+
+**🚨 Service Won't Start**
+```bash
+# Check for conflicts
+sudo lsof -i :{{ mediamtx_demo.streaming.rtsp_port }}
+sudo lsof -i :{{ mediamtx_demo.streaming.api_port }}
+
+# Restart service
+./scripts/stop.sh && sleep 2 && ./scripts/start.sh
+
+# Check logs
+tail -f {{ mediamtx_demo.storage.logs_dir }}/mediamtx.log
+```
+
+**🚨 FFmpeg Pixel Format Error**
+```
+# The demo automatically uses uyvy422 format for compatibility
+# If issues persist, try alternative formats:
+-pixel_format nv12     # Alternative native format
+-pixel_format yuyv422  # Another compatible format
+```
+
+**🚨 Stream Quality Issues**
+```bash
+# Check network bandwidth
+iftop -i tailscale0
+
+# Adjust quality settings
+# Lower resolution: -video_size 320x240
+# Lower framerate: -framerate 15.000000
+# Faster preset: -preset superfast
+```
+
+### Debug Commands
+
+```bash
+# List available cameras and formats
+ffmpeg -f avfoundation -list_devices true -i ""
+
+# Test camera without streaming
+ffmpeg -f avfoundation -framerate {{ mediamtx_demo.camera.framerate }} -i "{{ mediamtx_demo.camera.device_id }}" -t 10 -f null -
+
+# Monitor MediaMTX logs in real-time
+tail -f {{ mediamtx_demo.storage.logs_dir }}/mediamtx.log
+```
+
+---
+
+## 🎯 Showcase Benefits
+
+### For DevOps Teams
+
+- **Infrastructure as Code**: Complete automation from bare metal to running service
+- **Idempotent Deployments**: Run multiple times safely with consistent results
+- **Service Management**: Production-ready LaunchAgent configuration
+- **Monitoring Integration**: API endpoints for health checks and metrics
+
+### For Developers
+
+- **Python Integration**: Ready-to-use OpenCV camera processing examples
+- **API Documentation**: RESTful endpoints for stream management
+- **Cross-Platform Compatibility**: Works with existing CamGuard infrastructure
+- **Extensible Architecture**: Easy to modify for custom use cases
+
+### For System Integrators
+
+- **Tailscale Integration**: Secure remote access without VPN complexity
+- **Standards Compliance**: Uses industry-standard RTSP protocol
+- **Performance Optimized**: Native pixel formats and CamGuard framerates
+- **Production Ready**: Automatic restarts, logging, and error handling
+
+---
+
+## 🔄 Deployment & Updates
+
+### Initial Deployment
+
+This demo was automatically deployed using the OrangeAd Ansible automation:
+
+```bash
+# From oaAnsible project root
+./scripts/run projects/mediamtx-demo/test -l kampus-demo-001 -t mediamtx-demo
+```
+
+### Update Process
+
+```bash
+# Redeploy with latest configuration
+cd /path/to/oaAnsible
+./scripts/run projects/mediamtx-demo/test -l {{ inventory_hostname }} -t mediamtx-demo
+
+# Update only specific components
+ansible-playbook -i inventory/projects/mediamtx-demo/test.yml playbooks/universal.yml --tags "mediamtx-demo" --limit {{ inventory_hostname }}
+```
+
+### Configuration Management
+
+**Ansible Role**: `macos/mediamtx_demo`  
+**Inventory**: `inventory/projects/mediamtx-demo/test.yml`  
+**Playbook**: `playbooks/universal.yml`  
+**Component Tag**: `mediamtx-demo`
+
+---
+
+## 📦 Dependencies
+
+### System Dependencies (Auto-installed)
+```bash
+# FFmpeg with avfoundation support
+brew install ffmpeg
+
+# MediaMTX binary (latest release)
+# Automatically downloaded from: https://github.com/bluenviron/mediamtx/releases/latest
+```
+
+### Python Dependencies (Auto-installed with uv)
+```bash
+# uv (Python package manager) - auto-installed by Ansible
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Dependencies (installed via uv)
+{% for dep in mediamtx_demo.python.dependencies %}
+uv pip install {{ dep }}
+{% endfor %}
+```
+
+---
+
+## 🌐 Integration Examples
+
+### With CamGuard Stack
+
+This demo uses CamGuard-standard configurations:
+- **Framerate**: `{{ mediamtx_demo.camera.framerate }}` fps (matches CamGuard)
+- **Service Naming**: `com.orangead.*` prefix for consistency
+- **Directory Structure**: Follows OrangeAd conventions
+
+### With oaTracker
+
+```python
+# Example integration with oaTracker API
+import requests
+
+# Get MediaMTX stream info
+mediamtx_api = "http://localhost:{{ mediamtx_demo.streaming.api_port }}"
+stream_info = requests.get(f"{mediamtx_api}/v3/paths/get/{{ mediamtx_demo.streaming.stream_path }}")
+
+# Use with oaTracker processing
+rtsp_url = "rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}"
+# Feed to oaTracker for AI processing...
+```
+
+### With oaDashboard
+
+The MediaMTX demo can be monitored through oaDashboard:
+- **Health Endpoint**: `http://{{ ansible_host }}:{{ mediamtx_demo.streaming.api_port }}/v3/paths/list`
+- **Stream Status**: Real-time connection count and bandwidth usage
+- **Integration**: Extends existing macOS device monitoring
+
+---
+
+## 📞 Support & Documentation
+
+**Project Repository**: [OrangeAd Pangaea](https://github.com/orangead/oaPangaea)  
+**Ansible Role**: `oaAnsible/roles/macos/mediamtx_demo`  
+**MediaMTX Documentation**: [mediamtx.io](https://mediamtx.io)
+
+For deployment issues or feature requests, see the project's issue tracker or contact the OrangeAd DevOps team.

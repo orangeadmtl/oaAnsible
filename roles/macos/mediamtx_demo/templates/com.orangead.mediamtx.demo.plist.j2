@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{ mediamtx_demo.service.name }}</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{ mediamtx_demo.binary.install_dir }}/mediamtx</string>
+        <string>{{ mediamtx_demo.binary.config_dir }}/mediamtx.yml</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>{{ mediamtx_demo.demo.base_dir }}</string>
+
+    <key>StandardOutPath</key>
+    <string>{{ mediamtx_demo.storage.logs_dir }}/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>{{ mediamtx_demo.storage.logs_dir }}/stderr.log</string>
+
+    <key>KeepAlive</key>
+    <{{ mediamtx_demo.service.keep_alive | lower }}/>
+
+    <key>RunAtLoad</key>
+    <{{ mediamtx_demo.service.run_at_load | lower }}/>
+
+    <!-- Restart configuration -->
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <!-- Environment variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:{{ mediamtx_demo.binary.install_dir }}</string>
+        <key>HOME</key>
+        <string>{{ ansible_user_dir }}</string>
+    </dict>
+
+    <!-- Process settings -->
+    <key>ProcessType</key>
+    <string>Interactive</string>
+
+    <!-- User context -->
+    <key>UserName</key>
+    <string>{{ mediamtx_demo.service.user }}</string>
+
+    <!-- Logging -->
+    <key>AbandonProcessGroup</key>
+    <true/>
+</dict>
+</plist>

@@ -1,0 +1,211 @@
+---
+- name: MediaMTX Demo deployment
+  when: mediamtx_demo.enabled | default(false)
+  tags: ["mediamtx-demo"]
+  block:
+    - name: Merge MediaMTX demo defaults with inventory overrides
+      ansible.builtin.set_fact:
+        mediamtx_demo: "{{ macos_mediamtx_demo_defaults | combine(mediamtx_demo | default({}), recursive=True) }}"
+      tags: ["mediamtx-demo", "config"]
+
+    - name: Check if ffmpeg is installed
+      ansible.builtin.command: which ffmpeg
+      register: ffmpeg_check
+      failed_when: false
+      changed_when: false
+      tags: ["mediamtx-demo", "dependencies"]
+
+    - name: Install ffmpeg via Homebrew
+      community.general.homebrew:
+        name: ffmpeg
+        state: present
+      when: ffmpeg_check.rc != 0
+      tags: ["mediamtx-demo", "dependencies"]
+
+    - name: Create MediaMTX demo directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      loop:
+        - "{{ mediamtx_demo.demo.base_dir }}"
+        - "{{ mediamtx_demo.binary.install_dir }}"
+        - "{{ mediamtx_demo.binary.config_dir }}" 
+        - "{{ mediamtx_demo.storage.logs_dir }}"
+        - "{{ mediamtx_demo.storage.scripts_dir }}"
+        - "{{ mediamtx_demo.demo.base_dir }}/plist"
+      tags: ["mediamtx-demo", "setup"]
+
+    - name: Check if MediaMTX is installed
+      ansible.builtin.stat:
+        path: "{{ mediamtx_demo.binary.install_dir }}/mediamtx"
+      register: mediamtx_check
+      tags: ["mediamtx-demo", "dependencies"]
+
+    - name: Download and install MediaMTX
+      when: not mediamtx_check.stat.exists
+      tags: ["mediamtx-demo", "dependencies"]
+      block:
+        - name: Get latest MediaMTX release info
+          ansible.builtin.uri:
+            url: "{{ mediamtx_demo.binary.download_url_pattern }}"
+            method: GET
+          register: mediamtx_release
+
+        - name: Download MediaMTX binary
+          ansible.builtin.get_url:
+            url: "{{ mediamtx_release.json.assets | selectattr('name', 'match', '.*darwin_arm64.*') | map(attribute='browser_download_url') | first }}"
+            dest: "/tmp/mediamtx.tar.gz"
+            mode: "0644"
+          when: mediamtx_release is defined and mediamtx_release.json is defined
+
+        - name: Extract MediaMTX
+          ansible.builtin.command: |
+            tar -xzf /tmp/mediamtx.tar.gz -C /tmp
+          args:
+            creates: /tmp/mediamtx
+
+        - name: Install MediaMTX binary
+          ansible.builtin.copy:
+            src: "/tmp/mediamtx"
+            dest: "{{ mediamtx_demo.binary.install_dir }}/mediamtx"
+            mode: "0755"
+            owner: "{{ ansible_user }}"
+            group: staff
+            remote_src: true
+
+        - name: Clean up download files
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "/tmp/mediamtx.tar.gz"
+            - "/tmp/mediamtx"
+            - "/tmp/mediamtx.yml"
+
+    - name: Generate MediaMTX configuration
+      ansible.builtin.template:
+        src: mediamtx.yml.j2
+        dest: "{{ mediamtx_demo.binary.config_dir }}/mediamtx.yml"
+        mode: "0644"
+        owner: "{{ ansible_user }}"
+        group: staff
+      notify: restart mediamtx demo service
+      tags: ["mediamtx-demo", "config"]
+
+    - name: Create MediaMTX demo LaunchAgent plist
+      ansible.builtin.template:
+        src: com.orangead.mediamtx.demo.plist.j2
+        dest: "{{ mediamtx_demo.demo.base_dir }}/plist/com.orangead.mediamtx.demo.plist"
+        mode: "0644"
+        owner: "{{ ansible_user }}"
+        group: staff
+      notify: restart mediamtx demo service
+      tags: ["mediamtx-demo", "service"]
+
+    - name: Generate demo helper scripts
+      ansible.builtin.template:
+        src: "{{ item.src }}"
+        dest: "{{ mediamtx_demo.storage.scripts_dir }}/{{ item.dest }}"
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      loop:
+        - src: start.sh.j2
+          dest: start.sh
+        - src: stop.sh.j2
+          dest: stop.sh
+        - src: status.sh.j2
+          dest: status.sh
+        - src: test_camera.sh.j2
+          dest: test_camera.sh
+        - src: fix_permissions.sh.j2
+          dest: fix_permissions.sh
+      tags: ["mediamtx-demo", "scripts"]
+
+    - name: Generate Python environment setup script
+      ansible.builtin.template:
+        src: setup_python.sh.j2
+        dest: "{{ mediamtx_demo.storage.scripts_dir }}/setup_python.sh"
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      when: mediamtx_demo.python.enabled | default(true)
+      tags: ["mediamtx-demo", "scripts", "python"]
+
+    - name: Generate Python camera reader script
+      ansible.builtin.template:
+        src: read_camera.py.j2
+        dest: "{{ mediamtx_demo.storage.scripts_dir }}/{{ mediamtx_demo.python.script_name }}"
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      when: mediamtx_demo.python.enabled | default(true)
+      tags: ["mediamtx-demo", "scripts", "python"]
+
+    - name: Generate setup script
+      ansible.builtin.template:
+        src: setup.sh.j2
+        dest: "{{ mediamtx_demo.demo.base_dir }}/setup.sh"
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: staff
+      tags: ["mediamtx-demo", "setup"]
+
+    - name: Generate README
+      ansible.builtin.template:
+        src: README.md.j2
+        dest: "{{ mediamtx_demo.demo.base_dir }}/README.md"
+        mode: "0644"
+        owner: "{{ ansible_user }}"
+        group: staff
+      tags: ["mediamtx-demo", "documentation"]
+
+    - name: Install LaunchAgent plist
+      ansible.builtin.copy:
+        src: "{{ mediamtx_demo.demo.base_dir }}/plist/com.orangead.mediamtx.demo.plist"
+        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.mediamtx.demo.plist"
+        mode: "0644"
+        owner: "{{ ansible_user }}"
+        group: staff
+        remote_src: true
+      notify: restart mediamtx demo service
+      tags: ["mediamtx-demo", "service"]
+
+    - name: Load and start MediaMTX demo service
+      ansible.builtin.command: >
+        launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.mediamtx.demo.plist
+      become: false
+      register: launchctl_result
+      failed_when:
+        - launchctl_result.rc != 0
+        - "'already loaded' not in launchctl_result.stderr"
+      changed_when: launchctl_result.rc == 0
+      tags: ["mediamtx-demo", "service"]
+
+    - name: Verify MediaMTX demo service is running
+      ansible.builtin.command: >
+        launchctl list com.orangead.mediamtx.demo
+      become: false
+      register: service_status
+      failed_when: false
+      changed_when: false
+      tags: ["mediamtx-demo", "verification"]
+
+    - name: Display MediaMTX demo deployment summary
+      ansible.builtin.debug:
+        msg: |
+          MediaMTX Demo Deployed Successfully:
+          - Location: {{ mediamtx_demo.demo.base_dir }}
+          - RTSP Stream: rtsp://{{ inventory_hostname }}:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
+          - API: http://{{ inventory_hostname }}:{{ mediamtx_demo.streaming.api_port }}
+          - Service Status: {{ 'Running ✅' if service_status.rc == 0 else 'Not Running ❌' }}
+          
+          Quick Start:
+          1. Test camera: {{ mediamtx_demo.storage.scripts_dir }}/test_camera.sh
+          2. Start streaming: ffmpeg -f avfoundation -i "{{ mediamtx_demo.camera.device_id }}" -c:v {{ mediamtx_demo.camera.codec }} -preset {{ mediamtx_demo.camera.preset }} -r {{ mediamtx_demo.camera.framerate }} -f rtsp rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
+          3. Read with Python: python3 {{ mediamtx_demo.storage.scripts_dir }}/{{ mediamtx_demo.python.script_name }} --headless
+          4. View remotely: vlc rtsp://{{ inventory_hostname }}:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
+      tags: ["mediamtx-demo", "summary"]

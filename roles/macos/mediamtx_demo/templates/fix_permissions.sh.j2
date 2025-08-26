@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# MediaMTX Demo - Fix Camera and Service Permissions
+# Based on CamGuard security patterns
+
+set -e
+
+echo "🔧 Fixing MediaMTX Demo Permissions"
+echo "==================================="
+
+# Fix LaunchAgent service
+echo "1. Fixing LaunchAgent service..."
+
+# Unload existing service if loaded
+launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/{{ mediamtx_demo.service.name }}.plist 2>/dev/null || true
+
+# Ensure proper permissions on plist
+chmod 644 {{ ansible_user_dir }}/Library/LaunchAgents/{{ mediamtx_demo.service.name }}.plist
+
+# Check if MediaMTX binary exists
+if [ ! -f {{ mediamtx_demo.binary.install_dir }}/mediamtx ]; then
+    echo "❌ MediaMTX binary not found. Run Ansible deployment first."
+    exit 1
+fi
+
+# Load service with better error handling
+echo "Loading LaunchAgent service..."
+if launchctl load -w {{ ansible_user_dir }}/Library/LaunchAgents/{{ mediamtx_demo.service.name }}.plist 2>&1; then
+    echo "✅ LaunchAgent service loaded successfully"
+else
+    echo "⚠️ LaunchAgent load failed, but will continue with manual startup"
+    # Start MediaMTX manually as fallback
+    cd {{ mediamtx_demo.demo.base_dir }}
+    ./bin/mediamtx config/mediamtx.yml &
+    echo $! > .pid
+    sleep 2
+fi
+
+# Fix camera permissions
+echo -e "\n2. Fixing camera permissions..."
+
+echo "Requesting camera permissions for Terminal and FFmpeg..."
+
+# Create a simple camera test
+echo "Testing basic camera access..."
+if ffmpeg -f avfoundation -i "{{ mediamtx_demo.camera.device_id }}" -t 1 -f null - 2>/dev/null; then
+    echo "✅ Camera access working!"
+else
+    echo "❌ Camera access denied"
+    echo ""
+    echo "📋 Manual steps needed:"
+    echo "1. Open System Preferences/Settings"
+    echo "2. Go to Security & Privacy → Camera"
+    echo "3. Enable camera access for:"
+    echo "   - Terminal"
+    echo "   - Any terminal app you're using"
+    echo "4. You may need to restart Terminal after granting permissions"
+    echo ""
+    echo "⚡ Quick test after fixing permissions:"
+    echo "   ffmpeg -f avfoundation -i \"{{ mediamtx_demo.camera.device_id }}\" -t 1 -f null -"
+    echo ""
+    exit 1
+fi
+
+# Test MediaMTX status
+echo -e "\n3. Testing MediaMTX status..."
+sleep 2
+if launchctl list {{ mediamtx_demo.service.name }} >/dev/null 2>&1; then
+    echo "✅ MediaMTX is running"
+    
+    # Test API
+    if curl -s http://localhost:{{ mediamtx_demo.streaming.api_port }}/v1/paths/list > /dev/null 2>&1; then
+        echo "✅ MediaMTX API responding"
+    else
+        echo "⚠️ MediaMTX API not responding (this is OK for basic streaming)"
+    fi
+else
+    echo "❌ MediaMTX not running"
+    echo "Starting MediaMTX manually..."
+    cd {{ mediamtx_demo.demo.base_dir }}
+    ./scripts/start.sh
+fi
+
+echo -e "\n✅ Permissions fixed!"
+echo "🚀 Ready to test streaming:"
+echo "   ffmpeg -f avfoundation -i \"{{ mediamtx_demo.camera.device_id }}\" -c:v {{ mediamtx_demo.camera.codec }} -preset {{ mediamtx_demo.camera.preset }} -r {{ mediamtx_demo.camera.framerate }} -f rtsp rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}"
