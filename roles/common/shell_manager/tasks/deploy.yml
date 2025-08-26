@@ -117,5 +117,5 @@
           - Target Shell: {{ target_shell }}
           - Profile File: {{ shell_profile_file }}
           - RC File: {{ shell_rc_file }}
-          - Components Enabled: {{ shell_config.components.keys() | select('enabled') | list | join(', ') }}
+          - Components Available: {{ shell_config.components.keys() | list | join(', ') }}
           - Validation: Passed
