@@ -1,0 +1,103 @@
+---
+# MediaMTX Demo Deployment Playbook - Simplified
+# Purpose: Deploy MediaMTX demo to ~/mediamtx-demo with auto-start and Python example
+# Target: kampus-demo-001 (standalone demo environment)
+# Requirements: Loads on boot, stays open, basic Python camera reading example
+
+- name: MediaMTX Demo Simple Setup
+  hosts: demo_hosts
+  become: no  # Run as user, not root
+  gather_facts: yes
+  
+  vars:
+    demo_banner: |
+      
+      ╔════════════════════════════════════════════════════════════════╗
+      ║                    MediaMTX Demo - Simple                      ║
+      ║                                                                ║
+      ║  🎥 Auto-start RTSP Streaming                                  ║
+      ║  🐍 Python Camera Reading Example                              ║
+      ║  📡 Deploys to ~/mediamtx-demo                                 ║
+      ║                                                                ║
+      ║  Target: {{ inventory_hostname }}                              ║
+      ║  Location: ~/mediamtx-demo                                     ║
+      ╚════════════════════════════════════════════════════════════════╝
+      
+  pre_tasks:
+    - name: Display demo banner
+      debug:
+        msg: "{{ demo_banner }}"
+    
+    - name: Verify demo environment
+      debug:
+        msg: |
+          Demo Configuration:
+          - Host: {{ inventory_hostname }}
+          - User: {{ ansible_user }}
+          - Deploy Location: {{ mediamtx_demo.demo.base_dir }}
+          - RTSP Port: {{ mediamtx_demo.streaming.rtsp_port }}
+          - API Port: {{ mediamtx_demo.streaming.api_port }}
+          - Framerate: {{ mediamtx_demo.camera.framerate }} fps (CamGuard standard)
+
+  tasks:
+    # Clean up old directories if they exist
+    - name: Remove existing mediamtx-demo directory (clean slate)
+      file:
+        path: "{{ mediamtx_demo.demo.base_dir }}"
+        state: absent
+      tags: ["cleanup"]
+    
+    # Deploy the MediaMTX Demo using our new role
+    - name: Deploy MediaMTX Demo
+      include_role:
+        name: macos/mediamtx_demo
+      tags: ["mediamtx-demo"]
+
+    # Install Python dependencies if enabled
+    - name: Install Python dependencies for camera reading
+      pip:
+        name: "{{ mediamtx_demo.python.dependencies }}"
+        state: present
+        executable: pip3
+      when: mediamtx_demo.python.enabled | default(true)
+      tags: ["python", "dependencies"]
+
+  post_tasks:
+    - name: Display demo completion message
+      debug:
+        msg: |
+          
+          🎉 MediaMTX Demo Environment Ready!
+          
+          📍 Demo Machine: {{ inventory_hostname }}
+          🌐 Tailscale IP: {{ ansible_host }}
+          📁 Location: {{ mediamtx_demo.demo.base_dir }}
+          🎥 RTSP Port: {{ mediamtx_demo.streaming.rtsp_port }}
+          🔗 API Port: {{ mediamtx_demo.streaming.api_port }}
+          
+          🚀 Quick Start:
+          1. SSH: ssh {{ ansible_user }}@{{ ansible_host }}
+          2. Go to demo: cd {{ mediamtx_demo.demo.base_dir }}
+          3. Test camera: ./scripts/test_camera.sh
+          4. Start stream: ffmpeg -f avfoundation -i "{{ mediamtx_demo.camera.device_id }}" -c:v {{ mediamtx_demo.camera.codec }} -preset {{ mediamtx_demo.camera.preset }} -r {{ mediamtx_demo.camera.framerate }} -f rtsp rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
+          5. Python demo: python3 scripts/{{ mediamtx_demo.python.script_name }} --headless
+          6. View remote: vlc rtsp://{{ ansible_host }}:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
+          
+          📋 Service: {{ mediamtx_demo.service.name }} (auto-starts on boot)
+          📂 All files in: {{ mediamtx_demo.demo.base_dir }}
+          
+    - name: Verify MediaMTX service is running
+      command: launchctl list {{ mediamtx_demo.service.name }}
+      register: service_check
+      failed_when: false
+      changed_when: false
+      
+    - name: Service status summary
+      debug:
+        msg: |
+          🔧 Service Status:
+          - MediaMTX Demo: {{ 'Running ✅' if service_check.rc == 0 else 'Not Running ❌' }}
+          
+          💡 If service not running, troubleshoot with:
+          - {{ mediamtx_demo.demo.base_dir }}/scripts/fix_permissions.sh
+          - {{ mediamtx_demo.demo.base_dir }}/scripts/status.sh
