@@ -15,7 +15,7 @@
 - name: Check macOS component compatibility
   ansible.builtin.set_fact:
     compatible_components:
-      "{{ compatible_components + ['macos-api', 'tracker', 'alpr', 'player', 'camguard', 'cursorcerer', 'base', 'network', 'security', 'ssh'] }}"
+      "{{ compatible_components + ['macos-api', 'tracker', 'alpr', 'player', 'camguard', 'mediamtx_demo', 'cursorcerer', 'base', 'network', 'security', 'ssh'] }}"
   when: target_platform == "macos"
   tags: ["always"]
 
@@ -204,6 +204,14 @@
     - target_platform == "macos"
     - "'camguard' in deployment_components | default(selected_components)"
   tags: ["camguard"]
+
+- name: Deploy MediaMTX Demo component
+  ansible.builtin.include_role:
+    name: macos/mediamtx_demo
+  when:
+    - target_platform == "macos"
+    - "'mediamtx_demo' in deployment_components | default(selected_components)"
+  tags: ["mediamtx-demo"]
 
 - name: Deploy Cursorcerer component
   ansible.builtin.include_role:
