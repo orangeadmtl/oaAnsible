@@ -1,0 +1,71 @@
+# MediaMTX Demo Environment Configuration
+# Target: kampus-demo-001 (f1-ca-001 hardware as standalone demo)
+# Deploys to ~/mediamtx-demo
+
+# Demo environment settings
+demo_environment:
+  name: "MediaMTX Demo"
+  version: "2.0.0"
+  purpose: "Simple MediaMTX streaming demo with auto-start and Python example"
+  audience: "Development team and stakeholders"
+
+# MediaMTX Demo Configuration (simplified, CamGuard-compatible)
+mediamtx_demo:
+  enabled: true
+
+  # Demo configuration - deploys to ~/mediamtx-demo
+  demo:
+    name: "MediaMTX Demo"
+    description: "Simple MediaMTX streaming demo"
+    base_dir: "{{ ansible_user_dir }}/mediamtx-demo" # Deploy to ~/mediamtx-demo
+
+  # Camera configuration (CamGuard-compatible framerate)
+  camera:
+    device_id: "0"
+    resolution: "640x480"
+    framerate: "30.000030" # CamGuard standard framerate (fixes the error)
+    preset: "ultrafast"
+    codec: "libx264"
+
+  # Streaming configuration
+  streaming:
+    rtsp_port: 8554
+    api_port: 9997
+    stream_path: "camera" # Simple path name
+    server_host: "0.0.0.0" # Allow external connections for demo
+
+  # Storage - all within ~/mediamtx-demo
+  storage:
+    logs_dir: "{{ ansible_user_dir }}/mediamtx-demo/logs"
+    scripts_dir: "{{ ansible_user_dir }}/mediamtx-demo/scripts"
+
+  # Service configuration with OrangeAd branding
+  service:
+    name: "com.orangead.mediamtx.demo"
+    user: "{{ ansible_user }}"
+    keep_alive: true
+    run_at_load: true
+    restart_on_failure: true
+
+  # Python demo script
+  python:
+    enabled: true
+    script_name: "read_camera.py"
+    dependencies:
+      - "opencv-python"
+      - "requests"
+
+# Shell manager configuration (required for deployment)
+# Using defaults from roles/common/shell_manager/defaults/main.yml
+
+# Homebrew configuration (required for macOS)
+homebrew:
+  enabled: true
+
+# Python configuration (required)
+python:
+  enabled: true
+
+# Node configuration (required)
+node:
+  enabled: true
