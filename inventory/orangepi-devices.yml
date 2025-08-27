@@ -28,5 +28,6 @@ all:
           ansible_host: "192.168.1.64"
           ansible_user: "orangepi"
           ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['kai0001'] }}"
           device_id: "kai0001"
           tailscale_hostname: "kai0001"
