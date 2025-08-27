@@ -11,7 +11,7 @@ Fast reference for common commands, deployment patterns, and operational tasks u
 ./scripts/run projects/{project}/{env} -t {component}
 
 # Examples
-./scripts/run projects/f1/prod -t macos-api
+./scripts/run projects/f1/prod -t device-api
 ./scripts/run projects/spectra/preprod -t tracker,security
 ```
 
@@ -68,7 +68,7 @@ all:
 
 | Tag | Purpose | Port | Platforms |
 |-----|---------|------|-----------|
-| `macos-api` | Device monitoring API | 9090 | macOS |
+| `device-api` | Device monitoring API | 9090 | macOS |
 | `tracker` | AI tracking system | 8080 | macOS |
 | `player` | Video player service | 3000 | macOS |
 | `alpr` | License plate recognition | 8081 | macOS |
@@ -129,7 +129,7 @@ ansible all -i projects/f1/prod.yml -m ping
 ansible all -i projects/spectra/prod.yml -m setup -a "filter=ansible_memory_mb"
 
 # Verify service processes
-ansible macos -i projects/f1/prod.yml -m shell -a "pgrep -f 'macos-api|tracker'"
+ansible macos -i projects/f1/prod.yml -m shell -a "pgrep -f 'device-api|tracker'"
 ```
 
 ## 🔧 Common Operations
@@ -139,8 +139,8 @@ ansible macos -i projects/f1/prod.yml -m shell -a "pgrep -f 'macos-api|tracker'"
 ```bash
 # macOS LaunchAgent services
 launchctl list | grep com.orangead           # List all services
-launchctl load ~/Library/LaunchAgents/com.orangead.macosapi.plist   # Start service
-launchctl unload ~/Library/LaunchAgents/com.orangead.macosapi.plist # Stop service
+launchctl load ~/Library/LaunchAgents/com.orangead.deviceapi.plist   # Start service
+launchctl unload ~/Library/LaunchAgents/com.orangead.deviceapi.plist # Stop service
 
 # Ubuntu SystemD services  
 systemctl --user list-units --type=service   # List services
@@ -152,11 +152,11 @@ systemctl --user stop orangead-api           # Stop service
 
 ```bash
 # View service logs
-tail -f ~/orangead/macos-api/logs/api.log    # API logs
+tail -f ~/orangead/device-api/logs/api.log    # API logs
 tail -f ~/orangead/tracker/logs/tracker.log  # Tracker logs
 
 # Fetch logs from remote hosts
-ansible macos -i projects/f1/prod.yml -m fetch -a "src=~/orangead/macos-api/logs/api.log dest=./logs/"
+ansible macos -i projects/f1/prod.yml -m fetch -a "src=~/orangead/device-api/logs/api.log dest=./logs/"
 
 # Log cleanup
 ansible all -m shell -a "find ~/orangead -name '*.log' -mtime +7 -delete"
@@ -235,10 +235,10 @@ ansible macos -i projects/f1/prod.yml -m file -a "path=~/orangead owner=admin mo
 
 ```bash
 # Restart failed services
-ansible macos -i projects/f1/prod.yml -m shell -a "launchctl kickstart -k gui/\$(id -u)/com.orangead.macosapi"
+ansible macos -i projects/f1/prod.yml -m shell -a "launchctl kickstart -k gui/\$(id -u)/com.orangead.deviceapi"
 
 # Check service status
-ansible macos -i projects/f1/prod.yml -m shell -a "launchctl print gui/\$(id -u)/com.orangead.macosapi"
+ansible macos -i projects/f1/prod.yml -m shell -a "launchctl print gui/\$(id -u)/com.orangead.deviceapi"
 
 # Clear and restart
 ansible macos -m shell -a "launchctl unload ~/Library/LaunchAgents/com.orangead.*.plist"
@@ -301,11 +301,11 @@ vault_sudo_passwords:
 # Complete service restart
 ansible-playbook -i projects/{project}/{env}.yml playbooks/maintenance/stop_services.yml
 sleep 30
-./scripts/run projects/{project}/{env} -t "macos-api,tracker"
+./scripts/run projects/{project}/{env} -t "device-api,tracker"
 
 # System recovery
 ansible macos -i projects/{project}/{env}.yml -m file -a "path=~/orangead state=absent"
-./scripts/run projects/{project}/{env} -t "base,macos-api,tracker"
+./scripts/run projects/{project}/{env} -t "base,device-api,tracker"
 ```
 
 ### Emergency Host Access

@@ -19,7 +19,7 @@ This directory contains the streamlined playbook structure for OrangeAd infrastr
   ansible-playbook universal.yml -i inventory/f1-prod.yml
   
   # Component-specific deployment
-  ansible-playbook universal.yml -i inventory/f1-prod.yml -t macos-api
+  ansible-playbook universal.yml -i inventory/f1-prod.yml -t device-api
   ansible-playbook universal.yml -i inventory/f1-prod.yml -t tracker,security
   ansible-playbook universal.yml -i inventory/ubuntu.yml -t base,network,optimization
   ```
@@ -92,7 +92,7 @@ The universal playbook supports comprehensive tag-based deployment:
 - `optimization` - Performance optimizations
 
 ### Application Tags  
-- `macos-api` (or `api`) - macOS API service
+- `device-api` (or `api`) - Device API service
 - `tracker` - Object tracking service
 - `player` - Video player service
 - `alpr` - ALPR service

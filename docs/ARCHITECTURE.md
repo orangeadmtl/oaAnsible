@@ -46,7 +46,7 @@ inventory/
 │   ├── spectra_base.yml              # Project base config
 │   └── evenko_base.yml               # Project base config
 └── components/                        # Component configurations
-    ├── macos-api.yml                 # API component config
+    ├── device-api.yml                 # API component config
     ├── tracker.yml                   # Tracker component config
     └── alpr.yml                      # ALPR component config
 ```
@@ -60,7 +60,7 @@ inventory/
 2. Platform defaults (group_vars/platforms/macos.yml)
 3. Project base (group_vars/f1_base.yml)
 4. Environment (group_vars/environments/production.yml)
-5. Component (inventory/components/macos-api.yml)
+5. Component (inventory/components/device-api.yml)
 6. Host variables (inventory/projects/f1/prod.yml)
 ```
 
@@ -103,7 +103,7 @@ graph TD
 **Available component tags:**
 
 - **Infrastructure**: `base`, `network`, `security`, `python`, `node`
-- **Services**: `macos-api`, `tracker`, `player`, `alpr`, `camguard`
+- **Services**: `device-api`, `tracker`, `player`, `alpr`, `camguard`
 - **Platform**: `ml`, `nvidia`, `docker`
 
 ### Script Workflow
@@ -131,7 +131,7 @@ graph TD
 ┌─────────────────────────────────────┐
 │          Application Layer          │
 │  ┌─────────────┐ ┌─────────────┐   │
-│  │  macos-api  │ │   tracker   │   │
+│  │  device-api  │ │   tracker   │   │
 │  └─────────────┘ └─────────────┘   │
 ├─────────────────────────────────────┤
 │           Service Layer             │
@@ -240,10 +240,10 @@ Service Deployment Pattern:
 6. Verify service health
 ```
 
-**Service structure example (macos-api):**
+**Service structure example (device-api):**
 
 ```bash
-~/orangead/macos-api/
+~/orangead/device-api/
 ├── .venv/                            # Virtual environment
 ├── macos_api/                        # Application code
 │   ├── bin/                         # Entry scripts
@@ -259,11 +259,11 @@ Service Deployment Pattern:
 **LaunchAgent integration:**
 
 ```xml
-<!-- com.orangead.macosapi.plist -->
+<!-- com.orangead.deviceapi.plist -->
 <plist>
   <dict>
     <key>Label</key>
-    <string>com.orangead.macosapi</string>
+    <string>com.orangead.deviceapi</string>
     <key>ProgramArguments</key>
     <array>
       <string>{{ python_path }}</string>

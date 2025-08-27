@@ -258,14 +258,14 @@ Global (all) → Platform (macos/ubuntu) → Project (f1/spectra) → Environmen
 **Device monitoring and management API** deployed as LaunchAgent:
 
 - **Path**: `{{ ansible_user_dir }}/orangead/macos-api/`
-- **Service**: `com.orangead.macosapi.plist`
+- **Service**: `com.orangead.deviceapi.plist`
 - **Port**: 9090 (configurable)
 - **Endpoints**: `/health`, `/system`, `/camera`, `/tracker`
 
 ```bash
 # Service management
-launchctl list | grep com.orangead.macosapi
-launchctl load ~/Library/LaunchAgents/com.orangead.macosapi.plist
+launchctl list | grep com.orangead.deviceapi
+launchctl load ~/Library/LaunchAgents/com.orangead.deviceapi.plist
 ```
 
 ### AI Tracking System (oaTracker)
@@ -380,7 +380,7 @@ ansible macos -i projects/spectra/prod.yml -m fetch \
 
 # Restart services
 ansible macos -i projects/f1/prod.yml -m shell \
-  -a "launchctl kickstart -k gui/\$(id -u)/com.orangead.macosapi"
+  -a "launchctl kickstart -k gui/\$(id -u)/com.orangead.deviceapi"
 ```
 
 ## 📚 Documentation

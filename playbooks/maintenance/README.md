@@ -23,7 +23,7 @@ ansible-playbook -i projects/f1/prod.yml playbooks/maintenance/stop_services.yml
 ```
 
 **Available Tags:**
-- `api` / `macos-api` - macOS API service
+- `api` / `device-api` - Device API service
 - `tracker` / `tracker-api` - AI tracking services
 - `player` / `video` - Video player service
 - `camguard` - CamGuard and related services

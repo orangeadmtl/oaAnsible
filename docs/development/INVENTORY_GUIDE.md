@@ -42,7 +42,7 @@ inventory/
 │   ├── evenko_base.yml               # Evenko project base configuration
 │   └── alpr_base.yml                 # ALPR project base configuration
 └── components/                        # Component-specific configurations
-    ├── macos-api.yml                 # API component settings
+    ├── device-api.yml                 # API component settings
     ├── tracker.yml                   # Tracker component settings
     ├── player.yml                    # Player component settings
     ├── camguard.yml                  # Camguard component settings
@@ -236,7 +236,7 @@ service_configs:
 
 ```bash
 # Deploy to F1 production environment
-./scripts/run projects/f1/prod -t macos-api,tracker
+./scripts/run projects/f1/prod -t device-api,tracker
 
 # Deploy to Spectra pre-production
 ./scripts/run projects/spectra/preprod -t base,network,security
@@ -259,7 +259,7 @@ For host `f1-ca-001` in `projects/f1/prod.yml`:
 
 ```bash
 # Deploy only API component with component-specific variables
-./scripts/run projects/f1/prod -t macos-api
+./scripts/run projects/f1/prod -t device-api
 
 # Deploy tracker with specialized configuration
 ./scripts/run projects/evenko/tracker-prod -t tracker

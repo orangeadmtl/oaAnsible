@@ -229,7 +229,7 @@ ip route | grep 100.64
 **Error Messages:**
 
 ```bash
-FAILED - RETVAL: 1 >> The service com.orangead.macosapi could not be loaded
+FAILED - RETVAL: 1 >> The service com.orangead.deviceapi could not be loaded
 ```
 
 **Diagnosis:**
@@ -242,7 +242,7 @@ ansible macos -i projects/f1/prod.yml -m shell -a "launchctl list | grep com.ora
 ansible macos -i projects/f1/prod.yml -m shell -a "ls -la ~/Library/LaunchAgents/com.orangead.*.plist"
 
 # Check service logs
-ansible macos -i projects/f1/prod.yml -m fetch -a "src=~/orangead/macos-api/logs/api.log dest=./debug-logs/"
+ansible macos -i projects/f1/prod.yml -m fetch -a "src=~/orangead/device-api/logs/api.log dest=./debug-logs/"
 ```
 
 **Solutions:**
@@ -260,26 +260,26 @@ ansible macos -i projects/f1/prod.yml -m fetch -a "src=~/orangead/macos-api/logs
 
    ```bash
    # Unload service
-   ansible macos -i projects/f1/prod.yml -m shell -a "launchctl unload ~/Library/LaunchAgents/com.orangead.macosapi.plist"
+   ansible macos -i projects/f1/prod.yml -m shell -a "launchctl unload ~/Library/LaunchAgents/com.orangead.deviceapi.plist"
 
    # Load service
-   ansible macos -i projects/f1/prod.yml -m shell -a "launchctl load ~/Library/LaunchAgents/com.orangead.macosapi.plist"
+   ansible macos -i projects/f1/prod.yml -m shell -a "launchctl load ~/Library/LaunchAgents/com.orangead.deviceapi.plist"
 
    # Force restart
-   ansible macos -i projects/f1/prod.yml -m shell -a "launchctl kickstart -k gui/\$(id -u)/com.orangead.macosapi"
+   ansible macos -i projects/f1/prod.yml -m shell -a "launchctl kickstart -k gui/\$(id -u)/com.orangead.deviceapi"
    ```
 
 3. **Check Service Dependencies:**
 
    ```bash
    # Verify Python environment
-   ansible macos -i projects/f1/prod.yml -m shell -a "~/orangead/macos-api/.venv/bin/python --version"
+   ansible macos -i projects/f1/prod.yml -m shell -a "~/orangead/device-api/.venv/bin/python --version"
 
    # Check required packages
-   ansible macos -i projects/f1/prod.yml -m shell -a "~/orangead/macos-api/.venv/bin/pip list | grep fastapi"
+   ansible macos -i projects/f1/prod.yml -m shell -a "~/orangead/device-api/.venv/bin/pip list | grep fastapi"
 
    # Test manual startup
-   ansible macos -i projects/f1/prod.yml -m shell -a "cd ~/orangead/macos-api && .venv/bin/python main.py"
+   ansible macos -i projects/f1/prod.yml -m shell -a "cd ~/orangead/device-api && .venv/bin/python main.py"
    ```
 
 ### Problem: Service Port Already in Use
@@ -298,7 +298,7 @@ OSError: [Errno 48] Address already in use
 ansible macos -i projects/f1/prod.yml -m shell -a "lsof -i :9090"
 
 # Check for multiple service instances
-ansible macos -i projects/f1/prod.yml -m shell -a "pgrep -f macos-api"
+ansible macos -i projects/f1/prod.yml -m shell -a "pgrep -f device-api"
 ```
 
 **Solutions:**
@@ -316,7 +316,7 @@ ansible macos -i projects/f1/prod.yml -m shell -a "pgrep -f macos-api"
 
    ```bash
    # Deploy with different port
-   ./scripts/run projects/f1/prod -t macos-api -e "macos_api_port=9091"
+   ./scripts/run projects/f1/prod -t device-api -e "macos_api_port=9091"
    ```
 
 <!-- markdownlint-disable-next-line MD033 -->
@@ -408,7 +408,7 @@ ansible-vault view inventory/group_vars/all/vault.yml | grep "vault_"
 
    ```bash
    # Explicitly load vault in playbook run
-   ./scripts/run projects/f1/prod -t macos-api --extra-vars "@inventory/group_vars/all/vault.yml"
+   ./scripts/run projects/f1/prod -t device-api --extra-vars "@inventory/group_vars/all/vault.yml"
    ```
 
 <!-- markdownlint-disable-next-line MD033 -->
@@ -548,10 +548,10 @@ FAILED - RETVAL: 1 >> Service check failed
 curl -v http://100.64.1.10:9090/health
 
 # Check service logs
-ansible macos -i projects/f1/prod.yml -m shell -a "tail -50 ~/orangead/macos-api/logs/api.log"
+ansible macos -i projects/f1/prod.yml -m shell -a "tail -50 ~/orangead/device-api/logs/api.log"
 
 # Verify service process
-ansible macos -i projects/f1/prod.yml -m shell -a "pgrep -f macos-api"
+ansible macos -i projects/f1/prod.yml -m shell -a "pgrep -f device-api"
 ```
 
 **Solutions:**
@@ -563,17 +563,17 @@ ansible macos -i projects/f1/prod.yml -m shell -a "pgrep -f macos-api"
    ssh admin@100.64.1.10 "launchctl list | grep com.orangead"
 
    # Test service manually
-   ssh admin@100.64.1.10 "cd orangead/macos-api && .venv/bin/python main.py"
+   ssh admin@100.64.1.10 "cd orangead/device-api && .venv/bin/python main.py"
    ```
 
 2. **Debug Service Configuration:**
 
    ```bash
    # Check service configuration
-   ansible macos -i projects/f1/prod.yml -m fetch -a "src=~/Library/LaunchAgents/com.orangead.macosapi.plist dest=./debug/"
+   ansible macos -i projects/f1/prod.yml -m fetch -a "src=~/Library/LaunchAgents/com.orangead.deviceapi.plist dest=./debug/"
 
    # Validate plist format
-   plutil -lint debug/com.orangead.macosapi.plist
+   plutil -lint debug/com.orangead.deviceapi.plist
    ```
 
 ## 📊 Performance Issues
@@ -590,7 +590,7 @@ ansible macos -i projects/f1/prod.yml -m shell -a "pgrep -f macos-api"
 
 ```bash
 # Time deployment execution
-time ./scripts/run projects/f1/prod -t macos-api
+time ./scripts/run projects/f1/prod -t device-api
 
 # Check system resources during deployment
 ansible all -i projects/f1/prod.yml -m shell -a "top -l 1 | head -10"
@@ -605,11 +605,11 @@ ansible all -i projects/f1/prod.yml -m shell -a "ping -c 3 8.8.8.8"
 
    ```bash
    # Reduce parallelism for slower networks
-   ./scripts/run projects/f1/prod -t macos-api -f 2
+   ./scripts/run projects/f1/prod -t device-api -f 2
 
    # Deploy components separately
    ./scripts/run projects/f1/prod -t base
-   ./scripts/run projects/f1/prod -t macos-api
+   ./scripts/run projects/f1/prod -t device-api
    ```
 
 2. **Use Tags for Targeted Deployment:**
@@ -691,7 +691,7 @@ ansible --version
 python3 --version
 
 # Error reproduction
-./scripts/run projects/f1/prod -t macos-api -vvv 2>&1 | tee deployment-error.log
+./scripts/run projects/f1/prod -t device-api -vvv 2>&1 | tee deployment-error.log
 
 # Inventory information
 ansible-inventory -i projects/f1/prod.yml --list > inventory-dump.json

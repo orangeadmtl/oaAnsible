@@ -32,7 +32,7 @@ This directory contains playbooks that have been superseded by the universal com
 
 ```bash
 # Deploy specific components
-ansible-playbook universal.yml -i inventory/f1-prod.yml -t macos-api
+ansible-playbook universal.yml -i inventory/f1-prod.yml -t device-api
 ansible-playbook universal.yml -i inventory/f1-prod.yml -t tracker,security
 ansible-playbook universal.yml -i inventory/f1-prod.yml -t base,network,player
 
