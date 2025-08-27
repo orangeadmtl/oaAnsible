@@ -274,7 +274,7 @@ detect_deployment_status() {
     
     # Check for macos-api service via launchctl
     local macos_api_status
-    macos_api_status=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "launchctl list | grep com.orangead.macosapi || echo 'not_found'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+    macos_api_status=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "launchctl list | grep com.orangead.deviceapi || echo 'not_found'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
     
     if [[ "$macos_api_status" != "not_found" ]]; then
         ((services_found++))
@@ -614,7 +614,7 @@ validate_health() {
         # Check macos-api service status
         log_info "    🔍 Checking macos-api service..."
         local macos_api_status
-        macos_api_status=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "launchctl list | grep com.orangead.macosapi || echo 'not_found'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
+        macos_api_status=$(ANSIBLE_CONFIG="$(get_ansible_config_path)" ansible "$host" -i "$INVENTORY_PATH" -m shell -a "launchctl list | grep com.orangead.deviceapi || echo 'not_found'" --vault-password-file "$OA_ANSIBLE_VAULT_PASSWORD_FILE" -o 2>/dev/null | tail -1 | sed 's/.*(stdout) *//')
         
         if [[ "$macos_api_status" == "not_found" ]]; then
             log_warn "      ⚠️  macos-api service not found in launchctl"

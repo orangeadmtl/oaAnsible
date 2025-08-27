@@ -67,7 +67,7 @@ show_usage() {
 # Service definitions (compatible with older bash)
 get_service_id() {
     case "$1" in
-        "api") echo "com.orangead.macosapi" ;;
+        "api") echo "com.orangead.deviceapi" ;;
         "tracker") echo "com.orangead.tracker" ;;
         "player") echo "com.orangead.oemplayer" ;;
         "alpr") echo "com.orangead.alpr" ;;
@@ -223,7 +223,7 @@ echo \"[STOP] Stopping OrangeAd services on \$(hostname)...\"
 
 # Stop requested services
 if [[ \"$STOP_CMD\" == \"all\" || \"$STOP_CMD\" == *\"api\"* ]]; then
-    stop_service \"macOS API\" \"com.orangead.macosapi\"
+    stop_service \"macOS API\" \"com.orangead.deviceapi\"
 fi
 
 if [[ \"$STOP_CMD\" == \"all\" || \"$STOP_CMD\" == *\"tracker\"* ]]; then
@@ -243,7 +243,7 @@ if [ \"$SHOW_STATUS\" = true ]; then
     echo \"\"
     echo \"Service Status:\"
     if [[ \"$STOP_CMD\" == \"all\" || \"$STOP_CMD\" == *\"api\"* ]]; then
-        show_service_status \"macOS API\" \"com.orangead.macosapi\"
+        show_service_status \"macOS API\" \"com.orangead.deviceapi\"
     fi
     if [[ \"$STOP_CMD\" == \"all\" || \"$STOP_CMD\" == *\"tracker\"* ]]; then
         show_service_status \"Tracker\" \"com.orangead.tracker\"

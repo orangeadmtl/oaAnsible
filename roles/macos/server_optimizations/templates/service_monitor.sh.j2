@@ -4,7 +4,7 @@
 
 LOG_FILE="{{ ansible_user_dir }}/orangead/logs/service_monitor.log"
 SERVICES=(
-  "com.orangead.macosapi"
+  "com.orangead.deviceapi"
   "com.orangead.tracker"
   "com.tailscale.tailscaled"
 )
@@ -39,7 +39,7 @@ check_service() {
 log "Service monitoring started"
 
 # Check user agents
-check_service "com.orangead.macosapi" "agent"
+check_service "com.orangead.deviceapi" "agent"
 check_service "com.orangead.tracker" "agent"
 
 # Check system daemons
@@ -47,8 +47,8 @@ check_service "com.tailscale.tailscaled" "daemon"
 check_service "com.orangead.dailyreboot" "daemon"
 
 # Check processes
-if ! pgrep -f "macos-api" > /dev/null; then
-  log "WARNING: macos-api process not found"
+if ! pgrep -f "oaDeviceAPI" > /dev/null; then
+  log "WARNING: oaDeviceAPI process not found"
 fi
 
 if ! pgrep -f "oaTracker" > /dev/null; then
