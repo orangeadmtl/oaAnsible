@@ -7,7 +7,7 @@
     component_framework:
       available_components:
         # macOS Components
-        macos-api:
+        device-api:
           platform: "macos"
           requires: ["python", "base-system"]
           conflicts: []
@@ -19,7 +19,7 @@
 
         macos-tracker:
           platform: "macos"
-          requires: ["python", "base-system", "macos-api"]
+          requires: ["python", "base-system", "device-api"]
           conflicts: []
           provides: ["tracking-service", "mjpeg-stream"]
           health_port: 8080

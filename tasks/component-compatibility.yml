@@ -17,7 +17,7 @@
           optional_features: ["docker", "snap"]
       # Resource requirements matrix
       resource_requirements:
-        macos-api:
+        device-api:
           min_memory_mb: 512
           min_disk_mb: 1024
           cpu_cores: 1
@@ -46,9 +46,9 @@
       # Version compatibility matrix
       version_compatibility:
         python:
-          "3.11": ["macos-api", "macos-tracker", "alpr"]
-          "3.12": ["macos-api", "macos-tracker", "alpr"]
-          "3.13": ["macos-api"] # Limited compatibility for newer Python
+          "3.11": ["device-api", "macos-tracker", "alpr"]
+          "3.12": ["device-api", "macos-tracker", "alpr"]
+          "3.13": ["device-api"] # Limited compatibility for newer Python
 
         node:
           "18": ["base-system"]
@@ -60,13 +60,13 @@
           reason: "Both require exclusive camera access"
           severity: "error"
 
-        - components: ["ubuntu-docker", "macos-api"]
+        - components: ["ubuntu-docker", "device-api"]
           reason: "Different platform requirements"
           severity: "error"
 
       # Service port conflicts
       port_conflicts:
-        9090: ["macos-api"]
+        9090: ["device-api"]
         8080: ["macos-tracker"]
         8081: ["alpr"]
 

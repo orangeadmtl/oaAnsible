@@ -21,7 +21,7 @@
       - "gui"
       - "launchd"
       - "homebrew"
-      - "macos-api"
+      - "device-api"
       - "tracker"
       - "alpr"
   when: ansible_os_family == "Darwin" or ansible_system == "Darwin" or ansible_distribution == "MacOSX"
@@ -75,7 +75,7 @@
       - "gui"
       - "launchd"
       - "homebrew"
-      - "macos-api"
+      - "device-api"
       - "tracker"
       - "alpr"
   when:
