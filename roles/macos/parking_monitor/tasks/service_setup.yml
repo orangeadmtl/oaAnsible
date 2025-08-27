@@ -1,0 +1,87 @@
+---
+# Service setup tasks
+# Creates and configures the LaunchAgent service for parking monitor
+
+- name: Create LaunchAgents directory
+  file:
+    path: "{{ ansible_user_dir }}/Library/LaunchAgents"
+    state: directory
+    mode: '0755'
+
+- name: Generate LaunchAgent plist
+  template:
+    src: com.orangead.parking-monitor.plist.j2
+    dest: "{{ parking_monitor_launchd.plist_path }}"
+    mode: '0644'
+    backup: true
+  notify: restart parking monitor
+
+- name: Create startup script
+  template:
+    src: start_parking_monitor.sh.j2
+    dest: "{{ parking_monitor_repository.destination }}/scripts/start.sh"
+    mode: '0755'
+
+- name: Create health check script
+  template:
+    src: health_check.sh.j2
+    dest: "{{ parking_monitor_repository.destination }}/scripts/health_check.sh"
+    mode: '0755'
+
+- name: Create stop script
+  template:
+    src: stop_parking_monitor.sh.j2
+    dest: "{{ parking_monitor_repository.destination }}/scripts/stop.sh"
+    mode: '0755'
+
+- name: Stop existing service if running
+  shell: |
+    launchctl unload "{{ parking_monitor_launchd.plist_path }}" 2>/dev/null || true
+  changed_when: false
+
+- name: Load LaunchAgent service
+  shell: |
+    launchctl load "{{ parking_monitor_launchd.plist_path }}"
+  register: service_load
+  
+- name: Wait for service to initialize
+  pause:
+    seconds: 10
+    prompt: "Waiting for parking monitor service to initialize..."
+
+- name: Check service status
+  shell: |
+    launchctl list | grep "{{ parking_monitor_service.name }}" || echo "not_running"
+  register: service_status
+  changed_when: false
+
+- name: Verify service is loaded
+  assert:
+    that:
+      - "'not_running' not in service_status.stdout"
+    fail_msg: "Service failed to load. Check logs: tail -f {{ parking_monitor_launchd.standard_error_path }}"
+    success_msg: "✅ Service loaded successfully"
+
+- name: Create service management aliases
+  template:
+    src: parking_monitor_aliases.sh.j2
+    dest: "{{ parking_monitor_repository.destination }}/scripts/aliases.sh"
+    mode: '0755'
+
+- name: Service setup summary
+  debug:
+    msg: |
+      🚀 Service Setup Complete:
+      =========================
+      Service Name: {{ parking_monitor_service.name }}
+      LaunchAgent: {{ parking_monitor_launchd.plist_path }}
+      Status: {{ 'Running' if 'not_running' not in service_status.stdout else 'Failed to start' }}
+      Port: {{ parking_monitor_service.port }}
+      
+      Management Commands:
+      • Start:   launchctl load {{ parking_monitor_launchd.plist_path }}
+      • Stop:    launchctl unload {{ parking_monitor_launchd.plist_path }}
+      • Status:  launchctl list | grep {{ parking_monitor_service.name }}
+      • Health:  {{ parking_monitor_repository.destination }}/scripts/health_check.sh
+      • Logs:    tail -f {{ parking_monitor_launchd.standard_out_path }}
+      ========================="

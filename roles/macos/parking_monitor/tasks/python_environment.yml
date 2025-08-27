@@ -1,0 +1,94 @@
+---
+# Python environment setup tasks
+# Creates and configures the Python virtual environment for parking monitor
+
+- name: Check if Python environment exists
+  stat:
+    path: "{{ parking_monitor_python.env_path }}"
+  register: python_env_exists
+
+- name: Create Python virtual environment
+  shell: |
+    python{{ parking_monitor_python.version }} -m venv "{{ parking_monitor_python.env_path }}"
+  when: not python_env_exists.stat.exists
+
+- name: Upgrade pip in virtual environment
+  pip:
+    name: pip
+    state: latest
+    executable: "{{ parking_monitor_python.env_path }}/bin/pip"
+
+- name: Install wheel for faster package installation
+  pip:
+    name: wheel
+    state: present
+    executable: "{{ parking_monitor_python.env_path }}/bin/pip"
+
+- name: Install base dependencies
+  pip:
+    name: "{{ parking_monitor_dependencies.python_packages }}"
+    state: present
+    executable: "{{ parking_monitor_python.env_path }}/bin/pip"
+    extra_args: "--no-cache-dir"
+
+- name: Install project requirements from repository
+  pip:
+    requirements: "{{ parking_monitor_repository.destination }}/{{ parking_monitor_python.requirements_file }}"
+    executable: "{{ parking_monitor_python.env_path }}/bin/pip"
+    state: present
+  when: 
+    - parking_monitor_python.requirements_file is defined
+  ignore_errors: true  # Repository might not have requirements.txt yet
+
+- name: Verify Python environment
+  command: "{{ parking_monitor_python.env_path }}/bin/python -c 'import sys; print(sys.version)'"
+  register: python_env_version
+  changed_when: false
+
+- name: Test critical imports
+  shell: |
+    cd "{{ parking_monitor_repository.destination }}"
+    "{{ parking_monitor_python.env_path }}/bin/python" -c "
+    try:
+        import ultralytics
+        import torch
+        import cv2
+        import fastapi
+        print('✅ All critical imports successful')
+    except ImportError as e:
+        print(f'❌ Import error: {e}')
+        exit(1)
+    "
+  register: import_test
+  changed_when: false
+  failed_when: import_test.rc != 0
+
+- name: Check PyTorch MPS availability
+  shell: |
+    "{{ parking_monitor_python.env_path }}/bin/python" -c "
+    import torch
+    if torch.backends.mps.is_available():
+        print('✅ MPS (Metal Performance Shaders) available')
+    else:
+        print('⚠️  MPS not available - falling back to CPU')
+    "
+  register: mps_check
+  changed_when: false
+
+- name: Create Python environment activation script
+  template:
+    src: activate_parking_monitor.sh.j2
+    dest: "{{ parking_monitor_repository.destination }}/activate_env.sh"
+    mode: '0755'
+
+- name: Python environment setup summary
+  debug:
+    msg: |
+      🐍 Python Environment Setup Complete:
+      ===================================
+      Python Version: {{ python_env_version.stdout.split()[0] }} {{ python_env_version.stdout.split()[1] }}
+      Environment Path: {{ parking_monitor_python.env_path }}
+      Critical Imports: {{ '✅ Success' if import_test.rc == 0 else '❌ Failed' }}
+      MPS Acceleration: {{ mps_check.stdout }}
+      Activation Script: {{ parking_monitor_repository.destination }}/activate_env.sh
+      ===================================

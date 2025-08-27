@@ -1,0 +1,186 @@
+---
+all:
+  vars:
+    # Environment and project identification
+    target_env: "yuh-staging"
+    deployment_environment: "staging"
+    oa_environment:
+      name: "yuh-staging"
+      stage: "staging"
+
+    # Project-specific configuration
+    project_name: "yuh"
+    project_type: "airport"
+    location: "YUH Airport (Staging)"
+    
+    # Parking Monitor Configuration (Development/Testing)
+    parking_monitor:
+      enabled: true
+      repository_url: "git@github.com:oa-device/oaParkingMonitor.git"
+      branch: "feature/initial-implementation"  # Feature branch for development
+      port: 9091
+      python_version: "3.12"
+      
+      # Detection Configuration (Experimental settings)
+      detection:
+        model: "yolo11n"  # Lighter model for development
+        confidence_threshold: 0.3  # Lower threshold for experimentation
+        target_fps: 25  # Reduced for development stability
+        device: "mps"
+        debug_mode: true
+        save_detection_images: true  # Save images for analysis
+        
+      # Camera Configuration (Development)
+      camera:
+        source: 0
+        resolution: [1280, 720]  # Lower resolution for development
+        fps: 25
+        debug_capture: true
+        save_frames: true  # Save frames for debugging
+        
+      # Parking Space Configuration (Minimal test setup)
+      parking_zones:
+        total_spaces: 4  # Minimal for initial development
+        zones:
+          - name: "Dev Zone"
+            spaces: 4
+            coordinates: "manual"
+            test_mode: true
+            
+      # Display Configuration (Development)
+      display:
+        enabled: true
+        overlay_enabled: true
+        overlay_opacity: 0.9  # High opacity for development visibility
+        status_position: "top_left"  # Different position for testing
+        show_vehicle_info: true
+        show_debug_info: true
+        show_fps: true
+        show_model_info: true
+        ad_integration: false  # Disabled for initial development
+        
+      # Health Monitoring (Relaxed for development)
+      health_monitoring:
+        enabled: true
+        check_interval: 10  # Very frequent for development
+        performance_alerts: false  # Disabled to avoid spam
+        debug_metrics: true
+        save_metrics: true
+        thresholds:
+          min_fps: 15  # Very low threshold for development
+          max_memory_gb: 6  # Higher tolerance
+          max_cpu_percent: 90
+          min_accuracy: 0.7  # Low threshold for experimentation
+
+    # Player configuration (Disabled for initial development)
+    player:
+      enabled: false  # Focus on parking monitor first
+      
+    # Device API Configuration (Development)
+    device_api:
+      enabled: true
+      port: 9090
+      python_version: "3.12"
+      repository_url: "git@github.com:oa-device/oaDeviceAPI.git"
+      branch: "develop"
+      debug_mode: true
+      
+      # Platform-specific configuration
+      platform_detection: true
+      macos_features:
+        - health_monitoring
+        - parking_monitor_proxy
+        - system_metrics
+        - debug_endpoints
+        - development_tools
+
+    # Tailscale Configuration (Development)
+    tailscale:
+      enabled: true
+      hostname_prefix: "yuh-staging"
+      exit_node: false
+      accept_routes: true
+      advertise_exit_node: false
+      
+    # Security Configuration (Minimal for development)
+    security:
+      firewall_enabled: false
+      allowed_ports:
+        - 22     # SSH
+        - 9090   # Device API
+        - 9091   # Parking Monitor
+        - 8080   # Development server
+        - 5000   # Flask debug server
+        - 8888   # Jupyter notebook
+      
+      # Camera permissions
+      camera_permissions: true
+      full_disk_access: true
+      automation_permissions: true
+      
+    # Logging Configuration (Maximum verbosity)
+    logging:
+      enabled: true
+      log_level: "DEBUG"
+      max_log_size: "25MB"
+      max_log_files: 20  # Keep more logs for development
+      centralized_logging: false  # Local logging for development
+      console_output: true
+      file_output: true
+      structured_logging: true
+      
+    # System Optimization (Disabled for development)
+    system_optimization:
+      enabled: false
+      power_management: "balanced"
+      disable_sleep: false
+      auto_login: false
+      reduce_transparency: false
+      
+    # Monitoring and Alerting (Development setup)
+    monitoring:
+      enabled: true
+      metrics_collection: true
+      health_checks: true
+      debug_monitoring: true
+      development_mode: true
+      alert_webhooks: []  # No alerts in development
+      
+      # Service monitoring
+      services:
+        - parking_monitor
+        - device_api
+        - tailscale
+
+    # Development Tools
+    development:
+      enabled: true
+      jupyter_notebook: true
+      model_experimentation: true
+      data_collection: true
+      performance_profiling: true
+      
+      # Development dependencies
+      extra_packages:
+        - jupyter
+        - matplotlib
+        - seaborn
+        - tensorboard
+        - memory-profiler
+
+  children:
+    yuh_staging:
+      hosts:
+        f1-ca-001:
+          ansible_host: 100.103.229.95
+          ansible_user: studio
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-001'] }}"
+          hostname: "yuh-staging-001"
+          device_role: "development_parking_monitor"
+          camera_id: 0
+          display_id: 0
+          parking_zone: "Dev Zone"
+          debug_mode: true
+          development_mode: true
+          cam_id: "5e2b80e0-b554-4ee4-99a6-2b1b05c2c656"

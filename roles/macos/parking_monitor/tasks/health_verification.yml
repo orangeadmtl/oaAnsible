@@ -1,0 +1,153 @@
+---
+# Health verification tasks
+# Verifies that the parking monitor service is healthy and responding
+
+- name: Wait for service startup
+  pause:
+    seconds: 15
+    prompt: "Waiting for parking monitor service to fully initialize..."
+
+- name: Check service process
+  shell: |
+    pgrep -f "parking.monitor" | head -1 || echo "not_running"
+  register: process_check
+  changed_when: false
+
+- name: Verify process is running
+  debug:
+    msg: |
+      🔍 Process Status: {{ 'Running (PID: ' + process_check.stdout + ')' if process_check.stdout != 'not_running' else 'Not running' }}
+
+- name: Test health endpoint
+  uri:
+    url: "http://localhost:{{ parking_monitor_service.port }}/health"
+    method: GET
+    return_content: true
+    status_code: 200
+    timeout: 30
+  register: health_check
+  retries: 5
+  delay: 10
+  until: health_check.status == 200
+
+- name: Parse health response
+  set_fact:
+    health_data: "{{ health_check.content | from_json }}"
+  when: health_check.status == 200
+
+- name: Test parking status endpoint
+  uri:
+    url: "http://localhost:{{ parking_monitor_service.port }}/api/parking/status"
+    method: GET
+    return_content: true
+    status_code: [200, 503]  # 503 acceptable if no camera yet
+    timeout: 30
+  register: status_check
+  retries: 3
+  delay: 5
+
+- name: Test metrics endpoint
+  uri:
+    url: "http://localhost:{{ parking_monitor_service.port }}/api/parking/metrics"
+    method: GET
+    return_content: true
+    status_code: [200, 503]
+    timeout: 30
+  register: metrics_check
+  retries: 3
+  delay: 5
+
+- name: Check log files
+  stat:
+    path: "{{ item }}"
+  register: log_files
+  loop:
+    - "{{ parking_monitor_repository.destination }}/logs/parking_monitor.log"
+    - "{{ parking_monitor_launchd.standard_out_path }}"
+    - "{{ parking_monitor_launchd.standard_error_path }}"
+
+- name: Read recent error logs
+  shell: |
+    if [ -f "{{ parking_monitor_launchd.standard_error_path }}" ]; then
+      tail -n 20 "{{ parking_monitor_launchd.standard_error_path }}"
+    else
+      echo "No error log found"
+    fi
+  register: error_logs
+  changed_when: false
+
+- name: Check system resources
+  shell: |
+    if [ "{{ process_check.stdout }}" != "not_running" ]; then
+      ps -p {{ process_check.stdout }} -o pid,ppid,%cpu,%mem,time,command || echo "Process not found"
+    else
+      echo "Process not running"
+    fi
+  register: resource_usage
+  changed_when: false
+  when: process_check.stdout != "not_running"
+
+- name: Run comprehensive health check script
+  shell: |
+    if [ -f "{{ parking_monitor_repository.destination }}/scripts/health_check.sh" ]; then
+      "{{ parking_monitor_repository.destination }}/scripts/health_check.sh"
+    else
+      echo "Health check script not found"
+    fi
+  register: comprehensive_health
+  changed_when: false
+
+- name: Health verification summary
+  debug:
+    msg: |
+      🏥 Health Verification Complete:
+      ===============================
+      Process: {{ 'Running (PID: ' + process_check.stdout + ')' if process_check.stdout != 'not_running' else '❌ Not running' }}
+      Health Endpoint: {{ '✅ Responding' if health_check.status == 200 else '❌ Failed' }}
+      Status Endpoint: {{ '✅ Responding' if status_check.status == 200 else '⚠️  Limited (no camera?)' if status_check.status == 503 else '❌ Failed' }}
+      Metrics Endpoint: {{ '✅ Responding' if metrics_check.status == 200 else '⚠️  Limited' if metrics_check.status == 503 else '❌ Failed' }}
+      
+      {% if health_data is defined -%}
+      Service Info:
+      • Service: {{ health_data.service | default('Unknown') }}
+      • Status: {{ health_data.status | default('Unknown') }}
+      • Version: {{ health_data.version | default('Unknown') }}
+      • Uptime: {{ health_data.uptime | default('Unknown') }}
+      {% endif %}
+      
+      {% if process_check.stdout != "not_running" -%}
+      Resource Usage:
+      {{ resource_usage.stdout | indent(width=2) }}
+      {% endif %}
+      
+      {% if error_logs.stdout and error_logs.stdout != "No error log found" -%}
+      Recent Errors:
+      {{ error_logs.stdout | indent(width=2) }}
+      {% endif %}
+      
+      Comprehensive Health:
+      {{ comprehensive_health.stdout | indent(width=2) }}
+      
+      Next Steps:
+      {% if health_check.status != 200 -%}
+      • Service failed health check - check logs and configuration
+      • Review: {{ parking_monitor_launchd.standard_error_path }}
+      {% endif %}
+      {% if status_check.status == 503 -%}
+      • Camera may not be connected - test camera access
+      {% endif %}
+      • Monitor service: tail -f {{ parking_monitor_repository.destination }}/logs/parking_monitor.log
+      • Access dashboard: http://localhost:{{ parking_monitor_service.port }}
+      ===============================
+
+- name: Fail if critical health checks failed
+  fail:
+    msg: |
+      ❌ Critical health checks failed:
+      • Process running: {{ process_check.stdout != 'not_running' }}
+      • Health endpoint: {{ health_check.status == 200 }}
+      
+      Check logs and configuration before proceeding.
+  when: 
+    - process_check.stdout == 'not_running' or health_check.status != 200
+    - not (parking_monitor_debug.enabled | default(false))

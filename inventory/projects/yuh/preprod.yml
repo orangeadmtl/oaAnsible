@@ -1,0 +1,184 @@
+---
+all:
+  vars:
+    # Environment and project identification
+    target_env: "yuh-preprod"
+    deployment_environment: "preproduction"
+    oa_environment:
+      name: "yuh-preprod"
+      stage: "preproduction"
+
+    # Project-specific configuration
+    project_name: "yuh"
+    project_type: "airport"
+    location: "YUH Airport (Pre-Production)"
+    
+    # Parking Monitor Configuration (Primary Service)
+    parking_monitor:
+      enabled: true
+      repository_url: "git@github.com:oa-device/oaParkingMonitor.git"
+      branch: "develop"  # Use develop branch for testing
+      port: 9091
+      python_version: "3.12"
+      
+      # Detection Configuration (More verbose logging)
+      detection:
+        model: "yolo11m"
+        confidence_threshold: 0.4  # Lower threshold for testing
+        target_fps: 30
+        device: "mps"
+        debug_mode: true  # Enable debug logging
+        
+      # Camera Configuration
+      camera:
+        source: 0
+        resolution: [1920, 1080]
+        fps: 30
+        debug_capture: true  # Save debug frames
+        
+      # Parking Space Configuration (Test setup)
+      parking_zones:
+        total_spaces: 6  # Reduced for testing
+        zones:
+          - name: "Test Zone A"
+            spaces: 3
+            coordinates: "manual"  # Manual configuration for testing
+          - name: "Test Zone B"
+            spaces: 3
+            coordinates: "manual"
+            
+      # Display Configuration (Enhanced for testing)
+      display:
+        enabled: true
+        overlay_enabled: true
+        overlay_opacity: 0.8  # Higher opacity for visibility during testing
+        status_position: "top_right"
+        show_vehicle_info: true
+        show_debug_info: true  # Show debug information
+        ad_integration: true
+        
+      # Health Monitoring (More frequent checks)
+      health_monitoring:
+        enabled: true
+        check_interval: 15  # More frequent for testing
+        performance_alerts: true
+        debug_metrics: true
+        thresholds:
+          min_fps: 20  # Lower threshold for testing
+          max_memory_gb: 4
+          max_cpu_percent: 85
+          min_accuracy: 0.8  # Lower for testing
+
+    # Player configuration (Testing setup)
+    player:
+      enabled: true
+      dual_screen: false  # Single screen for testing
+      loop_mode: true
+      video_selection_strategy: "sequential"
+      health_check: true
+      restart_on_failure: true
+      health_check_interval: 120  # More frequent checks
+      restart_attempts: 5  # More attempts for debugging
+      restart_delay: 10
+      volume: 0.0
+      
+      # Integration with Parking Monitor (Testing)
+      parking_overlay: true
+      overlay_transparency: 0.5  # More visible for testing
+      debug_overlay: true  # Show additional debug info
+      
+      # Kiosk mode settings (Relaxed for testing)
+      fullscreen: false  # Windowed for debugging
+      hide_cursor: false
+      black_background: false
+      disable_screensaver: false
+
+    # Device API Configuration
+    device_api:
+      enabled: true
+      port: 9090
+      python_version: "3.12"
+      repository_url: "git@github.com:oa-device/oaDeviceAPI.git"
+      branch: "develop"  # Use develop branch
+      debug_mode: true
+      
+      # Platform-specific configuration
+      platform_detection: true
+      macos_features:
+        - health_monitoring
+        - parking_monitor_proxy
+        - system_metrics
+        - tracker_integration
+        - debug_endpoints
+
+    # Tailscale Configuration
+    tailscale:
+      enabled: true
+      hostname_prefix: "yuh-preprod"
+      exit_node: false
+      accept_routes: true
+      advertise_exit_node: false
+      
+    # Security Configuration (Relaxed for testing)
+    security:
+      firewall_enabled: false  # Disabled for easier debugging
+      allowed_ports:
+        - 22     # SSH
+        - 9090   # Device API
+        - 9091   # Parking Monitor
+        - 8080   # Player
+        - 5000   # Debug server
+      
+      # Camera permissions
+      camera_permissions: true
+      full_disk_access: true
+      automation_permissions: true
+      
+    # Logging Configuration (Enhanced for testing)
+    logging:
+      enabled: true
+      log_level: "DEBUG"  # Verbose logging
+      max_log_size: "50MB"
+      max_log_files: 10
+      centralized_logging: true
+      console_output: true  # Enable console logging
+      
+    # System Optimization (Relaxed for debugging)
+    system_optimization:
+      enabled: false  # Disable for easier debugging
+      power_management: "balanced"
+      disable_sleep: false
+      auto_login: true
+      reduce_transparency: false
+      
+    # Monitoring and Alerting (Enhanced)
+    monitoring:
+      enabled: true
+      metrics_collection: true
+      health_checks: true
+      debug_monitoring: true
+      alert_webhooks:
+        - "{{ vault_slack_webhook_url_preprod }}"
+      
+      # Service monitoring
+      services:
+        - parking_monitor
+        - player
+        - device_api
+        - tailscale
+
+  children:
+    yuh_preprod:
+      hosts:
+        f1-ca-001:
+          ansible_host: 100.103.229.95
+          ansible_user: studio
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-001'] }}"
+          hostname: "yuh-preprod-001"
+          device_role: "test_parking_monitor"
+          camera_id: 0
+          display_id: 0
+          parking_zone: "Test Zone A"
+          debug_mode: true
+          cam_id: "5e2b80e0-b554-4ee4-99a6-2b1b05c2c656"

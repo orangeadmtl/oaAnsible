@@ -1,0 +1,59 @@
+---
+# Main tasks for parking monitor deployment
+# This role orchestrates the deployment of oaParkingMonitor from its GitHub repository
+
+- name: Include pre-deployment checks
+  include_tasks: pre_checks.yml
+  tags: [parking-monitor, pre-checks]
+
+- name: Include repository setup
+  include_tasks: repository_setup.yml
+  tags: [parking-monitor, repository]
+
+- name: Include Python environment setup
+  include_tasks: python_environment.yml
+  tags: [parking-monitor, python]
+
+- name: Include model management
+  include_tasks: model_management.yml
+  tags: [parking-monitor, models]
+  when: parking_monitor_models.auto_download | bool
+
+- name: Include configuration management
+  include_tasks: configuration.yml
+  tags: [parking-monitor, config]
+
+- name: Include service setup
+  include_tasks: service_setup.yml
+  tags: [parking-monitor, service]
+
+- name: Include security configuration
+  include_tasks: security_setup.yml
+  tags: [parking-monitor, security]
+
+- name: Include health verification
+  include_tasks: health_verification.yml
+  tags: [parking-monitor, health, verify]
+
+- name: Display deployment summary
+  debug:
+    msg: |
+      ===============================================
+      🎯 Parking Monitor Deployment Summary
+      ===============================================
+      Repository: {{ parking_monitor_repository.url }}
+      Branch: {{ parking_monitor_repository.branch }}
+      Service: {{ parking_monitor_service.name }}
+      Port: {{ parking_monitor_service.port }}
+      Python Env: {{ parking_monitor_python.env_path }}
+      Config: {{ parking_monitor_repository.destination }}/config.yaml
+      Health Check: http://localhost:{{ parking_monitor_service.port }}/health
+      ===============================================
+      ✅ Deployment completed successfully!
+      
+      Next steps:
+      1. Verify service health: curl http://localhost:{{ parking_monitor_service.port }}/health  
+      2. Check service logs: tail -f {{ parking_monitor_repository.destination }}/logs/parking_monitor.log
+      3. Monitor via oaDashboard: Check device status and metrics
+      ===============================================
+  tags: [parking-monitor, summary]

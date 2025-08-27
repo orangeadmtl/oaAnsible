@@ -1,0 +1,63 @@
+---
+# Handlers for parking monitor role
+# These handlers are triggered when configuration changes require service restarts
+
+- name: restart parking monitor
+  shell: |
+    launchctl unload "{{ parking_monitor_launchd.plist_path }}" 2>/dev/null || true
+    sleep 2
+    launchctl load "{{ parking_monitor_launchd.plist_path }}"
+  become: false
+  listen: "restart parking monitor"
+
+- name: reload parking monitor
+  shell: |
+    launchctl kickstart -k "gui/{{ ansible_user_id }}/{{ parking_monitor_service.name }}"
+  become: false
+  listen: "reload parking monitor"
+
+- name: stop parking monitor
+  shell: |
+    launchctl unload "{{ parking_monitor_launchd.plist_path }}" 2>/dev/null || true
+  become: false
+  listen: "stop parking monitor"
+
+- name: start parking monitor  
+  shell: |
+    launchctl load "{{ parking_monitor_launchd.plist_path }}"
+  become: false
+  listen: "start parking monitor"
+
+- name: validate parking monitor service
+  uri:
+    url: "http://localhost:{{ parking_monitor_service.port }}/health"
+    method: GET
+    status_code: 200
+    timeout: 30
+  retries: 5
+  delay: 10
+  listen: "validate parking monitor service"
+
+- name: refresh python environment
+  shell: |
+    cd "{{ parking_monitor_repository.destination }}"
+    "{{ parking_monitor_python.env_path }}/bin/pip" install -r requirements.txt --upgrade
+  become: false
+  listen: "refresh python environment"
+
+- name: update models
+  shell: |
+    cd "{{ parking_monitor_repository.destination }}"
+    ./scripts/download_models.sh
+  become: false
+  when: parking_monitor_models.auto_download | bool
+  listen: "update models"
+
+- name: backup configuration
+  copy:
+    src: "{{ parking_monitor_repository.destination }}/config.yaml"
+    dest: "{{ parking_monitor_repository.destination }}/config.yaml.backup.{{ ansible_date_time.epoch }}"
+    remote_src: true
+  become: false
+  when: parking_monitor_backup.config_backup | bool
+  listen: "backup configuration"

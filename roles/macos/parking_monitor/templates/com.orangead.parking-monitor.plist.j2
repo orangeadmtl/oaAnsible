@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{ parking_monitor_service.name }}</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{ parking_monitor_repository.destination }}/scripts/start.sh</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>{{ parking_monitor_repository.destination }}</string>
+    
+    <key>RunAtLoad</key>
+    <{{ parking_monitor_launchd.run_at_load | bool | lower }}/>
+    
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+        <key>Crashed</key>
+        <true/>
+    </dict>
+    
+    <key>ThrottleInterval</key>
+    <integer>{{ parking_monitor_launchd.throttle_interval | default(10) }}</integer>
+    
+    <key>StandardOutPath</key>
+    <string>{{ parking_monitor_launchd.standard_out_path }}</string>
+    
+    <key>StandardErrorPath</key>
+    <string>{{ parking_monitor_launchd.standard_error_path }}</string>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>{{ ansible_user_dir }}</string>
+        <key>USER</key>
+        <string>{{ parking_monitor_service.user }}</string>
+        <key>PYTHONPATH</key>
+        <string>{{ parking_monitor_repository.destination }}/src</string>
+        <key>LOG_LEVEL</key>
+        <string>{{ parking_monitor_logging.level }}</string>
+        <key>PARKING_MONITOR_CONFIG</key>
+        <string>{{ parking_monitor_repository.destination }}/config.yaml</string>
+        <key>PARKING_MONITOR_PORT</key>
+        <string>{{ parking_monitor_service.port }}</string>
+        <key>PATH</key>
+        <string>{{ parking_monitor_python.env_path }}/bin:/usr/local/bin:/usr/bin:/bin</string>
+{% for key, value in parking_monitor_launchd.environment_variables.items() %}
+        <key>{{ key }}</key>
+        <string>{{ value }}</string>
+{% endfor %}
+    </dict>
+    
+    <key>ProcessType</key>
+    <string>Adaptive</string>
+    
+    <key>ExitTimeOut</key>
+    <integer>30</integer>
+    
+    <!-- Resource limits for Mac Mini M1 -->
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>1024</integer>
+        <key>NumberOfProcesses</key>
+        <integer>100</integer>
+    </dict>
+    
+    <!-- Nice level for balanced performance -->
+    <key>Nice</key>
+    <integer>0</integer>
+    
+</dict>
+</plist>

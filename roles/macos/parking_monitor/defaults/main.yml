@@ -1,0 +1,204 @@
+---
+# Default variables for Parking Monitor deployment
+
+# Repository Configuration
+parking_monitor_repository:
+  url: "git@github.com:oa-device/oaParkingMonitor.git"
+  branch: "main"
+  destination: "{{ ansible_user_dir }}/orangead/parking-monitor"
+  force_update: false
+
+# Service Configuration
+parking_monitor_service:
+  name: "com.orangead.parking-monitor"
+  port: 9091
+  user: "{{ ansible_user }}"
+  group: "staff"
+  python_version: "3.12"
+  log_level: "INFO"
+
+# Python Environment Configuration
+parking_monitor_python:
+  version: "{{ parking_monitor_service.python_version }}"
+  env_name: "parking-monitor"
+  env_path: "{{ ansible_user_dir }}/.pyenv/versions/{{ parking_monitor_python.version }}/envs/{{ parking_monitor_python.env_name }}"
+  requirements_file: "requirements.txt"
+
+# Model Configuration
+parking_monitor_models:
+  base_model: "yolo11m.pt"
+  export_format: "coreml"
+  model_dir: "{{ parking_monitor_repository.destination }}/models"
+  downloads_dir: "{{ parking_monitor_models.model_dir }}/downloads"
+  exports_dir: "{{ parking_monitor_models.model_dir }}/exports"
+  auto_download: true
+  optimization_enabled: true
+
+# Detection Configuration
+parking_monitor_detection:
+  model_path: "{{ parking_monitor_models.exports_dir }}/yolo11m_parking.coreml"
+  confidence_threshold: 0.5
+  nms_threshold: 0.4
+  target_fps: 30
+  device: "mps"  # Mac M1 Metal Performance Shaders
+  batch_size: 1
+  optimization_level: "medium"
+
+# Camera Configuration
+parking_monitor_camera:
+  source: 0  # USB camera index or RTSP URL
+  resolution: [1920, 1080]
+  fps: 30
+  buffer_size: 1
+  auto_exposure: true
+  auto_focus: true
+
+# Display Configuration
+parking_monitor_display:
+  enabled: true
+  overlay_enabled: true
+  overlay_opacity: 0.7
+  status_position: "top_right"
+  show_vehicle_info: true
+  show_fps: false
+  show_debug_info: false
+  ad_integration: true
+
+# Parking Zones Configuration (Default template)
+parking_monitor_zones:
+  auto_detect: true
+  manual_zones: []
+  total_spaces: 0  # Will be configured per deployment
+  zone_template:
+    - id: "default"
+      name: "Default Zone"
+      spaces: 1
+      coordinates: [[0, 0], [100, 0], [100, 100], [0, 100]]
+
+# Health Monitoring Configuration
+parking_monitor_health:
+  enabled: true
+  check_interval: 30  # seconds
+  metrics_retention_hours: 24
+  performance_monitoring: true
+  auto_recovery: true
+  thresholds:
+    min_fps: 25
+    max_memory_gb: 4
+    max_cpu_percent: 80
+    min_accuracy: 0.9
+    max_detection_latency_ms: 100
+
+# Logging Configuration
+parking_monitor_logging:
+  level: "{{ parking_monitor_service.log_level }}"
+  format: "structured"
+  max_file_size: "100MB"
+  max_files: 5
+  console_output: false
+  file_output: true
+  centralized_logging: false
+
+# LaunchAgent Configuration
+parking_monitor_launchd:
+  plist_name: "{{ parking_monitor_service.name }}.plist"
+  plist_path: "{{ ansible_user_dir }}/Library/LaunchAgents/{{ parking_monitor_launchd.plist_name }}"
+  run_at_load: true
+  keep_alive: true
+  restart_on_failure: true
+  throttle_interval: 10
+  standard_out_path: "/tmp/parking-monitor.out"
+  standard_error_path: "/tmp/parking-monitor.err"
+  environment_variables:
+    PYTHONPATH: "{{ parking_monitor_repository.destination }}/src"
+    LOG_LEVEL: "{{ parking_monitor_logging.level }}"
+
+# Dependencies Configuration
+parking_monitor_dependencies:
+  system_packages:
+    - cmake
+    - pkg-config
+  python_packages:
+    - ultralytics>=8.0.0
+    - fastapi>=0.100.0
+    - uvicorn[standard]>=0.23.0
+    - opencv-python>=4.8.0
+    - numpy>=1.24.0
+    - pillow>=10.0.0
+    - pydantic>=2.0.0
+    - pyyaml>=6.0
+    - structlog>=23.0.0
+    - psutil>=5.9.0
+    - torch>=2.0.0
+    - torchvision>=0.15.0
+    - coremltools>=7.0
+    - websockets>=11.0
+    - aiofiles>=23.0.0
+
+# Security Configuration
+parking_monitor_security:
+  required_permissions:
+    - camera_access
+    - full_disk_access
+    - automation_access
+  firewall_rules:
+    - port: "{{ parking_monitor_service.port }}"
+      protocol: "tcp"
+      source: "any"
+  allowed_clients:
+    - "localhost"
+    - "127.0.0.1"
+    - "{{ tailscale_subnet | default('100.64.0.0/10') }}"
+
+# Performance Optimization
+parking_monitor_performance:
+  memory_limit_gb: 4
+  cpu_limit_percent: 80
+  gpu_acceleration: true
+  model_caching: true
+  frame_caching: true
+  optimization_profile: "balanced"  # balanced, performance, efficiency
+
+# Integration Configuration
+parking_monitor_integration:
+  dashboard_enabled: true
+  api_enabled: true
+  websocket_enabled: true
+  metrics_export: true
+  health_proxy: true
+
+# Backup and Recovery
+parking_monitor_backup:
+  config_backup: true
+  model_backup: false  # Models can be re-downloaded
+  logs_backup: false
+  backup_retention_days: 7
+
+# Development and Debug Configuration
+parking_monitor_debug:
+  enabled: false
+  save_detection_frames: false
+  performance_profiling: false
+  memory_profiling: false
+  debug_api_enabled: false
+  jupyter_notebook: false
+
+# Update Configuration
+parking_monitor_updates:
+  auto_update: false
+  update_channel: "stable"  # stable, beta, develop
+  backup_before_update: true
+  rollback_on_failure: true
+  health_check_after_update: true
+
+# Monitoring and Alerting
+parking_monitor_monitoring:
+  metrics_collection: true
+  performance_tracking: true
+  error_tracking: true
+  uptime_monitoring: true
+  alert_thresholds:
+    error_rate_percent: 5
+    response_time_ms: 1000
+    memory_usage_percent: 90
+    cpu_usage_percent: 85

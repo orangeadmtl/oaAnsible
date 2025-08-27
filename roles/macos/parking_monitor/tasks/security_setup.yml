@@ -1,0 +1,104 @@
+---
+# Security setup tasks
+# Configures required permissions and security settings
+
+- name: Check camera permissions
+  shell: |
+    sqlite3 ~/Library/Application\ Support/com.apple.TCC/TCC.db \
+    "SELECT service,client,auth_value FROM access WHERE service='kTCCServiceCamera'" 2>/dev/null || echo "no_permissions"
+  register: camera_perms_check
+  changed_when: false
+
+- name: Request camera permissions
+  debug:
+    msg: |
+      📹 CAMERA PERMISSIONS REQUIRED:
+      ==============================
+      The Parking Monitor requires camera access to function.
+      
+      To grant permissions:
+      1. Go to System Preferences → Security & Privacy → Privacy → Camera
+      2. Add the parking monitor application or Python interpreter
+      3. Alternatively, run the grant script: {{ parking_monitor_repository.destination }}/scripts/grant_permissions.sh
+      ==============================
+
+- name: Create permission grant script
+  template:
+    src: grant_permissions.sh.j2
+    dest: "{{ parking_monitor_repository.destination }}/scripts/grant_permissions.sh"
+    mode: '0755'
+
+- name: Create permission verification script
+  template:
+    src: verify_permissions.sh.j2
+    dest: "{{ parking_monitor_repository.destination }}/scripts/verify_permissions.sh"
+    mode: '0755'
+
+- name: Check firewall status
+  shell: |
+    sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate | grep -i "enabled" || echo "disabled"
+  register: firewall_status
+  become: false
+  changed_when: false
+
+- name: Configure firewall rules (if enabled)
+  block:
+    - name: Add firewall rule for parking monitor
+      shell: |
+        sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add "{{ parking_monitor_python.env_path }}/bin/python"
+        sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp "{{ parking_monitor_python.env_path }}/bin/python"
+      when: 
+        - "'enabled' in firewall_status.stdout"
+        - parking_monitor_security.firewall_rules is defined
+      become: true
+      
+  rescue:
+    - name: Firewall configuration failed
+      debug:
+        msg: |
+          ⚠️  Firewall configuration failed. You may need to manually allow the application:
+          System Preferences → Security & Privacy → Firewall → Options → Add application
+
+- name: Set secure file permissions
+  file:
+    path: "{{ item.path }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ parking_monitor_service.user }}"
+    group: "{{ parking_monitor_service.group }}"
+    state: "{{ item.state | default('file') }}"
+  loop:
+    - { path: "{{ parking_monitor_repository.destination }}/.env", mode: "0600" }
+    - { path: "{{ parking_monitor_repository.destination }}/config.yaml", mode: "0644" }
+    - { path: "{{ parking_monitor_repository.destination }}/logs", mode: "0755", state: "directory" }
+    - { path: "{{ parking_monitor_repository.destination }}/scripts", mode: "0755", state: "directory" }
+  ignore_errors: true
+
+- name: Create security audit script
+  template:
+    src: security_audit.sh.j2
+    dest: "{{ parking_monitor_repository.destination }}/scripts/security_audit.sh"
+    mode: '0755'
+
+- name: Run security audit
+  shell: |
+    "{{ parking_monitor_repository.destination }}/scripts/security_audit.sh"
+  register: security_audit
+  changed_when: false
+
+- name: Security setup summary
+  debug:
+    msg: |
+      🔒 Security Setup Complete:
+      ==========================
+      Camera Permissions: {{ 'Configured' if 'python' in camera_perms_check.stdout else 'Manual setup required' }}
+      Firewall: {{ firewall_status.stdout | title }}
+      File Permissions: ✅ Configured
+      
+      Security Audit Results:
+      {{ security_audit.stdout | default('Audit script not found') | indent(width=2) }}
+      
+      Next Steps:
+      1. Run permission verification: {{ parking_monitor_repository.destination }}/scripts/verify_permissions.sh
+      2. Test camera access with a simple camera application
+      3. Check security audit: {{ parking_monitor_repository.destination }}/scripts/security_audit.sh
+      =========================="
