@@ -26,8 +26,8 @@
         component_tags:
           "player": "player"
           "tracker": "tracker"
-          "macos-api": "macos-api"
-          "api": "macos-api"
+          "device-api": "device-api"
+          "api": "device-api"
           "alpr": "alpr"
           "camguard": "camguard"
           "mediamtx-demo": "mediamtx_demo"
@@ -63,8 +63,8 @@
           {%- set tag_map = {
             "player": "player",
             "tracker": "tracker",
-            "macos-api": "macos-api",
-            "api": "macos-api",
+            "device-api": "device-api",
+            "api": "device-api",
             "alpr": "alpr",
             "camguard": "camguard",
             "mediamtx-demo": "mediamtx_demo",
@@ -138,7 +138,7 @@
 
           Valid component tags are:
           - Infrastructure: base, network, security, ssh, reboot, stability
-          - Applications: macos-api, api, tracker, player, alpr, camguard, mediamtx-demo, cursorcerer, transfer
+          - Applications: device-api, api, tracker, player, alpr, camguard, mediamtx-demo, cursorcerer, transfer
           - Platform-specific: docker, nvidia, gpu, ml, health, storage, storage-server
           - oaSentinel: oasentinel-setup, oasentinel-data, oasentinel-train, oasentinel-full, oasentinel
 
@@ -218,7 +218,7 @@
         inventory_components: >
           {{
             (['base', 'network', 'security']) +
-            (oa_environment.deploy_macos_api | default(false) | ternary(['macos-api'], [])) +
+            (oa_environment.deploy_device_api | default(false) | ternary(['device-api'], [])) +
             (oa_environment.deploy_tracker | default(false) | ternary(['tracker'], [])) +
             (oa_environment.deploy_player | default(false) | ternary(['player'], [])) +
             (oa_environment.deploy_alpr_service | default(false) | ternary(['alpr'], [])) +
@@ -232,7 +232,7 @@
       ansible.builtin.debug:
         msg: |
           Components determined from inventory:
-          - deploy_macos_api: {{ oa_environment.deploy_macos_api | default(false) }}
+          - deploy_device_api: {{ oa_environment.deploy_device_api | default(false) }}
           - deploy_tracker: {{ oa_environment.deploy_tracker | default(false) }}
           - deploy_player: {{ oa_environment.deploy_player | default(false) }}
           - deploy_alpr_service: {{ oa_environment.deploy_alpr_service | default(false) }}
@@ -284,14 +284,14 @@
 
               Available component tags:
               - Infrastructure: base, network, security, ssh, reboot, stability
-              - Applications: macos-api (or 'api'), tracker, player, alpr, camguard, mediamtx-demo, cursorcerer
+              - Applications: device-api (or 'api'), tracker, player, alpr, camguard, mediamtx-demo, cursorcerer
               - Platform-specific: docker, nvidia, gpu, ml, health, storage, storage-server
               - oaSentinel: oasentinel-setup, oasentinel-data, oasentinel-train, oasentinel-full, oasentinel
 
               Usage Examples:
               - By tags: ./scripts/run inventory-name -t player
               - By tags (multiple): ./scripts/run inventory-name -t base,network,player
-              - By variable: --extra-vars 'selected_components=["macos-api","tracker"]'
+              - By variable: --extra-vars 'selected_components=["device-api","tracker"]'
           when:
             - selected_components | default([]) | length == 0
             - tag_components | default([]) | length == 0

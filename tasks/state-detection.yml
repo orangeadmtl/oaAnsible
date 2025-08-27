@@ -267,10 +267,10 @@
   when: platform_state.is_macos
   tags: ["state", "components"]
   block:
-    - name: Check macOS API installation
+    - name: Check Device API installation
       ansible.builtin.stat:
-        path: "{{ ansible_user_dir }}/orangead/macos-api/main.py"
-      register: macos_api_check
+        path: "{{ ansible_user_dir }}/orangead/oaDeviceAPI/main.py"
+      register: device_api_check
       when: platform_state.is_macos
 
     - name: Check oaTracker installation
@@ -288,9 +288,9 @@
     - name: Set component installation state facts
       ansible.builtin.set_fact:
         components_state:
-          macos_api:
-            installed: "{{ macos_api_check.stat.exists | default(false) }}"
-            path: "{{ ansible_user_dir }}/orangead/macos-api"
+          device_api:
+            installed: "{{ device_api_check.stat.exists | default(false) }}"
+            path: "{{ ansible_user_dir }}/orangead/oaDeviceAPI"
           tracker:
             installed: "{{ tracker_check.stat.exists | default(false) }}"
             path: "{{ ansible_user_dir }}/orangead/tracker"

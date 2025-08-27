@@ -27,7 +27,7 @@
           - "gui"
           - "launchd"
           - "homebrew"
-          - "macos-api"
+          - "device-api"
           - "tracker"
           - "alpr"
       when: ansible_distribution == "MacOSX"

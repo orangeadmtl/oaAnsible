@@ -146,7 +146,7 @@
   ansible.builtin.set_fact:
     confirmation_components: >
       {{
-        (oa_environment.deploy_macos_api | default(false) | ternary(['macos-api'], [])) +
+        (oa_environment.deploy_macos_api | default(false) | ternary(['device-api'], [])) +
         (oa_environment.deploy_tracker | default(false) | ternary(['tracker'], [])) +
         (oa_environment.deploy_player | default(false) | ternary(['player'], [])) +
         (oa_environment.deploy_alpr_service | default(false) | ternary(['alpr'], [])) +

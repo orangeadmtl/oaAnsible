@@ -15,7 +15,7 @@
 - name: Check macOS component compatibility
   ansible.builtin.set_fact:
     compatible_components:
-      "{{ compatible_components + ['macos-api', 'tracker', 'alpr', 'player', 'camguard', 'mediamtx_demo', 'cursorcerer', 'base', 'network', 'security', 'ssh'] }}"
+      "{{ compatible_components + ['device-api', 'tracker', 'alpr', 'player', 'camguard', 'mediamtx_demo', 'cursorcerer', 'base', 'network', 'security', 'ssh'] }}"
   when: target_platform == "macos"
   tags: ["always"]
 
@@ -159,13 +159,12 @@
   tags: ["ssh"]
 
 # macOS Application Components (after infrastructure is ready)
-- name: Deploy macOS API component
+- name: Deploy Device API component (unified for all platforms)
   ansible.builtin.include_role:
-    name: macos/api
+    name: common/device_api
   when:
-    - target_platform == "macos"
-    - "'macos-api' in deployment_components | default(selected_components)"
-  tags: ["macos-api", "api"]
+    - "'device-api' in deployment_components | default(selected_components)"
+  tags: ["device-api", "api"]
 
 - name: Deploy tracker component
   ansible.builtin.include_role:

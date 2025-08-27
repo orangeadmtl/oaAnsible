@@ -152,7 +152,7 @@
         - name: Check macOS API service status
           ansible.builtin.shell: |
             set -o pipefail
-            launchctl list | grep com.orangead.macosapi || echo "Not running"
+            launchctl list | grep com.orangead.deviceapi || echo "Not running"
           register: macos_api_status
           changed_when: false
           failed_when: false

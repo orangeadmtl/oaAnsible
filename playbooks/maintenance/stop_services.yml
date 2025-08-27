@@ -16,7 +16,7 @@
     # Service definitions for each platform
     macos_services:
       - name: "macOS API"
-        plist: "com.orangead.macosapi"
+        plist: "com.orangead.deviceapi"
         tags: ["api", "macos-api"]
       - name: "Tracker"
         plist: "com.orangead.tracker"

@@ -19,7 +19,7 @@
 
     # Graceful shutdown services on macOS before reboot
     graceful_services:
-      - "com.orangead.macosapi"
+      - "com.orangead.deviceapi"
       - "com.orangead.tracker"
       - "com.orangead.player"
       - "com.orangead.camguard"
