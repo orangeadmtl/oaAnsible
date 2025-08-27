@@ -14,7 +14,7 @@
   ansible.builtin.stat:
     path: "{{ item }}"
   loop:
-    - "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3"
+    - "{{ ansible_user_dir }}/orangead/oaDeviceAPI/.venv/bin/python3"
     - "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python"
   register: venv_check
 
@@ -81,7 +81,7 @@
 # Set Python executable paths
 - name: Set Python executable paths
   ansible.builtin.set_fact:
-    api_python: "{{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3"
+    api_python: "{{ ansible_user_dir }}/orangead/oaDeviceAPI/.venv/bin/python3"
     tracker_python: "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python3"
     python_execs:
       real_api:
@@ -384,6 +384,6 @@
       WARNING: Tracker's camera feed is not accessible via HTTP
       {% endif %}
 
-      Note: The macos-api has been configured to proxy the Tracker's camera feed
+      Note: The device-api has been configured to proxy the Tracker's camera feed
       instead of accessing the camera directly.
       {% endif %}

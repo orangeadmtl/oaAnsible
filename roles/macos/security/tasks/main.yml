@@ -65,7 +65,7 @@
       failed_when: false # It's okay if it wasn't blocked or doesn't exist
 
     - name: Allow macOS API (Python)
-      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add {{ ansible_user_dir }}/orangead/macos-api/.venv/bin/python3
+      ansible.builtin.command: /usr/libexec/ApplicationFirewall/socketfilterfw --add {{ ansible_user_dir }}/orangead/oaDeviceAPI/.venv/bin/python3
       become: true
       register: api_firewall_result
       changed_when: "'already has a rule' not in (api_firewall_result.stdout | default('') + api_firewall_result.stderr | default(''))"

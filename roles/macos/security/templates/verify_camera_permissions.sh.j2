@@ -26,5 +26,5 @@ if [ -f "/tmp/cam.shm" ]; then
 else
   # If Tracker is not using the camera, we can test direct access
   echo -e "\nTesting direct camera access with API Python:"
-  cd {{ ansible_user_dir }}/orangead/macos-api && ./.venv/bin/python -c 'import cv2; cap = cv2.VideoCapture(0); print("Camera opened successfully:", cap.isOpened()); cap.release()' || echo "Failed to test camera"
+  cd {{ ansible_user_dir }}/orangead/oaDeviceAPI && ./.venv/bin/python -c 'import cv2; cap = cv2.VideoCapture(0); print("Camera opened successfully:", cap.isOpened()); cap.release()' || echo "Failed to test camera"
 fi

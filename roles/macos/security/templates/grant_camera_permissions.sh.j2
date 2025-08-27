@@ -279,7 +279,7 @@ sudo sqlite3 "$SYSTEM_TCC_DB" "SELECT service, client, client_type, auth_value, 
 
 # Test camera access
 echo -e "\nTesting camera access:"
-cd {{ ansible_user_dir }}/orangead/macos-api && {{ api_python }} -c 'import cv2; cap = cv2.VideoCapture(0); print("Camera opened successfully:", cap.isOpened()); cap.release()' 2>/dev/null || echo "Failed to test camera with API python"
+cd {{ ansible_user_dir }}/orangead/oaDeviceAPI && {{ api_python }} -c 'import cv2; cap = cv2.VideoCapture(0); print("Camera opened successfully:", cap.isOpened()); cap.release()' 2>/dev/null || echo "Failed to test camera with API python"
 
 echo -e "\nTesting camera access with tracker python:"
 cd {{ ansible_user_dir }}/orangead/tracker && {{ tracker_python }} -c 'import cv2; cap = cv2.VideoCapture(0); print("Camera opened successfully:", cap.isOpened()); cap.release()' 2>/dev/null || echo "Failed to test camera with tracker python"
