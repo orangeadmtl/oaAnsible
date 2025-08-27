@@ -16,7 +16,7 @@ vault_ssh_public_key: "ssh-rsa AAAAB3NzaC1yc2E... user@example.com"
 # Host-specific sudo passwords - REQUIRED for each device
 # Each device must have its password explicitly defined
 vault_sudo_passwords:
-  # F1 Project (macos-api + tracker)
+  # F1 Project (device-api + tracker)
   f1-ca-001: "f1-device-password"
   f1-ca-002: "f1-device-password"
   f1-ca-003: "f1-device-password"
@@ -32,14 +32,14 @@ vault_sudo_passwords:
   f1-ca-016: "f1-device-password"
   f1-ca-017: "f1-device-password"
 
-  # Spectra Project (macos-api + tracker + video-player)
+  # Spectra Project (device-api + tracker + video-player)
   spectra-staging-001: "spectra-device-password"
   spectra-staging-002: "spectra-device-password"
   spectra-preprod-001: "spectra-device-password"
   spectra-prod-001: "spectra-device-password"
   spectra-prod-002: "spectra-device-password"
 
-  # ALPR Project (macos-api + alpr)
+  # ALPR Project (device-api + alpr)
   alpr-staging-001: "alpr-device-password"
   alpr-preprod-001: "alpr-device-password"
   alpr-prod-001: "alpr-device-password"

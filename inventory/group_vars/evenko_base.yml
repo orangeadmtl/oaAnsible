@@ -9,7 +9,7 @@ project_name: "evenko"
 oa_environment_defaults:
   project: "evenko"
   # Evenko project components: dual-screen player only
-  deploy_macos_api: false
+  deploy_device_api: false
   deploy_tracker: false
   deploy_alpr_service: false
   deploy_player: true

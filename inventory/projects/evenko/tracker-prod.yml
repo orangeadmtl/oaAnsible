@@ -30,7 +30,7 @@ all:
       allow_server_optimizations: false # Conservative for production
       allow_destructive_operations: false
       # Evenko tracker project components: macos-api, tracker only (same as f1)
-      deploy_macos_api: true
+      deploy_device_api: true
       deploy_tracker: true
       deploy_alpr_service: false
       deploy_player: false

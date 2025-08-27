@@ -8,8 +8,8 @@ project_name: "f1"
 # F1 project component deployment
 oa_environment_defaults:
   project: "f1"
-  # F1 project components: macos-api, tracker only
-  deploy_macos_api: true
+  # F1 project components: device-api, tracker only
+  deploy_device_api: true
   deploy_tracker: true
   deploy_alpr_service: false
   deploy_player: false

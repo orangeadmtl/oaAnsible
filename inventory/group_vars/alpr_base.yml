@@ -9,7 +9,7 @@ project_name: "alpr"
 oa_environment_defaults:
   project: "alpr"
   # ALPR project components: macos-api, alpr service only
-  deploy_macos_api: true
+  deploy_device_api: true
   deploy_tracker: false
   deploy_alpr_service: true
   deploy_player: false

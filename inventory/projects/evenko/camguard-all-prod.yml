@@ -30,7 +30,7 @@ all:
       allow_server_optimizations: false # Conservative for production
       allow_destructive_operations: false
       # NEW REQUEST: Deploy camguard to ALL evenko machines
-      deploy_macos_api: true # Required for camguard monitoring
+      deploy_device_api: true # Required for camguard monitoring
       deploy_tracker: false
       deploy_alpr_service: false
       deploy_player: false # Player already deployed separately

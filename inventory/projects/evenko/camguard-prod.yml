@@ -30,7 +30,7 @@ all:
       allow_server_optimizations: false # Conservative for production
       allow_destructive_operations: false
       # Evenko CamGuard project components: CamGuard and API only
-      deploy_macos_api: true # Needed for CamGuard monitoring endpoints
+      deploy_device_api: true # Needed for CamGuard monitoring endpoints
       deploy_tracker: false
       deploy_alpr_service: false
       deploy_player: false

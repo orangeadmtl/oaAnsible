@@ -9,7 +9,7 @@ project_name: "spectra"
 oa_environment_defaults:
   project: "spectra"
   # Spectra project components: macos-api, tracker, video-player
-  deploy_macos_api: true
+  deploy_device_api: true
   deploy_tracker: true
   deploy_alpr_service: false
   deploy_player: true
