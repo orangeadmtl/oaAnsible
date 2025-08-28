@@ -19,24 +19,24 @@ parking_monitor_service:
 
 # Python Environment Configuration
 parking_monitor_python:
-  version: "{{ parking_monitor_service.python_version }}"
+  version: "3.12"
   env_name: "parking-monitor"
-  env_path: "{{ ansible_user_dir }}/.pyenv/versions/{{ parking_monitor_python.version }}/envs/{{ parking_monitor_python.env_name }}"
+  env_path: "{{ ansible_user_dir }}/.pyenv/versions/3.12/envs/parking-monitor"
   requirements_file: "requirements.txt"
 
 # Model Configuration
 parking_monitor_models:
   base_model: "yolo11m.pt"
   export_format: "coreml"
-  model_dir: "{{ parking_monitor_repository.destination }}/models"
-  downloads_dir: "{{ parking_monitor_models.model_dir }}/downloads"
-  exports_dir: "{{ parking_monitor_models.model_dir }}/exports"
+  model_dir: "{{ ansible_user_dir }}/orangead/parking-monitor/models"
+  downloads_dir: "{{ ansible_user_dir }}/orangead/parking-monitor/models/downloads"
+  exports_dir: "{{ ansible_user_dir }}/orangead/parking-monitor/models/exports"
   auto_download: true
   optimization_enabled: true
 
 # Detection Configuration
 parking_monitor_detection:
-  model_path: "{{ parking_monitor_models.exports_dir }}/yolo11m_parking.coreml"
+  model_path: "{{ ansible_user_dir }}/orangead/parking-monitor/models/exports/yolo11m_parking.coreml"
   confidence_threshold: 0.5
   nms_threshold: 0.4
   target_fps: 30
