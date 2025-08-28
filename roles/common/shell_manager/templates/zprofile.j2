@@ -1,8 +1,11 @@
 # {{ ansible_managed }}
-# Shell Environment Configuration - macOS (.zprofile)
+# Shell Environment Configuration - {{ shell_platform }}(.zprofile)
 # ===================================================
 
 # System PATH Configuration
+# User local binaries directory
+export PATH="$HOME/.local/bin:$PATH"
+
 {% if shell_config.components.homebrew.enabled and shell_platform == "macos" %}
 # Homebrew Configuration
 {% if ansible_architecture == "arm64" %}
