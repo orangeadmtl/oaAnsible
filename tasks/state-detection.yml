@@ -124,15 +124,15 @@
           pyenv_installed: "{{ pyenv_binary_check.stat.exists | default(false) }}"
           pyenv_valid: "{{ pyenv_binary_check.stat.exists and pyenv_git_check.stat.exists | default(false) }}"
           pyenv_working: "{{ pyenv_version_check.rc == 0 if pyenv_version_check is defined else false }}"
-          pyenv_version: "{{ pyenv_version_check.stdout if pyenv_version_check.rc == 0 else 'unknown' }}"
+          pyenv_version: "{{ pyenv_version_check.stdout if pyenv_version_check is defined and pyenv_version_check.rc == 0 else 'unknown' }}"
           installed_versions: "{{ pyenv_versions_check.stdout_lines | default([]) }}"
           global_version: "{{ pyenv_global_check.stdout | default('none') }}"
           target_version: "{{ runtime.python.version | default(python.version | default('3.11.11')) }}"
           target_installed: "{{ target_python_installed | default(false) }}"
           target_is_global: "{{ pyenv_global_check.stdout | default('none') == (runtime.python.version | default(python.version | default('3.11.11'))) }}"
-          uv_installed: "{{ uv_check.rc == 0 }}"
+          uv_installed: "{{ uv_check.rc == 0 if uv_check is defined else false }}"
           ready:
-            "{{ pyenv_binary_check.stat.exists and pyenv_git_check.stat.exists | default(false) and target_python_installed | default(false) and
+            "{{ pyenv_binary_check.stat.exists | default(false) and pyenv_git_check.stat.exists | default(false) and target_python_installed | default(false) and
             pyenv_global_check.stdout | default('none') == (runtime.python.version | default(python.version | default('3.11.11'))) }}"
 
 # Node.js Environment State Detection
@@ -374,10 +374,10 @@
 - name: Set global system readiness facts
   ansible.builtin.set_fact:
     system_ready:
-      python: "{{ python_state.ready }}"
-      node: "{{ node_state.ready }}"
-      homebrew: "{{ homebrew_state.working if platform_state.is_macos else true }}"
-      tailscale: "{{ tailscale_state.online }}"
+      python: "{{ python_state.ready | default(false) }}"
+      node: "{{ node_state.ready | default(false) }}"
+      homebrew: "{{ homebrew_state.working | default(false) if platform_state.is_macos else true }}"
+      tailscale: "{{ tailscale_state.online | default(false) }}"
       base_system:
-        "{{ (homebrew_state.working if platform_state.is_macos else true) and (config_files_state.zshrc_exists or config_files_state.bash_profile_exists) }}"
+        "{{ (homebrew_state.working | default(false) if platform_state.is_macos else true) and (config_files_state.zshrc_exists | default(false) or config_files_state.bash_profile_exists | default(false)) }}"
   tags: ["always", "state"]
