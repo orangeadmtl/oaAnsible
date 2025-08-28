@@ -15,7 +15,7 @@
 - name: Check macOS component compatibility
   ansible.builtin.set_fact:
     compatible_components:
-      "{{ compatible_components + ['device-api', 'tracker', 'alpr', 'player', 'camguard', 'mediamtx_demo', 'cursorcerer', 'base', 'network', 'security', 'ssh'] }}"
+      "{{ compatible_components + ['device-api', 'tracker', 'alpr', 'player', 'camguard', 'mediamtx_demo', 'cursorcerer', 'parking-monitor', 'staging-video-feed', 'base', 'network', 'security', 'ssh'] }}"
   when: target_platform == "macos"
   tags: ["always"]
 
@@ -228,6 +228,24 @@
     - target_platform == "macos"
     - "'cursorcerer' in deployment_components | default(selected_components)"
   tags: ["cursorcerer"]
+
+# Parking Monitor Component - Deployed First (if enabled)
+- name: Deploy staging video feed component (before parking monitor)
+  ansible.builtin.include_role:
+    name: macos/staging_video_feed
+  when:
+    - target_platform == "macos"
+    - parking_monitor.enabled | default(false)
+    - oa_environment.stage == "staging"
+  tags: ["staging-video-feed", "parking-monitor"]
+
+- name: Deploy parking monitor component
+  ansible.builtin.include_role:
+    name: macos/parking_monitor
+  when:
+    - target_platform == "macos"
+    - parking_monitor.enabled | default(false)
+  tags: ["parking-monitor"]
 
 # Ubuntu-specific components
 - name: Deploy Docker component

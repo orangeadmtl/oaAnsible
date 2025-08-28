@@ -48,6 +48,8 @@
           "oasentinel-data": "oasentinel-data"
           "oasentinel-train": "oasentinel-train"
           "oasentinel-full": "oasentinel-full"
+          "parking-monitor": "parking-monitor"
+          "staging-video-feed": "staging-video-feed"
           "oasentinel": "oasentinel-full"
           "tailscale": "tailscale"
           "vpn": "tailscale"
