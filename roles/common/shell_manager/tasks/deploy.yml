@@ -63,6 +63,63 @@
               ZSH_THEME_GIT_PROMPT_DIRTY="%{$fg[blue]%}) %{$fg[yellow]%}✗"
               ZSH_THEME_GIT_PROMPT_CLEAN="%{$fg[blue]%})"
 
+    - name: Install lsd (modern ls replacement) for supported platforms
+      when: 
+        - shell_config.components.lsd.enabled
+        - shell_platform in shell_config.components.lsd.enabled_platforms
+      block:
+        - name: Install lsd on macOS via Homebrew
+          ansible.builtin.package:
+            name: lsd
+            state: present
+          become: false
+          when: shell_platform == "macos"
+          
+        - name: Install lsd on Ubuntu/Debian systems
+          when: shell_platform in ["ubuntu", "orangepi"]
+          block:
+            - name: Check if lsd is already installed
+              ansible.builtin.command: which lsd
+              register: lsd_check
+              failed_when: false
+              changed_when: false
+              
+            - name: Download and install lsd .deb package
+              when: lsd_check.rc != 0
+              block:
+                - name: Get latest lsd release info
+                  ansible.builtin.uri:
+                    url: https://api.github.com/repos/lsd-rs/lsd/releases/latest
+                    return_content: true
+                  register: lsd_latest_release
+                  
+                - name: Set lsd download URL for amd64
+                  ansible.builtin.set_fact:
+                    lsd_download_url: "{{ lsd_latest_release.json.assets | selectattr('name', 'match', '.*amd64.deb$') | map(attribute='browser_download_url') | first }}"
+                  when: ansible_architecture == "x86_64"
+                  
+                - name: Set lsd download URL for arm64
+                  ansible.builtin.set_fact:
+                    lsd_download_url: "{{ lsd_latest_release.json.assets | selectattr('name', 'match', '.*arm64.deb$') | map(attribute='browser_download_url') | first }}"
+                  when: ansible_architecture == "aarch64"
+                  
+                - name: Download lsd .deb package
+                  ansible.builtin.get_url:
+                    url: "{{ lsd_download_url }}"
+                    dest: "/tmp/lsd.deb"
+                    mode: "0644"
+                  
+                - name: Install lsd .deb package
+                  ansible.builtin.apt:
+                    deb: "/tmp/lsd.deb"
+                    state: present
+                  become: true
+                  
+                - name: Clean up lsd .deb package
+                  ansible.builtin.file:
+                    path: "/tmp/lsd.deb"
+                    state: absent
+
     - name: Validate generated configuration files
       ansible.builtin.shell: |
         # Syntax validation for shell files
