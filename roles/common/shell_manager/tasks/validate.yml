@@ -83,24 +83,24 @@
     - name: Validation summary
       ansible.builtin.debug:
         msg: |
-          ✅ Shell Configuration Deployment: SUCCESS
+          [SUCCESS] Shell Configuration Deployment: COMPLETED
           ==========================================
           {% if validation_phase == "post_deployment" %}
           
-          🔧 Configuration Status:
-          - Shell Files: ✅ Generated and deployed
-          - Syntax Check: {{ '✅ PASSED' if syntax_check.rc == 0 else '⚠️ ISSUES (non-fatal)' }}
-          - PATH Status: {{ '✅ Clean' if path_duplicates.stdout == '' else '⚠️ Duplicates found (will be resolved on login)' }}
+          [CONFIG] Configuration Status:
+          - Shell Files: [SUCCESS] Generated and deployed
+          - Syntax Check: {{ '[SUCCESS] PASSED' if syntax_check.rc == 0 else '[WARNING] ISSUES (non-fatal)' }}
+          - PATH Status: {{ '[SUCCESS] Clean' if path_duplicates.stdout == '' else '[WARNING] Duplicates found (will be resolved on login)' }}
           
-          📦 Component Status:
+          [COMPONENTS] Component Status:
           {{ component_check.stdout_lines | join('\n          ') if component_check.stdout_lines is defined else '- Component check skipped' }}
           
-          ⚡ Performance:
+          [PERFORMANCE] Performance:
           {{ performance_check.stdout if performance_check is defined and performance_check.rc == 0 else '- Performance check completed' }}
           
-          🎉 Deployment Result: ZSH ENHANCEMENT SUCCESSFUL
+          [SUCCESS] Deployment Result: ZSH ENHANCEMENT SUCCESSFUL
           
-          📋 Next Steps:
+          [NEXT] Next Steps:
           - Log out and log back in to activate zsh
           - Or run: exec zsh
           - Your shell now includes Oh My Zsh with syntax highlighting!
@@ -111,19 +111,19 @@
     - name: Validation warning - deployment successful but with minor issues
       ansible.builtin.debug:
         msg: |
-          ⚠️ Validation Warning (Non-Fatal)
+          [WARNING] Validation Warning (Non-Fatal)
           ================================
           
-          🎉 Core Deployment: SUCCESSFUL
+          [SUCCESS] Core Deployment: SUCCESSFUL
           - Zsh installed and configured
           - Oh My Zsh framework deployed
           - Configuration files created
           
-          ⚠️ Minor Issue Detected:
+          [WARNING] Minor Issue Detected:
           - Task: {{ ansible_failed_task.name | default('Unknown') }}
           - Impact: Components may need manual installation
           
-          ✅ Resolution: 
+          [RESOLUTION] Resolution: 
           - Your zsh enhancement is working
           - Individual components (pyenv, nvm, bun) can be installed as needed
           - Run the deployment again to retry component installation
