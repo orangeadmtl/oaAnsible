@@ -30,13 +30,14 @@ all:
         debug_mode: true
         save_detection_images: true  # Save images for analysis
         
-      # Camera Configuration (Development)
+      # Camera Configuration (Development with Staging Video Feed)
       camera:
-        source: 0
-        resolution: [1280, 720]  # Lower resolution for development
-        fps: 25
+        source: 1  # Use virtual camera device from staging video feed
+        resolution: [1920, 1080]  # Full HD for realistic testing
+        fps: 30
         debug_capture: true
         save_frames: true  # Save frames for debugging
+        staging_mode: true  # Flag indicating staging video feed usage
         
       # Parking Space Configuration (Minimal test setup)
       parking_zones:
@@ -152,6 +153,22 @@ all:
         - device_api
         - tailscale
 
+    # Staging Video Feed Configuration (Automatic Virtual Camera)
+    staging_video_feed:
+      enabled: true  # Auto-enabled for staging environments with parking monitor
+      auto_download_videos: true
+      video_scenarios:
+        - "empty parking lot surveillance camera 1080p"
+        - "half full parking lot security footage"
+        - "full parking lot surveillance video"
+      rotation_enabled: true
+      rotation_interval: 600  # 10 minutes per scenario
+      virtual_camera_device: 1
+      resolution: [1920, 1080]
+      fps: 30
+      health_monitoring: true
+      debug_mode: true
+
     # Development Tools
     development:
       enabled: true
@@ -171,16 +188,17 @@ all:
   children:
     yuh_staging:
       hosts:
-        f1-ca-001:
-          ansible_host: 100.103.229.95
-          ansible_user: studio
+        f1-ca-015:
+          ansible_host: 100.91.66.122
+          ansible_user: admin
           ansible_port: 22
-          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-001'] }}"
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-015'] }}"
           hostname: "yuh-staging-001"
           device_role: "development_parking_monitor"
-          camera_id: 0
+          camera_id: 1  # Virtual camera device
           display_id: 0
           parking_zone: "Dev Zone"
           debug_mode: true
           development_mode: true
-          cam_id: "5e2b80e0-b554-4ee4-99a6-2b1b05c2c656"
+          staging_video_feed: true  # Enable staging video feed
+          cam_id: "f5f9b8d0-6048-4cbb-8fb7-39df676733a0"
