@@ -140,10 +140,19 @@
   when: "'shell' in deployment_components | default(selected_components)"
   tags: ["shell", "zsh"]
   block:
-    - name: Deploy Ubuntu shell
+    - name: Deploy shell_manager (common role)
+      ansible.builtin.include_role:
+        name: common/shell_manager
+      when: 
+        - shell_manager_enabled | default(false)
+        - target_platform in ["ubuntu", "debian", "macos"]
+
+    - name: Deploy Ubuntu shell (legacy)
       ansible.builtin.include_role:
         name: ubuntu/shell
-      when: target_platform == "ubuntu"
+      when: 
+        - target_platform == "ubuntu"
+        - not (shell_manager_enabled | default(false))
 
     - name: Deploy OrangePi shell
       ansible.builtin.include_role:

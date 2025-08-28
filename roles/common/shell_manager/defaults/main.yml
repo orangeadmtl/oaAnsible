@@ -8,10 +8,10 @@ shell_manager:
   supported_platforms: ["macos", "ubuntu", "orangepi"]
   auto_detect_platform: true
   
-  # Shell preferences by platform
+  # Shell preferences by platform - all use zsh for consistency
   platform_shells:
     macos: "zsh"
-    ubuntu: "bash"  # Default to bash for Ubuntu compatibility
+    ubuntu: "zsh"  # Changed to zsh for enhanced features
     orangepi: "zsh"
   
   # File management strategy
@@ -27,12 +27,14 @@ shell_manager:
   components:
     # Core system components
     homebrew:
+      enabled: true
       enabled_platforms: ["macos"]
       auto_detect: true
       prefix_arm64: "/opt/homebrew"
       prefix_x86: "/usr/local"
       
     apt:
+      enabled: true
       enabled_platforms: ["ubuntu", "orangepi"]
       auto_detect: true
       
@@ -59,20 +61,27 @@ shell_manager:
       enabled_platforms: ["macos", "ubuntu", "orangepi"]
       install_location: "$HOME/.cargo"
       
-    # Shell enhancements (platform-specific)
+    # Directory listing enhancements
+    lsd:
+      enabled: true
+      enabled_platforms: ["macos", "ubuntu", "orangepi"]
+      
+    # Shell enhancements - Oh My Zsh for all platforms
     oh_my_zsh:
       enabled: true
-      enabled_platforms: ["macos", "orangepi"]
+      enabled_platforms: ["macos", "ubuntu", "orangepi"]  # Now includes Ubuntu
       theme: "robbyrussell-custom"
       plugins:
         - "git"
         - "zsh-syntax-highlighting" 
         - "zsh-autosuggestions"
         - "history-substring-search"
+        - "colored-man-pages"
+        - "command-not-found"
         
     bash_it:
-      enabled: false  # Alternative for Ubuntu
-      enabled_platforms: ["ubuntu"]
+      enabled: false  # Deprecated - using Oh My Zsh everywhere
+      enabled_platforms: []
       theme: "bobby"
       
   # PATH management

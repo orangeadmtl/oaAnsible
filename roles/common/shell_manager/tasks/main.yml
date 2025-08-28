@@ -30,17 +30,16 @@
         shell_platform: "{{ detected_platform }}"
         target_shell: "{{ shell_manager.platform_shells[detected_platform] }}"
         shell_rc_file: ".{{ shell_manager.platform_shells[detected_platform] }}rc"
-        shell_profile_file: >-
-          {%- if detected_platform == "macos" -%}
-            .zprofile
-          {%- else -%}
-            .bash_profile
-          {%- endif -%}
+        shell_profile_file: ".zprofile"  # All platforms use zsh now
         user_home: "{{ ansible_env.HOME }}"
         
     - name: Merge shell configuration with overrides
       ansible.builtin.set_fact:
         shell_config: "{{ shell_manager | combine(shell_manager_overrides | default({}), recursive=True) }}"
+
+- name: Shell Manager - Zsh Installation and Setup
+  ansible.builtin.include_tasks: zsh_setup.yml
+  tags: ["shell_manager", "zsh", "setup"]
 
 - name: Shell Manager - Pre-deployment Validation
   ansible.builtin.include_tasks: validate.yml

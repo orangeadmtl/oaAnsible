@@ -1,0 +1,94 @@
+---
+# Zsh Installation and Setup Tasks
+# =================================
+
+- name: Install zsh package
+  ansible.builtin.package:
+    name: zsh
+    state: present
+  become: true
+
+- name: Check if zsh is installed
+  ansible.builtin.command: which zsh
+  register: zsh_path
+  changed_when: false
+  failed_when: false
+
+- name: Get current user shell
+  ansible.builtin.command: echo $SHELL
+  register: current_shell
+  changed_when: false
+
+- name: Change user shell to zsh
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    shell: "{{ zsh_path.stdout }}"
+  become: true
+  when: 
+    - zsh_path.rc == 0
+    - current_shell.stdout != zsh_path.stdout
+
+- name: Create zsh directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ user_home }}/.oh-my-zsh"
+    - "{{ user_home }}/.oh-my-zsh/custom/plugins"
+    - "{{ user_home }}/.oh-my-zsh/custom/themes"
+
+- name: Check if Oh My Zsh is already installed
+  ansible.builtin.stat:
+    path: "{{ user_home }}/.oh-my-zsh/oh-my-zsh.sh"
+  register: omz_installed
+
+- name: Remove existing Oh My Zsh (force mode only)
+  ansible.builtin.file:
+    path: "{{ user_home }}/.oh-my-zsh"
+    state: absent
+  when: 
+    - shell_config.components.oh_my_zsh.enabled
+    - shell_platform in shell_config.components.oh_my_zsh.enabled_platforms
+    - force_deployment | default(false)
+
+- name: Install Oh My Zsh
+  ansible.builtin.shell: |
+    curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh | sh -s -- --unattended
+  when: 
+    - shell_config.components.oh_my_zsh.enabled
+    - shell_platform in shell_config.components.oh_my_zsh.enabled_platforms
+    - (not omz_installed.stat.exists) or (force_deployment | default(false))
+
+- name: Install Oh My Zsh plugins
+  ansible.builtin.git:
+    repo: "{{ item.repo }}"
+    dest: "{{ user_home }}/.oh-my-zsh/custom/plugins/{{ item.name }}"
+    version: master
+  loop:
+    - name: zsh-syntax-highlighting
+      repo: https://github.com/zsh-users/zsh-syntax-highlighting.git
+    - name: zsh-autosuggestions
+      repo: https://github.com/zsh-users/zsh-autosuggestions.git
+  when: 
+    - shell_config.components.oh_my_zsh.enabled
+    - shell_platform in shell_config.components.oh_my_zsh.enabled_platforms
+    - item.name in shell_config.components.oh_my_zsh.plugins
+  ignore_errors: true  # In case plugins are already installed
+
+- name: Display zsh setup summary
+  ansible.builtin.debug:
+    msg: |
+      [SUCCESS] Zsh Enhancement Setup Complete!
+      ========================================
+      
+      Shell Status:
+      - Zsh binary: {{ zsh_path.stdout | default('not found') }}
+      - User shell: {{ 'Changed to zsh' if current_shell.stdout != zsh_path.stdout else 'Already zsh' }}
+      
+      Oh My Zsh Framework:
+      - Status: {{ 'Previously installed' if omz_installed.stat.exists else 'Newly installed' }}
+      - Plugins: syntax-highlighting, autosuggestions
+      - Theme: {{ shell_config.components.oh_my_zsh.theme | default('robbyrussell') }}
+      
+      Next: Configuration files will be deployed with shell profiles

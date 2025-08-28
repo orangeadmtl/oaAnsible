@@ -27,7 +27,7 @@
   when: ansible_os_family == "Darwin" or ansible_system == "Darwin" or ansible_distribution == "MacOSX"
   tags: ["always"]
 
-- name: Detect Ubuntu platform
+- name: Detect Ubuntu/Debian platform
   ansible.builtin.set_fact:
     detected_platform: "ubuntu"
     platform_capabilities:
@@ -35,7 +35,10 @@
       - "apt"
       - "docker"
       - "server"
-  when: ansible_distribution == "Ubuntu" and ansible_architecture != "aarch64"
+      - "shell"
+  when: 
+    - ansible_distribution in ["Ubuntu", "Debian"]
+    - ansible_architecture != "aarch64"
   tags: ["always"]
 
 - name: Detect OrangePi platform (Ubuntu ARM64)
@@ -52,6 +55,26 @@
     - ansible_distribution == "Ubuntu"
     - ansible_architecture == "aarch64"
     - platform_type is defined and platform_type == "orangepi"  # Explicit platform detection from inventory
+  tags: ["always"]
+
+- name: Check for platform_type override from inventory
+  ansible.builtin.set_fact:
+    detected_platform: >-
+      {%- if platform_type == "debian" -%}
+        ubuntu
+      {%- elif platform_type in ["ubuntu", "macos", "orangepi"] -%}
+        {{ platform_type }}
+      {%- endif -%}
+    platform_capabilities:
+      - "systemd"
+      - "apt"
+      - "docker"
+      - "server"
+      - "shell"
+  when: 
+    - detected_platform is not defined
+    - platform_type is defined
+    - platform_type in ["debian", "ubuntu", "macos", "orangepi"]
   tags: ["always"]
 
 - name: Fallback platform detection using command
