@@ -301,36 +301,35 @@ select_target_host() {
   # List hosts from selected inventory - check both macOS and Ubuntu groups
   log_debug "Fetching hosts from $selected_inventory_path"
   
-  # Get hosts from macOS group
-  while IFS= read -r line; do
-    if [ -n "$line" ]; then
-      host_aliases+=("$line [macOS]")
+  # Dynamically discover all groups that have hosts
+  local groups=()
+  while IFS= read -r group; do
+    if [ -n "$group" ] && [ "$group" != "null" ]; then
+      groups+=("$group")
     fi
-  done < <(yq e '.all.children.macos.hosts | keys | .[]' "$selected_inventory_path" 2>/dev/null)
+  done < <(yq e '.all.children | keys | .[]' "$selected_inventory_path" 2>/dev/null)
   
-  # Get hosts from ubuntu_servers group
-  while IFS= read -r line; do
-    if [ -n "$line" ]; then
-      host_aliases+=("$line [Ubuntu-servers]")
-    fi
-  done < <(yq e '.all.children.ubuntu_servers.hosts | keys | .[]' "$selected_inventory_path" 2>/dev/null)
-  
-  # Get hosts from ubuntu group (alternative naming)
-  while IFS= read -r line; do
-    if [ -n "$line" ]; then
-      host_aliases+=("$line [Ubuntu]")
-    fi
-  done < <(yq e '.all.children.ubuntu.hosts | keys | .[]' "$selected_inventory_path" 2>/dev/null)
-  
-  # Get hosts from orangepi_devices group
-  while IFS= read -r line; do
-    if [ -n "$line" ]; then
-      host_aliases+=("$line [OrangePi]")
-    fi
-  done < <(yq e '.all.children.orangepi_devices.hosts | keys | .[]' "$selected_inventory_path" 2>/dev/null)
+  # For each group, get its hosts
+  for group in "${groups[@]}"; do
+    while IFS= read -r host; do
+      if [ -n "$host" ] && [ "$host" != "null" ]; then
+        # Format display name based on group
+        local display_name=""
+        case "$group" in
+          "macos") display_name="macOS" ;;
+          "ubuntu_servers") display_name="Ubuntu-servers" ;;
+          "ubuntu") display_name="Ubuntu" ;;
+          "orangepi_devices") display_name="OrangePi" ;;
+          "kai_devserver") display_name="Kai-DevServer" ;;
+          *) display_name="$group" ;;  # Use raw group name for unknown groups
+        esac
+        host_aliases+=("$host [$display_name]")
+      fi
+    done < <(yq e ".all.children.$group.hosts | keys | .[]" "$selected_inventory_path" 2>/dev/null)
+  done
 
   if [ ${#host_aliases[@]} -eq 0 ]; then
-    log_error "No hosts found in any supported groups of $selected_inventory_path, or error parsing inventory."
+    log_error "No hosts found in any groups of $selected_inventory_path, or error parsing inventory."
     return 1
   fi
 
@@ -338,14 +337,21 @@ select_target_host() {
   select host_choice in "${host_aliases[@]}"; do
     if [[ -n "$host_choice" ]]; then
       # Extract hostname and group from the display format "hostname [group]"
-      if [[ "$host_choice" =~ ^(.+)\ \[(macOS|Ubuntu-servers|Ubuntu|OrangePi)\]$ ]]; then
+      if [[ "$host_choice" =~ ^(.+)\ \[(.+)\]$ ]]; then
         selected_host_alias="${BASH_REMATCH[1]}"
         TARGET_HOST_GROUP_DISPLAY="${BASH_REMATCH[2]}"
+        
+        # Map display name back to actual group name
         case "$TARGET_HOST_GROUP_DISPLAY" in
           "macOS") TARGET_HOST_GROUP="macos" ;;
           "Ubuntu-servers") TARGET_HOST_GROUP="ubuntu_servers" ;;
           "Ubuntu") TARGET_HOST_GROUP="ubuntu" ;;
           "OrangePi") TARGET_HOST_GROUP="orangepi_devices" ;;
+          "Kai-DevServer") TARGET_HOST_GROUP="kai_devserver" ;;
+          *) 
+            # For unknown groups, use lowercase with underscores
+            TARGET_HOST_GROUP=$(echo "$TARGET_HOST_GROUP_DISPLAY" | tr '[:upper:]' '[:lower:]' | tr '-' '_')
+            ;;
         esac
         log_info "Selected host: $selected_host_alias [$TARGET_HOST_GROUP_DISPLAY]"
       else

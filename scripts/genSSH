@@ -73,35 +73,25 @@ if [ $# -ge 2 ]; then
     
     log_debug "Searching in inventory: $inventory_name ($inventory_path)"
     
-    # Search in macos group
-    MACOS_HOST=$(yq e ".all.children.macos.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$inventory_path" 2>/dev/null)
-    if [ -n "$MACOS_HOST" ] && [ "$MACOS_HOST" != "null" ]; then
-      TARGET_HOST_ALIAS="$MACOS_HOST"
-      TARGET_HOST_GROUP="macos"
-      TARGET_INVENTORY_PATH="$inventory_path"
-      log_info "Found host $TARGET_HOST_ALIAS in inventory $inventory_name (macOS group)"
-      break
-    fi
+    # Dynamically search in all groups
+    groups=()
+    while IFS= read -r group; do
+      if [ -n "$group" ] && [ "$group" != "null" ]; then
+        groups+=("$group")
+      fi
+    done < <(yq e '.all.children | keys | .[]' "$inventory_path" 2>/dev/null)
     
-    # Search in ubuntu_servers group
-    UBUNTU_HOST=$(yq e ".all.children.ubuntu_servers.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$inventory_path" 2>/dev/null)
-    if [ -n "$UBUNTU_HOST" ] && [ "$UBUNTU_HOST" != "null" ]; then
-      TARGET_HOST_ALIAS="$UBUNTU_HOST"
-      TARGET_HOST_GROUP="ubuntu_servers"
-      TARGET_INVENTORY_PATH="$inventory_path"
-      log_info "Found host $TARGET_HOST_ALIAS in inventory $inventory_name (ubuntu_servers group)"
-      break
-    fi
-    
-    # Search in ubuntu group (alternative naming)
-    UBUNTU_HOST=$(yq e ".all.children.ubuntu.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$inventory_path" 2>/dev/null)
-    if [ -n "$UBUNTU_HOST" ] && [ "$UBUNTU_HOST" != "null" ]; then
-      TARGET_HOST_ALIAS="$UBUNTU_HOST"
-      TARGET_HOST_GROUP="ubuntu"
-      TARGET_INVENTORY_PATH="$inventory_path"
-      log_info "Found host $TARGET_HOST_ALIAS in inventory $inventory_name (ubuntu group)"
-      break
-    fi
+    # Search in each group
+    for group in "${groups[@]}"; do
+      HOST_FOUND=$(yq e ".all.children.$group.hosts | to_entries | .[] | select(.value.ansible_host == \"$TARGET_CONNECT_HOST\") | .key" "$inventory_path" 2>/dev/null)
+      if [ -n "$HOST_FOUND" ] && [ "$HOST_FOUND" != "null" ]; then
+        TARGET_HOST_ALIAS="$HOST_FOUND"
+        TARGET_HOST_GROUP="$group"
+        TARGET_INVENTORY_PATH="$inventory_path"
+        log_info "Found host $TARGET_HOST_ALIAS in inventory $inventory_name ($group group)"
+        break 2  # Break out of both loops
+      fi
+    done
   done
   
   if [ -z "$TARGET_HOST_ALIAS" ]; then
