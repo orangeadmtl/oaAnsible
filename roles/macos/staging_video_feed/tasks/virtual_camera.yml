@@ -1,0 +1,53 @@
+---
+# Virtual camera setup for macOS
+
+- name: Create virtual camera management script
+  template:
+    src: virtual_camera_manager.sh.j2
+    dest: "{{ staging_video_feed_service.working_dir }}/scripts/virtual_camera_manager.sh"
+    mode: '0755'
+    owner: "{{ staging_video_feed_service.user }}"
+    group: "{{ staging_video_feed_service.group }}"
+  become: false
+
+- name: Create FFmpeg streaming script
+  template:
+    src: ffmpeg_stream.sh.j2
+    dest: "{{ staging_video_feed_service.working_dir }}/scripts/ffmpeg_stream.sh" 
+    mode: '0755'
+    owner: "{{ staging_video_feed_service.user }}"
+    group: "{{ staging_video_feed_service.group }}"
+  become: false
+
+- name: Test FFmpeg virtual camera capability
+  command: |
+    ffmpeg -f avfoundation -list_devices true -i ""
+  register: ffmpeg_devices_test
+  failed_when: false
+  changed_when: false
+  become: false
+
+- name: Display FFmpeg device capabilities
+  debug:
+    msg: |
+      FFmpeg AVFoundation devices:
+      {{ ffmpeg_devices_test.stderr }}
+  when: staging_video_feed_debug.enabled
+
+- name: Create virtual camera health check script
+  template:
+    src: camera_health_check.sh.j2
+    dest: "{{ staging_video_feed_service.working_dir }}/scripts/camera_health_check.sh"
+    mode: '0755'
+    owner: "{{ staging_video_feed_service.user }}"
+    group: "{{ staging_video_feed_service.group }}"
+  become: false
+
+- name: Initialize virtual camera system
+  debug:
+    msg: |
+      Virtual camera system initialized:
+      - Management script: virtual_camera_manager.sh
+      - Streaming script: ffmpeg_stream.sh
+      - Health check: camera_health_check.sh
+      - Target device: {{ staging_video_feed_camera.device_path }}

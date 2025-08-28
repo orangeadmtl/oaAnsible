@@ -1,0 +1,100 @@
+---
+# Default variables for Staging Video Feed service
+
+# Service Configuration
+staging_video_feed_service:
+  name: "com.orangead.staging-video-feed"
+  user: "{{ ansible_user }}"
+  group: "staff"
+  working_dir: "{{ ansible_user_dir }}/orangead/staging-video-feed"
+  log_level: "INFO"
+
+# Virtual Camera Configuration
+staging_video_feed_camera:
+  device_id: 1  # Creates /dev/video1
+  device_path: "/dev/video1"
+  resolution: [1920, 1080]
+  fps: 30
+  format: "YUY2"
+  buffer_size: 4
+
+# Video Content Configuration
+staging_video_feed_content:
+  storage_dir: "{{ ansible_user_dir }}/orangead/staging-video-feed/videos"
+  current_video: "{{ ansible_user_dir }}/orangead/staging-video-feed/videos/current.mp4"
+  scenario_rotation: true
+  loop_seamlessly: true
+  download_on_deploy: true
+  
+  # Video source configuration
+  sources:
+    - name: "empty-parking-lot"
+      query: "empty parking lot surveillance camera 1080p"
+      duration_min: 300  # 5 minutes minimum
+      priority: 1
+    - name: "half-full-parking"
+      query: "parking lot security camera half full 1080p"
+      duration_min: 300
+      priority: 2
+    - name: "full-parking-lot" 
+      query: "full parking lot surveillance footage 1080p"
+      duration_min: 300
+      priority: 3
+
+# System Dependencies
+staging_video_feed_dependencies:
+  homebrew_packages:
+    - ffmpeg
+    - yt-dlp
+  system_requirements:
+    - v4l2loopback
+    
+# V4L2 Loopback Configuration
+staging_video_feed_v4l2:
+  module_name: "v4l2loopback"
+  device_count: 1
+  device_label: "OrangeAd Staging Camera"
+  exclusive_caps: 1
+  max_buffers: 2
+
+# Service Management (macOS LaunchAgent)  
+staging_video_feed_launchd:
+  plist_name: "com.orangead.staging-video-feed.plist"
+  plist_path: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.staging-video-feed.plist"
+  run_at_load: true
+  keep_alive: true
+  restart_on_failure: true
+  throttle_interval: 10
+  standard_out_path: "/tmp/staging-video-feed.out"
+  standard_error_path: "/tmp/staging-video-feed.err"
+  environment_variables:
+    LOG_LEVEL: "{{ staging_video_feed_service.log_level }}"
+
+# Health Monitoring
+staging_video_feed_health:
+  enabled: true
+  check_interval: 30  # seconds
+  device_check: true
+  stream_check: true
+  auto_recovery: true
+
+# Integration with Parking Monitor
+staging_video_feed_integration:
+  coordinate_with_parking_monitor: true
+  start_before_parking_monitor: true
+  camera_device_override: 1  # Parking monitor will use this device
+
+# Logging Configuration
+staging_video_feed_logging:
+  enabled: true
+  log_file: "{{ ansible_user_dir }}/orangead/staging-video-feed/logs/staging_video_feed.log"
+  max_size: "50MB"
+  max_files: 3
+  format: "structured"
+
+# Development and Debug
+staging_video_feed_debug:
+  enabled: false
+  save_frames: false
+  performance_monitoring: false
+  verbose_logging: false

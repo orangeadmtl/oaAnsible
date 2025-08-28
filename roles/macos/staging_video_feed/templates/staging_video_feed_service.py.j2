@@ -1,0 +1,284 @@
+#!/usr/bin/env python3
+"""
+Staging Video Feed Service for macOS
+Provides virtual camera functionality using FFmpeg and AVFoundation
+"""
+
+import os
+import sys
+import time
+import json
+import logging
+import subprocess
+import signal
+from pathlib import Path
+from typing import Optional, List
+import threading
+from datetime import datetime
+
+# Configuration from environment
+WORKING_DIR = Path("{{ staging_video_feed_service.working_dir }}")
+STORAGE_DIR = Path("{{ staging_video_feed_content.storage_dir }}")
+LOG_FILE = Path("{{ staging_video_feed_logging.log_file }}")
+CURRENT_VIDEO = Path("{{ staging_video_feed_content.current_video }}")
+CAMERA_DEVICE_ID = {{ staging_video_feed_camera.device_id }}
+RESOLUTION = "{{ staging_video_feed_camera.resolution[0] }}x{{ staging_video_feed_camera.resolution[1] }}"
+FPS = {{ staging_video_feed_camera.fps }}
+ROTATION_ENABLED = {{ 'True' if staging_video_feed_content.scenario_rotation else 'False' }}
+DEBUG_ENABLED = {{ 'True' if staging_video_feed_debug.enabled else 'False' }}
+
+class StagingVideoFeedService:
+    def __init__(self):
+        self.setup_logging()
+        self.running = False
+        self.ffmpeg_process: Optional[subprocess.Popen] = None
+        self.current_video_path: Optional[Path] = None
+        self.video_list: List[Path] = []
+        self.video_index = 0
+        self.rotation_thread: Optional[threading.Thread] = None
+        
+        self.logger.info("Staging Video Feed Service initializing...")
+        
+    def setup_logging(self):
+        """Setup logging configuration"""
+        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        
+        logging.basicConfig(
+            level=logging.DEBUG if DEBUG_ENABLED else logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(LOG_FILE),
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+        self.logger = logging.getLogger('StagingVideoFeed')
+        
+    def load_video_list(self) -> bool:
+        """Load available videos from storage directory"""
+        try:
+            video_extensions = ['.mp4', '.mkv', '.webm', '.mov', '.avi']
+            self.video_list = []
+            
+            for ext in video_extensions:
+                self.video_list.extend(STORAGE_DIR.glob(f'*{ext}'))
+                
+            if not self.video_list:
+                self.logger.error(f"No video files found in {STORAGE_DIR}")
+                return False
+                
+            self.video_list.sort()  # Consistent ordering
+            self.logger.info(f"Found {len(self.video_list)} video files")
+            
+            for i, video in enumerate(self.video_list):
+                self.logger.info(f"  {i+1}. {video.name}")
+                
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error loading video list: {e}")
+            return False
+            
+    def get_current_video(self) -> Optional[Path]:
+        """Get the current video to stream"""
+        if not self.video_list:
+            return None
+            
+        if ROTATION_ENABLED:
+            video = self.video_list[self.video_index % len(self.video_list)]
+        else:
+            video = self.video_list[0]  # Always use first video
+            
+        return video
+        
+    def start_ffmpeg_stream(self, video_path: Path) -> bool:
+        """Start FFmpeg streaming process"""
+        try:
+            self.logger.info(f"Starting FFmpeg stream with video: {video_path.name}")
+            
+            # FFmpeg command for macOS AVFoundation virtual camera
+            cmd = [
+                'ffmpeg',
+                '-re',  # Read input at native frame rate
+                '-stream_loop', '-1',  # Loop infinitely
+                '-i', str(video_path),
+                '-f', 'avfoundation',
+                '-video_size', RESOLUTION,
+                '-framerate', str(FPS),
+                '-vf', f'scale={RESOLUTION.replace("x", ":")},format=yuv420p',
+                '-video_device_index', str(CAMERA_DEVICE_ID),
+                '-audio_device_index', 'none',  # No audio
+                '-y'  # Overwrite output
+            ]
+            
+            if DEBUG_ENABLED:
+                self.logger.debug(f"FFmpeg command: {' '.join(cmd)}")
+            else:
+                # Suppress FFmpeg output in production
+                cmd.extend(['-loglevel', 'quiet'])
+                
+            self.ffmpeg_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE if not DEBUG_ENABLED else None,
+                stderr=subprocess.PIPE if not DEBUG_ENABLED else None,
+                cwd=WORKING_DIR
+            )
+            
+            self.logger.info(f"FFmpeg process started with PID: {self.ffmpeg_process.pid}")
+            self.current_video_path = video_path
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to start FFmpeg stream: {e}")
+            return False
+            
+    def stop_ffmpeg_stream(self):
+        """Stop the current FFmpeg streaming process"""
+        if self.ffmpeg_process:
+            try:
+                self.logger.info("Stopping FFmpeg stream...")
+                self.ffmpeg_process.terminate()
+                
+                # Wait for graceful termination
+                try:
+                    self.ffmpeg_process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    self.logger.warning("FFmpeg process didn't terminate gracefully, killing...")
+                    self.ffmpeg_process.kill()
+                    
+                self.ffmpeg_process = None
+                self.current_video_path = None
+                self.logger.info("FFmpeg stream stopped")
+                
+            except Exception as e:
+                self.logger.error(f"Error stopping FFmpeg stream: {e}")
+                
+    def rotate_video(self):
+        """Rotate to the next video in the list"""
+        if not ROTATION_ENABLED or len(self.video_list) <= 1:
+            return
+            
+        self.video_index = (self.video_index + 1) % len(self.video_list)
+        next_video = self.get_current_video()
+        
+        if next_video and next_video != self.current_video_path:
+            self.logger.info(f"Rotating to video: {next_video.name}")
+            
+            # Restart with new video
+            self.stop_ffmpeg_stream()
+            time.sleep(2)  # Brief pause between videos
+            
+            if not self.start_ffmpeg_stream(next_video):
+                self.logger.error("Failed to start stream with new video")
+                
+    def video_rotation_loop(self):
+        """Background thread for video rotation"""
+        rotation_interval = 600  # 10 minutes per video
+        
+        while self.running and ROTATION_ENABLED:
+            time.sleep(rotation_interval)
+            
+            if self.running:
+                self.rotate_video()
+                
+    def monitor_ffmpeg_process(self):
+        """Monitor FFmpeg process health"""
+        while self.running:
+            if self.ffmpeg_process:
+                poll_result = self.ffmpeg_process.poll()
+                
+                if poll_result is not None:
+                    # Process has terminated
+                    self.logger.warning(f"FFmpeg process terminated with code: {poll_result}")
+                    
+                    if self.running:
+                        # Restart the stream
+                        self.logger.info("Restarting FFmpeg stream...")
+                        current_video = self.get_current_video()
+                        
+                        if current_video:
+                            if not self.start_ffmpeg_stream(current_video):
+                                self.logger.error("Failed to restart FFmpeg stream")
+                                break
+                        else:
+                            self.logger.error("No video available for restart")
+                            break
+                            
+            time.sleep(30)  # Check every 30 seconds
+            
+    def signal_handler(self, signum, frame):
+        """Handle shutdown signals"""
+        self.logger.info(f"Received signal {signum}, shutting down...")
+        self.shutdown()
+        
+    def shutdown(self):
+        """Graceful shutdown"""
+        self.logger.info("Shutting down staging video feed service...")
+        self.running = False
+        
+        # Stop FFmpeg stream
+        self.stop_ffmpeg_stream()
+        
+        # Wait for rotation thread to finish
+        if self.rotation_thread and self.rotation_thread.is_alive():
+            self.rotation_thread.join(timeout=5)
+            
+        self.logger.info("Staging video feed service stopped")
+        
+    def run(self):
+        """Main service loop"""
+        try:
+            # Setup signal handlers
+            signal.signal(signal.SIGTERM, self.signal_handler)
+            signal.signal(signal.SIGINT, self.signal_handler)
+            
+            # Load video list
+            if not self.load_video_list():
+                self.logger.error("Failed to load video list, exiting")
+                return 1
+                
+            # Start streaming
+            initial_video = self.get_current_video()
+            if not initial_video:
+                self.logger.error("No video available for streaming")
+                return 1
+                
+            if not self.start_ffmpeg_stream(initial_video):
+                self.logger.error("Failed to start initial video stream")
+                return 1
+                
+            self.running = True
+            
+            # Start video rotation thread if enabled
+            if ROTATION_ENABLED and len(self.video_list) > 1:
+                self.rotation_thread = threading.Thread(target=self.video_rotation_loop)
+                self.rotation_thread.daemon = True
+                self.rotation_thread.start()
+                self.logger.info("Video rotation enabled")
+                
+            # Start FFmpeg monitoring
+            monitor_thread = threading.Thread(target=self.monitor_ffmpeg_process)
+            monitor_thread.daemon = True
+            monitor_thread.start()
+            
+            self.logger.info("Staging video feed service is running")
+            
+            # Main loop - just keep the service alive
+            while self.running:
+                time.sleep(10)
+                
+                # Health check logging
+                if self.running and self.ffmpeg_process:
+                    self.logger.debug(f"Service healthy - Streaming: {self.current_video_path.name if self.current_video_path else 'None'}")
+                    
+            return 0
+            
+        except Exception as e:
+            self.logger.error(f"Fatal error in service: {e}")
+            return 1
+        finally:
+            self.shutdown()
+
+if __name__ == "__main__":
+    service = StagingVideoFeedService()
+    exit_code = service.run()
+    sys.exit(exit_code)

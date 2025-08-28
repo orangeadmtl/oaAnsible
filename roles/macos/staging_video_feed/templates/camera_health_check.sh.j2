@@ -1,0 +1,189 @@
+#!/bin/bash
+
+# Health check script for staging video feed virtual camera
+# Verifies virtual camera availability and stream functionality
+
+set -euo pipefail
+
+# Configuration
+CAMERA_DEVICE_ID="{{ staging_video_feed_camera.device_id }}"
+WORKING_DIR="{{ staging_video_feed_service.working_dir }}"
+LOG_FILE="{{ staging_video_feed_logging.log_file }}"
+
+# Logging function
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] HEALTH: $1" | tee -a "$LOG_FILE" 2>/dev/null || echo "[$(date '+%Y-%m-%d %H:%M:%S')] HEALTH: $1"
+}
+
+# Check if FFmpeg is available
+check_ffmpeg() {
+    if ! command -v ffmpeg &> /dev/null; then
+        log "ERROR: FFmpeg not found"
+        return 1
+    fi
+    
+    log "FFmpeg available: $(ffmpeg -version | head -n 1)"
+    return 0
+}
+
+# List available video devices
+list_video_devices() {
+    log "Checking available video devices..."
+    
+    # Use FFmpeg to list AVFoundation devices
+    local device_list
+    device_list=$(ffmpeg -f avfoundation -list_devices true -i "" 2>&1 || true)
+    
+    if [[ -n "$device_list" ]]; then
+        log "Available devices:"
+        echo "$device_list" | grep -E "AVFoundation|video device" | while IFS= read -r line; do
+            log "  $line"
+        done
+    else
+        log "No device information available"
+        return 1
+    fi
+    
+    return 0
+}
+
+# Check virtual camera device
+check_virtual_camera() {
+    log "Checking virtual camera device $CAMERA_DEVICE_ID..."
+    
+    # Try to access the camera device
+    local test_output
+    test_output=$(timeout 5s ffmpeg -f avfoundation -i "$CAMERA_DEVICE_ID" -t 1 -f null - 2>&1 || echo "FAILED")
+    
+    if [[ "$test_output" == *"FAILED"* ]] || [[ "$test_output" == *"error"* ]]; then
+        log "ERROR: Cannot access camera device $CAMERA_DEVICE_ID"
+        log "Device test output: $test_output"
+        return 1
+    fi
+    
+    log "Virtual camera device $CAMERA_DEVICE_ID is accessible"
+    return 0
+}
+
+# Check service status
+check_service_status() {
+    log "Checking staging video feed service status..."
+    
+    # Check if service is loaded
+    if launchctl list | grep -q "com.orangead.staging-video-feed"; then
+        log "Service is loaded in launchctl"
+    else
+        log "WARNING: Service not found in launchctl"
+        return 1
+    fi
+    
+    # Check if process is running
+    if pgrep -f "staging_video_feed_service.py" > /dev/null; then
+        local pid
+        pid=$(pgrep -f "staging_video_feed_service.py")
+        log "Service process is running (PID: $pid)"
+    else
+        log "WARNING: Service process not running"
+        return 1
+    fi
+    
+    # Check if FFmpeg is running
+    if pgrep -f "ffmpeg.*avfoundation" > /dev/null; then
+        local ffmpeg_pid
+        ffmpeg_pid=$(pgrep -f "ffmpeg.*avfoundation")
+        log "FFmpeg streaming process is running (PID: $ffmpeg_pid)"
+    else
+        log "WARNING: FFmpeg streaming process not found"
+        return 1
+    fi
+    
+    return 0
+}
+
+# Check video content
+check_video_content() {
+    log "Checking video content availability..."
+    
+    local video_dir="{{ staging_video_feed_content.storage_dir }}"
+    local video_count
+    video_count=$(find "$video_dir" -name "*.mp4" -o -name "*.mkv" -o -name "*.webm" 2>/dev/null | wc -l)
+    
+    if [[ $video_count -eq 0 ]]; then
+        log "ERROR: No video files found in $video_dir"
+        return 1
+    fi
+    
+    log "Found $video_count video files in storage"
+    
+    # Check current video symlink
+    local current_video="{{ staging_video_feed_content.current_video }}"
+    if [[ -L "$current_video" ]]; then
+        local target
+        target=$(readlink "$current_video")
+        log "Current video symlink points to: $(basename "$target")"
+        
+        if [[ ! -f "$target" ]]; then
+            log "ERROR: Current video target does not exist: $target"
+            return 1
+        fi
+    else
+        log "WARNING: Current video symlink not found: $current_video"
+    fi
+    
+    return 0
+}
+
+# Check system resources
+check_system_resources() {
+    log "Checking system resources..."
+    
+    # Check CPU usage
+    local cpu_usage
+    cpu_usage=$(ps -A -o %cpu | awk '{s+=$1} END {print s}')
+    log "Total CPU usage: ${cpu_usage}%"
+    
+    # Check memory usage
+    local memory_info
+    memory_info=$(vm_stat | head -4 | tail -3)
+    log "Memory info:"
+    echo "$memory_info" | while IFS= read -r line; do
+        log "  $line"
+    done
+    
+    # Check disk space
+    local disk_usage
+    disk_usage=$(df -h "{{ staging_video_feed_service.working_dir }}" | tail -1)
+    log "Disk usage for working directory: $disk_usage"
+    
+    return 0
+}
+
+# Main health check function
+main() {
+    log "=== Staging Video Feed Health Check Started ==="
+    
+    local exit_code=0
+    
+    # Run all health checks
+    check_ffmpeg || exit_code=1
+    list_video_devices || exit_code=1
+    check_virtual_camera || exit_code=1
+    check_service_status || exit_code=1
+    check_video_content || exit_code=1
+    check_system_resources || true  # Don't fail on resource check
+    
+    if [[ $exit_code -eq 0 ]]; then
+        log "=== Health Check PASSED ==="
+        log "All systems are healthy and operational"
+    else
+        log "=== Health Check FAILED ==="
+        log "One or more health checks failed - service may not function correctly"
+    fi
+    
+    log "=== Health Check Completed ==="
+    
+    return $exit_code
+}
+
+# Run main function
+main "$@"

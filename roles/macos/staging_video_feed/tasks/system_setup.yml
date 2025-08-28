@@ -1,0 +1,71 @@
+---
+# System dependencies and setup for staging video feed
+
+- name: Create staging video feed directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ staging_video_feed_service.user }}"
+    group: "{{ staging_video_feed_service.group }}"
+    mode: '0755'
+  loop:
+    - "{{ staging_video_feed_service.working_dir }}"
+    - "{{ staging_video_feed_content.storage_dir }}"
+    - "{{ staging_video_feed_service.working_dir }}/logs"
+    - "{{ staging_video_feed_service.working_dir }}/scripts"
+  become: false
+
+- name: Check if Homebrew is installed
+  command: which brew
+  register: homebrew_check
+  failed_when: false
+  changed_when: false
+
+- name: Install Homebrew if not present
+  shell: |
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  when: homebrew_check.rc != 0
+  become: false
+
+- name: Update Homebrew
+  homebrew:
+    update_homebrew: yes
+  become: false
+
+- name: Install required Homebrew packages
+  homebrew:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ staging_video_feed_dependencies.homebrew_packages }}"
+  become: false
+
+- name: Check FFmpeg installation
+  command: ffmpeg -version
+  register: ffmpeg_check
+  failed_when: false
+  changed_when: false
+
+- name: Verify FFmpeg installation
+  fail:
+    msg: "FFmpeg is required but not properly installed"
+  when: ffmpeg_check.rc != 0
+
+- name: Check yt-dlp installation
+  command: yt-dlp --version
+  register: ytdlp_check
+  failed_when: false
+  changed_when: false
+
+- name: Verify yt-dlp installation
+  fail:
+    msg: "yt-dlp is required but not properly installed"
+  when: ytdlp_check.rc != 0
+
+- name: Create staging video feed log file
+  file:
+    path: "{{ staging_video_feed_logging.log_file }}"
+    state: touch
+    owner: "{{ staging_video_feed_service.user }}"
+    group: "{{ staging_video_feed_service.group }}"
+    mode: '0644'
+  become: false

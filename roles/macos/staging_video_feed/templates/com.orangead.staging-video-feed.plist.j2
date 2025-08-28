@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{ staging_video_feed_service.name }}</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>{{ staging_video_feed_service.working_dir }}/staging_video_feed_service.py</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>{{ staging_video_feed_service.working_dir }}</string>
+    
+    <key>RunAtLoad</key>
+    <{{ 'true' if staging_video_feed_launchd.run_at_load else 'false' }}/>
+    
+    <key>KeepAlive</key>
+    <{{ 'true' if staging_video_feed_launchd.keep_alive else 'false' }}/>
+    
+    <key>StandardOutPath</key>
+    <string>{{ staging_video_feed_launchd.standard_out_path }}</string>
+    
+    <key>StandardErrorPath</key>
+    <string>{{ staging_video_feed_launchd.standard_error_path }}</string>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+{% for key, value in staging_video_feed_launchd.environment_variables.items() %}
+        <key>{{ key }}</key>
+        <string>{{ value }}</string>
+{% endfor %}
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>STORAGE_DIR</key>
+        <string>{{ staging_video_feed_content.storage_dir }}</string>
+        <key>CURRENT_VIDEO</key>
+        <string>{{ staging_video_feed_content.current_video }}</string>
+        <key>CAMERA_DEVICE_ID</key>
+        <string>{{ staging_video_feed_camera.device_id }}</string>
+        <key>CAMERA_RESOLUTION</key>
+        <string>{{ staging_video_feed_camera.resolution[0] }}x{{ staging_video_feed_camera.resolution[1] }}</string>
+        <key>CAMERA_FPS</key>
+        <string>{{ staging_video_feed_camera.fps }}</string>
+    </dict>
+    
+    <key>ThrottleInterval</key>
+    <integer>{{ staging_video_feed_launchd.throttle_interval }}</integer>
+    
+    <key>ProcessType</key>
+    <string>Background</string>
+    
+    <key>Nice</key>
+    <integer>5</integer>
+    
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    
+    <key>ExitTimeOut</key>
+    <integer>30</integer>
+    
+    <key>HardResourceLimits</key>
+    <dict>
+        <key>MemoryLimit</key>
+        <integer>1073741824</integer> <!-- 1GB -->
+    </dict>
+    
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>MemoryLimit</key>
+        <integer>536870912</integer> <!-- 512MB -->
+    </dict>
+</dict>
+</plist>

@@ -1,0 +1,57 @@
+---
+# Video content download and management
+
+- name: Check for existing video content
+  find:
+    paths: "{{ staging_video_feed_content.storage_dir }}"
+    patterns: "*.mp4"
+  register: existing_videos
+
+- name: Download parking lot surveillance videos
+  script: download_parking_videos.sh
+  args:
+    chdir: "{{ staging_video_feed_service.working_dir }}"
+  environment:
+    STORAGE_DIR: "{{ staging_video_feed_content.storage_dir }}"
+    LOG_FILE: "{{ staging_video_feed_logging.log_file }}"
+  when: existing_videos.files | length == 0 or staging_video_feed_content.download_on_deploy
+  become: false
+  register: video_download_result
+
+- name: Verify video downloads
+  find:
+    paths: "{{ staging_video_feed_content.storage_dir }}"
+    patterns: "*.mp4"
+  register: downloaded_videos
+
+- name: Fail if no videos are available
+  fail:
+    msg: "No parking lot videos available for staging camera feed"
+  when: downloaded_videos.files | length == 0
+
+- name: Select current video for streaming
+  file:
+    src: "{{ (downloaded_videos.files | first).path }}"
+    dest: "{{ staging_video_feed_content.current_video }}"
+    state: link
+    force: true
+  become: false
+  when: downloaded_videos.files | length > 0
+
+- name: Create video cycling script
+  template:
+    src: cycle_videos.sh.j2
+    dest: "{{ staging_video_feed_service.working_dir }}/scripts/cycle_videos.sh"
+    mode: '0755'
+    owner: "{{ staging_video_feed_service.user }}"
+    group: "{{ staging_video_feed_service.group }}"
+  become: false
+
+- name: Display video content status
+  debug:
+    msg: |
+      Video Content Summary:
+      - Storage: {{ staging_video_feed_content.storage_dir }}
+      - Videos found: {{ downloaded_videos.files | length }}
+      - Current video: {{ staging_video_feed_content.current_video }}
+      - Cycling enabled: {{ staging_video_feed_content.scenario_rotation }}

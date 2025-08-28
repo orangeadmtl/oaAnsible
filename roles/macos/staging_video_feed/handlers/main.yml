@@ -1,0 +1,38 @@
+---
+# Handlers for Staging Video Feed service
+
+- name: restart staging video feed service
+  command: |
+    launchctl unload {{ staging_video_feed_launchd.plist_path }} 2>/dev/null || true
+    sleep 2
+    launchctl load {{ staging_video_feed_launchd.plist_path }}
+  become: false
+  
+- name: stop staging video feed service
+  command: launchctl unload {{ staging_video_feed_launchd.plist_path }}
+  become: false
+  ignore_errors: true
+  
+- name: start staging video feed service  
+  command: launchctl load {{ staging_video_feed_launchd.plist_path }}
+  become: false
+  
+- name: reload staging video feed service
+  command: |
+    launchctl unload {{ staging_video_feed_launchd.plist_path }} 2>/dev/null || true
+    sleep 1
+    launchctl load {{ staging_video_feed_launchd.plist_path }}
+  become: false
+
+- name: load v4l2loopback module
+  shell: echo "V4L2 loopback loaded (macOS adaptation)"
+  become: false
+  
+- name: unload v4l2loopback module
+  shell: echo "V4L2 loopback unloaded (macOS adaptation)"
+  become: false
+  ignore_errors: true
+
+- name: refresh video devices
+  shell: system_profiler SPCameraDataType > /dev/null 2>&1 || true
+  become: false

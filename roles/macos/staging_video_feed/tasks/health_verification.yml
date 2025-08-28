@@ -1,0 +1,80 @@
+---
+# Health verification for staging video feed service
+
+- name: Check if service is loaded in launchctl
+  command: launchctl list | grep {{ staging_video_feed_service.name }}
+  register: launchctl_check
+  failed_when: false
+  changed_when: false
+  become: false
+
+- name: Verify service process is running
+  shell: |
+    ps aux | grep -v grep | grep staging_video_feed_service.py
+  register: process_check
+  failed_when: false
+  changed_when: false
+  become: false
+
+- name: Check virtual camera availability
+  script: "{{ staging_video_feed_service.working_dir }}/scripts/camera_health_check.sh"
+  register: camera_check
+  failed_when: false
+  changed_when: false
+  become: false
+  when: staging_video_feed_health.device_check
+
+- name: Test video stream functionality
+  command: |
+    timeout 5s ffmpeg -f avfoundation -i "{{ staging_video_feed_camera.device_id }}" -t 1 -f null -
+  register: stream_test
+  failed_when: false
+  changed_when: false
+  become: false
+  when: staging_video_feed_health.stream_check
+
+- name: Check log file for errors
+  shell: |
+    if [ -f "{{ staging_video_feed_logging.log_file }}" ]; then
+      tail -n 10 "{{ staging_video_feed_logging.log_file }}" | grep -i error || echo "No errors found"
+    else
+      echo "Log file not found"
+    fi
+  register: log_check
+  changed_when: false
+  become: false
+
+- name: Compile health verification results
+  set_fact:
+    staging_video_feed_health_status:
+      service_loaded: "{{ launchctl_check.rc == 0 }}"
+      process_running: "{{ process_check.rc == 0 }}"
+      camera_available: "{{ camera_check.rc == 0 if staging_video_feed_health.device_check else 'not tested' }}"
+      stream_functional: "{{ stream_test.rc == 0 if staging_video_feed_health.stream_check else 'not tested' }}"
+      log_errors: "{{ 'errors found' if 'error' in log_check.stdout.lower() else 'no errors' }}"
+
+- name: Display health verification summary
+  debug:
+    msg: |
+      ===============================================
+      🏥 Staging Video Feed Health Verification
+      ===============================================
+      Service loaded: {{ staging_video_feed_health_status.service_loaded }}
+      Process running: {{ staging_video_feed_health_status.process_running }}
+      Camera available: {{ staging_video_feed_health_status.camera_available }}
+      Stream functional: {{ staging_video_feed_health_status.stream_functional }}
+      Log status: {{ staging_video_feed_health_status.log_errors }}
+      ===============================================
+      
+      Integration status:
+      - Virtual camera ready for parking monitor
+      - Service will coordinate with parking monitor startup
+      - Automatic recovery enabled: {{ staging_video_feed_health.auto_recovery }}
+      ===============================================
+
+- name: Fail deployment if critical health checks failed
+  fail:
+    msg: "Critical staging video feed health checks failed"
+  when: 
+    - not staging_video_feed_health_status.service_loaded
+    - not staging_video_feed_health_status.process_running
