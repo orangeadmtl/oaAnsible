@@ -16,7 +16,7 @@ all:
     # Parking Monitor Configuration (Primary Service)
     parking_monitor:
       enabled: true
-      repository_url: "git@github.com:oa-device/oaParkingMonitor.git"
+      repository_url: "https://github.com/oa-device/oaParkingMonitor.git"
       branch: "main"
       port: 9091
       python_version: "3.12"
@@ -160,14 +160,14 @@ all:
   children:
     yuh_airport:
       hosts:
-        f1-ca-001:
-          ansible_host: 100.103.229.95
-          ansible_user: studio
+        f1-ca-015:
+          ansible_host: 100.91.66.122
+          ansible_user: admin
           ansible_port: 22
-          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-001'] }}"
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-015'] }}"
           hostname: "yuh-airport-001"
           device_role: "primary_parking_monitor"
           camera_id: 0
           display_id: 0
           parking_zone: "Terminal North"
-          cam_id: "5e2b80e0-b554-4ee4-99a6-2b1b05c2c656"
+          cam_id: "f5f9b8d0-6048-4cbb-8fb7-39df676733a0"
