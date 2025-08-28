@@ -19,7 +19,7 @@ all:
     
     # Repository Configuration
     parking_monitor_repository:
-      url: "git@github.com:oa-device/oaParkingMonitor.git"
+      url: "https://github.com/oa-device/oaParkingMonitor.git"
       branch: "main"  # Override per environment
       destination: "{{ ansible_user_dir }}/orangead/parking-monitor"
       

@@ -16,7 +16,7 @@ all:
     # Parking Monitor Configuration (Primary Service)
     parking_monitor:
       enabled: true
-      repository_url: "git@github.com:oa-device/oaParkingMonitor.git"
+      repository_url: "https://github.com/oa-device/oaParkingMonitor.git"
       branch: "develop"  # Use develop branch for testing
       port: 9091
       python_version: "3.12"

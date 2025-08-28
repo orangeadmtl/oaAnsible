@@ -3,7 +3,7 @@
 
 # Repository Configuration
 parking_monitor_repository:
-  url: "git@github.com:oa-device/oaParkingMonitor.git"
+  url: "https://github.com/oa-device/oaParkingMonitor.git"
   branch: "main"
   destination: "{{ ansible_user_dir }}/orangead/parking-monitor"
   force_update: false
