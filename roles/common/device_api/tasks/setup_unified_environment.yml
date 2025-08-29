@@ -38,7 +38,7 @@
   ansible.builtin.file:
     path: "{{ device_api_path }}"
     owner: "{{ ansible_user }}"
-    group: "{{ ansible_user if platform_state.is_linux else 'staff' }}"
+    group: "{{ ansible_user if platform_state.is_ubuntu else 'staff' }}"
     recurse: true
   become: true
 
@@ -66,5 +66,5 @@
       Unified Device API Environment:
       - Path: {{ device_api_path }}
       - Repository updated: {{ unified_api_update.changed | default(false) }}
-      - Platform: {{ platform_state.detected_platform }}
+      - Platform: {{ detected_platform }}
       - Service name: {{ device_api_service_name }}
