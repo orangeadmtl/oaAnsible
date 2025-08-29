@@ -1,0 +1,19 @@
+#!/bin/bash
+# Simplified Parking Monitor Startup Script
+# Delegates to project's own start script with environment setup
+
+set -euo pipefail
+
+# Project directory
+PROJECT_DIR="{{ parking_monitor_repository.destination }}"
+
+# Change to project directory
+cd "$PROJECT_DIR"
+
+# Export environment variables (set by LaunchAgent)
+{% for key, value in parking_monitor_environment.items() %}
+export {{ key }}="{{ value }}"
+{% endfor %}
+
+# Use project's own startup script
+exec ./scripts/start.sh
