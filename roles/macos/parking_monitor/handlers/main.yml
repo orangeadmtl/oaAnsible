@@ -1,6 +1,6 @@
 ---
-# Handlers for parking monitor role
-# These handlers are triggered when configuration changes require service restarts
+# Simplified Handlers for parking monitor role - Device Setup Only
+# These handlers manage the LaunchAgent service lifecycle
 
 - name: restart parking monitor
   shell: |
@@ -30,7 +30,7 @@
 
 - name: validate parking monitor service
   uri:
-    url: "http://localhost:{{ parking_monitor_service.port }}/health"
+    url: "http://localhost:9091/health"
     method: GET
     status_code: 200
     timeout: 30
@@ -41,23 +41,6 @@
 - name: refresh python environment
   shell: |
     cd "{{ parking_monitor_repository.destination }}"
-    "{{ parking_monitor_python.env_path }}/bin/pip" install -r requirements.txt --upgrade
+    uv sync
   become: false
   listen: "refresh python environment"
-
-- name: update models
-  shell: |
-    cd "{{ parking_monitor_repository.destination }}"
-    ./scripts/download_models.sh
-  become: false
-  when: parking_monitor_models.auto_download | bool
-  listen: "update models"
-
-- name: backup configuration
-  copy:
-    src: "{{ parking_monitor_repository.destination }}/config.yaml"
-    dest: "{{ parking_monitor_repository.destination }}/config.yaml.backup.{{ ansible_date_time.epoch }}"
-    remote_src: true
-  become: false
-  when: parking_monitor_backup.config_backup | bool
-  listen: "backup configuration"
