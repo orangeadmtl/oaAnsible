@@ -10,71 +10,21 @@ all:
     component_type: "ai_detection_service"
     component_category: "monitoring"
     
-    # Service Configuration
+    # Essential Service Configuration (Device Setup Only)
     parking_monitor_service_name: "com.orangead.parking-monitor"
-    parking_monitor_port: 9091
-    parking_monitor_python_version: "3.12"
     parking_monitor_user: "{{ ansible_user }}"
     parking_monitor_group: "staff"
     
-    # Repository Configuration
+    # Repository Configuration (Device Setup)
     parking_monitor_repository:
       url: "https://github.com/oa-device/oaParkingMonitor.git"
       branch: "main"  # Override per environment
       destination: "{{ ansible_user_dir }}/orangead/parking-monitor"
       
-    # Python Environment
+    # Python Environment (Device Setup)
+    parking_monitor_python_version: "3.12"
     parking_monitor_python_env:
       path: "{{ ansible_user_dir }}/.pyenv/versions/{{ parking_monitor_python_version }}/envs/parking-monitor"
-      requirements_file: "requirements.txt"
-      
-    # Model Configuration
-    parking_monitor_models:
-      base_model: "yolo11m.pt"
-      export_format: "coreml"
-      model_dir: "{{ parking_monitor_repository.destination }}/models"
-      downloads_dir: "{{ parking_monitor_models.model_dir }}/downloads"
-      exports_dir: "{{ parking_monitor_models.model_dir }}/exports"
-      
-    # Default Detection Configuration
-    parking_monitor_detection:
-      model_path: "{{ parking_monitor_models.exports_dir }}/yolo11m_parking.coreml"
-      confidence_threshold: 0.5
-      nms_threshold: 0.4
-      target_fps: 30
-      device: "mps"  # Mac M1 Metal Performance Shaders
-      
-    # Default Camera Configuration
-    parking_monitor_camera:
-      source: 0  # USB camera index
-      resolution: [1920, 1080]
-      fps: 30
-      
-    # Default Display Configuration
-    parking_monitor_display:
-      enabled: true
-      overlay_enabled: true
-      overlay_opacity: 0.7
-      status_position: "top_right"
-      show_vehicle_info: true
-      
-    # Health Monitoring Configuration
-    parking_monitor_health:
-      enabled: true
-      check_interval: 30  # seconds
-      metrics_retention: 24  # hours
-      performance_thresholds:
-        min_fps: 25
-        max_memory_gb: 4
-        max_cpu_percent: 80
-        min_accuracy: 0.9
-        
-    # Logging Configuration
-    parking_monitor_logging:
-      level: "INFO"
-      max_size: "100MB"
-      max_files: 5
-      format: "structured"
       
     # Service Management (macOS LaunchAgent)
     parking_monitor_launchd:
@@ -85,60 +35,35 @@ all:
       standard_out_path: "/tmp/parking-monitor.out"
       standard_error_path: "/tmp/parking-monitor.err"
       
-    # Dependencies
+    # Essential Dependencies (Device Setup)
     parking_monitor_dependencies:
       system_packages:
-        - python3
-        - git
         - cmake
-        - libopencv-dev
-      python_packages:
-        - ultralytics
-        - fastapi
-        - uvicorn
-        - opencv-python
-        - numpy
-        - pillow
-        - pydantic
-        - pyyaml
-        - structlog
-        - psutil
-        - torch
-        - torchvision
-        - coremltools
+        - pkg-config
         
-    # Security Configuration
+    # Security Configuration (Device Setup)
     parking_monitor_security:
       required_permissions:
         - camera_access
         - full_disk_access
-        - automation
-      allowed_connections:
-        - localhost
-        - "{{ tailscale_subnet | default('100.64.0.0/10') }}"
+        - automation_access
         
-    # Integration Points
+    # Integration Points (Device Setup)
     parking_monitor_integration:
       dashboard_endpoints:
         - path: "/health"
           purpose: "Health check for oaDashboard monitoring"
-        - path: "/api/parking/status"
+        - path: "/api/parking/status" 
           purpose: "Current parking occupancy data"
-        - path: "/api/parking/metrics"
-          purpose: "Performance and system metrics"
       
-      # Compatible with other OrangeAd services
       service_discovery:
-        advertise_port: "{{ parking_monitor_port }}"
+        advertise_port: 9091
         service_tags:
           - parking-monitor
           - ai-detection
-          - yolo11
-          - mac-m1-optimized
 
-# Component Compatibility Matrix
+# Simplified Compatibility Matrix
 parking_monitor_compatibility:
-  # Platform requirements
   platforms:
     macos:
       min_version: "12.0"  # macOS Monterey for M1 support
@@ -146,47 +71,10 @@ parking_monitor_compatibility:
         - metal_performance_shaders
         - coreml
         - camera_access
-      optimal_hardware:
-        - mac_mini_m1
-        - mac_mini_m2
-        - macbook_pro_m1
-        - macbook_air_m1
-        
-  # Service compatibility
-  services:
-    player:
-      compatible: true
-      integration: "display_overlay"
-      conflicts: false
       
+  # Essential service compatibility only
+  services:
     device_api:
       compatible: true
       integration: "health_proxy"
       required: true
-      
-    tracker:
-      compatible: true
-      integration: "parallel_ai"
-      port_conflicts: false  # Different ports (8080 vs 9091)
-      
-    camguard:
-      compatible: true
-      integration: "camera_sharing"
-      conflicts: "potential_camera_conflict"  # May need camera coordination
-      
-  # Environment compatibility
-  environments:
-    production:
-      recommended_model: "yolo11m"
-      min_fps: 30
-      stability_required: true
-      
-    staging:
-      recommended_model: "yolo11n"
-      min_fps: 25
-      debug_enabled: true
-      
-    development:
-      recommended_model: "yolo11n"
-      min_fps: 15
-      profiling_enabled: true
