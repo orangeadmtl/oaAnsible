@@ -39,17 +39,7 @@
         <string>{{ ansible_user_dir }}</string>
         <key>USER</key>
         <string>{{ parking_monitor_service.user }}</string>
-        <key>PYTHONPATH</key>
-        <string>{{ parking_monitor_repository.destination }}/src</string>
-        <key>LOG_LEVEL</key>
-        <string>{{ parking_monitor_logging.level }}</string>
-        <key>PARKING_MONITOR_CONFIG</key>
-        <string>{{ parking_monitor_repository.destination }}/config.yaml</string>
-        <key>PARKING_MONITOR_PORT</key>
-        <string>{{ parking_monitor_service.port }}</string>
-        <key>PATH</key>
-        <string>{{ parking_monitor_python.env_path }}/bin:/usr/local/bin:/usr/bin:/bin</string>
-{% for key, value in parking_monitor_launchd.environment_variables.items() %}
+{% for key, value in parking_monitor_environment.items() %}
         <key>{{ key }}</key>
         <string>{{ value }}</string>
 {% endfor %}

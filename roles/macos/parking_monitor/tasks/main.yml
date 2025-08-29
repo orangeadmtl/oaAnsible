@@ -1,6 +1,6 @@
 ---
-# Main tasks for parking monitor deployment
-# This role orchestrates the deployment of oaParkingMonitor from its GitHub repository
+# Simplified Parking Monitor Role - Device Setup Only
+# Focuses on device preparation, repository setup, and service installation
 
 - name: Include pre-deployment checks
   include_tasks: pre_checks.yml
@@ -14,16 +14,7 @@
   include_tasks: python_environment.yml
   tags: [parking-monitor, python]
 
-- name: Include model management
-  include_tasks: model_management.yml
-  tags: [parking-monitor, models]
-  when: parking_monitor_models.auto_download | bool
-
-- name: Include configuration management
-  include_tasks: configuration.yml
-  tags: [parking-monitor, config]
-
-- name: Include service setup
+- name: Include service setup (LaunchAgent)
   include_tasks: service_setup.yml
   tags: [parking-monitor, service]
 
@@ -39,21 +30,25 @@
   debug:
     msg: |
       ===============================================
-      🎯 Parking Monitor Deployment Summary
+      [INFO] Parking Monitor Device Setup Summary
       ===============================================
       Repository: {{ parking_monitor_repository.url }}
       Branch: {{ parking_monitor_repository.branch }}
+      Destination: {{ parking_monitor_repository.destination }}
       Service: {{ parking_monitor_service.name }}
-      Port: {{ parking_monitor_service.port }}
-      Python Env: {{ parking_monitor_python.env_path }}
-      Config: {{ parking_monitor_repository.destination }}/config.yaml
-      Health Check: http://localhost:{{ parking_monitor_service.port }}/health
+      Environment: {{ parking_monitor_environment.PARKING_MONITOR_ENV }}
+      Python Setup: uv-managed virtual environment
       ===============================================
-      ✅ Deployment completed successfully!
+      [SUCCESS] Device setup completed successfully!
+      
+      Project Configuration:
+      - Configuration managed by project in config/ directory
+      - Environment: {{ parking_monitor_environment.PARKING_MONITOR_ENV }}
+      - Project will auto-configure based on environment
       
       Next steps:
-      1. Verify service health: curl http://localhost:{{ parking_monitor_service.port }}/health  
-      2. Check service logs: tail -f {{ parking_monitor_repository.destination }}/logs/parking_monitor.log
-      3. Monitor via oaDashboard: Check device status and metrics
+      1. Service will start automatically via LaunchAgent
+      2. Check project logs: {{ parking_monitor_repository.destination }}/logs/
+      3. Monitor via oaDashboard for health and metrics
       ===============================================
   tags: [parking-monitor, summary]

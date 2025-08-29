@@ -76,7 +76,7 @@
       Service Name: {{ parking_monitor_service.name }}
       LaunchAgent: {{ parking_monitor_launchd.plist_path }}
       Status: {{ 'Running' if 'not_running' not in service_status.stdout else 'Failed to start' }}
-      Port: {{ parking_monitor_service.port }}
+      Environment: {{ parking_monitor_environment.PARKING_MONITOR_ENV }}
       
       Management Commands:
       • Start:   launchctl load {{ parking_monitor_launchd.plist_path }}
