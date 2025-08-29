@@ -25,6 +25,7 @@
       is_embedded: "{{ ansible_architecture in ['aarch64', 'armv7l', 'arm64'] and ansible_distribution in ['Debian', 'Ubuntu'] }}"
       package_manager: "{{ 'homebrew' if ansible_distribution == 'MacOSX' else 'apt' if ansible_distribution == 'Ubuntu' else 'unknown' }}"
       service_manager: "{{ 'launchd' if ansible_distribution == 'MacOSX' else 'systemd' if ansible_distribution == 'Ubuntu' else 'unknown' }}"
+      is_supported: "{{ ansible_distribution in ['MacOSX', 'Ubuntu'] }}"
   tags: ["always", "state"]
 
 # Homebrew State Detection (macOS)
@@ -197,7 +198,7 @@
       changed_when: false
       failed_when: false
       loop:
-        - macosapi
+        - deviceapi
         - tracker
         - alpr
 
@@ -216,7 +217,7 @@
       ansible.builtin.set_fact:
         macos_services_state:
           user_agents:
-            macosapi:
+            deviceapi:
               "{{ 'running' if 'state = running' in launchagent_status.results[0].stdout else 'stopped' if 'state = ' in launchagent_status.results[0].stdout
               else 'not_loaded' }}"
             tracker:
@@ -357,12 +358,12 @@
 
       {% if platform_state.is_macos %}
       Components:
-        - macOS API: {{ components_state.macos_api.installed }}
+        - Device API: {{ components_state.device_api.installed }}
         - Tracker: {{ components_state.tracker.installed }}
         - ALPR: {{ components_state.alpr.installed }}
 
       ⚙️ Services:
-        - macOS API: {{ macos_services_state.user_agents.macosapi }}
+        - Device API: {{ macos_services_state.user_agents.deviceapi }}
         - Tracker: {{ macos_services_state.user_agents.tracker }}
         - ALPR: {{ macos_services_state.user_agents.alpr }}
         - Daily Reboot: {{ macos_services_state.system_daemons.dailyreboot }}

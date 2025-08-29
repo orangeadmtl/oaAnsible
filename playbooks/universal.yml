@@ -4,8 +4,8 @@
 - name: Universal OrangeAd Device Configuration
   hosts: all
   gather_facts: true
-  # Performance optimizations for tag-based deployments
-  gather_subset: ["!all", "!hardware", "network", "virtual"]
+  # Include hardware facts needed by roles (memory, CPU, architecture)
+  gather_subset: ["!all", "hardware", "network", "virtual", "devices"]
   vars:
     # Default execution mode - can be overridden
     execution_mode: "full" # Options: full, components, base, network, dry-run, check, diff, force
@@ -87,6 +87,8 @@
             "oasentinel-data": "oasentinel-data",
             "oasentinel-train": "oasentinel-train",
             "oasentinel-full": "oasentinel-full",
+            "parking-monitor": "parking-monitor",
+            "staging-video-feed": "staging-video-feed",
             "oasentinel": "oasentinel-full",
             "tailscale": "tailscale",
             "vpn": "tailscale",
@@ -196,6 +198,10 @@
     - name: Import platform detection
       ansible.builtin.include_tasks: ../tasks/platform-detection.yml
       when: force_platform == ""
+      tags: ["always"]
+
+    - name: Import state detection
+      ansible.builtin.include_tasks: ../tasks/state-detection.yml
       tags: ["always"]
 
     - name: Set forced platform
