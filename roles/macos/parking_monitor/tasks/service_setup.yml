@@ -16,10 +16,16 @@
     backup: true
   notify: restart parking monitor
 
+- name: Create scripts directory
+  file:
+    path: "{{ parking_monitor_repository.destination }}/scripts"
+    state: directory
+    mode: '0755'
+
 - name: Create startup script
   template:
     src: start_parking_monitor.sh.j2
-    dest: "{{ parking_monitor_repository.destination }}/scripts/start.sh"
+    dest: "{{ parking_monitor_repository.destination }}/scripts/start_parking_monitor.sh"
     mode: '0755'
 
 - name: Create health check script
