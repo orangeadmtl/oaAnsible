@@ -22,7 +22,7 @@
         name: orangead-deviceapi.service
       register: linux_service_status
       failed_when: false
-      when: platform_state.is_linux
+      when: platform_state.is_ubuntu
 
 - name: Set deployment decision facts
   ansible.builtin.set_fact:
@@ -31,12 +31,12 @@
         not unified_api_deployed.stat.exists or
         deviceapi_force_update | default(false) or
         (platform_state.is_macos and macos_service_status.rc != 0) or
-        (platform_state.is_linux and linux_service_status.status.ActiveState != 'active')
+        (platform_state.is_ubuntu and linux_service_status.status.ActiveState != 'active')
       }}
     deviceapi_service_running: >
       {{
         (platform_state.is_macos and macos_service_status.rc == 0) or
-        (platform_state.is_linux and linux_service_status.status.ActiveState == 'active')
+        (platform_state.is_ubuntu and linux_service_status.status.ActiveState == 'active')
       }}
 
 - name: Display deployment decision
