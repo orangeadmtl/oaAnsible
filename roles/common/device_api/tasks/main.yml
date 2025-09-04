@@ -1,50 +1,76 @@
 ---
-# Unified Device API Deployment Role
-# Replaces platform-specific API deployments with unified oaDeviceAPI
+# Unified Device API Deployment Role - Improved
+# Ensures complete deployment refresh on every run
 
-- name: Deploy unified Device API
+- name: Deploy unified Device API (always update everything)
   when: platform_state.is_supported
   tags: ["device-api", "api"]
   block:
-    - name: Set device API deployment path
+    - name: Set device API deployment path and force update flag
       ansible.builtin.set_fact:
         device_api_path: "{{ ansible_user_dir }}/orangead/oaDeviceAPI"
         device_api_service_name: "{{ 'com.orangead.deviceapi' if platform_state.is_macos else 'orangead-deviceapi' }}"
         device_api_python: "{{ ansible_python.executable | default('/usr/bin/python3') }}"
+        # Always force updates - this ensures every deployment run updates everything
+        deviceapi_force_update: true
+        deviceapi_force_service_restart: true
 
-    - name: Check current deployment status  
-      ansible.builtin.include_tasks: deployment_check.yml
-      tags: ["deviceapi", "check", "status"]
+    - name: Stop existing service before updates (macOS)
+      ansible.builtin.shell: |
+        launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/{{ device_api_service_name }}.plist 2>/dev/null || true
+        launchctl stop {{ device_api_service_name }} 2>/dev/null || true
+        sleep 2
+      become_user: "{{ ansible_user }}"
+      when: platform_state.is_macos
+      ignore_errors: true
+      tags: ["deviceapi", "service", "stop"]
 
-    - name: Setup unified API environment
+    - name: Stop existing service before updates (Linux)
+      ansible.builtin.systemd:
+        name: "{{ device_api_service_name }}.service"
+        state: stopped
+      become: true
+      when: platform_state.is_ubuntu
+      ignore_errors: true
+      tags: ["deviceapi", "service", "stop"]
+
+    - name: Setup unified API environment (always update)
       ansible.builtin.include_tasks: setup_unified_environment.yml
-      when: deviceapi_deployment_needed
       tags: ["deviceapi", "setup", "files"]
 
-    - name: Configure Python environment
+    - name: Configure Python environment (always update dependencies)
       ansible.builtin.include_tasks: python_environment.yml
-      when: deviceapi_deployment_needed
       tags: ["deviceapi", "python", "dependencies"]
 
-    - name: Configure platform-specific service
+    - name: Configure platform-specific service (always restart)
       ansible.builtin.include_tasks: service_configuration.yml
-      when: deviceapi_deployment_needed
       tags: ["deviceapi", "service"]
 
     - name: Validate deployment
       ansible.builtin.include_tasks: deployment_validation.yml
       tags: ["deviceapi", "validation"]
-      when: false  # Skip validation for now
+
+    - name: Display deployment completion status
+      ansible.builtin.debug:
+        msg: |
+          ===============================================
+          Device API Deployment Completed Successfully!
+          ===============================================
+          - Repository: {{ device_api.repository_url | default('https://github.com/oa-device/oaDeviceAPI.git') }}
+          - Branch: {{ device_api.branch | default('main') }}
+          - Before Commit: {{ deviceapi_before_commit | default('N/A') }}
+          - After Commit: {{ deviceapi_after_commit | default('N/A') }}
+          - Repository Updated: {{ deviceapi_repo_updated | default(false) }}
+          - Service: {{ device_api_service_name }}
+          - Service Restarted: {{ deviceapi_service_restarted | default(false) }}
+          - Force Update Applied: {{ deviceapi_force_update }}
+          ===============================================
 
 - name: Set deployment completion facts
   ansible.builtin.set_fact:
     unified_deviceapi_deployed: true
-    unified_deviceapi_status: >
-      {{
-        'running' if deviceapi_service_running | default(false)
-        else 'configured' if deviceapi_deployment_needed | default(false)
-        else 'skipped'
-      }}
+    unified_deviceapi_status: "updated"
     unified_deviceapi_platform: "{{ detected_platform }}"
+    unified_deviceapi_last_update: "{{ ansible_date_time.iso8601 }}"
   when: platform_state.is_supported
   tags: ["device-api", "api"]
