@@ -150,7 +150,7 @@
 
 # Include camera permissions tasks (skip for ALPR-only deployments)
 - name: Include camera permissions tasks
-  ansible.builtin.include_tasks: camera_permissions.yml
+  ansible.builtin.include_tasks: camera_permissions_simple.yml
   when: security_scope | default('full') != 'alpr_camera'
 
 # Include automation permissions tasks

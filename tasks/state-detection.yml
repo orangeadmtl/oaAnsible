@@ -58,7 +58,7 @@
         homebrew_state:
           installed: "{{ homebrew_arm_check.stat.exists or homebrew_intel_check.stat.exists }}"
           path: "{{ '/opt/homebrew/bin/brew' if homebrew_arm_check.stat.exists else '/usr/local/bin/brew' if homebrew_intel_check.stat.exists else '' }}"
-          version: "{{ homebrew_version_check.stdout_lines[0] if homebrew_version_check.rc == 0 else 'unknown' }}"
+          version: "{{ homebrew_version_check.stdout_lines[0] if homebrew_version_check is defined and homebrew_version_check.rc == 0 and homebrew_version_check.stdout_lines | length > 0 else 'unknown' }}"
           working: "{{ homebrew_version_check.rc == 0 if homebrew_version_check is defined else false }}"
 
 # Python Environment State Detection
@@ -263,13 +263,17 @@
     - name: Parse Tailscale status
       ansible.builtin.set_fact:
         tailscale_status_data: "{{ tailscale_status_check.stdout | from_json }}"
-      when: tailscale_status_check.rc == 0
+      when: 
+        - tailscale_status_check is defined
+        - tailscale_status_check.rc is defined
+        - tailscale_status_check.rc == 0
+        - tailscale_status_check.stdout | length > 0
 
     - name: Set Tailscale state facts
       ansible.builtin.set_fact:
         tailscale_state:
           installed: "{{ tailscale_binary_check.rc == 0 }}"
-          running: "{{ tailscale_status_check.rc == 0 if tailscale_status_check is defined else false }}"
+          running: "{{ (tailscale_status_check is defined and tailscale_status_check.rc is defined and tailscale_status_check.rc == 0) | bool }}"
           online: "{{ tailscale_status_data.BackendState == 'Running' if tailscale_status_data is defined else false }}"
           hostname: "{{ tailscale_status_data.Self.HostName if tailscale_status_data is defined and tailscale_status_data.Self is defined else 'unknown' }}"
           ip:

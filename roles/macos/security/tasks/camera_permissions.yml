@@ -18,11 +18,20 @@
     - "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python"
   register: venv_check
 
-- name: Fail if Python virtual environments don't exist
-  ansible.builtin.fail:
-    msg: "Python virtual environments don't exist. Please run the API and Tracker roles first."
+- name: Skip camera permissions if virtual environments don't exist
+  ansible.builtin.debug:
+    msg: "Python virtual environments not found. Skipping camera permissions setup. Run device-api and tracker roles first."
   when: not (venv_check.results[0].stat.exists and venv_check.results[1].stat.exists)
 
+- name: Set skip camera permissions flag
+  ansible.builtin.set_fact:
+    skip_camera_permissions: true
+  when: not (venv_check.results[0].stat.exists and venv_check.results[1].stat.exists)
+
+# All subsequent tasks now have the conditional check
+- name: Continue only if virtual environments exist
+  ansible.builtin.set_fact:
+    venv_exists: "{{ venv_check.results[0].stat.exists and venv_check.results[1].stat.exists }}"
 # Get Python paths
 - name: Get Python paths
   ansible.builtin.shell: |
@@ -30,6 +39,7 @@
     which python3
   register: python_path
   changed_when: false
+  when: venv_exists | default(false)
 
 # Find setsid path
 - name: Find setsid executable path
@@ -387,3 +397,15 @@
       Note: The device-api has been configured to proxy the Tracker's camera feed
       instead of accessing the camera directly.
       {% endif %}
+
+# Summary message for skipped camera permissions
+- name: Camera permissions summary (when skipped)
+  ansible.builtin.debug:
+    msg: |
+      Camera permissions configuration was skipped because Python virtual environments
+      are not present. This is normal for infrastructure-only deployments.
+      
+      To enable camera permissions later:
+      1. Deploy device-api and tracker components first
+      2. Re-run the security role or full deployment
+  when: skip_camera_permissions | default(false)
