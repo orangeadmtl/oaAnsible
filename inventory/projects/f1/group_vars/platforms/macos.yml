@@ -46,3 +46,10 @@ security:
 # Network configuration
 network:
   configure_wifi: false # Set to true to configure Wi-Fi networks from vault
+
+# Tailscale configuration for all macOS devices
+tailscale:
+  enabled: true
+  tags:
+    - "tag:oa-macos"
+    - "tag:oa-device"
