@@ -114,10 +114,18 @@
       when: pyenv_versions_check is defined
 
     - name: Check if uv is installed
-      ansible.builtin.command: which uv
-      register: uv_check
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/.local/bin/uv"
+      register: uv_binary_check
+
+    - name: Check UV functionality
+      ansible.builtin.shell: |
+        export PATH="$HOME/.local/bin:$PATH"
+        uv --version 2>/dev/null || echo "not_working"
+      register: uv_version_check
       changed_when: false
       failed_when: false
+      when: uv_binary_check.stat.exists
 
     - name: Set Python environment state facts
       ansible.builtin.set_fact:
@@ -131,10 +139,16 @@
           target_version: "{{ runtime.python.version | default(python.version | default('3.11.11')) }}"
           target_installed: "{{ target_python_installed | default(false) }}"
           target_is_global: "{{ pyenv_global_check.stdout | default('none') == (runtime.python.version | default(python.version | default('3.11.11'))) }}"
-          uv_installed: "{{ uv_check.rc == 0 if uv_check is defined else false }}"
-          ready:
-            "{{ pyenv_binary_check.stat.exists | default(false) and pyenv_git_check.stat.exists | default(false) and target_python_installed | default(false) and
-            pyenv_global_check.stdout | default('none') == (runtime.python.version | default(python.version | default('3.11.11'))) }}"
+          uv_installed: "{{ uv_binary_check.stat.exists | default(false) }}"
+          uv_working: "{{ uv_version_check.stdout != 'not_working' if uv_version_check is defined else false }}"
+          uv_version: "{{ uv_version_check.stdout if uv_version_check is defined and uv_version_check.stdout != 'not_working' else 'unknown' }}"
+          ready: >-
+                {%- if runtime.python.manager | default('pyenv') == 'uv' -%}
+                {{ uv_binary_check.stat.exists | default(false) and uv_working | default(false) }}
+                {%- else -%}
+                {{ pyenv_binary_check.stat.exists | default(false) and pyenv_git_check.stat.exists | default(false) and target_python_installed | default(false) and
+                pyenv_global_check.stdout | default('none') == (runtime.python.version | default(python.version | default('3.11.11'))) }}
+                {%- endif -%}
 
 # Node.js Environment State Detection
 - name: Check Node.js environment state
@@ -325,25 +339,32 @@
     msg: |
       System State Detection Summary:
 
-      📱 Platform:
+      [MOBILE] Platform:
         - OS: {{ platform_state.distribution }} {{ platform_state.version }}
         - Architecture: {{ platform_state.architecture }}
         - Package Manager: {{ platform_state.package_manager }}
         - Service Manager: {{ platform_state.service_manager }}
 
       {% if platform_state.is_macos %}
-      🍺 Homebrew:
+      [BREW] Homebrew:
         - Installed: {{ homebrew_state.installed }}
         - Working: {{ homebrew_state.working }}
         - Path: {{ homebrew_state.path }}
       {% endif %}
 
-      🐍 Python Environment:
+      [PYTHON] Python Environment ({{ runtime.python.manager | default('pyenv') }}):
+      {% if runtime.python.manager | default('pyenv') == 'uv' %}
+        - UV: {{ python_state.uv_installed }} (working: {{ python_state.uv_working }})
+        - Version: {{ python_state.uv_version }}
+        - Target {{ python_state.target_version }}: Available
+        - Ready: {{ python_state.ready }}
+      {% else %}
         - Pyenv: {{ python_state.pyenv_installed }} (valid: {{ python_state.pyenv_valid }})
         - Target {{ python_state.target_version }}: {{ python_state.target_installed }}
         - Global: {{ python_state.global_version }}
         - UV: {{ python_state.uv_installed }}
         - Ready: {{ python_state.ready }}
+      {% endif %}
 
       Node.js Environment:
         - NVM: {{ node_state.nvm_installed }}
@@ -362,7 +383,7 @@
         - Tracker: {{ components_state.tracker.installed }}
         - ALPR: {{ components_state.alpr.installed }}
 
-      ⚙️ Services:
+      [SVC] Services:
         - Device API: {{ macos_services_state.user_agents.deviceapi }}
         - Tracker: {{ macos_services_state.user_agents.tracker }}
         - ALPR: {{ macos_services_state.user_agents.alpr }}
