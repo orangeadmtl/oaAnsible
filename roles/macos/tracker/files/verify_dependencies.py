@@ -43,7 +43,7 @@ def main():
     
     for dep in dependencies:
         installed, version = check_dependency(dep)
-        status = "✓" if installed else "✗"
+        status = "[OK]" if installed else "✗"
         version_str = f"v{version}" if version and version != "unknown" else ""
         
         if not installed:

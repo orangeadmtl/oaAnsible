@@ -1,21 +1,21 @@
 # MediaMTX Demo - Comprehensive Streaming Example
 
-> **🎯 SHOWCASE PROJECT**: This demo showcases MediaMTX integration with the OrangeAd CamGuard stack, demonstrating automated deployment, camera streaming, and Python data processing in a production-ready environment.
+> **[TARGET] SHOWCASE PROJECT**: This demo showcases MediaMTX integration with the OrangeAd CamGuard stack, demonstrating automated deployment, camera streaming, and Python data processing in a production-ready environment.
 
 Deployed to **{{ inventory_hostname }}** ({{ ansible_host }}) via Ansible automation.
 
 ---
 
-## 📋 Overview
+## [LIST] Overview
 
 This MediaMTX demo provides a complete example of:
 
-- **📹 Real-time camera streaming** via RTSP protocol
-- **🚀 Auto-start configuration** using macOS LaunchAgent
-- **🐍 Python integration** for camera data processing
-- **🔧 Infrastructure as Code** deployment via Ansible
-- **📊 API monitoring** and health checking
-- **🌐 Remote access** through Tailscale networking
+- **[CAMERA] Real-time camera streaming** via RTSP protocol
+- **[LAUNCH] Auto-start configuration** using macOS LaunchAgent
+- **[PYTHON] Python integration** for camera data processing
+- **[CONFIG] Infrastructure as Code** deployment via Ansible
+- **[STATS] API monitoring** and health checking
+- **[WEB] Remote access** through Tailscale networking
 
 ### Why This Demo Matters
 
@@ -26,7 +26,7 @@ This MediaMTX demo provides a complete example of:
 
 ---
 
-## 🚀 Quick Start
+## [LAUNCH] Quick Start
 
 ### 1. Verify Installation
 
@@ -79,7 +79,7 @@ deactivate
 
 ---
 
-## 📚 Detailed Setup Guide
+## [DOCS] Detailed Setup Guide
 
 ### System Requirements
 
@@ -125,7 +125,7 @@ deactivate
 
 ---
 
-## 🛠️ Advanced Usage
+## [TOOLS] Advanced Usage
 
 ### Service Management
 
@@ -169,11 +169,11 @@ ffmpeg -f avfoundation -framerate {{ mediamtx_demo.camera.framerate }} -pixel_fo
 
 ---
 
-## 🔧 Troubleshooting
+## [CONFIG] Troubleshooting
 
 ### Common Issues
 
-**🚨 Camera Access Denied**
+**[URGENT] Camera Access Denied**
 ```bash
 # Fix permissions automatically
 ./scripts/fix_permissions.sh
@@ -183,7 +183,7 @@ ffmpeg -f avfoundation -framerate {{ mediamtx_demo.camera.framerate }} -pixel_fo
 # Enable checkbox for Terminal or your streaming application
 ```
 
-**🚨 Service Won't Start**
+**[URGENT] Service Won't Start**
 ```bash
 # Check for conflicts
 sudo lsof -i :{{ mediamtx_demo.streaming.rtsp_port }}
@@ -196,7 +196,7 @@ sudo lsof -i :{{ mediamtx_demo.streaming.api_port }}
 tail -f {{ mediamtx_demo.storage.logs_dir }}/mediamtx.log
 ```
 
-**🚨 FFmpeg Pixel Format Error**
+**[URGENT] FFmpeg Pixel Format Error**
 ```
 # The demo automatically uses uyvy422 format for compatibility
 # If issues persist, try alternative formats:
@@ -204,7 +204,7 @@ tail -f {{ mediamtx_demo.storage.logs_dir }}/mediamtx.log
 -pixel_format yuyv422  # Another compatible format
 ```
 
-**🚨 Stream Quality Issues**
+**[URGENT] Stream Quality Issues**
 ```bash
 # Check network bandwidth
 iftop -i tailscale0
@@ -230,7 +230,7 @@ tail -f {{ mediamtx_demo.storage.logs_dir }}/mediamtx.log
 
 ---
 
-## 🎯 Showcase Benefits
+## [TARGET] Showcase Benefits
 
 ### For DevOps Teams
 
@@ -255,7 +255,7 @@ tail -f {{ mediamtx_demo.storage.logs_dir }}/mediamtx.log
 
 ---
 
-## 🔄 Deployment & Updates
+## [CYCLE] Deployment & Updates
 
 ### Initial Deployment
 
@@ -286,7 +286,7 @@ ansible-playbook -i inventory/projects/mediamtx-demo/test.yml playbooks/universa
 
 ---
 
-## 📦 Dependencies
+## [PACKAGE] Dependencies
 
 ### System Dependencies (Auto-installed)
 ```bash
@@ -310,7 +310,7 @@ uv pip install {{ dep }}
 
 ---
 
-## 🌐 Integration Examples
+## [WEB] Integration Examples
 
 ### With CamGuard Stack
 
@@ -343,7 +343,7 @@ The MediaMTX demo can be monitored through oaDashboard:
 
 ---
 
-## 📞 Support & Documentation
+## [HELP] Support & Documentation
 
 **Project Repository**: [OrangeAd Pangaea](https://github.com/orangead/oaPangaea)  
 **Ansible Role**: `oaAnsible/roles/macos/mediamtx_demo`  

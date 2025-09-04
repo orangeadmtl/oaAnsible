@@ -22,13 +22,13 @@
           OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
 
           This playbook will apply comprehensive server optimizations:
-          ✓ Kernel parameter tuning
-          ✓ System limits optimization
-          ✓ Service optimization
-          ✓ Network performance tuning
-          ✓ Ethernet stability (Realtek controllers)
-          ✓ Storage optimization
-          ✓ Security hardening
+          [OK] Kernel parameter tuning
+          [OK] System limits optimization
+          [OK] Service optimization
+          [OK] Network performance tuning
+          [OK] Ethernet stability (Realtek controllers)
+          [OK] Storage optimization
+          [OK] Security hardening
 
           Existing configurations will be backed up automatically.
           ═══════════════════════════════════════════════════════════
@@ -46,7 +46,7 @@
         that:
           - ansible_distribution == "Ubuntu"
         fail_msg: "This playbook is designed for Ubuntu systems only"
-        success_msg: "✓ Ubuntu {{ ansible_distribution_version }} detected and compatible"
+        success_msg: "[OK] Ubuntu {{ ansible_distribution_version }} detected and compatible"
 
     - name: Display system information
       ansible.builtin.debug:
@@ -88,7 +88,7 @@
       ansible.builtin.debug:
         msg: |
           ═══════════════════════════════════════════════════════════
-          🎉 Ubuntu Server Optimization Completed Successfully!
+          [SUCCESS] Ubuntu Server Optimization Completed Successfully!
           ═══════════════════════════════════════════════════════════
 
           Server: {{ inventory_hostname }} ({{ ansible_host }})
@@ -104,9 +104,9 @@
           └─ Performance Monitoring: Baseline collection and monitoring
 
           {% if realtek_summary.rc == 0 %}
-          🌐 Ethernet Controller: {{ realtek_summary.stdout }}
-          📊 Monitoring: /home/{{ ansible_user }}/orangead/network-monitor/
-          🔧 Diagnostics: Run ethernet-diagnostics.sh for detailed info
+          [WEB] Ethernet Controller: {{ realtek_summary.stdout }}
+          [STATS] Monitoring: /home/{{ ansible_user }}/orangead/network-monitor/
+          [CONFIG] Diagnostics: Run ethernet-diagnostics.sh for detailed info
           {% endif %}
 
           {{ 'WARNING:  REBOOT REQUIRED for kernel parameter changes' if reboot_required.stat.exists else '  No reboot required' }}

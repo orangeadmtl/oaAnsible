@@ -102,12 +102,12 @@
       ╔════════════════════════════════════════════════════╗
       ║         Shell Enhancement Complete                 ║
       ╠════════════════════════════════════════════════════╣
-      ║ ✅ Zsh installed and configured
-      ║ ✅ Oh My Zsh with {{ oh_my_zsh_theme }} theme
-      ║ ✅ OrangePi aliases and functions added
-      ║ ✅ Enhanced plugins installed
+      ║ [OK] Zsh installed and configured
+      ║ [OK] Oh My Zsh with {{ oh_my_zsh_theme }} theme
+      ║ [OK] OrangePi aliases and functions added
+      ║ [OK] Enhanced plugins installed
       ║ 
-      ║ 🎯 Available OrangePi commands:
+      ║ [TARGET] Available OrangePi commands:
       ║ • oastatus  - Check all services
       ║ • oaupdate  - Update project
       ║ • oareboot  - Safe reboot

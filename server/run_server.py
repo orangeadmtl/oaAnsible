@@ -53,7 +53,7 @@ async def run_server():
     try:
         # Display startup banner
         print("\n" + "="*60)
-        print("🚀 OrangeAd Ansible Server Starting")
+        print("[LAUNCH] OrangeAd Ansible Server Starting")
         print("="*60)
         print(f"API Host: {config.api_host}:{config.api_port}")
         print(f"Ansible Root: {config.ansible_root}")

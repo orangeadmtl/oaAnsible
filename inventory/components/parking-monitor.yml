@@ -24,7 +24,8 @@ all:
     # Python Environment (Device Setup)
     parking_monitor_python_version: "3.12"
     parking_monitor_python_env:
-      path: "{{ ansible_user_dir }}/.pyenv/versions/{{ parking_monitor_python_version }}/envs/parking-monitor"
+      project_path: "{{ ansible_user_dir }}/orangead/parking-monitor"
+      python_command: "{{ uv_path | default('uv') }} run python"
       
     # Service Management (macOS LaunchAgent)
     parking_monitor_launchd:

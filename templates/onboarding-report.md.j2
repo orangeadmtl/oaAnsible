@@ -9,36 +9,36 @@
 ## Configuration Summary
 
 ### Base Components (Always Installed)
-- ✅ Base system packages and utilities
-- ✅ Security hardening (sudo, SSH, firewall)
+- [OK] Base system packages and utilities
+- [OK] Security hardening (sudo, SSH, firewall)
 
 ### Profile-Specific Components
 
 {% if report_profile == "server" %}
 #### Server Profile
-- ✅ Enhanced shell (zsh with oh-my-zsh)
-- ✅ System optimization and ethernet stability
-- ✅ Tailscale VPN with subnet routing
-- ✅ System monitoring tools
+- [OK] Enhanced shell (zsh with oh-my-zsh)
+- [OK] System optimization and ethernet stability
+- [OK] Tailscale VPN with subnet routing
+- [OK] System monitoring tools
 {% elif report_profile == "ml" %}
 #### ML Workstation Profile
-- ✅ Enhanced shell (zsh with oh-my-zsh)
-- ✅ System optimization and ethernet stability
-- ✅ Python development environment (PyEnv + UV)
-- ✅ NVIDIA drivers and CUDA support
-- ✅ ML workstation tools and environment
-- ✅ Tailscale VPN with subnet routing
-- ✅ System monitoring tools
+- [OK] Enhanced shell (zsh with oh-my-zsh)
+- [OK] System optimization and ethernet stability
+- [OK] Python development environment (PyEnv + UV)
+- [OK] NVIDIA drivers and CUDA support
+- [OK] ML workstation tools and environment
+- [OK] Tailscale VPN with subnet routing
+- [OK] System monitoring tools
 {% elif report_profile == "development" %}
 #### Development Profile
-- ✅ Enhanced shell (zsh with oh-my-zsh)
-- ✅ System optimization and ethernet stability
-- ✅ Docker container runtime
-- ✅ Tailscale VPN with subnet routing
-- ✅ System monitoring tools
+- [OK] Enhanced shell (zsh with oh-my-zsh)
+- [OK] System optimization and ethernet stability
+- [OK] Docker container runtime
+- [OK] Tailscale VPN with subnet routing
+- [OK] System monitoring tools
 {% elif report_profile == "minimal" %}
 #### Minimal Profile
-- ✅ Basic security configuration only
+- [OK] Basic security configuration only
 {% endif %}
 
 ## Access Information
@@ -52,9 +52,9 @@
 ## Post-Installation Notes
 
 {% if report_reboot_required %}
-⚠️ **REBOOT REQUIRED** - Run `sudo reboot` to complete installation
+[WARNING] **REBOOT REQUIRED** - Run `sudo reboot` to complete installation
 {% else %}
-✅ No reboot required - system ready for use
+[OK] No reboot required - system ready for use
 {% endif %}
 
 ## Next Steps

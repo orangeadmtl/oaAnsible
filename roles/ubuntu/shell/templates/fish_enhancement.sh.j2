@@ -38,7 +38,7 @@ function fish_prompt
         # Show git status
         if not git diff-index --quiet HEAD -- 2>/dev/null
             set_color yellow
-            echo -n " ✗"
+            echo -n " [NO]"
         end
         
         set_color yellow

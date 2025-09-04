@@ -10,7 +10,7 @@ This directory contains playbooks used for development, testing, and debugging p
 
 - Removes Homebrew, Python (pyenv), Node.js (nvm), Tailscale
 - Reverts system settings to defaults
-- **⚠️ STAGING ONLY**: Has safety checks to prevent production use
+- **[WARNING] STAGING ONLY**: Has safety checks to prevent production use
 
 **Usage**:
 
@@ -54,7 +54,7 @@ ansible-playbook playbooks/dev/test-ml-setup.yml
 
 - Tests vault variable loading
 - Displays vault passwords for troubleshooting
-- **⚠️ SENSITIVE**: Only use in secure development environments
+- **[WARNING] SENSITIVE**: Only use in secure development environments
 
 **Usage**:
 

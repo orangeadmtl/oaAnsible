@@ -24,18 +24,18 @@ def check_mediamtx_status():
 
 def read_rtsp_stream(rtsp_url="rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}", headless=False):
     """Read RTSP stream and display frame info"""
-    print(f"🎥 Connecting to: {rtsp_url}")
+    print(f"[VIDEO] Connecting to: {rtsp_url}")
     
     cap = cv2.VideoCapture(rtsp_url)
     
     if not cap.isOpened():
-        print("❌ Error: Could not open RTSP stream")
-        print("💡 Make sure camera is streaming:")
+        print("[FAIL] Error: Could not open RTSP stream")
+        print("[TIPS] Make sure camera is streaming:")
         print("   ffmpeg -f avfoundation -i \"{{ mediamtx_demo.camera.device_id }}\" -c:v {{ mediamtx_demo.camera.codec }} -preset {{ mediamtx_demo.camera.preset }} -r {{ mediamtx_demo.camera.framerate }} -f rtsp rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}")
         return
     
-    print("✅ RTSP stream connected")
-    print("📹 Reading camera data..." + (" (headless mode)" if headless else " (Press 'q' to quit)"))
+    print("[OK] RTSP stream connected")
+    print("[CAMERA] Reading camera data..." + (" (headless mode)" if headless else " (Press 'q' to quit)"))
     
     frame_count = 0
     start_time = time.time()
@@ -45,7 +45,7 @@ def read_rtsp_stream(rtsp_url="rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_
             ret, frame = cap.read()
             
             if not ret:
-                print("⚠️ Failed to read frame")
+                print("[WARNING] Failed to read frame")
                 break
                 
             frame_count += 1
@@ -55,7 +55,7 @@ def read_rtsp_stream(rtsp_url="rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_
                 elapsed = time.time() - start_time
                 fps = frame_count / elapsed if elapsed > 0 else 0
                 height, width = frame.shape[:2]
-                print(f"📊 Frame {frame_count}: {width}x{height}, FPS: {fps:.1f}")
+                print(f"[STATS] Frame {frame_count}: {width}x{height}, FPS: {fps:.1f}")
             
             if not headless:
                 # Display the frame
@@ -68,26 +68,26 @@ def read_rtsp_stream(rtsp_url="rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_
                     break
                     
     except KeyboardInterrupt:
-        print("\n🛑 Stopped by user")
+        print("\n[STOP] Stopped by user")
     
     cap.release()
     if not headless:
         cv2.destroyAllWindows()
-    print(f"🏁 Finished reading {frame_count} frames")
+    print(f"[FINISH] Finished reading {frame_count} frames")
 
 def main():
     """Main function"""
     headless = '--headless' in sys.argv
     
-    print("🚀 MediaMTX Camera Reader Demo")
+    print("[LAUNCH] MediaMTX Camera Reader Demo")
     print("=" * 40)
     
     if not check_mediamtx_status():
-        print("❌ MediaMTX is not running")
-        print("💡 Start it with: {{ mediamtx_demo.demo.base_dir }}/scripts/start.sh")
+        print("[FAIL] MediaMTX is not running")
+        print("[TIPS] Start it with: {{ mediamtx_demo.demo.base_dir }}/scripts/start.sh")
         return
     
-    print("✅ MediaMTX is running")
+    print("[OK] MediaMTX is running")
     read_rtsp_stream(headless=headless)
 
 if __name__ == "__main__":

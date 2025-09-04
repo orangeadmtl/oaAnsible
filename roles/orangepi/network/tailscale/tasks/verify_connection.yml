@@ -20,7 +20,7 @@
 - name: Display connectivity results
   ansible.builtin.debug:
     msg: |
-      🌐 Tailscale Connectivity Test Results:
+      [WEB] Tailscale Connectivity Test Results:
       =====================================
       Self-ping: {{ 'SUCCESS' if self_ping.rc == 0 else 'FAILED' }}
       {% if ping_targets is defined and ping_targets %}
@@ -39,6 +39,6 @@
 - name: Display network interface info
   ansible.builtin.debug:
     msg: |
-      📡 Tailscale Interface Status:
+      [DEPLOY] Tailscale Interface Status:
       {{ 'Active' if tailscale_interface.rc == 0 else 'Not found' }}
   when: tailscale_interface is defined

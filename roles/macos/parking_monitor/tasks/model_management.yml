@@ -24,7 +24,7 @@
     import shutil
     shutil.move('{{ parking_monitor_models.base_model }}', '{{ parking_monitor_models.downloads_dir }}/{{ parking_monitor_models.base_model }}')
     
-    print('✅ Base model downloaded successfully')
+    print('[OK] Base model downloaded successfully')
     "
   when: not base_model_exists.stat.exists
   register: model_download
@@ -64,7 +64,7 @@
         dest_file = os.path.join('{{ parking_monitor_models.exports_dir }}', os.path.basename(file))
         shutil.move(file, dest_file)
         
-    print('✅ CoreML export completed successfully')
+    print('[OK] CoreML export completed successfully')
     "
   when: 
     - not coreml_export_exists.stat.exists
@@ -81,9 +81,9 @@
     # Test loading base model
     try:
         model = YOLO('{{ parking_monitor_models.downloads_dir }}/{{ parking_monitor_models.base_model }}')
-        print('✅ Base model loads successfully')
+        print('[OK] Base model loads successfully')
     except Exception as e:
-        print(f'❌ Base model error: {e}')
+        print(f'[FAIL] Base model error: {e}')
         raise
         
     # Test CoreML model if available
@@ -92,18 +92,18 @@
         coreml_files = glob.glob('{{ parking_monitor_models.exports_dir }}/*.coreml')
         if coreml_files:
             # CoreML models require different loading approach
-            print(f'✅ CoreML model found: {coreml_files[0]}')
+            print(f'[OK] CoreML model found: {coreml_files[0]}')
         else:
-            print('⚠️  No CoreML models found')
+            print('[WARNING]  No CoreML models found')
     except Exception as e:
-        print(f'⚠️  CoreML model test failed: {e}')
+        print(f'[WARNING]  CoreML model test failed: {e}')
     
     # Test MPS availability
     if torch.backends.mps.is_available():
         device = torch.device('mps')
-        print(f'✅ MPS device available: {device}')
+        print(f'[OK] MPS device available: {device}')
     else:
-        print('⚠️  MPS not available, using CPU')
+        print('[WARNING]  MPS not available, using CPU')
     "
   register: model_test
   changed_when: false
@@ -139,8 +139,8 @@
     msg: |
       🤖 Model Management Complete:
       =============================
-      Base Model: {{ '✅ Downloaded' if model_download is changed else '✅ Existing' }}
-      CoreML Export: {{ '✅ Created' if coreml_export is changed else '✅ Existing' }}
+      Base Model: {{ '[OK] Downloaded' if model_download is changed else '[OK] Existing' }}
+      CoreML Export: {{ '[OK] Created' if coreml_export is changed else '[OK] Existing' }}
       Location: {{ parking_monitor_models.model_dir }}
       Test Results:
       {{ model_test.stdout | indent(width=2) }}

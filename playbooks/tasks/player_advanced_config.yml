@@ -34,7 +34,7 @@
 - name: Display player configuration status
   ansible.builtin.debug:
     msg: |
-      🎬 Player Configuration:
+      [MEDIA] Player Configuration:
       ├─ Service Status: {{ 'Running' if player_service_status.status.ActiveState == 'active' else 'Stopped' }}
       ├─ Auto-restart: Scheduled for 4:00 AM daily
       └─ Monitoring: oaplayermon utility available

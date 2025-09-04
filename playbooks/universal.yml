@@ -108,7 +108,7 @@
     - name: Display tag validation warnings
       ansible.builtin.debug:
         msg: |
-          ⚠️  WARNING: Invalid/unknown tags detected: {{ invalid_tags | join(', ') }}
+          [WARNING] Invalid/unknown tags detected: {{ invalid_tags | join(', ') }}
 
           Valid component tags are:
           - Infrastructure: base, network, security, ssh, reboot, stability
@@ -132,7 +132,7 @@
     - name: Fail on invalid tags (safety check)
       ansible.builtin.fail:
         msg: |
-          ❌ DEPLOYMENT HALTED: Invalid tags detected.
+          [ERROR] DEPLOYMENT HALTED: Invalid tags detected.
 
           Invalid tags: {{ invalid_tags | join(', ') }}
 

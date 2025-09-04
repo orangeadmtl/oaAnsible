@@ -10,7 +10,7 @@ source .venv/bin/activate
 source "{{ ansible_user_dir }}/.ml_env_macos"
 
 # Welcome message
-echo "🎯 oaSentinel ML Development Environment"
+echo "[TARGET] oaSentinel ML Development Environment"
 echo "========================================="
 echo "Directory: $(pwd)"
 echo "Python: $(python --version)"
@@ -23,9 +23,9 @@ echo "  mlcli       - Access CLI"
 echo "  mllog       - View logs"
 echo ""
 {% if is_apple_silicon %}
-echo "🍎 Apple Silicon GPU acceleration enabled"
+echo "[MACOS] Apple Silicon GPU acceleration enabled"
 {% else %}
-echo "🍎 Intel Mac CPU optimization enabled"
+echo "[MACOS] Intel Mac CPU optimization enabled"
 {% endif %}
 echo ""
 

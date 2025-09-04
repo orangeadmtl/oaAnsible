@@ -38,9 +38,9 @@ import torch
 print('MPS Available:', torch.backends.mps.is_available())
 print('MPS Built:', torch.backends.mps.is_built())
 if torch.backends.mps.is_available():
-    print('✅ Ready for GPU acceleration!')
+    print('[OK] Ready for GPU acceleration!')
 else:
-    print('⚠️  MPS not available')
+    print('[WARNING]  MPS not available')
 "
 }
 
@@ -52,7 +52,7 @@ gpu-usage() {
 
 # Training optimization functions
 optimize-training() {
-    echo "🍎 macOS Training Optimizations Active:"
+    echo "[MACOS] macOS Training Optimizations Active:"
     echo "  CPU Cores: {{ ansible_processor_vcpus }}"
     echo "  Memory: {{ ansible_memtotal_mb }}MB"
     {% if is_apple_silicon %}
@@ -74,7 +74,7 @@ optimize-training() {
 
 # System monitoring
 ml-system-status() {
-    echo "🍎 macOS ML System Status"
+    echo "[MACOS] macOS ML System Status"
     echo "========================="
     echo "Uptime: $(uptime | cut -d',' -f1 | cut -d' ' -f4-)"
     echo "Load: $(uptime | cut -d':' -f4-)"
@@ -87,7 +87,7 @@ ml-system-status() {
     {% endif %}
 }
 
-echo "🍎 macOS ML Environment loaded"
+echo "[MACOS] macOS ML Environment loaded"
 echo "Use 'optimize-training' for performance tips"
 {% if is_apple_silicon %}
 echo "Use 'check-mps' to verify GPU acceleration"

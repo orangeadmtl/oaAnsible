@@ -2,15 +2,15 @@
 # ML Status Checker
 # Double-click to check ML workstation status
 
-echo "🍎 macOS ML Workstation Status Check"
+echo "[MACOS] macOS ML Workstation Status Check"
 echo "===================================="
 echo ""
 
 # Check if oaSentinel is installed
 if [ -d "{{ oasentinel_install_dir }}" ]; then
-    echo "✅ oaSentinel installed at: {{ oasentinel_install_dir }}"
+    echo "[OK] oaSentinel installed at: {{ oasentinel_install_dir }}"
 else
-    echo "❌ oaSentinel not found"
+    echo "[FAIL] oaSentinel not found"
     exit 1
 fi
 
@@ -19,10 +19,10 @@ cd "{{ oasentinel_install_dir }}"
 
 # Check virtual environment
 if [ -f ".venv/bin/activate" ]; then
-    echo "✅ Virtual environment ready"
+    echo "[OK] Virtual environment ready"
     source .venv/bin/activate
 else
-    echo "❌ Virtual environment not found"
+    echo "[FAIL] Virtual environment not found"
     exit 1
 fi
 
@@ -33,7 +33,7 @@ if [ -f "scripts/ml_health_check.sh" ]; then
     echo "======================"
     ./scripts/ml_health_check.sh
 else
-    echo "⚠️  Health check script not found"
+    echo "[WARNING]  Health check script not found"
     echo ""
     echo "Basic status:"
     python src/cli.py status 2>/dev/null || echo "CLI not available"

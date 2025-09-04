@@ -49,9 +49,9 @@
     {{ uv_binary }} run python -c "
     try:
         import ultralytics, torch, cv2, fastapi, uvicorn, pydantic
-        print('✅ All critical imports successful')
+        print('[OK] All critical imports successful')
     except ImportError as e:
-        print(f'❌ Import error: {e}')
+        print(f'[FAIL] Import error: {e}')
         exit(1)
     "
   register: import_test
@@ -69,9 +69,9 @@
     {{ uv_binary }} run python -c "
     import torch
     if torch.backends.mps.is_available():
-        print('✅ MPS (Metal Performance Shaders) available')
+        print('[OK] MPS (Metal Performance Shaders) available')
     else:
-        print('⚠️  MPS not available - falling back to CPU')
+        print('[WARNING]  MPS not available - falling back to CPU')
     "
   register: mps_check
   changed_when: false
@@ -104,18 +104,18 @@
       fi
       export PATH="$HOME/.cargo/bin:$PATH"
       export PYTHONPATH="{{ parking_monitor_repository.destination }}/src:$PYTHONPATH"
-      echo "✅ uv Environment activated - ready for parking monitor development"
+      echo "[OK] uv Environment activated - ready for parking monitor development"
       echo "Use 'uv run python' to execute Python with the project environment"
 
 - name: Python environment setup summary
   debug:
     msg: |
-      🐍 Python Environment Setup Complete (uv):
+      [PYTHON] Python Environment Setup Complete (uv):
       =========================================
       Python Version: {{ python_version.stdout }}
       Package Manager: uv (modern Python package management)
       Project Path: {{ parking_monitor_repository.destination }}
-      Critical Imports: {{ '✅ Success' if import_test.rc == 0 else '❌ Failed' }}
+      Critical Imports: {{ '[OK] Success' if import_test.rc == 0 else '[FAIL] Failed' }}
       MPS Acceleration: {{ mps_check.stdout }}
       Activation Script: {{ parking_monitor_repository.destination }}/activate_env.sh
       =========================================

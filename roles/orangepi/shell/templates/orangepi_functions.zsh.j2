@@ -3,16 +3,16 @@
 
 # Quick health check with formatted output
 oahealth() {
-    echo "🍊 Checking OrangePi health..."
+    echo "[ORANGE] Checking OrangePi health..."
     curl -s "http://localhost:{{ health_api_port }}/health" | jq . 2>/dev/null || {
-        echo "❌ Health API not responding on port {{ health_api_port }}"
+        echo "[FAIL] Health API not responding on port {{ health_api_port }}"
         return 1
     }
 }
 
 # Enhanced service status with colors
 oastatus() {
-    echo "🍊 OrangePi Service Status:"
+    echo "[ORANGE] OrangePi Service Status:"
     echo "=========================="
     
     services=(
@@ -25,28 +25,28 @@ oastatus() {
     
     for service in "${services[@]}"; do
         if systemctl is-active --quiet "$service"; then
-            echo "✅ $service: Running"
+            echo "[OK] $service: Running"
         else
-            echo "❌ $service: Stopped"
+            echo "[FAIL] $service: Stopped"
         fi
     done
     
     echo ""
-    echo "🌐 Network Status:"
+    echo "[WEB] Network Status:"
     if command -v tailscale >/dev/null 2>&1; then
         if tailscale status >/dev/null 2>&1; then
-            echo "✅ Tailscale: Connected"
+            echo "[OK] Tailscale: Connected"
         else
-            echo "❌ Tailscale: Disconnected"
+            echo "[FAIL] Tailscale: Disconnected"
         fi
     else
-        echo "⚠️  Tailscale: Not installed"
+        echo "[WARNING]  Tailscale: Not installed"
     fi
 }
 
 # Restart all OrangePi services
 oarestart() {
-    echo "🔄 Restarting OrangePi services..."
+    echo "[CYCLE] Restarting OrangePi services..."
     sudo systemctl restart health-check-api.service
     sudo systemctl restart slideshow-player.service
     sleep 2
@@ -55,20 +55,20 @@ oarestart() {
 
 # Show current player status
 oaplayerstatus() {
-    echo "🎬 Player Status:"
+    echo "[MEDIA] Player Status:"
     journalctl -u slideshow-player.service --no-pager -n 10
 }
 
 # Quick log viewer
 oalogs() {
     service=${1:-slideshow-player.service}
-    echo "📋 Viewing logs for $service (Ctrl+C to exit):"
+    echo "[LIST] Viewing logs for $service (Ctrl+C to exit):"
     journalctl -u "$service" -f
 }
 
 # System information summary
 oainfo() {
-    echo "🍊 OrangePi System Information"
+    echo "[ORANGE] OrangePi System Information"
     echo "=============================="
     echo "Device ID: {{ device_id }}"
     echo "Series: {{ device_series }}"
@@ -85,9 +85,9 @@ oainfo() {
 # Tailscale quick status
 oats() {
     if command -v tailscale >/dev/null 2>&1; then
-        echo "🌐 Tailscale Status:"
+        echo "[WEB] Tailscale Status:"
         tailscale status --self
     else
-        echo "❌ Tailscale not installed"
+        echo "[FAIL] Tailscale not installed"
     fi
 }

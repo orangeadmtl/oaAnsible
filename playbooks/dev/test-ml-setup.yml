@@ -26,7 +26,7 @@
     - name: Display system information
       ansible.builtin.debug:
         msg:
-          - "🍎 Testing ML Setup on macOS"
+          - "[MACOS] Testing ML Setup on macOS"
           - "Host: {{ inventory_hostname }}"
           - "User: {{ ansible_user }}"
           - "Home: {{ ansible_user_dir }}"

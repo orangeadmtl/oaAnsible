@@ -35,7 +35,7 @@
     - name: Display setup information
       ansible.builtin.debug:
         msg:
-          - "🚀 Setting up Ubuntu ML Training Server"
+          - "[LAUNCH] Setting up Ubuntu ML Training Server"
           - "Host: {{ inventory_hostname }}"
           - "Distribution: {{ ansible_distribution }} {{ ansible_distribution_version }}"
           - "Architecture: {{ ansible_architecture }}"
@@ -179,31 +179,31 @@
     - name: Setup completion summary
       ansible.builtin.debug:
         msg:
-          - "🎉 Ubuntu ML Training Server Setup Complete!"
+          - "[SUCCESS] Ubuntu ML Training Server Setup Complete!"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          - "📁 oaSentinel: {{ oasentinel_install_dir }}"
-          - "🚀 Platform: {{ ansible_distribution }} {{ ansible_distribution_version }}"
-          - "🎮 GPU Support: {{ 'Enabled' if nvidia_gpu_check.rc == 0 else 'CPU Only' }}"
-          - "🐳 Docker: {{ 'Enabled' if execute_docker_setup else 'Disabled' }}"
-          - "📊 Monitoring: {{ 'Enabled' if execute_monitoring_setup else 'Disabled' }}"
+          - "[FILES] oaSentinel: {{ oasentinel_install_dir }}"
+          - "[LAUNCH] Platform: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "[GPU] GPU Support: {{ 'Enabled' if nvidia_gpu_check.rc == 0 else 'CPU Only' }}"
+          - "[DOCKER] Docker: {{ 'Enabled' if execute_docker_setup else 'Disabled' }}"
+          - "[STATS] Monitoring: {{ 'Enabled' if execute_monitoring_setup else 'Disabled' }}"
           - ""
-          - "🔧 Server Access:"
+          - "[CONFIG] Server Access:"
           - "  • SSH: ssh {{ ansible_user }}@{{ inventory_hostname }}"
           - "  • Jupyter: http://{{ inventory_hostname }}:8888 (if enabled)"
           - ""
-          - "🚀 Quick Start Commands:"
+          - "[LAUNCH] Quick Start Commands:"
           - "  • Check status: mlstatus"
           - "  • Monitor GPU: gpu-watch"
           - "  • Start training: train-gpu"
           - "  • Screen session: train-screen"
           - ""
-          - "📚 Next Steps:"
+          - "[DOCS] Next Steps:"
           - "  1. Download dataset: mlcli download --dataset crowdhuman"
           - "  2. Process data: mlprocess"
           - "  3. Start GPU training: train-gpu"
           - "  4. Monitor with: gpu-watch"
           - ""
-          - "💡 For help: mlcli --help"
+          - "[TIPS] For help: mlcli --help"
       tags: [summary]
 
   handlers:

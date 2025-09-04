@@ -13,7 +13,7 @@ echo "Generated: $(date)"
 echo "═══════════════════════════════════════════════════════════"
 
 echo
-echo "🔍 HARDWARE DETECTION"
+echo "[VERIFY] HARDWARE DETECTION"
 echo "─────────────────────"
 echo "PCI Ethernet Controllers:"
 lspci | grep -i ethernet || echo "No ethernet controllers found in lspci"
@@ -23,7 +23,7 @@ echo "Realtek Controllers:"
 lspci | grep -i realtek || echo "No Realtek controllers detected"
 
 echo
-echo "🌐 NETWORK INTERFACES"
+echo "[WEB] NETWORK INTERFACES"
 echo "─────────────────────"
 {% if ethernet_interfaces %}
 {% for interface in ethernet_interfaces %}
@@ -42,7 +42,7 @@ echo "No ethernet interfaces detected"
 {% endif %}
 
 echo
-echo "⚙️  DRIVER INFORMATION"
+echo "[SVC]  DRIVER INFORMATION"
 echo "─────────────────────"
 {% if ethernet_interfaces %}
 {% for interface in ethernet_interfaces %}
@@ -60,7 +60,7 @@ echo "Loaded network modules:"
 lsmod | grep -E "r8169|r8168|8139|ethernet" | sed 's/^/  /' || echo "  No relevant network modules found"
 
 echo
-echo "📊 ETHERNET STATISTICS"
+echo "[STATS] ETHERNET STATISTICS"
 echo "─────────────────────"
 {% if ethernet_interfaces %}
 {% for interface in ethernet_interfaces %}
@@ -75,7 +75,7 @@ echo
 {% endif %}
 
 echo
-echo "🔧 DRIVER CONFIGURATION"
+echo "[CONFIG] DRIVER CONFIGURATION"
 echo "──────────────────────"
 if [ -f /etc/modprobe.d/r8169-orangead.conf ]; then
     echo "OrangeAd r8169 driver configuration:"
@@ -92,7 +92,7 @@ find /etc/modprobe.d/ -name "*.conf" -exec grep -l "r8169" {} \; 2>/dev/null | w
 done || echo "  No r8169 configurations found"
 
 echo
-echo "⚡ POWER MANAGEMENT"
+echo "[PERF] POWER MANAGEMENT"
 echo "─────────────────────"
 {% if ethernet_interfaces %}
 {% for interface in ethernet_interfaces %}
@@ -113,23 +113,23 @@ else
 fi
 
 echo
-echo "🌍 CONNECTIVITY TEST"
+echo "[WORLD] CONNECTIVITY TEST"
 echo "───────────────────"
 echo "Internet connectivity:"
 if ping -c 3 -W 2 8.8.8.8 >/dev/null 2>&1; then
-    echo "  ✓ Internet: OK"
+    echo "  [OK] Internet: OK"
 else
-    echo "  ✗ Internet: FAILED"
+    echo "  [NO] Internet: FAILED"
 fi
 
 {% if ubuntu_ethernet_optimization.monitoring.monitor_tailscale %}
 echo "Tailscale connectivity:"
 if command -v tailscale >/dev/null 2>&1; then
     if tailscale status >/dev/null 2>&1; then
-        echo "  ✓ Tailscale: CONNECTED"
+        echo "  [OK] Tailscale: CONNECTED"
         tailscale status --self | head -n 1 | sed 's/^/    /'
     else
-        echo "  ✗ Tailscale: DISCONNECTED"
+        echo "  [NO] Tailscale: DISCONNECTED"
     fi
 else
     echo "  - Tailscale: NOT INSTALLED"
@@ -137,7 +137,7 @@ fi
 {% endif %}
 
 echo
-echo "📈 RECENT MONITORING DATA"
+echo "[CHART] RECENT MONITORING DATA"
 echo "────────────────────────"
 MONITOR_LOG="{{ ubuntu_ethernet_optimization.monitoring.log_path }}/network.log"
 if [ -f "$MONITOR_LOG" ]; then
@@ -148,7 +148,7 @@ else
 fi
 
 echo
-echo "🔧 TROUBLESHOOTING COMMANDS"
+echo "[CONFIG] TROUBLESHOOTING COMMANDS"
 echo "──────────────────────────"
 echo "Quick fixes to try:"
 echo "  1. Reset auto-negotiation:"

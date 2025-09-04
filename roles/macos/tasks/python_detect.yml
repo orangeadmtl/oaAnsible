@@ -1,30 +1,31 @@
 ---
-# Detect Python installation from pyenv
-- name: Get pyenv root directory
+# Detect Python installation from UV
+- name: Get UV root directory
   ansible.builtin.shell: |
-    set -o pipefail
-    echo $HOME/.pyenv
-  register: macos_pyenv_root
+    echo $HOME/.local/bin
+  register: macos_uv_root
   changed_when: false
+  when: 
+    - configure.uv_python | default(configure.pyenv | default(false))
 
-- name: Get Python version from inventory
+- name: Set UV root fact
   ansible.builtin.set_fact:
-    macos_python_version: "{{ macos_python.version | default('3.11.11') }}"
+    uv_root: "{{ macos_uv_root.stdout }}"
+  when: macos_uv_root is defined and macos_uv_root.rc == 0
 
-- name: Get Python executable path from pyenv
+- name: Get Python executable path from UV
   ansible.builtin.shell: |
     set -o pipefail
-    export PYENV_ROOT="{{ pyenv_root.stdout }}"
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    eval "$($PYENV_ROOT/bin/pyenv init -)"
-    $PYENV_ROOT/bin/pyenv which python3
-  register: macos_pyenv_python_path
+    export PATH="{{ uv_root.stdout }}:$PATH"
+    uv run python -c "import sys; print(sys.executable)"
+  register: macos_uv_python_path
   changed_when: false
   failed_when: false
+  when: uv_root is defined
 
-- name: Set Python executable path
+- name: Set detected Python executable
   ansible.builtin.set_fact:
-    macos_python_executable: "{{ pyenv_python_path.stdout if pyenv_python_path.rc == 0 else '/usr/bin/python3' }}"
+    macos_python_executable: "{{ macos_uv_python_path.stdout if macos_uv_python_path.rc == 0 else '/usr/bin/python3' }}"
 
 - name: Debug Python path
   ansible.builtin.debug:

@@ -113,7 +113,7 @@
 - name: Log successful transition
   ansible.builtin.debug:
     msg: |
-      ✅ Blue-green service transition completed successfully!
+      [OK] Blue-green service transition completed successfully!
       - Service: {{ player.service_name }} ({{ 'LOADED' if new_service_status.stdout != 'not loaded' else 'NOT LOADED' }})
       - MPV processes: {{ new_mpv_count.stdout }}
       - Expected: {{ expected_mpv_count }}

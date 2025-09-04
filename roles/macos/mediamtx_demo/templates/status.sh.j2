@@ -1,48 +1,48 @@
 #!/bin/bash
-echo "📊 MediaMTX Demo Status"
+echo "[STATS] MediaMTX Demo Status"
 echo "====================="
 
 # Check service status
-echo "🔧 Service Status:"
+echo "[CONFIG] Service Status:"
 if launchctl list {{ mediamtx_demo.service.name }} >/dev/null 2>&1; then
-    echo "✅ MediaMTX service is running"
+    echo "[OK] MediaMTX service is running"
     PID=$(launchctl list {{ mediamtx_demo.service.name }} | grep PID | awk '{print $3}')
     if [ "$PID" != "-" ]; then
         echo "   PID: $PID"
     fi
 else
-    echo "❌ MediaMTX service is not running"
+    echo "[FAIL] MediaMTX service is not running"
 fi
 
 echo ""
 
 # Check API
-echo "🌐 API Status:"
+echo "[WEB] API Status:"
 if curl -s http://localhost:{{ mediamtx_demo.streaming.api_port }}/v1/paths/list >/dev/null 2>&1; then
-    echo "✅ API responding on port {{ mediamtx_demo.streaming.api_port }}"
+    echo "[OK] API responding on port {{ mediamtx_demo.streaming.api_port }}"
     
     # Show active paths
     echo ""
-    echo "📡 Active Paths:"
+    echo "[DEPLOY] Active Paths:"
     curl -s http://localhost:{{ mediamtx_demo.streaming.api_port }}/v1/paths/list | python3 -m json.tool 2>/dev/null || echo "   (Unable to parse API response)"
 else
-    echo "❌ API not responding on port {{ mediamtx_demo.streaming.api_port }}"
+    echo "[FAIL] API not responding on port {{ mediamtx_demo.streaming.api_port }}"
 fi
 
 echo ""
 
 # Check RTSP port
-echo "🎥 RTSP Status:"
+echo "[VIDEO] RTSP Status:"
 if lsof -i :{{ mediamtx_demo.streaming.rtsp_port }} >/dev/null 2>&1; then
-    echo "✅ RTSP server listening on port {{ mediamtx_demo.streaming.rtsp_port }}"
+    echo "[OK] RTSP server listening on port {{ mediamtx_demo.streaming.rtsp_port }}"
 else
-    echo "❌ No RTSP server on port {{ mediamtx_demo.streaming.rtsp_port }}"
+    echo "[FAIL] No RTSP server on port {{ mediamtx_demo.streaming.rtsp_port }}"
 fi
 
 echo ""
 
 # Show recent logs
-echo "📋 Recent Logs:"
+echo "[LIST] Recent Logs:"
 if [ -f "{{ mediamtx_demo.storage.logs_dir }}/stderr.log" ]; then
     echo "Last 5 error lines:"
     tail -n 5 "{{ mediamtx_demo.storage.logs_dir }}/stderr.log" 2>/dev/null || echo "   (No error logs)"
@@ -51,4 +51,4 @@ else
 fi
 
 echo ""
-echo "🔗 Stream URL: rtsp://{{ inventory_hostname }}:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}"
+echo "[LINK] Stream URL: rtsp://{{ inventory_hostname }}:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}"

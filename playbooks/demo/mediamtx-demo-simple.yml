@@ -15,9 +15,9 @@
       ╔════════════════════════════════════════════════════════════════╗
       ║                    MediaMTX Demo - Simple                      ║
       ║                                                                ║
-      ║  🎥 Auto-start RTSP Streaming                                  ║
-      ║  🐍 Python Camera Reading Example                              ║
-      ║  📡 Deploys to ~/mediamtx-demo                                 ║
+      ║  [VIDEO] Auto-start RTSP Streaming                             ║
+      ║  [PYTHON] Python Camera Reading Example                        ║
+      ║  [DEPLOY] Deploys to ~/mediamtx-demo                           ║
       ║                                                                ║
       ║  Target: {{ inventory_hostname }}                              ║
       ║  Location: ~/mediamtx-demo                                     ║
@@ -67,15 +67,15 @@
       debug:
         msg: |
           
-          🎉 MediaMTX Demo Environment Ready!
+          [SUCCESS] MediaMTX Demo Environment Ready!
           
-          📍 Demo Machine: {{ inventory_hostname }}
-          🌐 Tailscale IP: {{ ansible_host }}
-          📁 Location: {{ mediamtx_demo.demo.base_dir }}
-          🎥 RTSP Port: {{ mediamtx_demo.streaming.rtsp_port }}
-          🔗 API Port: {{ mediamtx_demo.streaming.api_port }}
+          [LOCATION] Demo Machine: {{ inventory_hostname }}
+          [WEB] Tailscale IP: {{ ansible_host }}
+          [FILES] Location: {{ mediamtx_demo.demo.base_dir }}
+          [VIDEO] RTSP Port: {{ mediamtx_demo.streaming.rtsp_port }}
+          [LINK] API Port: {{ mediamtx_demo.streaming.api_port }}
           
-          🚀 Quick Start:
+          [LAUNCH] Quick Start:
           1. SSH: ssh {{ ansible_user }}@{{ ansible_host }}
           2. Go to demo: cd {{ mediamtx_demo.demo.base_dir }}
           3. Test camera: ./scripts/test_camera.sh
@@ -83,8 +83,8 @@
           5. Python demo: python3 scripts/{{ mediamtx_demo.python.script_name }} --headless
           6. View remote: vlc rtsp://{{ ansible_host }}:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
           
-          📋 Service: {{ mediamtx_demo.service.name }} (auto-starts on boot)
-          📂 All files in: {{ mediamtx_demo.demo.base_dir }}
+          [LIST] Service: {{ mediamtx_demo.service.name }} (auto-starts on boot)
+          [FOLDER] All files in: {{ mediamtx_demo.demo.base_dir }}
           
     - name: Verify MediaMTX service is running
       command: launchctl list {{ mediamtx_demo.service.name }}
@@ -95,9 +95,9 @@
     - name: Service status summary
       debug:
         msg: |
-          🔧 Service Status:
-          - MediaMTX Demo: {{ 'Running ✅' if service_check.rc == 0 else 'Not Running ❌' }}
+          [CONFIG] Service Status:
+          - MediaMTX Demo: {{ 'Running [OK]' if service_check.rc == 0 else 'Not Running [FAIL]' }}
           
-          💡 If service not running, troubleshoot with:
+          [TIPS] If service not running, troubleshoot with:
           - {{ mediamtx_demo.demo.base_dir }}/scripts/fix_permissions.sh
           - {{ mediamtx_demo.demo.base_dir }}/scripts/status.sh

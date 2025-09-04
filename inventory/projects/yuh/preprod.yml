@@ -98,7 +98,7 @@ all:
       enabled: true
       port: 9090
       python_version: "3.12"
-      repository_url: "git@github.com:oa-device/oaDeviceAPI.git"
+      repository_url: "https://github.com/oa-device/oaDeviceAPI.git"
       branch: "develop"  # Use develop branch
       debug_mode: true
       

@@ -426,7 +426,7 @@
 - name: Display installation summary
   ansible.builtin.debug:
     msg:
-      - "🎯 Modern NVIDIA Installation Complete"
+      - "[TARGET] Modern NVIDIA Installation Complete"
       - "Hardware: {{ nvidia_installation_summary.hardware }}"
       - "Driver: {{ nvidia_installation_summary.driver_target }}"
       - "CUDA: {{ nvidia_installation_summary.cuda_target }}"

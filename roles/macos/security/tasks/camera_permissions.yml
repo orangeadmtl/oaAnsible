@@ -377,7 +377,7 @@
       {% endif %}
 
       {% if shared_memory_status == 'Yes' and tracker_running_status == 'Yes' %}
-      ℹ️ Tracker is running and using the camera via shared memory
+      [INFO] Tracker is running and using the camera via shared memory
       {% if tracker_accessible_status == 'Yes' %}
         Tracker's camera feed is accessible via HTTP
       {% else %}

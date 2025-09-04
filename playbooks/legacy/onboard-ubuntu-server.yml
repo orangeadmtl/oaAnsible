@@ -22,11 +22,11 @@
           OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
 
           This playbook will intelligently configure only what's needed:
-          ✓ Base system configuration
-          ✓ Security hardening (sudo, SSH, firewall)
-          ✓ Shell enhancement (zsh with bash compatibility)
-          ✓ NVIDIA drivers (if GPU detected)
-          ✓ Tailscale VPN with subnet routing
+          [OK] Base system configuration
+          [OK] Security hardening (sudo, SSH, firewall)
+          [OK] Shell enhancement (zsh with bash compatibility)
+          [OK] NVIDIA drivers (if GPU detected)
+          [OK] Tailscale VPN with subnet routing
 
           Already-configured components will be skipped automatically.
           ═══════════════════════════════════════════════════════════
@@ -44,7 +44,7 @@
         that:
           - ansible_distribution == "Ubuntu"
         fail_msg: "This playbook is designed for Ubuntu systems only"
-        success_msg: "✓ Ubuntu {{ ansible_distribution_version }} detected and compatible"
+        success_msg: "[OK] Ubuntu {{ ansible_distribution_version }} detected and compatible"
 
     - name: Display system information
       ansible.builtin.debug:
@@ -119,12 +119,12 @@
           if [ -f ".venv/bin/activate" ]; then
             source .venv/bin/activate
             python -c "import torch; print(f'PyTorch CUDA: {torch.cuda.is_available()}')"
-            echo "✅ oaSentinel environment ready"
+            echo "[OK] oaSentinel environment ready"
           else
-            echo "⚠️ Virtual environment not found"
+            echo "[WARNING] Virtual environment not found"
           fi
         else
-          echo "⚠️ oaSentinel not installed"
+          echo "[WARNING] oaSentinel not installed"
         fi
       register: ml_environment_check
       become: false
@@ -137,7 +137,7 @@
       ansible.builtin.debug:
         msg: |
           ═══════════════════════════════════════════════════════════
-          🎉 Ubuntu Server Onboarding Completed Successfully!
+          [SUCCESS] Ubuntu Server Onboarding Completed Successfully!
           ═══════════════════════════════════════════════════════════
 
           Server: {{ inventory_hostname }} ({{ ansible_host }})
@@ -155,7 +155,7 @@
           └─ ML Environment: Not configured (use -t ml for ML workstation setup)
           {% endif %}
 
-          🔗 Access Information:
+          [LINK] Access Information:
           • SSH: ssh {{ ansible_user }}@{{ ansible_host }}
           • Tailscale: Connected with tags [tag:oa-server, tag:oa-ubuntu]
           • Shell: Enhanced zsh with your custom aliases

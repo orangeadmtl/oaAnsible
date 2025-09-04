@@ -131,11 +131,11 @@
       ╔════════════════════════════════════════════════════╗
       ║         Tailscale Setup Complete                   ║
       ╠════════════════════════════════════════════════════╣
-      ║ ✅ Tailscale connected and running
-      ║ ✅ Hostname: {{ tailscale_hostname }}
-      ║ ✅ IP Address: {{ tailscale_ip.stdout.strip() }}
-      ║ ✅ Tags: {{ tailscale_tags | join(', ') }}
-      ║ ✅ SSH enabled: {{ tailscale_enable_ssh }}
+      ║ [OK] Tailscale connected and running
+      ║ [OK] Hostname: {{ tailscale_hostname }}
+      ║ [OK] IP Address: {{ tailscale_ip.stdout.strip() }}
+      ║ [OK] Tags: {{ tailscale_tags | join(', ') }}
+      ║ [OK] SSH enabled: {{ tailscale_enable_ssh }}
       ║ 
-      ║ 🎯 Use 'oatailscale' for status and management
+      ║ [TARGET] Use 'oatailscale' for status and management
       ╚════════════════════════════════════════════════════╝

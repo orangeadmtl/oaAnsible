@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-echo "🔍 Validating Ethernet Optimization Configuration"
+echo "[VERIFY] Validating Ethernet Optimization Configuration"
 echo "================================================"
 
 # Colors for output
@@ -15,11 +15,11 @@ NC='\033[0m' # No Color
 
 # Check functions
 check_pass() {
-    echo -e "${GREEN}✓${NC} $1"
+    echo -e "${GREEN}[OK]${NC} $1"
 }
 
 check_fail() {
-    echo -e "${RED}✗${NC} $1"
+    echo -e "${RED}[NO]${NC} $1"
 }
 
 check_warn() {

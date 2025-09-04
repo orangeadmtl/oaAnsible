@@ -36,29 +36,29 @@
     try:
         with open('config.yaml', 'r') as f:
             config = yaml.safe_load(f)
-        print('✅ config.yaml syntax valid')
+        print('[OK] config.yaml syntax valid')
     except yaml.YAMLError as e:
-        print(f'❌ config.yaml syntax error: {e}')
+        print(f'[FAIL] config.yaml syntax error: {e}')
         exit(1)
     except FileNotFoundError:
-        print('⚠️  config.yaml not found - will be created by service')
+        print('[WARNING]  config.yaml not found - will be created by service')
     
     # Validate logging config
     try:
         with open('logging.yaml', 'r') as f:
             logging_config = yaml.safe_load(f)
-        print('✅ logging.yaml syntax valid')
+        print('[OK] logging.yaml syntax valid')
     except yaml.YAMLError as e:
-        print(f'❌ logging.yaml syntax error: {e}')
+        print(f'[FAIL] logging.yaml syntax error: {e}')
         exit(1)
     except FileNotFoundError:
-        print('⚠️  logging.yaml not found')
+        print('[WARNING]  logging.yaml not found')
     
     # Check .env file
     if os.path.exists('.env'):
-        print('✅ .env file created')
+        print('[OK] .env file created')
     else:
-        print('⚠️  .env file not found')
+        print('[WARNING]  .env file not found')
     "
   register: config_validation
   changed_when: false
@@ -84,7 +84,7 @@
 - name: Configuration summary
   debug:
     msg: |
-      ⚙️  Configuration Setup Complete:
+      [SVC]  Configuration Setup Complete:
       ===============================
       Main Config: {{ parking_monitor_repository.destination }}/config.yaml
       Environment: {{ parking_monitor_repository.destination }}/.env

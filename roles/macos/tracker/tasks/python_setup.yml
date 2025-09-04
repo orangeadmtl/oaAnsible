@@ -2,63 +2,49 @@
 # Python environment setup tasks for tracker deployment
 # Handles Python version management and virtual environment setup
 
-- name: Check if specific Python version is available via pyenv
+- name: Check if specific Python version is available via UV
   ansible.builtin.shell: |
     set -o pipefail
-    export PYENV_ROOT="$HOME/.pyenv"
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    $PYENV_ROOT/bin/pyenv versions --bare | grep -x "{{ tracker_python_version }}" || echo "not_found"
+    export PATH="{{ uv_path | default('$HOME/.local/bin/uv') }}:$PATH"
+    uv python list | grep "{{ tracker_python_version }}" || echo "not_found"
   register: python_version_available
   changed_when: false
   become: true
   become_user: "{{ ansible_user }}"
 
-- name: Find closest available Python version if exact version not found
+- name: Install Python version via UV if not available
   ansible.builtin.shell: |
     set -o pipefail
-    export PYENV_ROOT="$HOME/.pyenv"
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    # Extract major.minor version (e.g., 3.11 from 3.11.11)
-    MAJOR_MINOR=$(echo {{ tracker_python_version }} | cut -d. -f1-2)
-    # Find the latest available version for this major.minor
-    $PYENV_ROOT/bin/pyenv install --list | grep -E "^\s+${MAJOR_MINOR}\.[0-9]+$" | tail -1 | xargs
-  register: closest_python_version
-  changed_when: false
+    export PATH="{{ uv_path | default('$HOME/.local/bin/uv') }}:$PATH"
+    uv python install {{ tracker_python_version }}
+  register: uv_python_install
+  changed_when: true
   become: true
   become_user: "{{ ansible_user }}"
   when: python_version_available.stdout == "not_found"
 
 - name: Set final Python version to use
   ansible.builtin.set_fact:
-    final_python_version: >
-      {%- if python_version_available.stdout != "not_found" -%} {{ tracker_python_version | trim }}{%- else -%} {{ closest_python_version.stdout | trim }}{%-
-      endif -%}
+    final_python_version: "{{ tracker_python_version }}"
 
 - name: Debug final Python version
   ansible.builtin.debug:
     msg: "Will use Python version: {{ final_python_version }}"
 
-- name: Make setup.sh executable
-  ansible.builtin.file:
-    path: "{{ ansible_user_dir }}/orangead/tracker/setup.sh"
-    mode: "0755"
-    owner: "{{ ansible_user }}"
-    group: staff
-  become: true
-
-- name: Run setup.sh script to set up virtual environment and dependencies
+- name: Initialize UV project for tracker
   ansible.builtin.shell: |
     set -o pipefail
     cd {{ ansible_user_dir }}/orangead/tracker
-    ./setup.sh
-  register: setup_result
-  changed_when: setup_result.stdout is search('Setup complete')
+    export PATH="{{ uv_path | default('$HOME/.local/bin/uv') }}:$PATH"
+    uv sync --python {{ final_python_version }}
+  register: uv_sync_result
+  changed_when: uv_sync_result.stdout is search('Synced')
   become: true
   become_user: "{{ ansible_user }}"
   environment:
     PATH: "/opt/homebrew/bin:/opt/homebrew/sbin:{{ ansible_user_dir }}/.local/bin:{{ ansible_env.PATH }}"
 
-- name: Fix ownership of virtual environment and cache directories
+- name: Fix ownership of UV project directories
   ansible.builtin.file:
     path: "{{ item }}"
     owner: "{{ ansible_user }}"
@@ -67,13 +53,15 @@
   loop:
     - "{{ ansible_user_dir }}/orangead/tracker/.venv"
     - "{{ ansible_user_dir }}/orangead/tracker"
+    - "{{ ansible_user_dir }}/.local/share/uv"
+    - "{{ ansible_user_dir }}/.cache/uv"
   become: true
   failed_when: false
 
-- name: Display setup script output
+- name: Display UV sync output
   ansible.builtin.debug:
-    msg: "{{ setup_result.stdout_lines }}"
-  when: setup_result.stdout_lines is defined
+    msg: "{{ uv_sync_result.stdout_lines }}"
+  when: uv_sync_result.stdout_lines is defined
 
 - name: Copy dependency verification script
   ansible.builtin.copy:
@@ -85,9 +73,14 @@
   become: true
 
 - name: Verify dependencies installation
-  ansible.builtin.command: "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python {{ ansible_user_dir }}/orangead/tracker/verify_dependencies.py"
+  ansible.builtin.shell: |
+    cd {{ ansible_user_dir }}/orangead/tracker
+    export PATH="{{ uv_path | default('$HOME/.local/bin/uv') }}:$PATH"
+    uv run python verify_dependencies.py
   register: dependency_verification
   changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
 
 - name: Display dependency verification results
   ansible.builtin.debug:

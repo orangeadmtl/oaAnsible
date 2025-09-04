@@ -38,7 +38,7 @@ stop_service() {
         if launchctl list | grep -q "$SERVICE_NAME"; then
             log_info "Unloading LaunchAgent..."
             if launchctl unload "$PLIST_PATH" 2>/dev/null; then
-                log_info "✓ LaunchAgent unloaded successfully"
+                log_info "[OK] LaunchAgent unloaded successfully"
             else
                 log_warn "Failed to unload LaunchAgent (may not be loaded)"
             fi
@@ -71,7 +71,7 @@ stop_service() {
         log_error "Service may still be running"
         return 1
     else
-        log_info "✓ Service stopped successfully"
+        log_info "[OK] Service stopped successfully"
         return 0
     fi
 }
@@ -88,7 +88,7 @@ case "${1:-stop}" in
         log_info "Starting service..."
         if [[ -f "$PLIST_PATH" ]]; then
             launchctl load "$PLIST_PATH"
-            log_info "✓ Service restarted"
+            log_info "[OK] Service restarted"
         else
             log_error "Cannot restart: LaunchAgent plist not found"
             exit 1

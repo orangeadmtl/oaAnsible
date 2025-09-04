@@ -14,7 +14,7 @@ macos_system:
 # --------------
 macos_configure:
   tailscale: true
-  pyenv: true
+  uv_python: true
   node: true
 
 # Development Environment

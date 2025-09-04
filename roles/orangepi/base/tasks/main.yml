@@ -125,8 +125,8 @@
       ╔════════════════════════════════════════════════════╗
       ║           OrangePi Base Setup Complete             ║
       ╠════════════════════════════════════════════════════╣
-      ║ ✅ opi-setup integration: Ready
-      ║ ✅ Project structure: Configured
-      ║ ✅ Services: {{ 'Healthy' if health_check.status == 200 else 'Pending startup' }}
-      ║ ✅ Device ID: {{ device_id }}
+      ║ [OK] opi-setup integration: Ready
+      ║ [OK] Project structure: Configured
+      ║ [OK] Services: {{ 'Healthy' if health_check.status == 200 else 'Pending startup' }}
+      ║ [OK] Device ID: {{ device_id }}
       ╚════════════════════════════════════════════════════╝

@@ -201,7 +201,7 @@
           - Location: {{ mediamtx_demo.demo.base_dir }}
           - RTSP Stream: rtsp://{{ inventory_hostname }}:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
           - API: http://{{ inventory_hostname }}:{{ mediamtx_demo.streaming.api_port }}
-          - Service Status: {{ 'Running ✅' if service_status.rc == 0 else 'Not Running ❌' }}
+          - Service Status: {{ 'Running [OK]' if service_status.rc == 0 else 'Not Running [FAIL]' }}
           
           Quick Start:
           1. Test camera: {{ mediamtx_demo.storage.scripts_dir }}/test_camera.sh

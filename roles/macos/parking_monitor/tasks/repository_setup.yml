@@ -67,7 +67,7 @@
 - name: Repository setup summary
   debug:
     msg: |
-      📦 Repository Setup Complete:
+      [PACKAGE] Repository Setup Complete:
       =============================
       Repository: {{ parking_monitor_repository.url }}
       Branch: {{ parking_monitor_repository.branch }}

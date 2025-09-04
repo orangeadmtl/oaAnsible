@@ -379,10 +379,10 @@ start_mpv_single() {
     
     sleep 1
     if kill -0 $MPV_PID_1 2>/dev/null; then
-        log_message "✓ Single-screen MPV started (PID: $MPV_PID_1)" "SUCCESS"
+        log_message "[OK] Single-screen MPV started (PID: $MPV_PID_1)" "SUCCESS"
         return 0
     else
-        log_message "✗ Single-screen MPV failed to start" "ERROR"
+        log_message "[NO] Single-screen MPV failed to start" "ERROR"
         MPV_PID_1=""
         return 1
     fi
@@ -413,29 +413,29 @@ start_mpv_dual() {
     local secondary_ok=false
     
     if kill -0 $MPV_PID_1 2>/dev/null; then
-        log_message "✓ Primary display running (PID: $MPV_PID_1)" "SUCCESS"
+        log_message "[OK] Primary display running (PID: $MPV_PID_1)" "SUCCESS"
         primary_ok=true
     else
-        log_message "✗ Primary display failed" "ERROR"
+        log_message "[NO] Primary display failed" "ERROR"
         MPV_PID_1=""
     fi
     
     if kill -0 $MPV_PID_2 2>/dev/null; then
-        log_message "✓ Secondary display running (PID: $MPV_PID_2)" "SUCCESS" 
+        log_message "[OK] Secondary display running (PID: $MPV_PID_2)" "SUCCESS" 
         secondary_ok=true
     else
-        log_message "✗ Secondary display failed" "ERROR"
+        log_message "[NO] Secondary display failed" "ERROR"
         MPV_PID_2=""
     fi
     
     if [ "$primary_ok" = true ] && [ "$secondary_ok" = true ]; then
-        log_message "✓ DUAL-SCREEN: Both displays synchronized (PIDs: $MPV_PID_1, $MPV_PID_2)" "SUCCESS"
+        log_message "[OK] DUAL-SCREEN: Both displays synchronized (PIDs: $MPV_PID_1, $MPV_PID_2)" "SUCCESS"
         return 0
     elif [ "$primary_ok" = true ]; then
         log_message "⚠ Partial success: Primary only, secondary failed" "WARNING"
         return 1
     else
-        log_message "✗ Complete failure: Both displays failed" "ERROR"
+        log_message "[NO] Complete failure: Both displays failed" "ERROR"
         return 2
     fi
 }
@@ -457,9 +457,9 @@ adjust_mpv_instances() {
     # Start appropriate number of instances
     if [ "$expected" -eq 1 ]; then
         if start_mpv_single "$VIDEO_FILE_DISPLAY1"; then
-            log_message "✓ Adjusted to single-screen mode" "ADJUST"
+            log_message "[OK] Adjusted to single-screen mode" "ADJUST"
         else
-            log_message "✗ Failed to adjust to single-screen mode" "ERROR"
+            log_message "[NO] Failed to adjust to single-screen mode" "ERROR"
             return 1
         fi
     elif [ "$expected" -eq 2 ]; then
@@ -468,16 +468,16 @@ adjust_mpv_instances() {
         result=$?
         
         if [ $result -eq 0 ]; then
-            log_message "✓ Adjusted to dual-screen mode" "ADJUST"
+            log_message "[OK] Adjusted to dual-screen mode" "ADJUST"
         elif [ $result -eq 1 ]; then
             log_message "⚠ Partial adjustment: primary only" "ADJUST"
         else
-            log_message "✗ Failed to adjust to dual-screen mode" "ERROR"
+            log_message "[NO] Failed to adjust to dual-screen mode" "ERROR"
             # Fallback to single screen
             if start_mpv_single "$VIDEO_FILE_DISPLAY1"; then
-                log_message "✓ Fallback to single-screen successful" "ADJUST"
+                log_message "[OK] Fallback to single-screen successful" "ADJUST"
             else
-                log_message "✗ Critical: All fallbacks failed" "ERROR"
+                log_message "[NO] Critical: All fallbacks failed" "ERROR"
                 return 1
             fi
         fi
@@ -591,9 +591,9 @@ log_message "Initial state: $CURRENT_DISPLAY_COUNT display(s) detected, $EXPECTE
 # Start initial MPV instances
 if [ "$EXPECTED_MPV_COUNT" -eq 1 ]; then
     if start_mpv_single "$VIDEO_FILE_DISPLAY1"; then
-        log_message "✓ Initial single-screen startup successful" "INIT"
+        log_message "[OK] Initial single-screen startup successful" "INIT"
     else
-        log_message "✗ Initial single-screen startup failed" "ERROR"
+        log_message "[NO] Initial single-screen startup failed" "ERROR"
         exit 1
     fi
 else
@@ -602,17 +602,17 @@ else
     result=$?
     
     if [ $result -eq 0 ]; then
-        log_message "✓ Initial dual-screen startup successful" "INIT"
+        log_message "[OK] Initial dual-screen startup successful" "INIT"
     elif [ $result -eq 1 ]; then
         log_message "⚠ Initial partial startup: primary only" "INIT"
         EXPECTED_MPV_COUNT=1  # Adjust expectation
     else
-        log_message "✗ Initial dual-screen startup failed, falling back to single" "INIT"
+        log_message "[NO] Initial dual-screen startup failed, falling back to single" "INIT"
         if start_mpv_single "$VIDEO_FILE_DISPLAY1"; then
             EXPECTED_MPV_COUNT=1
-            log_message "✓ Fallback single-screen startup successful" "INIT"
+            log_message "[OK] Fallback single-screen startup successful" "INIT"
         else
-            log_message "✗ All startup methods failed" "ERROR"
+            log_message "[NO] All startup methods failed" "ERROR"
             exit 1
         fi
     fi

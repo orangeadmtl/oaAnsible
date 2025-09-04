@@ -81,7 +81,7 @@ start_service() {
     launchctl unload "$plist" 2>/dev/null || true
     sleep 2
     launchctl load -w "$plist"
-    echo -e "${GREEN}✓${NC} $name started"
+    echo -e "${GREEN}[OK]${NC} $name started"
 }
 
 stop_service() {
@@ -91,7 +91,7 @@ stop_service() {
     
     echo -e "Stopping $name..."
     launchctl unload "$plist" 2>/dev/null || true
-    echo -e "${YELLOW}✓${NC} $name stopped"
+    echo -e "${YELLOW}[OK]${NC} $name stopped"
 }
 
 restart_service() {
@@ -152,7 +152,7 @@ cleanup_files() {
             echo "Cleaning up $old_images old detection images..."
             find "$detection_dir" -name "*.jpg" -mtime +7 -delete 2>/dev/null || true
             find "$detection_dir" -name "*.json" -mtime +7 -delete 2>/dev/null || true
-            echo -e "${GREEN}✓${NC} Cleanup completed"
+            echo -e "${GREEN}[OK]${NC} Cleanup completed"
         else
             echo "No old detection images to clean up"
         fi
@@ -161,7 +161,7 @@ cleanup_files() {
     # Compress old log files
     if [[ -d "$logs_dir" ]]; then
         find "$logs_dir" -name "*.log" -mtime +1 -size +10M -exec gzip {} \; 2>/dev/null || true
-        echo -e "${GREEN}✓${NC} Log compression completed"
+        echo -e "${GREEN}[OK]${NC} Log compression completed"
     fi
 }
 

@@ -16,5 +16,5 @@ base_packages:
 
 # Feature toggles that are consistent across environments
 configure:
-  pyenv: true
+  uv_python: true
   node: true

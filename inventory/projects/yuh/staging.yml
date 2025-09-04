@@ -82,7 +82,7 @@ all:
       enabled: true
       port: 9090
       python_version: "3.12"
-      repository_url: "git@github.com:oa-device/oaDeviceAPI.git"
+      repository_url: "https://github.com/oa-device/oaDeviceAPI.git"
       branch: "main"
       debug_mode: true
       
@@ -192,6 +192,7 @@ all:
           ansible_host: 100.91.66.122
           ansible_user: admin
           ansible_port: 22
+          ansible_python_interpreter: "/Users/admin/.pyenv/shims/python3.12"
           ansible_become_password: "{{ vault_sudo_passwords['f1-ca-015'] }}"
           hostname: "yuh-staging-001"
           device_role: "development_parking_monitor"

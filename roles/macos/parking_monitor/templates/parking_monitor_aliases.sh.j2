@@ -35,7 +35,7 @@ alias pm-stats="curl -s http://localhost:$PARKING_MONITOR_PORT/api/stats | pytho
 
 # Quick actions
 pm-quick-restart() {
-    echo "🔄 Quick restarting Parking Monitor..."
+    echo "[CYCLE] Quick restarting Parking Monitor..."
     pm-stop 2>/dev/null
     sleep 2
     pm-start
@@ -44,7 +44,7 @@ pm-quick-restart() {
 }
 
 pm-debug() {
-    echo "🔍 Parking Monitor Debug Info:"
+    echo "[VERIFY] Parking Monitor Debug Info:"
     echo "================================"
     echo "Service Status:"
     pm-status || echo "  Service not loaded"

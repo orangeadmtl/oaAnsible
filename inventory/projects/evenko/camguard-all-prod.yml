@@ -19,7 +19,7 @@ all:
     # Feature toggles
     configure:
       tailscale: false # Production - Tailscale managed separately
-      pyenv: true
+      uv_python: true
       node: true
 
     # Environment-specific features (Production CamGuard deployment)

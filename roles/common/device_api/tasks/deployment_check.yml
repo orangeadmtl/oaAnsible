@@ -21,9 +21,9 @@
       ===============================================
       
       This deployment will:
-      ✓ Force git update to latest {{ device_api.branch | default('main') }}
-      ✓ Recreate Python virtual environment
-      ✓ Reinstall all dependencies
-      ✓ Stop and restart {{ device_api_service_name }} service
-      ✓ Validate API endpoints are working
+      [OK] Force git update to latest {{ device_api.branch | default('main') }}
+      [OK] Recreate Python virtual environment
+      [OK] Reinstall all dependencies
+      [OK] Stop and restart {{ device_api_service_name }} service
+      [OK] Validate API endpoints are working
       ===============================================

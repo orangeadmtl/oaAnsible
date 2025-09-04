@@ -189,7 +189,7 @@
 - name: Fail on compatibility errors
   ansible.builtin.fail:
     msg: |
-      💥 Component compatibility validation failed!
+      [BOOM] Component compatibility validation failed!
 
       Please resolve the errors listed above before proceeding.
       Consider reviewing your component selection or platform configuration.

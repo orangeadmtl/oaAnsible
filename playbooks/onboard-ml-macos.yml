@@ -27,7 +27,7 @@
     - name: Display setup information
       ansible.builtin.debug:
         msg:
-          - "🍎 Setting up macOS ML Workstation"
+          - "[MACOS] Setting up macOS ML Workstation"
           - "Host: {{ inventory_hostname }}"
           - "Platform: {{ ansible_os_family }} {{ ansible_distribution_version }}"
           - "Architecture: {{ ansible_architecture }}"
@@ -104,24 +104,24 @@
     - name: Setup completion summary
       ansible.builtin.debug:
         msg:
-          - "🎉 macOS ML Workstation Setup Complete!"
+          - "[SUCCESS] macOS ML Workstation Setup Complete!"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          - "📁 oaSentinel: {{ oasentinel_install_dir }}"
-          - "🍎 Platform: {{ ansible_os_family }} on {{ ansible_architecture }}"
-          - "🚀 Ready for ML development and training"
+          - "[FILES] oaSentinel: {{ oasentinel_install_dir }}"
+          - "[MACOS] Platform: {{ ansible_os_family }} on {{ ansible_architecture }}"
+          - "[LAUNCH] Ready for ML development and training"
           - ""
-          - "🔧 Quick Start:"
+          - "[CONFIG] Quick Start:"
           - "  • Double-click 'oaSentinel Terminal' on Desktop"
           - "  • Or use terminal: cd {{ oasentinel_install_dir }} && source .venv/bin/activate"
           - "  • Check status: mlstatus"
           - "  • Access CLI: mlcli"
           - ""
-          - "📚 Next Steps:"
+          - "[DOCS] Next Steps:"
           - "  1. Download dataset: mlcli download --dataset crowdhuman"
           - "  2. Process data: mlprocess"
           - "  3. Start training: mltrain --config configs/macos_optimized.yaml"
           - ""
-          - "💡 For help: mlcli --help"
+          - "[TIPS] For help: mlcli --help"
       tags: [summary]
 
   handlers:

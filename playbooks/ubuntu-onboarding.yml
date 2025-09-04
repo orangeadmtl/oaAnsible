@@ -41,15 +41,15 @@
           - ansible_distribution == "Ubuntu"
           - ansible_distribution_major_version | int >= 18
         fail_msg: |
-          ❌ System validation failed:
+          [FAIL] System validation failed:
           - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
           - This script requires Ubuntu 18.04 or newer
-        success_msg: "✅ Ubuntu {{ ansible_distribution_version }} - Compatible"
+        success_msg: "[OK] Ubuntu {{ ansible_distribution_version }} - Compatible"
 
     - name: Display system information
       ansible.builtin.debug:
         msg: |
-          📋 System Information:
+          [LIST] System Information:
           ├─ Hostname: {{ ansible_hostname }}
           ├─ Architecture: {{ ansible_architecture }}
           ├─ Kernel: {{ ansible_kernel }}
@@ -154,44 +154,44 @@
       ansible.builtin.debug:
         msg: |
           ╔═══════════════════════════════════════════════════════════════╗
-          ║              🎉 Ubuntu Onboarding Completed!                 ║
+          ║              [SUCCESS] Ubuntu Onboarding Completed!                 ║
           ╠═══════════════════════════════════════════════════════════════╣
           ║                                                               ║
           ║ Host: {{ inventory_hostname }} ({{ ansible_host }})
           ║ Profile: {{ deployment_mode | upper }}
           ║                                                               ║
-          ║ 📦 Configured Components:                                     ║
+          ║ [PACKAGE] Configured Components:                                     ║
           {% if deployment_mode == "server" %}
-          ║ ├─ ✓ Base system & essential packages                        ║
-          ║ ├─ ✓ Security hardening (sudo, SSH, firewall)               ║
-          ║ ├─ ✓ Enhanced shell (zsh with oh-my-zsh)                    ║
-          ║ ├─ ✓ System optimization & ethernet stability                ║
-          ║ ├─ ✓ Tailscale VPN with subnet routing                      ║
-          ║ └─ ✓ System monitoring                                       ║
+          ║ ├─ [OK] Base system & essential packages                        ║
+          ║ ├─ [OK] Security hardening (sudo, SSH, firewall)               ║
+          ║ ├─ [OK] Enhanced shell (zsh with oh-my-zsh)                    ║
+          ║ ├─ [OK] System optimization & ethernet stability                ║
+          ║ ├─ [OK] Tailscale VPN with subnet routing                      ║
+          ║ └─ [OK] System monitoring                                       ║
           {% elif deployment_mode == "ml" %}
-          ║ ├─ ✓ Base system & essential packages                        ║
-          ║ ├─ ✓ Security hardening (sudo, SSH, firewall)               ║
-          ║ ├─ ✓ Enhanced shell (zsh with oh-my-zsh)                    ║
-          ║ ├─ ✓ System optimization & ethernet stability                ║
-          ║ ├─ ✓ Python development environment (PyEnv + UV)            ║
-          ║ ├─ ✓ NVIDIA drivers & CUDA support                          ║
-          ║ ├─ ✓ ML workstation tools & environment                     ║
-          ║ ├─ ✓ Tailscale VPN with subnet routing                      ║
-          ║ └─ ✓ System monitoring                                       ║
+          ║ ├─ [OK] Base system & essential packages                        ║
+          ║ ├─ [OK] Security hardening (sudo, SSH, firewall)               ║
+          ║ ├─ [OK] Enhanced shell (zsh with oh-my-zsh)                    ║
+          ║ ├─ [OK] System optimization & ethernet stability                ║
+          ║ ├─ [OK] Python development environment (PyEnv + UV)            ║
+          ║ ├─ [OK] NVIDIA drivers & CUDA support                          ║
+          ║ ├─ [OK] ML workstation tools & environment                     ║
+          ║ ├─ [OK] Tailscale VPN with subnet routing                      ║
+          ║ └─ [OK] System monitoring                                       ║
           {% elif deployment_mode == "development" %}
-          ║ ├─ ✓ Base system & essential packages                        ║
-          ║ ├─ ✓ Security hardening (sudo, SSH, firewall)               ║
-          ║ ├─ ✓ Enhanced shell (zsh with oh-my-zsh)                    ║
-          ║ ├─ ✓ System optimization & ethernet stability                ║
-          ║ ├─ ✓ Docker container runtime                                ║
-          ║ ├─ ✓ Tailscale VPN with subnet routing                      ║
-          ║ └─ ✓ System monitoring                                       ║
+          ║ ├─ [OK] Base system & essential packages                        ║
+          ║ ├─ [OK] Security hardening (sudo, SSH, firewall)               ║
+          ║ ├─ [OK] Enhanced shell (zsh with oh-my-zsh)                    ║
+          ║ ├─ [OK] System optimization & ethernet stability                ║
+          ║ ├─ [OK] Docker container runtime                                ║
+          ║ ├─ [OK] Tailscale VPN with subnet routing                      ║
+          ║ └─ [OK] System monitoring                                       ║
           {% elif deployment_mode == "minimal" %}
-          ║ ├─ ✓ Base system & essential packages                        ║
-          ║ └─ ✓ Security hardening (sudo, SSH, firewall)               ║
+          ║ ├─ [OK] Base system & essential packages                        ║
+          ║ └─ [OK] Security hardening (sudo, SSH, firewall)               ║
           {% endif %}
           ║                                                               ║
-          ║ 🔗 Access Information:                                       ║
+          ║ [LINK] Access Information:                                       ║
           ║ • SSH: ssh {{ ansible_user }}@{{ ansible_host }}
           {% if deployment_mode != "minimal" %}
           ║ • Tailscale: Connected with tags [tag:oa-ubuntu]            ║
@@ -199,13 +199,13 @@
           ║ • Shell: Enhanced zsh with oh-my-zsh                        ║
           ║                                                               ║
           {% if reboot_required.stat.exists %}
-          ║ ⚠️ REBOOT REQUIRED for system updates to take effect         ║
+          ║ [WARNING] REBOOT REQUIRED for system updates to take effect         ║
           ║   Run: sudo reboot                                           ║
           {% else %}
-          ║ ✅ No reboot required - system ready for use                 ║
+          ║ [OK] No reboot required - system ready for use                 ║
           {% endif %}
           ║                                                               ║
-          ║ 🚀 Your Ubuntu machine is ready for OrangeAd operations!    ║
+          ║ [LAUNCH] Your Ubuntu machine is ready for OrangeAd operations!    ║
           ╚═══════════════════════════════════════════════════════════════╝
 
     - name: Generate onboarding report

@@ -3,16 +3,16 @@
 # run - Unified deployment script for oaAnsible
 # Usage: ./scripts/run [inventory] [component...] [options]
 # 
-# ⚠️  LEGACY INTERFACE: This CLI script is deprecated as of December 2024
-#    🚀 NEW: Use the oaDashboard Web Interface instead!
+# [WARNING] LEGACY INTERFACE: This CLI script is deprecated as of December 2024
+#    [NEW] Use the oaDashboard Web Interface instead!
 #       • Real-time deployment logs with WebSocket streaming
 #       • Role-based access control and approval workflows  
 #       • Deployment templates and guided wizards
 #       • Drag-and-drop host selection interface
 #       • Comprehensive analytics and metrics dashboard
 #    
-#    🔗 Access: http://localhost:3000/deployments
-#    📚 Migration guide: docs/deployment/web_interface_migration.md
+#    [ACCESS] http://localhost:3000/deployments
+#    [GUIDE] Migration guide: docs/deployment/web_interface_migration.md
 #    
 #    This script remains for emergency use only.
 #
@@ -50,7 +50,7 @@ show_usage() {
     echo "  -v, --verbose      - Detailed output for debugging"
     echo "  -h, --help         - Show this comprehensive help"
     echo ""
-    echo "🚀 Tag-Based Deployment Examples:"
+    echo "[DEPLOY] Tag-Based Deployment Examples:"
     echo "  $0 projects/spectra/preprod -t player           # Deploy player component"
     echo "  $0 projects/f1/prod -t base,network             # Deploy infrastructure only"
     echo "  $0 projects/spectra/prod -t macos-api           # Deploy macOS API only"
@@ -60,45 +60,45 @@ show_usage() {
     echo "  $0 ml-ubuntu-servers -t oasentinel-setup        # Setup oaSentinel project"
     echo "  $0 projects/f1/prod -t network --dry-run        # Safe preview of network changes"
     echo ""
-    echo "🔧 Full Stack Examples:"
+    echo "[STACK] Full Stack Examples:"
     echo "  $0                                              # Interactive mode"
     echo "  $0 projects/spectra/preprod                     # Full project deployment"
     echo "  $0 projects/f1/prod --dry-run                   # Preview full prod deployment"
     echo ""
-    echo "🎯 Targeted Host Examples:"
+    echo "[TARGET] Targeted Host Examples:"
     echo "  $0 projects/spectra/preprod -t player -l spectra-ca-001  # Deploy to one host"
     echo "  $0 projects/f1/staging -t tracker -l 'host1,host2'       # Multiple hosts"
     echo ""
-    echo "📋 Available Inventories:"
-    discover_inventories | sed 's/^/  📁 /'
+    echo "[INVENTORIES] Available Inventories:"
+    discover_inventories | sed 's/^/  [INV] /'
     echo ""
-    echo "🏷️  Available Component Tags:"
-    echo "  🛠️  Infrastructure:"
+    echo "[COMPONENTS] Available Component Tags:"
+    echo "  [INFRA] Infrastructure:"
     echo "     base       - Core system setup, shell, sudo, cleanup"
     echo "     network    - Networking stack, Tailscale, DNS"
     echo "     security   - Firewall, permissions, system hardening"
     echo "     ssh        - SSH configuration and access"
     echo ""
-    echo "  🚀 Applications:"
+    echo "  [APPS] Applications:"
     echo "     macos-api  - macOS device API service (alias: api)"
     echo "     tracker    - AI object tracking system"
     echo "     player     - Video player for dual-screen displays"
     echo "     alpr       - Automatic License Plate Recognition"
     echo ""
-    echo "  🐧 Platform-specific:"
+    echo "  [PLATFORM] Platform-specific:"
     echo "     docker     - Container runtime (Ubuntu only)"
     echo "     nvidia     - NVIDIA GPU drivers (Ubuntu servers)"
     echo "     ml         - ML workstation setup (Ubuntu servers)"
     echo "     health     - GPU health check and validation"
     echo ""
-    echo "  🎯 oaSentinel (AI Training):"
+    echo "  [AI] oaSentinel (AI Training):"
     echo "     oasentinel-setup - Clone and configure oaSentinel project"  
     echo "     oasentinel-data  - Download and process training datasets"
     echo "     oasentinel-train - Start automated training session"
     echo "     oasentinel-full  - Complete end-to-end automation"
     echo "     oasentinel       - Alias for oasentinel-full"
     echo ""
-    echo "💡 Pro Tips:"
+    echo "[TIPS] Pro Tips:"
     echo "  • Use --dry-run first to preview changes safely"
     echo "  • Combine multiple tags for grouped deployments"  
     echo "  • Tag deployment is much faster than full stack"
@@ -169,9 +169,9 @@ while [[ $# -gt 0 ]]; do
                     log_error "Available inventories:"
                     discover_inventories | while read -r inv; do
                         if [[ "$inv" =~ ^projects/ ]]; then
-                            log_error "  📁 $inv (Project structure)"
+                            log_error "  [PROJ] $inv (Project structure)"
                         else
-                            log_error "  📄 $inv (Legacy format)"
+                            log_error "  [LEGACY] $inv (Legacy format)"
                         fi
                     done
                     exit 1
@@ -240,7 +240,7 @@ fi
 
 # Safety confirmation for production inventories (both legacy and project structure)
 if ([[ "$INVENTORY_NAME" =~ -prod$ ]] || [[ "$INVENTORY_NAME" =~ /prod$ ]]) && [[ "$EXECUTION_MODE" != "dry-run" ]] && [[ "$EXECUTION_MODE" != "check" ]]; then
-    log_warn "⚠️  WARNING: You are about to deploy to a PRODUCTION environment!"
+    log_warn "[WARNING] You are about to deploy to a PRODUCTION environment!"
     log_warn "Inventory: $INVENTORY_NAME"
     log_warn "Playbook: $PLAYBOOK"
     if [ -n "$LIMIT" ]; then
@@ -287,13 +287,13 @@ run_ansible_playbook_with_ssh "$PLAYBOOK" "$INVENTORY_PATH" "$CONTEXT" "${ANSIBL
 DEPLOY_EXIT_CODE=$?
 
 if [ $DEPLOY_EXIT_CODE -eq 0 ]; then
-    log_info "✅ Deployment completed successfully"
+    log_info "[SUCCESS] Deployment completed successfully"
     if [[ "$EXECUTION_MODE" == "dry-run" ]]; then
         log_info "This was a dry run - no changes were made"
     elif [[ "$EXECUTION_MODE" == "check" ]]; then
         log_info "Configuration check passed"
     fi
 else
-    log_error "❌ Deployment failed with exit code $DEPLOY_EXIT_CODE"
+    log_error "[FAILED] Deployment failed with exit code $DEPLOY_EXIT_CODE"
     exit $DEPLOY_EXIT_CODE
 fi

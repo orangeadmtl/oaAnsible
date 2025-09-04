@@ -136,10 +136,10 @@ list_inventories() {
         echo "   Hosts: $macos_count macOS, $ubuntu_count Ubuntu"
         
         if [ "$VERBOSE" = true ]; then
-            echo "   📍 macOS Hosts:"
+            echo "   [LOCATION] macOS Hosts:"
             yq e '.all.children.macos.hosts | to_entries | .[] | "      " + .key + " (" + .value.ansible_host + ")"' "$inventory_path" 2>/dev/null || echo "      None"
             
-            echo "   📍 Ubuntu Hosts:"
+            echo "   [LOCATION] Ubuntu Hosts:"
             yq e '.all.children.ubuntu_servers.hosts | to_entries | .[] | "      " + .key + " (" + .value.ansible_host + ")"' "$inventory_path" 2>/dev/null || echo "      None"
         fi
     done

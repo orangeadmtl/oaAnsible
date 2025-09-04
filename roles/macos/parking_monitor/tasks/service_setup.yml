@@ -66,7 +66,7 @@
     that:
       - "'not_running' not in service_status.stdout"
     fail_msg: "Service failed to load. Check logs: tail -f {{ parking_monitor_launchd.standard_error_path }}"
-    success_msg: "✅ Service loaded successfully"
+    success_msg: "[OK] Service loaded successfully"
 
 - name: Create service management aliases
   template:
@@ -77,7 +77,7 @@
 - name: Service setup summary
   debug:
     msg: |
-      🚀 Service Setup Complete:
+      [LAUNCH] Service Setup Complete:
       =========================
       Service Name: {{ parking_monitor_service.name }}
       LaunchAgent: {{ parking_monitor_launchd.plist_path }}

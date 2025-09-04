@@ -6,14 +6,14 @@
 
 set -e
 
-echo "🐍 Python Environment Setup (uv-powered)"
+echo "[PYTHON] Python Environment Setup (uv-powered)"
 echo "========================================"
 
 cd {{ mediamtx_demo.demo.base_dir }}
 
 # Check if uv is installed
 if ! command -v uv >/dev/null 2>&1; then
-    echo "📦 Installing uv (fast Python package manager)..."
+    echo "[PACKAGE] Installing uv (fast Python package manager)..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
     
     # Add uv to PATH for current session
@@ -26,33 +26,33 @@ if ! command -v uv >/dev/null 2>&1; then
         source "$HOME/.bashrc" 2>/dev/null || true
     fi
     
-    echo "✅ uv installed successfully"
+    echo "[OK] uv installed successfully"
 else
-    echo "✅ uv already available"
+    echo "[OK] uv already available"
 fi
 
 # Verify uv is working
 if ! command -v uv >/dev/null 2>&1; then
-    echo "❌ uv installation failed or not in PATH"
-    echo "💡 Try running: export PATH=\"\$HOME/.cargo/bin:\$PATH\""
-    echo "💡 Or restart your shell and run this script again"
+    echo "[FAIL] uv installation failed or not in PATH"
+    echo "[TIPS] Try running: export PATH=\"\$HOME/.cargo/bin:\$PATH\""
+    echo "[TIPS] Or restart your shell and run this script again"
     exit 1
 fi
 
 UV_VERSION=$(uv --version 2>/dev/null || echo "unknown")
-echo "🚀 Using uv version: $UV_VERSION"
+echo "[LAUNCH] Using uv version: $UV_VERSION"
 
 # Create virtual environment if it doesn't exist
 if [ ! -d "{{ mediamtx_demo.python.venv_path }}" ]; then
-    echo "🏗️  Creating virtual environment with uv..."
+    echo "[BUILD]  Creating virtual environment with uv..."
     uv venv {{ mediamtx_demo.python.venv_path }}
-    echo "✅ Virtual environment created: {{ mediamtx_demo.python.venv_path }}"
+    echo "[OK] Virtual environment created: {{ mediamtx_demo.python.venv_path }}"
 else
-    echo "✅ Virtual environment already exists: {{ mediamtx_demo.python.venv_path }}"
+    echo "[OK] Virtual environment already exists: {{ mediamtx_demo.python.venv_path }}"
 fi
 
 # Install dependencies
-echo "📦 Installing Python dependencies with uv..."
+echo "[PACKAGE] Installing Python dependencies with uv..."
 export VIRTUAL_ENV="{{ mediamtx_demo.python.venv_path }}"
 
 {% for dep in mediamtx_demo.python.dependencies %}
@@ -60,20 +60,20 @@ echo "   Installing {{ dep }}..."
 uv pip install {{ dep }}
 {% endfor %}
 
-echo "✅ All Python dependencies installed successfully"
+echo "[OK] All Python dependencies installed successfully"
 
 echo ""
-echo "🎯 Python Environment Ready!"
+echo "[TARGET] Python Environment Ready!"
 echo ""
-echo "📋 Usage Options:"
+echo "[LIST] Usage Options:"
 echo ""
-echo "🚀 Option 1: Use uv run (recommended - no activation needed):"
+echo "[LAUNCH] Option 1: Use uv run (recommended - no activation needed):"
 echo "   uv run --project . python scripts/{{ mediamtx_demo.python.script_name }} --headless"
 echo ""
-echo "🔧 Option 2: Traditional virtual environment:"
+echo "[CONFIG] Option 2: Traditional virtual environment:"
 echo "   source {{ mediamtx_demo.python.venv_path }}/bin/activate"
 echo "   python scripts/{{ mediamtx_demo.python.script_name }} --headless"
 echo "   deactivate"
 echo ""
-echo "📚 uv is much faster than pip and handles dependencies better!"
+echo "[DOCS] uv is much faster than pip and handles dependencies better!"
 echo "   Learn more: https://github.com/astral-sh/uv"

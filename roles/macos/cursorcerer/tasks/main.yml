@@ -146,7 +146,7 @@
           - "System-wide coverage: {{ cursorcerer_config.system_wide_coverage | default(true) }}"
           - "Integration: Works alongside MPV --no-input-cursor"
           - ""
-          - "⚠️  Note: Manual UI changes override programmatic settings"
+          - "[WARNING]  Note: Manual UI changes override programmatic settings"
           - "   Use hotkey (Ctrl+Opt+K) or check preference pane to verify actual settings"
         verbosity: 0
 
@@ -157,25 +157,25 @@
 
         # 1. Process Status
         if pgrep -f "Cursorcerer" > /dev/null; then
-          echo "✓ Process: Running"
+          echo "[OK] Process: Running"
           process_count=$(pgrep -f "Cursorcerer" | wc -l | xargs)
           echo "  Count: $process_count processes"
           pids=$(pgrep -f "Cursorcerer" | tr '\n' ' ')
           echo "  PIDs: $pids"
         else
-          echo "❌ Process: Not running"
+          echo "[FAIL] Process: Not running"
           exit 1
         fi
 
         # 2. LaunchAgent Status
         if launchctl list | grep -q "com.orangead.cursorcerer"; then
-          echo "✓ LaunchAgent: Loaded and running"
+          echo "[OK] LaunchAgent: Loaded and running"
         else
           echo "⚠ LaunchAgent: Not loaded"
         fi
 
         # 3. All Preferences Analysis
-        echo "✓ Preference Settings Analysis:"
+        echo "[OK] Preference Settings Analysis:"
 
         # Individual setting checks with expected vs actual
         idle_timeout=$(defaults read com.doomlaser.cursorcerer IdleTimeout 2>/dev/null || echo "not set")
@@ -196,58 +196,58 @@
         echo "    IdleTimeout=${idle_timeout}, ShowOnMovement=${show_on_movement}, SystemWide=${system_wide}"
 
         # 4. Setting Consistency Check
-        echo "✓ Setting Consistency Check:"
+        echo "[OK] Setting Consistency Check:"
         issues=0
 
         # Check REAL keys only (keys Cursorcerer actually uses)
         expected_timeout={{ cursorcerer_config.idle_timeout | default(3) }}
         if [ "$idle_hide" != "$expected_timeout" ]; then
-          echo "  ❌ Timeout mismatch: Expected ${expected_timeout}s, got idleHide=${idle_hide}s"
+          echo "  [FAIL] Timeout mismatch: Expected ${expected_timeout}s, got idleHide=${idle_hide}s"
           issues=$((issues + 1))
         else
-          echo "  ✓ Idle timeout correct: ${expected_timeout}s"
+          echo "  [OK] Idle timeout correct: ${expected_timeout}s"
         fi
 
         expected_autoshow={{ cursorcerer_config.show_on_movement | default(true) | lower }}
         if [ "$auto_show" = "1" ] && [ "$expected_autoshow" = "true" ]; then
-          echo "  ✓ Show on movement correct: enabled"
+          echo "  [OK] Show on movement correct: enabled"
         elif [ "$auto_show" = "0" ] && [ "$expected_autoshow" = "false" ]; then
-          echo "  ✓ Show on movement correct: disabled"
+          echo "  [OK] Show on movement correct: disabled"
         else
-          echo "  ❌ Show on movement mismatch: Expected ${expected_autoshow}, got autoShow=${auto_show}"
+          echo "  [FAIL] Show on movement mismatch: Expected ${expected_autoshow}, got autoShow=${auto_show}"
           issues=$((issues + 1))
         fi
 
         expected_hotkey={{ cursorcerer_config.hotkey_enabled | default(true) | lower }}
         if [ "$hotkey_enabled" = "1" ] && [ "$expected_hotkey" = "true" ]; then
-          echo "  ✓ Hotkey correct: enabled"
+          echo "  [OK] Hotkey correct: enabled"
         elif [ "$hotkey_enabled" = "0" ] && [ "$expected_hotkey" = "false" ]; then
-          echo "  ✓ Hotkey correct: disabled"
+          echo "  [OK] Hotkey correct: disabled"
         else
-          echo "  ❌ Hotkey mismatch: Expected ${expected_hotkey}, got HotkeyEnabled=${hotkey_enabled}"
+          echo "  [FAIL] Hotkey mismatch: Expected ${expected_hotkey}, got HotkeyEnabled=${hotkey_enabled}"
           issues=$((issues + 1))
         fi
 
         expected_combo="{{ cursorcerer_config.hotkey_combo | default('^~k') }}"
         if [ "$hotkey_combo" = "$expected_combo" ]; then
-          echo "  ✓ Hotkey combo correct: ${expected_combo}"
+          echo "  [OK] Hotkey combo correct: ${expected_combo}"
         else
-          echo "  ❌ Hotkey combo mismatch: Expected ${expected_combo}, got ${hotkey_combo}"
+          echo "  [FAIL] Hotkey combo mismatch: Expected ${expected_combo}, got ${hotkey_combo}"
           issues=$((issues + 1))
         fi
 
         # Summary
-        echo "✓ Debug Summary:"
+        echo "[OK] Debug Summary:"
         if [ $issues -eq 0 ]; then
-          echo "  ✓ All settings configured correctly"
-          echo "  ✓ Ready for manual functionality testing"
+          echo "  [OK] All settings configured correctly"
+          echo "  [OK] Ready for manual functionality testing"
         else
           echo "  ⚠ Found $issues setting inconsistencies"
           echo "  ⚠ Manual reconfiguration may be needed"
         fi
 
         echo ""
-        echo "✓ Manual Testing Instructions:"
+        echo "[OK] Manual Testing Instructions:"
         echo "  1. Move cursor and wait {{ cursorcerer_config.idle_timeout | default(3) }} seconds - cursor should hide"
         echo "  2. Move cursor again - cursor should reappear"
         echo "  3. Press Ctrl+Opt+K - should toggle cursor on/off"

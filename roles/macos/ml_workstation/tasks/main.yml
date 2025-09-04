@@ -162,7 +162,7 @@
     python -c "
     import torch
     import platform
-    print('🍎 macOS ML Environment Verification')
+    print('[MACOS] macOS ML Environment Verification')
     print('=' * 40)
     print(f'Platform: {platform.platform()}')
     print(f'PyTorch Version: {torch.__version__}')
@@ -170,12 +170,12 @@
     print(f'MPS Available: {torch.backends.mps.is_available()}')
     print(f'MPS Built: {torch.backends.mps.is_built()}')
     if torch.backends.mps.is_available():
-        print('✅ Apple Silicon GPU acceleration ready!')
+        print('[OK] Apple Silicon GPU acceleration ready!')
     {% else %}
     print('Intel Mac - CPU training optimized')
     {% endif %}
     print('=' * 40)
-    print('✅ macOS ML Environment Check Complete')
+    print('[OK] macOS ML Environment Check Complete')
     "
   register: macos_verification
   changed_when: false
@@ -192,7 +192,7 @@
 - name: MacOS ML setup summary
   ansible.builtin.debug:
     msg:
-      - "🍎 macOS ML Workstation Setup Complete!"
+      - "[MACOS] macOS ML Workstation Setup Complete!"
       - "Architecture: {{ 'Apple Silicon' if is_apple_silicon else 'Intel' }}"
       - "GPU Acceleration: {{ 'MPS (Metal)' if is_apple_silicon else 'CPU Optimized' }}"
       - "oaSentinel: {{ oasentinel_install_dir }}"

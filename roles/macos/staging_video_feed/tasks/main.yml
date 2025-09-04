@@ -31,14 +31,14 @@
   debug:
     msg: |
       ===============================================
-      📹 Staging Video Feed Deployment Summary
+      [CAMERA] Staging Video Feed Deployment Summary
       ===============================================
       Service: {{ staging_video_feed_service.name }}
       Virtual Device: {{ staging_video_feed_camera.device_path }}
       Video Storage: {{ staging_video_feed_content.storage_dir }}
       Working Directory: {{ staging_video_feed_service.working_dir }}
       ===============================================
-      ✅ Staging Video Feed deployed successfully!
+      [OK] Staging Video Feed deployed successfully!
       
       Integration:
       - Parking monitor will use camera source: {{ staging_video_feed_integration.camera_device_override }}

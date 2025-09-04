@@ -1,10 +1,10 @@
 #!/bin/bash
 cd {{ mediamtx_demo.demo.base_dir }}
-echo "🛑 Stopping MediaMTX Demo..."
+echo "[STOP] Stopping MediaMTX Demo..."
 launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/{{ mediamtx_demo.service.name }}.plist 2>/dev/null || echo "Service not loaded"
 sleep 2
 if ! launchctl list {{ mediamtx_demo.service.name }} >/dev/null 2>&1; then
-    echo "✅ MediaMTX Demo stopped"
+    echo "[OK] MediaMTX Demo stopped"
 else
-    echo "⚠️ MediaMTX Demo may still be running"
+    echo "[WARNING] MediaMTX Demo may still be running"
 fi

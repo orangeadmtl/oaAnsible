@@ -23,20 +23,20 @@ log_message() {
 
 check_docker_service() {
     if launchctl list | grep -q "$DOCKER_SERVICE"; then
-        log_message "✅ Docker LaunchAgent is running"
+        log_message "[OK] Docker LaunchAgent is running"
         return 0
     else
-        log_message "❌ Docker LaunchAgent is not running"
+        log_message "[FAIL] Docker LaunchAgent is not running"
         return 1
     fi
 }
 
 check_monitor_service() {
     if launchctl list | grep -q "$MONITOR_SERVICE"; then
-        log_message "✅ Monitor LaunchAgent is running"
+        log_message "[OK] Monitor LaunchAgent is running"
         return 0
     else
-        log_message "❌ Monitor LaunchAgent is not running"
+        log_message "[FAIL] Monitor LaunchAgent is not running"
         return 1
     fi
 }
@@ -44,20 +44,20 @@ check_monitor_service() {
 check_docker_container() {
     if docker ps --filter "name=$CONTAINER_NAME" --format "{{.Names}}" | grep -q "$CONTAINER_NAME"; then
         local status=$(docker ps --filter "name=$CONTAINER_NAME" --format "{{.Status}}")
-        log_message "✅ Docker container is running: $status"
+        log_message "[OK] Docker container is running: $status"
         return 0
     else
-        log_message "❌ Docker container is not running"
+        log_message "[FAIL] Docker container is not running"
         return 1
     fi
 }
 
 check_alpr_service_port() {
     if nc -z localhost "$ALPR_PORT" 2>/dev/null; then
-        log_message "✅ ALPR service port $ALPR_PORT is accessible"
+        log_message "[OK] ALPR service port $ALPR_PORT is accessible"
         return 0
     else
-        log_message "❌ ALPR service port $ALPR_PORT is not accessible"
+        log_message "[FAIL] ALPR service port $ALPR_PORT is not accessible"
         return 1
     fi
 }
@@ -65,10 +65,10 @@ check_alpr_service_port() {
 check_python_environment() {
     export PATH="{{ ansible_user_dir }}/.pyenv/bin:$PATH"
     if eval "$(pyenv init -)" && pyenv activate alpr 2>/dev/null; then
-        log_message "✅ Python virtual environment 'alpr' is available"
+        log_message "[OK] Python virtual environment 'alpr' is available"
         return 0
     else
-        log_message "❌ Python virtual environment 'alpr' is not available"
+        log_message "[FAIL] Python virtual environment 'alpr' is not available"
         return 1
     fi
 }
@@ -76,10 +76,10 @@ check_python_environment() {
 check_camera_access() {
     # Try to list camera devices
     if system_profiler SPCameraDataType | grep -q "Camera"; then
-        log_message "✅ Camera devices detected"
+        log_message "[OK] Camera devices detected"
         return 0
     else
-        log_message "⚠️  No camera devices detected"
+        log_message "[WARNING]  No camera devices detected"
         return 1
     fi
 }
@@ -88,10 +88,10 @@ check_detection_directory() {
     local detection_dir="{{ ansible_user_dir }}/orangead/alpr/detections"
     if [[ -d "$detection_dir" && -w "$detection_dir" ]]; then
         local file_count=$(find "$detection_dir" -name "*.jpg" | wc -l)
-        log_message "✅ Detection directory accessible ($file_count images)"
+        log_message "[OK] Detection directory accessible ($file_count images)"
         return 0
     else
-        log_message "❌ Detection directory not accessible"
+        log_message "[FAIL] Detection directory not accessible"
         return 1
     fi
 }
@@ -99,10 +99,10 @@ check_detection_directory() {
 check_disk_space() {
     local usage=$(df "{{ ansible_user_dir }}" | tail -n1 | awk '{print $5}' | sed 's/%//')
     if (( usage < 90 )); then
-        log_message "✅ Disk space OK (${usage}% used)"
+        log_message "[OK] Disk space OK (${usage}% used)"
         return 0
     else
-        log_message "⚠️  Disk space high (${usage}% used)"
+        log_message "[WARNING]  Disk space high (${usage}% used)"
         return 1
     fi
 }
@@ -143,9 +143,9 @@ main() {
     log_message "=== Health Check Summary: $checks_passed/$total_checks checks passed ==="
     
     if [[ $overall_status -eq 0 ]]; then
-        log_message "🎉 ALPR Stack Health Check: ALL SYSTEMS OPERATIONAL"
+        log_message "[SUCCESS] ALPR Stack Health Check: ALL SYSTEMS OPERATIONAL"
     else
-        log_message "⚠️  ALPR Stack Health Check: ISSUES DETECTED"
+        log_message "[WARNING]  ALPR Stack Health Check: ISSUES DETECTED"
         log_message ""
         log_message "Troubleshooting Commands:"
         log_message "- Restart Docker:  launchctl kickstart -k gui/\$(id -u)/com.orangead.alpr"

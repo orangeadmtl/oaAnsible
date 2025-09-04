@@ -83,12 +83,12 @@
 - name: Set validation results
   ansible.builtin.set_fact:
     deviceapi_validation_results:
-      process_running: "{{ (process_status_macos.stdout | regex_search('PROCESS_RUNNING:true')) is not none if platform_state.is_macos else true }}"
-      launchctl_loaded: "{{ (launchctl_status.stdout | regex_search('LAUNCHCTL_LOADED:true')) is not none if platform_state.is_macos else true }}" 
+      process_running: "{{ (process_status_macos.stdout | regex_search(\"PROCESS_RUNNING:true\")) is not none if platform_state.is_macos else true }}"
+      launchctl_loaded: "{{ (launchctl_status.stdout | regex_search(\"LAUNCHCTL_LOADED:true\")) is not none if platform_state.is_macos else true }}" 
       api_basic_accessible: "{{ api_basic_test.status == 200 }}"
       api_platform_accessible: "{{ api_platform_test.status == 200 }}"
       api_health_accessible: "{{ api_health_test.status == 200 if platform_state.is_macos else true }}"
-      log_file_exists: "{{ (log_check.stdout | regex_search('LOG_FILE_EXISTS:true')) is not none }}"
+      log_file_exists: "{{ (log_check.stdout | regex_search(\"LOG_FILE_EXISTS:true\")) is not none }}"
       overall_status: "{{ 'SUCCESS' if api_basic_test.status == 200 else 'FAILED' }}"
 
 - name: Display comprehensive validation results
@@ -105,9 +105,9 @@
       - Log File Exists: {{ deviceapi_validation_results.log_file_exists }}
       
       API Endpoint Tests:
-      - Basic Endpoint (/): {{ '✅ PASS' if deviceapi_validation_results.api_basic_accessible else '❌ FAIL' }}
-      - Platform Endpoint (/platform): {{ '✅ PASS' if deviceapi_validation_results.api_platform_accessible else '❌ FAIL' }}
-      - Health Endpoint (/health): {{ '✅ PASS' if deviceapi_validation_results.api_health_accessible else '❌ FAIL' }}
+      - Basic Endpoint (/): {{ '[OK] PASS' if deviceapi_validation_results.api_basic_accessible else '[FAIL] FAIL' }}
+      - Platform Endpoint (/platform): {{ '[OK] PASS' if deviceapi_validation_results.api_platform_accessible else '[FAIL] FAIL' }}
+      - Health Endpoint (/health): {{ '[OK] PASS' if deviceapi_validation_results.api_health_accessible else '[FAIL] FAIL' }}
       
       Access URLs:
       - API Base: http://{{ ansible_default_ipv4.address }}:9090/
@@ -116,7 +116,7 @@
       ===============================================
       {% if deviceapi_validation_results.overall_status == 'FAILED' %}
       
-      ⚠️  DEPLOYMENT VALIDATION FAILED ⚠️
+      [WARNING]  DEPLOYMENT VALIDATION FAILED [WARNING]
       Please check the service logs and configuration.
       {% endif %}
 

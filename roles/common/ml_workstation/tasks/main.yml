@@ -112,7 +112,7 @@
     import ultralytics
     import cv2
     from src.data_processing.crowdhuman import CrowdHumanProcessor
-    print('✅ All dependencies verified')
+    print('[OK] All dependencies verified')
     print(f'PyTorch: {torch.__version__}')
     print(f'CUDA available: {torch.cuda.is_available()}')
     {% if ansible_os_family == 'Darwin' %}
@@ -198,10 +198,10 @@
 - name: Final setup summary
   ansible.builtin.debug:
     msg:
-      - "🎯 oaSentinel ML workstation setup complete!"
-      - "📁 Installation: {{ oasentinel_install_dir }}"
-      - "🐍 Python environment: {{ python_venv_dir }}"
-      - "🔧 Use 'mlcli' command for CLI access"
-      - "📊 Use 'mlstatus' to check system status"
-      - "🚀 Ready for ML training and development!"
+      - "[TARGET] oaSentinel ML workstation setup complete!"
+      - "[FILES] Installation: {{ oasentinel_install_dir }}"
+      - "[PYTHON] Python environment: {{ python_venv_dir }}"
+      - "[CONFIG] Use 'mlcli' command for CLI access"
+      - "[STATS] Use 'mlstatus' to check system status"
+      - "[LAUNCH] Ready for ML training and development!"
   tags: [setup, summary]

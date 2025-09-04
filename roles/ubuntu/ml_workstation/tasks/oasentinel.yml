@@ -385,7 +385,7 @@
     #!/bin/bash
     set -e
 
-    echo "🔄 Migrating CrowdHuman dataset to shared location..."
+    echo "[CYCLE] Migrating CrowdHuman dataset to shared location..."
 
     OLD_PATH="{{ ubuntu_crowdhuman_dataset.old_project_path }}"
     NEW_RAW_PATH="{{ ubuntu_crowdhuman_dataset.raw_path }}"
@@ -606,7 +606,7 @@
     set -o pipefail
     cd "{{ oasentinel_dir }}"
     source .venv/bin/activate
-    echo "🎯 oaSentinel Installation Verification"
+    echo "[TARGET] oaSentinel Installation Verification"
     echo "========================================"
     echo "Directory: {{ oasentinel_dir }}"
     echo "Virtual Environment: $( [ -f '.venv/bin/activate' ] && echo Ready || echo Missing )"

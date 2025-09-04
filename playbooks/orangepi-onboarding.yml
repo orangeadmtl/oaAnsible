@@ -44,16 +44,16 @@
           - ansible_distribution_major_version | int >= 20
           - ansible_architecture == "aarch64"
         fail_msg: |
-          ❌ System validation failed:
+          [FAIL] System validation failed:
           - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
           - Architecture: {{ ansible_architecture }}
           - Required: Ubuntu 20.04+ on ARM64 (OrangePi 5B)
-        success_msg: "✅ {{ ansible_distribution }} {{ ansible_distribution_version }} on {{ ansible_architecture }} - Compatible"
+        success_msg: "[OK] {{ ansible_distribution }} {{ ansible_distribution_version }} on {{ ansible_architecture }} - Compatible"
 
     - name: Display system information
       ansible.builtin.debug:
         msg: |
-          📋 OrangePi System Information:
+          [LIST] OrangePi System Information:
           ├─ Hostname: {{ ansible_hostname }}
           ├─ Architecture: {{ ansible_architecture }}
           ├─ Kernel: {{ ansible_kernel }}
@@ -81,7 +81,7 @@
     - name: Display selected components
       ansible.builtin.debug:
         msg: |
-          🔧 Components for {{ deployment_profile }} profile:
+          [CONFIG] Components for {{ deployment_profile }} profile:
           {{ configure_components | join(', ') }}
 
   tasks:
@@ -160,29 +160,29 @@
       ansible.builtin.debug:
         msg: |
           ╔═══════════════════════════════════════════════════════════════╗
-          ║              🍊 OrangePi Onboarding Complete!                ║
+          ║              [ORANGE] OrangePi Onboarding Complete!                ║
           ╠═══════════════════════════════════════════════════════════════╣
           ║                                                               ║
           ║ Host: {{ inventory_hostname }} ({{ ansible_host }})
           ║ Profile: {{ deployment_profile | upper }}
           ║                                                               ║
-          ║ 📦 Configured Components:                                     ║
+          ║ [PACKAGE] Configured Components:                                     ║
           {% if deployment_profile == "player" %}
-          ║ ├─ ✓ opi-setup integration & base system                     ║
-          ║ ├─ ✓ Enhanced shell (zsh + OrangePi functions)               ║
-          ║ ├─ ✓ Tailscale VPN with authentication                       ║
-          ║ ├─ ✓ Player services & health monitoring                     ║
-          ║ └─ ✓ System monitoring & utilities                           ║
+          ║ ├─ [OK] opi-setup integration & base system                     ║
+          ║ ├─ [OK] Enhanced shell (zsh + OrangePi functions)               ║
+          ║ ├─ [OK] Tailscale VPN with authentication                       ║
+          ║ ├─ [OK] Player services & health monitoring                     ║
+          ║ └─ [OK] System monitoring & utilities                           ║
           {% elif deployment_profile == "development" %}
-          ║ ├─ ✓ opi-setup integration & base system                     ║
-          ║ ├─ ✓ Enhanced shell (zsh + OrangePi functions)               ║
-          ║ ├─ ✓ Tailscale VPN with authentication                       ║
-          ║ └─ ✓ Development utilities & monitoring                      ║
+          ║ ├─ [OK] opi-setup integration & base system                     ║
+          ║ ├─ [OK] Enhanced shell (zsh + OrangePi functions)               ║
+          ║ ├─ [OK] Tailscale VPN with authentication                       ║
+          ║ └─ [OK] Development utilities & monitoring                      ║
           {% elif deployment_profile == "minimal" %}
-          ║ └─ ✓ opi-setup integration & base system                     ║
+          ║ └─ [OK] opi-setup integration & base system                     ║
           {% endif %}
           ║                                                               ║
-          ║ 🔗 Access Information:                                       ║
+          ║ [LINK] Access Information:                                       ║
           ║ • SSH: ssh {{ ansible_user }}@{{ ansible_host }}
           {% if "'tailscale' in configure_components" %}
           ║ • Tailscale: Connected with OrangePi tags                   ║
@@ -193,19 +193,19 @@
           ║ • Health API: http://{{ ansible_host }}:{{ health_api_port | default(9090) }}/health
           ║                                                               ║
           {% if reboot_required.stat.exists %}
-          ║ ⚠️ REBOOT REQUIRED for updates to take full effect           ║
+          ║ [WARNING] REBOOT REQUIRED for updates to take full effect           ║
           ║   Run: sudo reboot                                           ║
           {% else %}
-          ║ ✅ No reboot required - system ready for use                 ║
+          ║ [OK] No reboot required - system ready for use                 ║
           {% endif %}
           ║                                                               ║
-          ║ 🎯 Quick Commands (if shell enhanced):                       ║
+          ║ [TARGET] Quick Commands (if shell enhanced):                       ║
           ║ • oastatus  - Check all services                            ║
           ║ • oahealth  - API health check                              ║
           ║ • oainfo    - System information                            ║
           ║ • oatailscale - Tailscale management                        ║
           ║                                                               ║
-          ║ 🚀 Your OrangePi is ready for OrangeAd operations!          ║
+          ║ [LAUNCH] Your OrangePi is ready for OrangeAd operations!          ║
           ╚═══════════════════════════════════════════════════════════════╝
 
     - name: Generate onboarding report

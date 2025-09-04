@@ -57,7 +57,7 @@
   debug:
     msg: |
       ===============================================
-      🏥 Staging Video Feed Health Verification
+      [HOSPITAL] Staging Video Feed Health Verification
       ===============================================
       Service loaded: {{ staging_video_feed_health_status.service_loaded }}
       Process running: {{ staging_video_feed_health_status.process_running }}

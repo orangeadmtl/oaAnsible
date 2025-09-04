@@ -14,24 +14,24 @@ NC='\033[0m'
 OASENTINEL_HOME="{{ oasentinel_install_dir }}"
 VENV_PATH="{{ python_venv_dir }}"
 
-echo -e "${BLUE}🔍 oaSentinel ML Workstation Health Check${NC}"
+echo -e "${BLUE}[VERIFY] oaSentinel ML Workstation Health Check${NC}"
 echo "=============================================="
 
 # Check installation directory
-echo -n "📁 Installation directory: "
+echo -n "[FILES] Installation directory: "
 if [ -d "$OASENTINEL_HOME" ]; then
-    echo -e "${GREEN}✅ OK${NC}"
+    echo -e "${GREEN}[OK] OK${NC}"
 else
-    echo -e "${RED}❌ MISSING${NC}"
+    echo -e "${RED}[FAIL] MISSING${NC}"
     exit 1
 fi
 
 # Check virtual environment
-echo -n "🐍 Python virtual environment: "
+echo -n "[PYTHON] Python virtual environment: "
 if [ -f "$VENV_PATH/bin/activate" ]; then
-    echo -e "${GREEN}✅ OK${NC}"
+    echo -e "${GREEN}[OK] OK${NC}"
 else
-    echo -e "${RED}❌ MISSING${NC}"
+    echo -e "${RED}[FAIL] MISSING${NC}"
     exit 1
 fi
 
@@ -40,7 +40,7 @@ cd "$OASENTINEL_HOME"
 source "$VENV_PATH/bin/activate"
 
 # Check Python packages
-echo -n "📦 Core ML packages: "
+echo -n "[PACKAGE] Core ML packages: "
 python -c "
 import sys
 try:
@@ -49,9 +49,9 @@ try:
     import cv2
     import numpy as np
     from src.data_processing.crowdhuman import CrowdHumanProcessor
-    print('✅ OK', end='')
+    print('[OK] OK', end='')
 except ImportError as e:
-    print(f'❌ MISSING: {e}', end='')
+    print(f'[FAIL] MISSING: {e}', end='')
     sys.exit(1)
 " 2>/dev/null
 if [ $? -eq 0 ]; then
@@ -61,30 +61,30 @@ else
 fi
 
 # Check hardware acceleration
-echo -n "🚀 Hardware acceleration: "
+echo -n "[LAUNCH] Hardware acceleration: "
 python -c "
 import torch
 {% if ansible_os_family == 'Darwin' %}
 if torch.backends.mps.is_available():
-    print('✅ MPS Available', end='')
+    print('[OK] MPS Available', end='')
 else:
-    print('⚠️  MPS Not Available', end='')
+    print('[WARNING]  MPS Not Available', end='')
 {% else %}
 if torch.cuda.is_available():
-    print(f'✅ CUDA Available (GPUs: {torch.cuda.device_count()})', end='')
+    print(f'[OK] CUDA Available (GPUs: {torch.cuda.device_count()})', end='')
 else:
-    print('⚠️  CUDA Not Available', end='')
+    print('[WARNING]  CUDA Not Available', end='')
 {% endif %}
 " 2>/dev/null
 echo -e "${NC}"
 
 # Check disk space
-echo -n "💾 Disk space: "
+echo -n "[SAVE] Disk space: "
 DISK_USAGE=$(df -h "$OASENTINEL_HOME" | awk 'NR==2 {print $5}' | sed 's/%//')
 if [ "$DISK_USAGE" -lt 90 ]; then
-    echo -e "${GREEN}✅ OK (${DISK_USAGE}% used)${NC}"
+    echo -e "${GREEN}[OK] OK (${DISK_USAGE}% used)${NC}"
 else
-    echo -e "${YELLOW}⚠️  WARNING (${DISK_USAGE}% used)${NC}"
+    echo -e "${YELLOW}[WARNING]  WARNING (${DISK_USAGE}% used)${NC}"
 fi
 
 # Check memory
@@ -95,13 +95,13 @@ MEMORY_GB=$(( $(sysctl -n hw.memsize) / 1024 / 1024 / 1024 ))
 MEMORY_GB=$(( $(grep MemTotal /proc/meminfo | awk '{print $2}') / 1024 / 1024 ))
 {% endif %}
 if [ "$MEMORY_GB" -ge 8 ]; then
-    echo -e "${GREEN}✅ OK (${MEMORY_GB}GB)${NC}"
+    echo -e "${GREEN}[OK] OK (${MEMORY_GB}GB)${NC}"
 else
-    echo -e "${YELLOW}⚠️  WARNING (${MEMORY_GB}GB - 8GB+ recommended)${NC}"
+    echo -e "${YELLOW}[WARNING]  WARNING (${MEMORY_GB}GB - 8GB+ recommended)${NC}"
 fi
 
 # Check data directories
-echo -n "📊 Data directories: "
+echo -n "[STATS] Data directories: "
 MISSING_DIRS=""
 for dir in "data" "models" "logs"; do
     if [ ! -d "$OASENTINEL_HOME/$dir" ]; then
@@ -110,23 +110,23 @@ for dir in "data" "models" "logs"; do
 done
 
 if [ -z "$MISSING_DIRS" ]; then
-    echo -e "${GREEN}✅ OK${NC}"
+    echo -e "${GREEN}[OK] OK${NC}"
 else
-    echo -e "${YELLOW}⚠️  Missing:$MISSING_DIRS${NC}"
+    echo -e "${YELLOW}[WARNING]  Missing:$MISSING_DIRS${NC}"
 fi
 
 # Check CLI functionality
-echo -n "🖥️  CLI functionality: "
+echo -n "[DESKTOP]  CLI functionality: "
 python src/cli.py info > /dev/null 2>&1
 if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ OK${NC}"
+    echo -e "${GREEN}[OK] OK${NC}"
 else
-    echo -e "${RED}❌ ERROR${NC}"
+    echo -e "${RED}[FAIL] ERROR${NC}"
 fi
 
 # System resource summary
 echo ""
-echo -e "${BLUE}📈 System Resources Summary${NC}"
+echo -e "${BLUE}[CHART] System Resources Summary${NC}"
 echo "--------------------------------"
 
 # CPU info
@@ -142,33 +142,33 @@ echo "Memory: ${MEMORY_GB}GB"
 {% if ansible_os_family != 'Darwin' %}
 if command -v nvidia-smi >/dev/null 2>&1; then
     echo ""
-    echo -e "${BLUE}🎮 GPU Information${NC}"
+    echo -e "${BLUE}[GPU] GPU Information${NC}"
     nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader,nounits | head -1
 fi
 {% endif %}
 
 # Training recommendations
 echo ""
-echo -e "${BLUE}🎯 Training Recommendations${NC}"
+echo -e "${BLUE}[TARGET] Training Recommendations${NC}"
 echo "--------------------------------"
 if [ "$MEMORY_GB" -ge 16 ]; then
-    echo "✅ Recommended batch size: 16-32"
+    echo "[OK] Recommended batch size: 16-32"
 else
-    echo "⚠️  Recommended batch size: 8-16 (limited memory)"
+    echo "[WARNING]  Recommended batch size: 8-16 (limited memory)"
 fi
 
 {% if ansible_os_family == 'Darwin' %}
-echo "✅ Use MPS device for training acceleration"
-echo "✅ Optimize for Apple Silicon architecture"
+echo "[OK] Use MPS device for training acceleration"
+echo "[OK] Optimize for Apple Silicon architecture"
 {% else %}
 if python -c "import torch; exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
-    echo "✅ Use CUDA device for training acceleration"
-    echo "✅ Mixed precision training recommended"
+    echo "[OK] Use CUDA device for training acceleration"
+    echo "[OK] Mixed precision training recommended"
 else
-    echo "⚠️  CPU-only training (slower performance)"
+    echo "[WARNING]  CPU-only training (slower performance)"
 fi
 {% endif %}
 
 echo ""
-echo -e "${GREEN}🎉 Health check complete!${NC}"
+echo -e "${GREEN}[SUCCESS] Health check complete!${NC}"
 echo "Use 'mlstatus' for quick status or 'mlcli info' for detailed information."

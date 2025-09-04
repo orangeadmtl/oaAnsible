@@ -40,7 +40,7 @@ check_health() {
         log_error "Port $SERVICE_PORT is not listening"
         exit_code=1
     else
-        log_info "✓ Port $SERVICE_PORT is listening"
+        log_info "[OK] Port $SERVICE_PORT is listening"
     fi
     
     # Check HTTP health endpoint
@@ -52,7 +52,7 @@ check_health() {
         http_code="${response: -3}"
         
         if [[ "$http_code" == "200" ]]; then
-            log_info "✓ Health endpoint responding (HTTP $http_code)"
+            log_info "[OK] Health endpoint responding (HTTP $http_code)"
             # Parse JSON response if available
             local body="${response%???}"
             if command -v python3 >/dev/null 2>&1 && [[ -n "$body" ]]; then
@@ -70,7 +70,7 @@ check_health() {
     
     # Check process is running
     if pgrep -f "parking_monitor" >/dev/null 2>&1; then
-        log_info "✓ Parking monitor process is running"
+        log_info "[OK] Parking monitor process is running"
     else
         log_error "Parking monitor process not found"
         exit_code=1
@@ -80,7 +80,7 @@ check_health() {
     if launchctl list | grep -q "{{ parking_monitor_service.name }}"; then
         local status=$(launchctl list | grep "{{ parking_monitor_service.name }}" | awk '{print $1}')
         if [[ "$status" == "-" ]]; then
-            log_info "✓ LaunchAgent is loaded and running"
+            log_info "[OK] LaunchAgent is loaded and running"
         else
             log_warn "LaunchAgent loaded but may have issues (PID: $status)"
         fi

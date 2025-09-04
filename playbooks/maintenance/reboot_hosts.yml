@@ -28,7 +28,7 @@
     - name: "Safety confirmation check"
       ansible.builtin.fail:
         msg: |
-          ⚠️  REBOOT CONFIRMATION REQUIRED ⚠️
+          [WARNING]  REBOOT CONFIRMATION REQUIRED [WARNING]
 
           You are about to REBOOT the following hosts:
           {{ ansible_play_hosts | join(', ') }}
@@ -43,7 +43,7 @@
     - name: "Display reboot plan"
       ansible.builtin.debug:
         msg: |
-          🔄 REBOOT PLAN for {{ inventory_hostname }}
+          [CYCLE] REBOOT PLAN for {{ inventory_hostname }}
           Platform: {{ ansible_facts['os_family'] }}
           Current uptime: {{ ansible_facts['uptime_seconds'] // 3600 }}h {{ (ansible_facts['uptime_seconds'] % 3600) // 60 }}m
           Reboot delay: {{ reboot_delay }} seconds
@@ -115,14 +115,14 @@
     - name: "Display post-reboot status"
       ansible.builtin.debug:
         msg: |
-          ✅ REBOOT COMPLETED for {{ inventory_hostname }}
+          [OK] REBOOT COMPLETED for {{ inventory_hostname }}
           Platform: {{ ansible_facts['os_family'] }}
           New uptime: {{ ansible_facts['uptime_seconds'] // 60 }} minutes
           Load average: {{ ansible_facts['load']['1min'] | default('unknown') }}
           Available memory: {{ (ansible_facts['memfree_mb'] | default(0) / 1024) | round(1) }}GB / {{ (ansible_facts['memtotal_mb'] | default(0) / 1024) | round(1) }}GB
 
           {% if ansible_facts['os_family'] == 'Darwin' %}
-          💡 Services will need to be restarted manually or will auto-start based on their configuration.
+          [TIPS] Services will need to be restarted manually or will auto-start based on their configuration.
           Use: ./scripts/run {{ inventory_file | basename | regex_replace('\\.yml$', '') }} --tags <service-tags>
           {% endif %}
       tags: always
@@ -149,11 +149,11 @@
       when: ansible_facts['os_family'] == 'Darwin'
       ansible.builtin.debug:
         msg: |
-          🔍 Service Status Check:
+          [VERIFY] Service Status Check:
           {% if services_check.stdout_lines %}
           Running OrangeAd services:
           {{ services_check.stdout_lines | join('\n') }}
           {% else %}
-          ⚠️  No OrangeAd services currently running. You may need to restart them manually.
+          [WARNING]  No OrangeAd services currently running. You may need to restart them manually.
           {% endif %}
       tags: always

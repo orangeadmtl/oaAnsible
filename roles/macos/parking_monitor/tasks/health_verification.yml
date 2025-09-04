@@ -16,7 +16,7 @@
 - name: Verify process is running
   debug:
     msg: |
-      🔍 Process Status: {{ 'Running (PID: ' + process_check.stdout + ')' if process_check.stdout != 'not_running' else 'Not running' }}
+      [VERIFY] Process Status: {{ 'Running (PID: ' + process_check.stdout + ')' if process_check.stdout != 'not_running' else 'Not running' }}
 
 - name: Test health endpoint
   uri:
@@ -100,12 +100,12 @@
 - name: Health verification summary
   debug:
     msg: |
-      🏥 Health Verification Complete:
+      [HOSPITAL] Health Verification Complete:
       ===============================
-      Process: {{ 'Running (PID: ' + process_check.stdout + ')' if process_check.stdout != 'not_running' else '❌ Not running' }}
-      Health Endpoint: {{ '✅ Responding' if health_check.status == 200 else '❌ Failed' }}
-      Status Endpoint: {{ '✅ Responding' if status_check.status == 200 else '⚠️  Limited (no camera?)' if status_check.status == 503 else '❌ Failed' }}
-      Metrics Endpoint: {{ '✅ Responding' if metrics_check.status == 200 else '⚠️  Limited' if metrics_check.status == 503 else '❌ Failed' }}
+      Process: {{ 'Running (PID: ' + process_check.stdout + ')' if process_check.stdout != 'not_running' else '[FAIL] Not running' }}
+      Health Endpoint: {{ '[OK] Responding' if health_check.status == 200 else '[FAIL] Failed' }}
+      Status Endpoint: {{ '[OK] Responding' if status_check.status == 200 else '[WARNING]  Limited (no camera?)' if status_check.status == 503 else '[FAIL] Failed' }}
+      Metrics Endpoint: {{ '[OK] Responding' if metrics_check.status == 200 else '[WARNING]  Limited' if metrics_check.status == 503 else '[FAIL] Failed' }}
       
       {% if health_data is defined -%}
       Service Info:
@@ -143,7 +143,7 @@
 - name: Fail if critical health checks failed
   fail:
     msg: |
-      ❌ Critical health checks failed:
+      [FAIL] Critical health checks failed:
       • Process running: {{ process_check.stdout != 'not_running' }}
       • Health endpoint: {{ health_check.status == 200 }}
       

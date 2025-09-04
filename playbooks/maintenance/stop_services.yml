@@ -91,11 +91,11 @@
               Services Stop Summary:
               {% for result in service_stop.results %}
               {% if result.changed %}
-              ✅ Stopped: {{ result.item.name }}
+              [OK] Stopped: {{ result.item.name }}
               {% elif result.skipped | default(false) %}
               ⏭️  Skipped: {{ result.item.name }} (not matching tags or not loaded)
               {% else %}
-              ❌ Failed: {{ result.item.name }} - {{ result.stderr | default('Unknown error') }}
+              [FAIL] Failed: {{ result.item.name }} - {{ result.stderr | default('Unknown error') }}
               {% endif %}
               {% endfor %}
           tags: always
@@ -127,11 +127,11 @@
               Ubuntu Services Stop Summary:
               {% for result in ubuntu_service_stop.results | default([]) %}
               {% if result.changed %}
-              ✅ Stopped: {{ result.item }}
+              [OK] Stopped: {{ result.item }}
               {% elif result.skipped | default(false) %}
               ⏭️  Skipped: {{ result.item }}
               {% else %}
-              ❌ Failed: {{ result.item }} - {{ result.msg | default('Unknown error') }}
+              [FAIL] Failed: {{ result.item }} - {{ result.msg | default('Unknown error') }}
               {% endif %}
               {% endfor %}
           tags: always
@@ -140,9 +140,9 @@
     - name: "Final status check"
       ansible.builtin.debug:
         msg: |
-          🛑 Service stop operation completed for {{ inventory_hostname }}
+          [STOP] Service stop operation completed for {{ inventory_hostname }}
           Platform: {{ ansible_facts['os_family'] | default('Unknown') }}
 
-          💡 To start services again, use:
+          [TIPS] To start services again, use:
           ./scripts/run {{ inventory_file | basename | regex_replace('\\.yml$', '') }} --tags <service-tags>
       tags: always

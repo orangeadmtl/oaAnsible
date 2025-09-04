@@ -8,21 +8,21 @@
       - ansible_distribution == "MacOSX"
       - ansible_distribution_version is version('12.0', '>=')
     fail_msg: "Parking Monitor requires macOS 12.0+ (Monterey) for M1 support"
-    success_msg: "✅ macOS version {{ ansible_distribution_version }} is compatible"
+    success_msg: "[OK] macOS version {{ ansible_distribution_version }} is compatible"
 
 - name: Check hardware architecture
   assert:
     that:
       - ansible_architecture == "arm64"
     fail_msg: "Parking Monitor is optimized for Apple Silicon (M1/M2). Intel support not implemented."
-    success_msg: "✅ Apple Silicon ({{ ansible_architecture }}) detected"
+    success_msg: "[OK] Apple Silicon ({{ ansible_architecture }}) detected"
 
 - name: Check available memory
   assert:
     that:
       - ansible_memtotal_mb >= 8192  # 8GB minimum
     fail_msg: "Parking Monitor requires at least 8GB RAM. Found {{ ansible_memtotal_mb }}MB"
-    success_msg: "✅ Sufficient memory available: {{ ansible_memtotal_mb }}MB"
+    success_msg: "[OK] Sufficient memory available: {{ ansible_memtotal_mb }}MB"
 
 - name: Check Python version availability
   command: python{{ parking_monitor_python.version }} --version
@@ -36,7 +36,7 @@
       - python_version_check.rc == 0
       - parking_monitor_python.version in python_version_check.stdout
     fail_msg: "Python {{ parking_monitor_python.version }} not found. Please install via pyenv or system package manager."
-    success_msg: "✅ Python {{ parking_monitor_python.version }} available"
+    success_msg: "[OK] Python {{ parking_monitor_python.version }} available"
 
 - name: Check for existing conflicting services
   shell: |
@@ -47,7 +47,7 @@
 - name: Warn about conflicting services
   debug:
     msg: |
-      ⚠️  WARNING: Found {{ conflicting_services.stdout }} potentially conflicting services.
+      [WARNING]  WARNING: Found {{ conflicting_services.stdout }} potentially conflicting services.
       This may indicate existing ALPR or parking monitor installations.
       Review with: launchctl list | grep -E "(parking.monitor|alpr)"
   when: conflicting_services.stdout | int > 0
@@ -63,7 +63,7 @@
 - name: Warn about port conflicts
   debug:
     msg: |
-      ⚠️  WARNING: Port {{ parking_monitor_service.port }} appears to be in use.
+      [WARNING]  WARNING: Port {{ parking_monitor_service.port }} appears to be in use.
       This may cause deployment issues. Check with: lsof -i :{{ parking_monitor_service.port }}
   when: port_check is failed
 
@@ -77,7 +77,7 @@
     that:
       - available_space.stdout | float >= 5.0  # 5GB minimum
     fail_msg: "Insufficient disk space. Need 5GB, found {{ available_space.stdout }}GB available"
-    success_msg: "✅ Sufficient disk space: {{ available_space.stdout }}GB available"
+    success_msg: "[OK] Sufficient disk space: {{ available_space.stdout }}GB available"
 
 - name: Check camera availability (optional)
   shell: |
@@ -89,7 +89,7 @@
 - name: Report camera status
   debug:
     msg: |
-      📹 Camera Status: {{ 'Built-in camera detected' if camera_check.stdout == 'builtin' else 'No built-in camera detected - ensure USB camera is connected' }}
+      [CAMERA] Camera Status: {{ 'Built-in camera detected' if camera_check.stdout == 'builtin' else 'No built-in camera detected - ensure USB camera is connected' }}
 
 - name: Check Git availability and SSH key
   block:
@@ -114,20 +114,20 @@
           1. SSH key is added to SSH agent
           2. Public key is added to GitHub account
           3. Test with: ssh -T git@github.com
-        success_msg: "✅ GitHub SSH access verified"
+        success_msg: "[OK] GitHub SSH access verified"
 
 - name: Summary of pre-deployment checks
   debug:
     msg: |
-      🔍 Pre-deployment Check Summary:
+      [VERIFY] Pre-deployment Check Summary:
       ================================
-      ✅ macOS {{ ansible_distribution_version }} ({{ ansible_architecture }})
-      ✅ Python {{ parking_monitor_python.version }}
-      ✅ Memory: {{ ansible_memtotal_mb }}MB
-      ✅ Disk: {{ available_space.stdout }}GB available
-      ✅ Git: {{ git_version.stdout }}
-      ✅ GitHub SSH access verified
-      📹 Camera: {{ 'Built-in detected' if camera_check.stdout == 'builtin' else 'USB camera required' }}
-      🌐 Port {{ parking_monitor_service.port }}: {{ 'Available' if port_check is succeeded else 'In use (warning)' }}
+      [OK] macOS {{ ansible_distribution_version }} ({{ ansible_architecture }})
+      [OK] Python {{ parking_monitor_python.version }}
+      [OK] Memory: {{ ansible_memtotal_mb }}MB
+      [OK] Disk: {{ available_space.stdout }}GB available
+      [OK] Git: {{ git_version.stdout }}
+      [OK] GitHub SSH access verified
+      [CAMERA] Camera: {{ 'Built-in detected' if camera_check.stdout == 'builtin' else 'USB camera required' }}
+      [WEB] Port {{ parking_monitor_service.port }}: {{ 'Available' if port_check is succeeded else 'In use (warning)' }}
       ================================
-      Ready for deployment! 🚀
+      Ready for deployment! [LAUNCH]

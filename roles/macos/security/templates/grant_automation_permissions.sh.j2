@@ -91,7 +91,7 @@ grant_automation_permissions_to_db() {
             VALUES ('kTCCServiceAppleEvents', '$client', $client_type, 2, 3, 1, NULL, NULL, '$target_app', NULL, 0, $timestamp);" 2>/dev/null
         
         if [ $? -eq 0 ]; then
-            echo "    ✓ Successfully granted automation permission for $client -> $target_app"
+            echo "    [OK] Successfully granted automation permission for $client -> $target_app"
         else
             # Try simplified version if full version fails
             echo "    Trying simplified insert..."
@@ -99,9 +99,9 @@ grant_automation_permissions_to_db() {
                 VALUES ('kTCCServiceAppleEvents', '$client', $client_type, 2, '$target_app');" 2>/dev/null
             
             if [ $? -eq 0 ]; then
-                echo "    ✓ Successfully granted automation permission for $client -> $target_app (simplified)"
+                echo "    [OK] Successfully granted automation permission for $client -> $target_app (simplified)"
             else
-                echo "    ✗ Failed to grant automation permission for $client -> $target_app"
+                echo "    [NO] Failed to grant automation permission for $client -> $target_app"
             fi
         fi
     done

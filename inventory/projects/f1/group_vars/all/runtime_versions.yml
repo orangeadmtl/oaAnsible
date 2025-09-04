@@ -6,7 +6,7 @@
 runtime:
   python:
     version: "3.11.11"
-    manager: "pyenv"
+    manager: "uv"
   node:
     version: "22.11.0"
     manager: "nvm"
