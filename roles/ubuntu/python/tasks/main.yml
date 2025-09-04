@@ -1,22 +1,15 @@
 ---
 # Ubuntu Python Environment Setup
 
-- name: Update apt package cache
-  ansible.builtin.apt:
-    update_cache: true
-    cache_valid_time: 3600
-  become: true
-  tags: [python, packages]
+- name: Configure UV and Python for Ubuntu
+  import_role:
+    name: common/uv_python
+  vars:
+    uv_python_version: "{{ ubuntu_python_version }}"
+    uv_ubuntu_install_deps: true
+    uv_ubuntu_dev_packages: "{{ ubuntu_dev_packages }}"
 
-- name: Install Python development packages
-  ansible.builtin.apt:
-    name: "{{ ubuntu_dev_packages }}"
-    state: present
-  become: true
-  when: ubuntu_install_dev_packages
-  tags: [python, packages]
-
-- name: Install system Python and pip
+- name: Install system Python packages (compatibility)
   ansible.builtin.apt:
     name:
       - python3
@@ -27,169 +20,12 @@
   when: ubuntu_install_system_python
   tags: [python, packages]
 
-- name: Install PyEnv dependencies
-  ansible.builtin.apt:
-    name:
-      - make
-      - build-essential
-      - libssl-dev
-      - zlib1g-dev
-      - libbz2-dev
-      - libreadline-dev
-      - libsqlite3-dev
-      - wget
-      - curl
-      - llvm
-      - libncursesw5-dev
-      - xz-utils
-      - tk-dev
-      - libxml2-dev
-      - libxmlsec1-dev
-      - libffi-dev
-      - liblzma-dev
-    state: present
-  become: true
-  when: ubuntu_install_pyenv
-  tags: [python, pyenv]
-
-- name: Check if PyEnv is already installed
-  ansible.builtin.stat:
-    path: "{{ ubuntu_pyenv_root }}"
-  register: pyenv_check
-  tags: [python, pyenv]
-
-- name: Install PyEnv
-  when: ubuntu_install_pyenv
-  tags: [python, pyenv]
-  block:
-    - name: Check if PyEnv directory exists for user
-      ansible.builtin.stat:
-        path: "{{ ubuntu_pyenv_root }}"
-      become: true
-      become_user: "{{ ansible_user }}"
-      register: pyenv_dir_check
-
-    - name: Install PyEnv for user
-      ansible.builtin.shell: |
-        set -o pipefail
-        export HOME="{{ ansible_user_dir }}"
-        export USER="{{ ansible_user }}"
-        cd "{{ ansible_user_dir }}"
-        curl https://pyenv.run | bash
-      args:
-        creates: "{{ ubuntu_pyenv_root }}/bin/pyenv"
-      become: true
-      become_user: "{{ ansible_user }}"
-      register: pyenv_install_result
-      when: ubuntu_install_pyenv
-      changed_when: false
-
-    - name: Display PyEnv installation status
-      ansible.builtin.debug:
-        msg: "PyEnv {{ 'installed successfully' if not pyenv_dir_check.stat.exists else 'already present' }} at {{ ubuntu_pyenv_root }}"
-
-- name: Add PyEnv to shell profiles
-  ansible.builtin.blockinfile:
-    path: "{{ item }}"
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - PyEnv"
-    block: |
-      # PyEnv configuration
-      export PYENV_ROOT="{{ ubuntu_pyenv_root }}"
-      export PATH="$PYENV_ROOT/bin:$PATH"
-      eval "$(pyenv init -)"
-      eval "$(pyenv virtualenv-init -)"
-    create: true
-    owner: "{{ ansible_user }}"
-    mode: "0644"
-  loop: "{{ ubuntu_shell_profiles }}"
-  become: true
-  when: ubuntu_install_pyenv and ubuntu_update_shell_profile
-  tags: [python, pyenv, shell]
-
-- name: Install Python versions with PyEnv
-  ansible.builtin.shell: |
-    set -o pipefail
-    export PYENV_ROOT="{{ ubuntu_pyenv_root }}"
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    eval "$(pyenv init -)"
-    pyenv install {{ item }} || pyenv versions | grep -q {{ item }}
-  loop: "{{ ubuntu_pyenv_install_python_versions }}"
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: ubuntu_install_pyenv
-  register: pyenv_install_result
-  changed_when: "'Installed' in pyenv_install_result.stdout"
-  tags: [python, pyenv]
-
-- name: Set global Python version
-  ansible.builtin.shell: |
-    set -o pipefail
-    export PYENV_ROOT="{{ ubuntu_pyenv_root }}"
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    eval "$(pyenv init -)"
-    pyenv global {{ ubuntu_python_version }}
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: ubuntu_install_pyenv
-  changed_when: false
-  tags: [python, pyenv]
-
-- name: Install UV package manager
-  ansible.builtin.get_url:
-    url: https://astral.sh/uv/install.sh
-    dest: /tmp/uv-install.sh
-    mode: "0755"
-  when: ubuntu_install_uv
-  register: uv_install_script
-  tags: [python, uv]
-
-- name: Run UV installation script
-  ansible.builtin.command: /tmp/uv-install.sh
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: ubuntu_install_uv
-  register: uv_install
-  changed_when: "'{{ ubuntu_pyenv_root }}/bin' not in ansible_env.PATH"
-  tags: [python, uv]
-
-- name: Remove UV installation script
-  ansible.builtin.file:
-    path: /tmp/uv-install.sh
-    state: absent
-  when: ubuntu_install_uv
-  tags: [python, uv]
-
-- name: Add UV to PATH in shell profiles
-  ansible.builtin.lineinfile:
-    path: "{{ item }}"
-    line: 'export PATH="$HOME/.local/bin:$PATH"'
-    create: true
-    owner: "{{ ansible_user }}"
-    mode: "0644"
-  loop: "{{ ubuntu_shell_profiles }}"
-  become: true
-  when: ubuntu_install_uv
-  tags: [python, uv, shell]
-
-- name: Verify Python installation
-  ansible.builtin.shell: |
-    set -o pipefail
-    export PYENV_ROOT="{{ ubuntu_pyenv_root }}"
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    eval "$(pyenv init -)"
-    python --version
-  become: true
-  become_user: "{{ ansible_user }}"
-  register: python_version_check
-  changed_when: false
-  tags: [python, verify]
-
 - name: Display Python setup results
   ansible.builtin.debug:
     msg:
-      - "🐍 Python Environment Setup Complete"
-      - "Python Version: {{ python_version_check.stdout }}"
-      - "PyEnv Root: {{ ubuntu_pyenv_root }}"
-      - "UV Package Manager: {{ 'Installed' if ubuntu_install_uv else 'Skipped' }}"
-      - "Development Packages: {{ 'Installed' if ubuntu_install_dev_packages else 'Skipped' }}"
+      - "[PYTHON] UV Python Environment Setup Complete"
+      - "Python Version: {{ uv_python_version }}"
+      - "UV Path: {{ uv_install_dir }}/uv"
+      - "Python Command: uv run python"
+      - "Development Packages: {{ 'Installed' if uv_ubuntu_install_deps else 'Skipped' }}"
   tags: [python, summary]
