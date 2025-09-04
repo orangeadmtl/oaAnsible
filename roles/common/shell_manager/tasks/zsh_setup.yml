@@ -3,10 +3,18 @@
 # =================================
 
 - name: Install zsh package
+  community.general.homebrew:
+    name: zsh
+    state: present
+  when: ansible_os_family == "Darwin"
+  become: false
+
+- name: Install zsh package (Linux)
   ansible.builtin.package:
     name: zsh
     state: present
   become: true
+  when: ansible_os_family != "Darwin"
 
 - name: Check if zsh is installed
   ansible.builtin.command: which zsh
