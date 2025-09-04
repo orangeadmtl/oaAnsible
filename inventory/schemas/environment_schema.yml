@@ -1,0 +1,146 @@
+---
+# Environment Configuration Schema
+# JSON Schema for validating inventory environment files
+
+type: object
+required:
+  - all
+properties:
+  all:
+    type: object
+    required:
+      - vars
+      - children
+    properties:
+      vars:
+        type: object
+        required:
+          - target_env
+          - deployment_environment
+          - project_name
+        properties:
+          # Environment Identification
+          target_env:
+            type: string
+            pattern: "^[a-z0-9-]+$"
+            description: "Environment identifier (e.g., yuh-staging)"
+          
+          deployment_environment:
+            type: string
+            enum: ["staging", "preprod", "production"]
+            description: "Deployment stage"
+          
+          project_name:
+            type: string
+            enum: ["yuh", "evenko", "spectra", "f1", "alpr", "mediamtx-demo"]
+            description: "Project identifier"
+          
+          project_type:
+            type: string
+            enum: ["airport", "venue", "demo", "ml"]
+            description: "Project category"
+          
+          # Service Configurations (should use defaults)
+          parking_monitor:
+            type: object
+            properties:
+              service:
+                type: object
+                properties:
+                  port:
+                    type: integer
+                    minimum: 1024
+                    maximum: 65535
+                  python_version:
+                    type: string
+                    pattern: "^3\\.(11|12)(\\.\\d+)?$"
+              
+              detection:
+                type: object
+                properties:
+                  model:
+                    type: string
+                    enum: ["yolo11n", "yolo11s", "yolo11m", "yolo11l", "yolo11x"]
+                  confidence_threshold:
+                    type: number
+                    minimum: 0.1
+                    maximum: 1.0
+                  target_fps:
+                    type: integer
+                    minimum: 10
+                    maximum: 60
+          
+          device_api:
+            type: object
+            properties:
+              service:
+                type: object
+                properties:
+                  port:
+                    type: integer
+                    minimum: 1024
+                    maximum: 65535
+                  python_version:
+                    type: string
+                    pattern: "^3\\.(11|12)(\\.\\d+)?$"
+          
+          # Security Configuration
+          security:
+            type: object
+            properties:
+              allowed_ports:
+                type: array
+                items:
+                  type: integer
+                  minimum: 1
+                  maximum: 65535
+              firewall_enabled:
+                type: boolean
+          
+          # Logging Configuration
+          logging:
+            type: object
+            properties:
+              log_level:
+                type: string
+                enum: ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+              max_log_size:
+                type: string
+                pattern: "^\\d+MB$"
+      
+      # Host Configuration
+      children:
+        type: object
+        patternProperties:
+          "^[a-z0-9_]+$":
+            type: object
+            properties:
+              children:
+                type: object
+                properties:
+                  macos:
+                    type: object
+                    properties:
+                      hosts:
+                        type: object
+                        patternProperties:
+                          "^[a-z0-9-]+$":
+                            type: object
+                            required:
+                              - ansible_host
+                              - ansible_user
+                              - hostname
+                            properties:
+                              ansible_host:
+                                type: string
+                                pattern: "^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$"
+                              ansible_user:
+                                type: string
+                                minLength: 1
+                              ansible_port:
+                                type: integer
+                                minimum: 1
+                                maximum: 65535
+                              hostname:
+                                type: string
+                                pattern: "^[a-z0-9-]+$"

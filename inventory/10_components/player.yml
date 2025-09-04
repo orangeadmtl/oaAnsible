@@ -1,0 +1,111 @@
+---
+# Player Component Configuration
+# MPV-based video player for kiosk displays
+
+player_component:
+  # Service configuration
+  service:
+    name: "com.orangead.player"
+    user: "{{ ansible_user }}"
+    
+  # Repository configuration
+  repository:
+    url: "https://github.com/oa-device/oaPlayer.git"
+    branch: "main"
+    destination: "{{ ansible_user_dir }}/orangead/player"
+    
+  # Default player configuration
+  config:
+    enabled: true
+    loop_mode: true
+    dual_screen: true  # Default to dual screen
+    video_selection_strategy: "sequential"
+    health_check: true
+    restart_on_failure: true
+    health_check_interval: 180  # 3 minutes
+    restart_attempts: 3
+    restart_delay: 15
+    volume: 0.0
+
+    # Kiosk mode settings
+    fullscreen: true
+    hide_cursor: true
+    black_background: true
+    disable_screensaver: true
+    system_volume_muted: true
+    hide_desktop_icons: true
+
+    # Time-based scheduling support
+    schedule_enabled: false
+    schedules: []
+
+    # Default video configuration
+    videos: []
+
+  # Screen variant configurations
+  variants:
+    single_screen:
+      dual_screen: false
+      fullscreen: false
+      hide_cursor: false
+      black_background: false
+      disable_screensaver: false
+      
+    dual_screen:
+      dual_screen: true
+      fullscreen: true
+      hide_cursor: true
+      black_background: true
+      disable_screensaver: true
+
+  # Environment-specific overrides
+  environment_overrides:
+    staging:
+      fullscreen: false
+      hide_cursor: false
+      black_background: false
+      disable_screensaver: false
+      health_check_interval: 60  # More frequent checks in staging
+      
+    preprod:
+      health_check_interval: 120
+      
+    production:
+      health_check_interval: 300  # Less frequent in production
+      restart_attempts: 2  # More conservative restarts
+
+  # Project-specific templates
+  project_templates:
+    evenko:
+      schedule_enabled: true
+      dual_screen: true
+      schedules:
+        - name: "friday_daytime"
+          start_time: "00:00"
+          end_time: "22:50"
+          day_of_week: "friday"
+          videos:
+            - name: "LASSO_vendredi.mp4"
+              display: 1
+              enabled: true
+              loop: true
+              volume: 0.0
+            - name: "LASSO_vendredi.mp4"
+              display: 2
+              enabled: true
+              loop: true
+              volume: 0.0
+              
+    spectra:
+      dual_screen: true
+      videos:
+        - name: "Jazz_video.webm"
+          display: 1
+          enabled: true
+          loop: true
+          volume: 0.0
+        - name: "Jazz_video.webm"
+          display: 2
+          enabled: true
+          loop: true
+          volume: 0.0

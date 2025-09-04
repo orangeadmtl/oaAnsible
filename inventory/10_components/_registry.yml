@@ -1,0 +1,132 @@
+---
+# Component Registry
+# Central registry of all available components with metadata and dependencies
+
+components:
+  device-api:
+    name: "Device API"
+    description: "Unified FastAPI service for device management (macOS and OrangePi)"
+    mandatory: true  # Always deployed to all hosts
+    service:
+      name: "com.orangead.deviceapi"
+      port: 9090
+      bind_address: "127.0.0.1"
+    repository:
+      url: "https://github.com/oa-device/oaDeviceAPI.git"
+      branch: "main"
+      destination: "{{ ansible_user_dir }}/orangead/oaDeviceAPI"
+    platforms: ["macos", "orangepi"]
+    dependencies: []
+    role: "common/device_api"
+    tags: ["device-api", "api"]
+
+  parking-monitor:
+    name: "Parking Monitor"
+    description: "AI-powered parking space detection and monitoring"
+    mandatory: false
+    service:
+      name: "com.orangead.parking-monitor"
+      port: 9091
+      bind_address: "127.0.0.1"
+    repository:
+      url: "https://github.com/oa-device/oaParkingMonitor.git"
+      branch: "main"
+      destination: "{{ ansible_user_dir }}/orangead/parking-monitor"
+    platforms: ["macos"]
+    dependencies: ["device-api"]
+    role: "macos/parking_monitor"
+    tags: ["parking-monitor", "ai"]
+
+  player:
+    name: "Video Player"
+    description: "MPV-based video player for kiosk displays"
+    mandatory: false
+    service:
+      name: "com.orangead.player"
+    repository:
+      url: "https://github.com/oa-device/oaPlayer.git"
+      branch: "main"
+      destination: "{{ ansible_user_dir }}/orangead/player"
+    platforms: ["macos"]
+    dependencies: ["device-api"]
+    role: "macos/player"
+    tags: ["player", "video"]
+    variants:
+      single_screen: 
+        description: "Single display configuration"
+        config: { dual_screen: false }
+      dual_screen:
+        description: "Dual display configuration"
+        config: { dual_screen: true }
+
+  tracker:
+    name: "AI Tracker"
+    description: "YOLOv11-based human detection and tracking"
+    mandatory: false
+    service:
+      name: "com.orangead.tracker"
+      port: 8080
+    repository:
+      url: "https://github.com/oa-device/oaTracker.git"
+      branch: "main"
+      destination: "{{ ansible_user_dir }}/orangead/tracker"
+    platforms: ["macos"]
+    dependencies: ["device-api"]
+    role: "macos/tracker"
+    tags: ["tracker", "ai"]
+
+  camguard:
+    name: "Camera Guard"
+    description: "Camera monitoring and alert system"
+    mandatory: false
+    service:
+      name: "com.orangead.camguard"
+    repository:
+      url: "https://github.com/oa-device/oaCamGuard.git"
+      branch: "main"
+      destination: "{{ ansible_user_dir }}/orangead/camguard"
+    platforms: ["macos"]
+    dependencies: ["device-api"]
+    role: "macos/camguard"
+    tags: ["camguard", "monitoring"]
+
+  alpr:
+    name: "License Plate Recognition"
+    description: "Automatic License Plate Recognition system"
+    mandatory: false
+    service:
+      name: "com.orangead.alpr"
+      port: 8080
+    platforms: ["macos", "ubuntu"]
+    dependencies: ["device-api"]
+    role: "common/alpr"
+    tags: ["alpr", "ai"]
+    requirements:
+      packages: ["docker"]
+
+# Component compatibility matrix
+compatibility:
+  parking-monitor:
+    conflicts: []
+    enhances: ["device-api"]
+    
+  player:
+    conflicts: []
+    enhances: ["device-api"]
+    
+  tracker:
+    conflicts: []
+    enhances: ["device-api"]
+    
+  camguard:
+    conflicts: []
+    enhances: ["device-api", "player"]
+
+# Deployment order (topological sort considering dependencies)
+deployment_order:
+  - device-api      # Always first (mandatory)
+  - parking-monitor
+  - tracker
+  - camguard
+  - player
+  - alpr

@@ -1,0 +1,9 @@
+---
+# Main Inventory Aggregator
+# This file provides a single inventory entry point that references the new structure
+
+all:
+  vars:
+    # Inventory version for compatibility
+    inventory_version: "2.0"
+    inventory_structure: "layered"

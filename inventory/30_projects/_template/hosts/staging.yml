@@ -1,0 +1,44 @@
+---
+# Project Template - Staging Hosts
+# Define staging environment hosts for this project
+
+all:
+  vars:
+    # Environment identification
+    target_env: "[PROJECT]-staging"
+    deployment_environment: "staging"
+    project_name: "[PROJECT]"
+    
+    # Component selection - uses foundation defaults + project stack
+    # Foundation components (base, network, security, device-api) auto-included
+    # Project components defined in stack.yml
+    # No explicit deploy_* flags needed - determined automatically
+    
+    # Environment configuration reference
+    environment: "{{ environments.staging | default({}) }}"
+
+  children:
+    "{{ project_metadata.name }}_staging":
+      children:
+        macos:
+          hosts:
+            # REPLACE WITH ACTUAL HOSTS
+            # Example:
+            # "{{ project_metadata.name }}-staging-001":
+            #   ansible_host: "192.168.1.100"
+            #   ansible_user: "admin"
+            #   ansible_port: 22
+            #   ansible_become_password: "{{ vault_sudo_passwords['{{ project_metadata.name }}-staging-001'] }}"
+            #   
+            #   # Host-specific overrides
+            #   cam_id: "12345678-1234-1234-1234-123456789012"
+            #   camera_source: 0
+            #   display_count: 2
+            #   
+            #   # Component overrides for this specific host
+            #   host_component_overrides:
+            #     player:
+            #       dual_screen: false  # This host only has one screen
+            #     parking-monitor:
+            #       camera:
+            #         source: 1  # Use specific camera for this host

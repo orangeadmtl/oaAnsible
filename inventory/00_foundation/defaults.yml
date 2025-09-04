@@ -1,0 +1,67 @@
+---
+# Foundation Defaults
+# Base components and configurations that apply to all deployments
+
+# Default component stack - always deployed unless explicitly disabled
+default_components:
+  foundation:
+    - base           # System foundation setup
+    - network        # Network configuration (Tailscale, SSH, etc.)
+    - security       # Security hardening and SSH keys
+    - device-api     # Unified device API (mandatory)
+  
+  # Additional components based on project requirements
+  project_specific: []  # Populated from project stack.yml
+
+# Component selection precedence (highest to lowest)
+component_precedence:
+  - explicit_tags        # Components specified via --tags parameter  
+  - host_specific        # Host-level component overrides
+  - environment_specific # Environment-level component overrides
+  - project_stack        # Project stack.yml components
+  - foundation_defaults  # Default foundation components
+
+# Auto-inclusion rules
+auto_include:
+  # Always include dependencies for selected components
+  resolve_dependencies: true
+  
+  # Include mandatory components regardless of selection
+  include_mandatory: true
+  
+  # Auto-include foundation components unless explicitly disabled
+  include_foundation: true
+
+# Component filtering
+component_filters:
+  # Skip components that don't match current platform
+  platform_filter: true
+  
+  # Skip components with missing dependencies
+  dependency_filter: true
+  
+  # Skip conflicting components
+  conflict_filter: true
+
+# Default environment settings
+default_environment:
+  python_runtime:
+    manager: "uv"
+    default_version: "3.12"
+    compatibility_matrix:
+      oaSentinel: "3.11.11" 
+      ml_workstation: "3.11.11"
+
+# Component deployment settings
+deployment_settings:
+  # Deploy foundation components in order
+  foundation_first: true
+  
+  # Respect component dependency order
+  respect_dependency_order: true
+  
+  # Parallel deployment where possible
+  parallel_deployment: false
+  
+  # Fail fast on component errors
+  fail_fast: true

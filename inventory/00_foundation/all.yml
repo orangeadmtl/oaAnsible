@@ -1,0 +1,71 @@
+---
+# Foundation Layer - Global Defaults
+# Applied to ALL hosts regardless of project or environment
+
+# Global identification
+oa_deployment:
+  framework_version: "2.0"
+  managed_by: "oaAnsible"
+
+# Python version management
+python_version_lookup:
+  device_api: "3.12"
+  parking_monitor: "3.12"
+  tracker: "3.11"
+  alpr: "3.11"
+
+# Base package requirements (all platforms)
+base_packages:
+  - git
+  - wget
+  - curl
+  - jq
+  - htop
+
+# Platform-specific base packages
+platform_packages:
+  macos:
+    - go
+    - lsd
+    - tree
+  ubuntu:
+    - build-essential
+    - python3-dev
+    - python3-venv
+
+# Mandatory components (always deployed)
+mandatory_components:
+  - device-api
+
+# Default service users
+service_defaults:
+  user: "{{ ansible_user }}"
+  group: "{{ ansible_user }}"
+  
+# Directory structure standards
+directory_structure:
+  base_path: "{{ ansible_user_dir }}/orangead"
+  components:
+    - "{{ directory_structure.base_path }}/oaDeviceAPI"
+    - "{{ directory_structure.base_path }}/parking-monitor"
+    - "{{ directory_structure.base_path }}/player"
+    - "{{ directory_structure.base_path }}/tracker"
+    - "{{ directory_structure.base_path }}/camguard"
+
+# Health check standards
+health_check_defaults:
+  enabled: true
+  timeout: 10
+  retries: 3
+  check_interval: 30
+
+# Repository defaults
+repository_defaults:
+  force_update: false
+  depth: 1  # Shallow clone for performance
+
+# Deployment standards
+deployment_standards:
+  backup_before_update: true
+  validate_before_start: true
+  rollback_on_failure: true

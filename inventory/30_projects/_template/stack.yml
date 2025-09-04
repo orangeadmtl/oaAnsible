@@ -1,0 +1,62 @@
+---
+# Project Template - Component Stack Definition
+# Foundation components (base, network, security, device-api) are automatically included
+
+project_stack:
+  # Project-specific components (foundation components auto-included)
+  # Foundation: base, network, security, device-api are automatically included
+  components:
+    # Uncomment components as needed for your project:
+    # - parking-monitor  # AI parking detection (FastAPI on port 9091)
+    # - player          # Video player for displays  
+    # - tracker         # Human detection/tracking (FastAPI on port 8080)
+    # - camguard        # Camera monitoring
+    # - alpr            # License plate recognition
+    
+  # Component-specific configuration overrides
+  component_configs:
+    # Example parking-monitor configuration:
+    # parking-monitor:
+    #   detection:
+    #     confidence_threshold: 0.6
+    #   camera:
+    #     source: 1
+    #   parking_zones:
+    #     - name: "Zone A"
+    #       coordinates: [[100, 100], [200, 100], [200, 200], [100, 200]]
+    
+    # Example player configuration:
+    # player:
+    #   dual_screen: true
+    #   videos:
+    #     - name: "welcome_video.mp4"
+    #       display: 1
+    #       enabled: true
+    #       loop: true
+    
+    # Example tracker configuration:
+    # tracker:
+    #   default_model: "yolo12s.pt"
+    #   default_yolo_source: 0
+    
+  # Host role assignments (optional - for multi-role deployments)
+  host_roles:
+    # Example:
+    # display_hosts:
+    #   components: [device-api, player, camguard]
+    # monitoring_hosts:
+    #   components: [device-api, parking-monitor, tracker]
+    
+  # Environment-specific stack overrides
+  environment_overrides:
+    staging:
+      # Staging-specific component configs
+      # Example: use lighter models, enable debug modes
+      
+    preprod:
+      # Pre-production specific configs
+      # Example: reduced logging, production-like settings
+      
+    production:
+      # Production-specific configs  
+      # Example: optimized settings, alerting enabled

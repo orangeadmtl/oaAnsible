@@ -1,0 +1,151 @@
+---
+# Component Resolution System
+# Automatically determines which components to deploy based on foundation defaults and project stack
+
+- name: Load foundation defaults
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../inventory/00_foundation/defaults.yml"
+    name: foundation_config
+  tags: [always]
+
+- name: Load project stack configuration
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../inventory/30_projects/{{ project_name }}/stack.yml"
+    name: project_stack_config
+  when: project_name is defined
+  tags: [always]
+
+- name: Load component registry
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../inventory/10_components/_registry.yml"
+    name: component_registry
+  tags: [always]
+
+- name: Initialize component resolution variables
+  ansible.builtin.set_fact:
+    resolved_components: []
+    foundation_components: "{{ foundation_config.default_components.foundation }}"
+    project_components: "{{ project_stack_config.project_stack.components | default([]) }}"
+    explicit_components: "{{ selected_components | default([]) }}"
+  tags: [always]
+
+- name: Add foundation components (always included)
+  ansible.builtin.set_fact:
+    resolved_components: "{{ resolved_components + foundation_components }}"
+  when: foundation_config.auto_include.include_foundation | default(true)
+  tags: [always]
+
+- name: Add project-specific components
+  ansible.builtin.set_fact:
+    resolved_components: "{{ resolved_components + project_components }}"
+  when: project_components | length > 0
+  tags: [always]
+
+- name: Override with explicit components if provided (--tags)
+  ansible.builtin.set_fact:
+    resolved_components: "{{ explicit_components }}"
+  when: 
+    - explicit_components | length > 0
+    - not (foundation_config.auto_include.include_foundation | default(true))
+  tags: [always]
+
+- name: Add foundation components to explicit selection if auto-include enabled
+  ansible.builtin.set_fact:
+    resolved_components: "{{ (foundation_components + explicit_components) | unique }}"
+  when:
+    - explicit_components | length > 0
+    - foundation_config.auto_include.include_foundation | default(true)
+  tags: [always]
+
+- name: Resolve component dependencies
+  ansible.builtin.set_fact:
+    resolved_components: "{{ resolved_components + component_registry.components[item].dependencies | default([]) }}"
+  loop: "{{ resolved_components }}"
+  when: 
+    - foundation_config.auto_include.resolve_dependencies | default(true)
+    - item in component_registry.components
+    - component_registry.components[item].dependencies is defined
+  tags: [always]
+
+- name: Remove duplicates and ensure mandatory components
+  ansible.builtin.set_fact:
+    resolved_components: "{{ resolved_components | unique }}"
+  tags: [always]
+
+- name: Add mandatory components (device-api, etc.)
+  ansible.builtin.set_fact:
+    resolved_components: "{{ resolved_components + [item] }}"
+  loop: "{{ component_registry.components.keys() }}"
+  when:
+    - foundation_config.auto_include.include_mandatory | default(true)
+    - component_registry.components[item].mandatory | default(false)
+    - item not in resolved_components
+  tags: [always]
+
+- name: Build platform compatible components list
+  ansible.builtin.set_fact:
+    platform_compatible_components: []
+  tags: [always]
+
+- name: Add platform-compatible components to list
+  ansible.builtin.set_fact:
+    platform_compatible_components: "{{ platform_compatible_components + [item] }}"
+  loop: "{{ component_registry.components.keys() }}"
+  when: >
+    (component_registry.components[item].platforms is not defined) or
+    (target_platform in (component_registry.components[item].platforms | default([])))
+  tags: [always]
+
+- name: Filter components by platform compatibility
+  ansible.builtin.set_fact:
+    resolved_components: "{{ resolved_components | intersect(platform_compatible_components) }}"
+  when: foundation_config.component_filters.platform_filter | default(true)
+  tags: [always]
+
+- name: Set final deployment components
+  ansible.builtin.set_fact:
+    deployment_components: "{{ resolved_components }}"
+    component_resolution_complete: true
+  tags: [always]
+
+- name: Display component resolution results
+  ansible.builtin.debug:
+    msg: |
+      ===============================================
+      Component Resolution Results
+      ===============================================
+      Project: {{ project_name | default('unknown') }}
+      Environment: {{ deployment_environment | default('unknown') }}
+      Platform: {{ target_platform | default('unknown') }}
+      
+      Foundation Components: {{ foundation_components | join(', ') }}
+      Project Components: {{ project_components | join(', ') }}
+      Explicit Components: {{ explicit_components | join(', ') if explicit_components | length > 0 else 'None' }}
+      
+      Final Deployment Components:
+      {{ deployment_components | join(', ') }}
+      
+      Component Details:
+      {% for component in deployment_components %}
+      - {{ component }}: {{ component_registry.components[component].name | default('Unknown') }}
+        {% if component in component_registry.components %}
+        Role: {{ component_registry.components[component].role }}
+        {% if component_registry.components[component].service is defined %}
+        Service: {{ component_registry.components[component].service.name }}{% if component_registry.components[component].service.port is defined %} (port {{ component_registry.components[component].service.port }}){% endif %}
+        {% endif %}
+        {% endif %}
+      {% endfor %}
+      ===============================================
+  tags: [always]
+
+- name: Validate component compatibility
+  ansible.builtin.fail:
+    msg: |
+      Component dependency validation failed!
+      Missing dependency: {{ item }} is required by components but not included in deployment.
+  loop: "{{ deployment_components }}"
+  when:
+    - item in component_registry.components
+    - component_registry.components[item].dependencies is defined
+    - component_registry.components[item].dependencies | difference(deployment_components) | length > 0
+  tags: [always]

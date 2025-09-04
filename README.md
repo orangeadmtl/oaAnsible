@@ -6,9 +6,9 @@ and modernized** with simplified architecture, project-based inventory structure
 ## 🎯 Overview
 
 **Platform:** Ansible-based infrastructure as code for Mac Mini and Ubuntu devices  
-**Primary Services:** `macos-api` device monitoring, `oaTracker` AI tracking system  
+**Primary Services:** `device-api` unified monitoring, `oaTracker` AI tracking, `oaParkingMonitor` specialized detection  
 **Architecture:** Component-based deployment with `universal.yml` playbook and tag-based targeting  
-**Inventory:** Modern project-centric structure: `inventory/projects/{project}/{environment}.yml`
+**Inventory:** Clean layered structure: `inventory/30_projects/{project}/hosts/{environment}.yml`
 
 ## 🚀 New: Web-Based Deployment Management
 
@@ -23,7 +23,7 @@ and modernized** with simplified architecture, project-based inventory structure
    - **Benefits:** Visual interface, job history, success metrics
 
 2. **💻 CLI Interface (Legacy)**
-   - **Command:** `./scripts/run projects/spectra/prod -t macos-api`
+   - **Command:** `./scripts/run projects/spectra/prod -t device-api`
    - **Use Cases:** Automation scripts, CI/CD pipelines
    - **Status:** Maintained for compatibility
 
@@ -94,8 +94,8 @@ and modernized** with simplified architecture, project-based inventory structure
 4. **Deploy Services:**
 
    ```bash
-   # Deploy API service to preprod environment
-   ./scripts/run projects/spectra/preprod -t macos-api
+   # Deploy unified device API service to preprod environment
+   ./scripts/run projects/spectra/preprod -t device-api
 
    # Deploy AI tracking system
    ./scripts/run projects/spectra/preprod -t tracker
@@ -104,46 +104,69 @@ and modernized** with simplified architecture, project-based inventory structure
    ./scripts/run projects/spectra/preprod
    ```
 
-## 📁 Modern Inventory Structure
+## 📁 Clean Layered Architecture
 
-The system uses a clean, project-centric inventory organization:
+The system uses a modern layered inventory organization:
 
 ```bash
 inventory/
-├── projects/                           # Project-based organization
-│   ├── f1/                            # F1 project inventories
-│   │   ├── prod.yml                   # Production environment
-│   │   ├── preprod.yml                # Pre-production environment
-│   │   └── staging.yml                # Staging environment
-│   ├── spectra/                       # Spectra project inventories
-│   │   ├── prod.yml, preprod.yml, staging.yml
-│   ├── evenko/                        # Evenko project inventories
-│   │   ├── prod.yml, tracker-prod.yml, camguard-prod.yml
-│   └── alpr/                          # ALPR project inventories
-│       └── prod.yml, preprod.yml, staging.yml
+├── 00_foundation/                     # Core infrastructure components
+├── 10_components/                     # Reusable component definitions
+│   ├── _registry.yml                 # Component registry and dependencies
+│   ├── device-api.yml                # Unified device API
+│   ├── tracker.yml                   # AI tracking system
+│   ├── parking-monitor.yml           # Specialized parking detection
+│   ├── player.yml                    # Video player service
+│   ├── alpr.yml                      # License plate recognition
+│   └── camguard.yml                  # Camera monitoring
+├── 20_environments/                   # Environment configurations
+│   ├── production.yml                # Production settings
+│   ├── preprod.yml                   # Pre-production settings
+│   └── staging.yml                   # Staging settings
+├── 30_projects/                       # Project-specific inventories
+│   ├── _template/                     # Project template structure
+│   └── yuh/                          # YUH project example
+│       ├── hosts/
+│       │   ├── production.yml         # Production hosts
+│       │   ├── preprod.yml            # Pre-production hosts
+│       │   └── staging.yml            # Staging hosts
+│       ├── project.yml                # Project metadata
+│       └── stack.yml                  # Component selection
 ├── group_vars/                        # Hierarchical variable inheritance
 │   ├── all/                          # Global defaults
 │   ├── platforms/                     # Platform-specific (macos.yml, ubuntu.yml)
-│   └── environments/                  # Environment-specific (production.yml, etc.)
-└── components/                        # Component configurations
-    ├── macos-api.yml, tracker.yml, alpr.yml
+│   ├── environments/                  # Environment-specific overrides
+│   └── defaults/                      # Default configurations
+├── schemas/                           # Validation schemas
+├── scripts/                           # Utility scripts
+└── templates/                         # Configuration templates
 ```
 
 ### Inventory Examples
 
-**Project inventory file** (`inventory/projects/f1/prod.yml`):
+**Project inventory file** (`inventory/30_projects/yuh/hosts/staging.yml`):
 
 ```yaml
 all:
+  vars:
+    # Environment identification
+    target_env: yuh-staging
+    deployment_environment: staging
+    project_name: yuh
+    
+    # Component selection (from stack.yml)
+    deploy_device_api: true
+    deploy_parking_monitor: true
+    deploy_tracker: false
+    
   children:
     macos:
       hosts:
-        f1-ca-001:
-          ansible_host: 100.64.1.10
+        f1-ca-015:
+          ansible_host: 192.168.2.47
           ansible_user: admin
-        f1-ca-002:
-          ansible_host: 100.64.1.11
-          ansible_user: admin
+          device_role: "parking_monitor"
+          location: "YUH Airport - Staging"
 ```
 
 **Variable inheritance** happens automatically through group membership and file structure.
@@ -156,18 +179,18 @@ The `./scripts/run` script is your main entry point for all deployments:
 
 ```bash
 # Deploy specific components with tags
-./scripts/run projects/f1/prod -t macos-api,tracker
-./scripts/run projects/spectra/preprod -t base,network,security
+./scripts/run projects/yuh/staging -t device-api,parking-monitor
+./scripts/run projects/yuh/production -t base,network,security
 
 # Preview changes before deployment
-./scripts/run projects/f1/prod --dry-run
-./scripts/run projects/spectra/prod --check --diff
+./scripts/run projects/yuh/staging --dry-run
+./scripts/run projects/yuh/production --check --diff
 
 # Limit deployment to specific hosts
-./scripts/run projects/f1/prod -t tracker -l f1-ca-001
+./scripts/run projects/yuh/staging -t tracker -l f1-ca-015
 
 # Deploy with verbose output for debugging
-./scripts/run projects/spectra/preprod -t macos-api -v
+./scripts/run projects/yuh/staging -t device-api -v
 ```
 
 ### Component Tags
@@ -175,7 +198,7 @@ The `./scripts/run` script is your main entry point for all deployments:
 Control deployment scope with these tags:
 
 - **Infrastructure**: `base` (system setup), `network` (Tailscale), `security` (permissions)
-- **Services**: `macos-api` (device monitoring), `tracker` (AI tracking), `player` (video player)
+- **Services**: `device-api` (unified monitoring), `tracker` (AI tracking), `parking-monitor` (parking detection), `player` (video player)
 - **Specialized**: `alpr` (license plates), `camguard` (camera monitoring)
 - **Platform**: `ml` (ML workstation setup), `nvidia` (GPU drivers)
 
@@ -185,13 +208,13 @@ Control deployment scope with these tags:
 
 ```bash
 # Stop services for maintenance
-ansible-playbook -i inventory/projects/f1/prod.yml playbooks/maintenance/stop_services.yml --tags api
+ansible-playbook -i inventory/30_projects/yuh/hosts/production.yml playbooks/maintenance/stop_services.yml --tags api
 
 # Reboot hosts safely with service shutdown
-ansible-playbook -i inventory/projects/f1/prod.yml playbooks/maintenance/reboot_hosts.yml --extra-vars "confirm_reboot=yes"
+ansible-playbook -i inventory/30_projects/yuh/hosts/production.yml playbooks/maintenance/reboot_hosts.yml --extra-vars "confirm_reboot=yes"
 
 # Stop specific services across environment
-ansible-playbook -i inventory/projects/spectra/prod.yml playbooks/maintenance/stop_services.yml --tags "tracker,player"
+ansible-playbook -i inventory/30_projects/yuh/hosts/staging.yml playbooks/maintenance/stop_services.yml --tags "tracker,player"
 ```
 
 **See `playbooks/maintenance/README.md` for complete operational procedures.**
@@ -219,8 +242,8 @@ ansible-playbook -i inventory/projects/spectra/prod.yml playbooks/maintenance/st
 main.yml → universal.yml (tag-based component framework)
 
 # Direct usage examples
-ansible-playbook universal.yml -i inventory/projects/f1/prod.yml -t macos-api
-ansible-playbook universal.yml -i inventory/projects/spectra/prod.yml -t tracker,security
+ansible-playbook universal.yml -i inventory/30_projects/yuh/hosts/production.yml -t device-api
+ansible-playbook universal.yml -i inventory/30_projects/yuh/hosts/staging.yml -t tracker,security
 ```
 
 ### Component Framework
@@ -232,7 +255,8 @@ ansible-playbook universal.yml -i inventory/projects/spectra/prod.yml -t tracker
 - **`macos/base`**: System setup, Homebrew, user configuration
 - **`macos/network/tailscale`**: VPN installation and authentication
 - **`macos/security`**: TCC permissions, firewall, certificates
-- **`macos/api`**: Device monitoring FastAPI service (port 9090)
+- **`common/device_api`**: Unified device monitoring service with platform detection (port 9090)
+- **`macos/parking_monitor`**: Specialized parking detection service (port 9091)
 - **`macos/tracker`**: AI tracking system with YOLO (port 8080)
 - **`macos/player`**: Video player service for dual displays
 - **`macos/settings`**: LaunchDaemon configuration and automation
@@ -253,19 +277,39 @@ Global (all) → Platform (macos/ubuntu) → Project (f1/spectra) → Environmen
 
 ## 🔧 Service Details
 
-### macOS API Service
+### Unified Device API Service
 
-**Device monitoring and management API** deployed as LaunchAgent:
+**Cross-platform device monitoring and management API** with automatic platform detection:
 
-- **Path**: `{{ ansible_user_dir }}/orangead/macos-api/`
-- **Service**: `com.orangead.deviceapi.plist`
+- **Path**: `{{ ansible_user_dir }}/orangead/oaDeviceAPI/`
+- **Service**: `com.orangead.deviceapi.plist` (macOS) or systemd service (Ubuntu)
 - **Port**: 9090 (configurable)
-- **Endpoints**: `/health`, `/system`, `/camera`, `/tracker`
+- **Endpoints**: `/health`, `/system`, `/camera`, `/tracker`, `/parking`
+- **Features**: Platform-aware routing, unified interface across macOS and Ubuntu
 
 ```bash
-# Service management
+# Service management (macOS)
 launchctl list | grep com.orangead.deviceapi
 launchctl load ~/Library/LaunchAgents/com.orangead.deviceapi.plist
+
+# Service management (Ubuntu)
+sudo systemctl status oaDeviceAPI
+sudo systemctl start oaDeviceAPI
+```
+
+### Parking Monitor Service
+
+**Specialized vehicle detection and parking analysis**:
+
+- **Path**: `{{ ansible_user_dir }}/orangead/parking-monitor/`
+- **Service**: `com.orangead.parking-monitor.plist`
+- **Port**: 9091 (configurable)
+- **Features**: YOLOv11m vehicle detection, occupancy analysis, staging video rotation
+
+```bash
+# Check parking monitor status
+curl http://localhost:9091/api/stats
+launchctl list | grep com.orangead.parking-monitor
 ```
 
 ### AI Tracking System (oaTracker)
@@ -315,16 +359,6 @@ ansible-vault view inventory/group_vars/all/vault.yml
 
 ## 📚 Documentation
 
-**Complete documentation suite:**
-
-- **[Architecture Guide](docs/ARCHITECTURE.md)** - System design and component relationships
-- **[Quick Reference](docs/QUICK_REFERENCE.md)** - Common commands and deployment patterns
-- **[Migration Guide](docs/MIGRATION_GUIDE.md)** - Transition from legacy to modern structure
-- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Problem resolution and debugging
-- **[Maintenance Procedures](playbooks/maintenance/README.md)** - Operational tasks and service management
-
-**Development Documentation:**
-- **[Ubuntu Onboarding](docs/UBUNTU_ONBOARDING.md)** - ML workstation setup procedures
 ```
 
 ## 🎯 Project Status
@@ -350,13 +384,13 @@ ansible-vault view inventory/group_vars/all/vault.yml
 
 ```bash
 # Check service status across environment
-ansible all -i projects/f1/prod.yml -m shell -a "launchctl list | grep com.orangead"
+ansible all -i inventory/30_projects/yuh/hosts/production.yml -m shell -a "launchctl list | grep com.orangead"
 
 # Test API endpoints
-ansible macos -i projects/spectra/prod.yml -m uri -a "url=http://localhost:9090/health method=GET"
+ansible macos -i inventory/30_projects/yuh/hosts/staging.yml -m uri -a "url=http://localhost:9090/health method=GET"
 
 # Verify system resources
-ansible all -i projects/f1/prod.yml -m setup -a "filter=ansible_memory_mb"
+ansible all -i inventory/30_projects/yuh/hosts/production.yml -m setup -a "filter=ansible_memory_mb"
 ```
 
 ### Common Issues
@@ -365,33 +399,33 @@ ansible all -i projects/f1/prod.yml -m setup -a "filter=ansible_memory_mb"
 
 ```bash
 # Test SSH connectivity
-ansible all -i projects/f1/prod.yml -m ping
+ansible all -i inventory/30_projects/yuh/hosts/production.yml -m ping
 
 # Debug connection issues
-./scripts/run projects/f1/prod -t base --check -vvv
+./scripts/run projects/yuh/production -t base --check -vvv
 ```
 
 **Service Issues:**
 
 ```bash
 # Check service logs
-ansible macos -i projects/spectra/prod.yml -m fetch \
-  -a "src=~/orangead/macos-api/logs/api.log dest=./logs/"
+ansible macos -i inventory/30_projects/yuh/hosts/production.yml -m fetch \
+  -a "src=~/orangead/oaDeviceAPI/logs/api.log dest=./logs/"
 
 # Restart services
-ansible macos -i projects/f1/prod.yml -m shell \
+ansible macos -i inventory/30_projects/yuh/hosts/production.yml -m shell \
   -a "launchctl kickstart -k gui/\$(id -u)/com.orangead.deviceapi"
 ```
 
 ## 📚 Documentation
 
-**Comprehensive guides** available in `docs/`:
+**Current documentation resources:**
 
-- **[Architecture Guide](docs/ARCHITECTURE.md)** - System design and component relationships
-- **[Quick Reference](docs/QUICK_REFERENCE.md)** - Command cheat sheet and common operations
-- **[Migration Guide](docs/MIGRATION_GUIDE.md)** - Moving from legacy to modern structure
-- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
-- **[Inventory Guide](docs/development/INVENTORY_GUIDE.md)** - Detailed inventory management
+- **[Main README](README.md)** - Complete system overview and usage guide (you are here)
+- **[Role Documentation](roles/)** - Detailed technical documentation for each component role
+- **[Playbook Guides](playbooks/README.md)** - Playbook usage and operational procedures
+- **[Maintenance Procedures](playbooks/maintenance/README.md)** - Service management and operational tasks
+- **[Template Documentation](inventory/templates/README.md)** - Inventory template usage and customization
 
 ## 🔄 Maintenance & Updates
 
@@ -399,13 +433,13 @@ ansible macos -i projects/f1/prod.yml -m shell \
 
 ```bash
 # Weekly system updates
-ansible all -i projects/f1/prod.yml -m package -a "name=* state=latest" --become
+ansible all -i inventory/30_projects/yuh/hosts/production.yml -m package -a "name=* state=latest" --become
 
 # Log rotation and cleanup
 ansible all -m shell -a "find ~/orangead -name '*.log' -mtime +7 -delete"
 
 # Health check across environment
-ansible all -i projects/spectra/prod.yml -m service_facts
+ansible all -i inventory/30_projects/yuh/hosts/production.yml -m service_facts
 ```
 
 ### Version Management
@@ -415,7 +449,7 @@ ansible all -i projects/spectra/prod.yml -m service_facts
 ansible macos -m shell -a "cat ~/orangead/.version"
 
 # Deployment with version tracking
-./scripts/run projects/f1/prod -t macos-api -e "deployment_version=v2.3.0"
+./scripts/run projects/yuh/production -t device-api -e "deployment_version=v2.3.0"
 ```
 
 ## 🚀 Project Transformation Achieved

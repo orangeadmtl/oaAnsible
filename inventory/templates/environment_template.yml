@@ -1,0 +1,116 @@
+---
+# Environment Template
+# Template for creating new environment inventory files
+# Copy this file and customize for specific environments
+
+all:
+  vars:
+    # Environment Identification (REQUIRED)
+    target_env: "PROJECT-ENVIRONMENT"  # e.g., "yuh-staging"
+    deployment_environment: "ENVIRONMENT"  # staging|preprod|production
+    
+    oa_environment:
+      name: "{{ target_env }}"
+      stage: "{{ deployment_environment }}"
+
+    # Project Configuration (REQUIRED)
+    project_name: "PROJECT_NAME"  # yuh|evenko|spectra|f1|alpr
+    project_type: "PROJECT_TYPE"  # airport|venue|demo
+    location: "LOCATION_DESCRIPTION"
+    
+    # Service Configuration (use defaults + environment overrides)
+    parking_monitor: "{{ parking_monitor_defaults | combine(
+      environment_overrides[deployment_environment].parking_monitor | default({}), 
+      recursive=True
+    ) }}"
+    
+    device_api: "{{ device_api_defaults | combine(
+      environment_overrides[deployment_environment].device_api | default({}),
+      recursive=True  
+    ) }}"
+    
+    # Player Configuration (customize as needed)
+    player:
+      enabled: true
+      dual_screen: false  # Override for production
+      loop_mode: true
+      video_selection_strategy: "sequential"
+      health_check: true
+      restart_on_failure: true
+      health_check_interval: 180
+      restart_attempts: 3
+      restart_delay: 15
+      volume: 0.0
+      
+      # Integration settings
+      parking_overlay: true
+      overlay_transparency: 0.3
+      
+      # Kiosk mode (customize per environment)
+      fullscreen: false  # Override for production
+      hide_cursor: false  # Override for production
+      black_background: false  # Override for production
+      disable_screensaver: false  # Override for production
+
+    # Tailscale Configuration (standard across environments)
+    tailscale:
+      enabled: true
+      hostname_prefix: "{{ target_env }}"
+      exit_node: false
+      accept_routes: true
+      advertise_exit_node: false
+      
+    # Security Configuration (adjust per environment)
+    security:
+      firewall_enabled: "{{ deployment_environment == 'production' }}"
+      allowed_ports:
+        - 22     # SSH
+        - 9090   # Device API
+        - 9091   # Parking Monitor
+      camera_permissions: true
+      full_disk_access: true
+      automation_permissions: true
+      
+    # Logging Configuration (adjust verbosity per environment)
+    logging:
+      enabled: true
+      log_level: "{{ 'INFO' if deployment_environment == 'production' else 'DEBUG' }}"
+      max_log_size: "{{ '50MB' if deployment_environment == 'production' else '25MB' }}"
+      max_log_files: "{{ 10 if deployment_environment == 'production' else 20 }}"
+      centralized_logging: "{{ deployment_environment == 'production' }}"
+      console_output: "{{ deployment_environment != 'production' }}"
+      file_output: true
+      structured_logging: true
+      
+    # Monitoring Configuration (adjust per environment)
+    monitoring:
+      enabled: true
+      metrics_collection: true
+      health_checks: true
+      debug_monitoring: "{{ deployment_environment != 'production' }}"
+      development_mode: "{{ deployment_environment in ['staging', 'preprod'] }}"
+      alert_webhooks: "{{ [] if deployment_environment != 'production' else ['WEBHOOK_URL'] }}"
+      
+      services:
+        - parking_monitor
+        - device_api
+        - tailscale
+
+  # Host Configuration (CUSTOMIZE FOR EACH ENVIRONMENT)
+  children:
+    PROJECT_ENVIRONMENT_GROUP:  # e.g., yuh_staging
+      children:
+        macos:
+          hosts:
+            HOSTNAME:  # e.g., f1-ca-015
+              ansible_host: "IP_ADDRESS"
+              ansible_user: "USERNAME"
+              ansible_port: 22
+              ansible_python_interpreter: "{{ ansible_python_interpreter_strategy.default }}"
+              ansible_become_password: "{{ vault_sudo_passwords['HOSTNAME'] }}"
+              hostname: "{{ target_env }}-001"
+              device_role: "DEVICE_ROLE"  # e.g., production_parking_monitor
+              camera_id: 0
+              display_id: 0
+              parking_zone: "ZONE_NAME"
+              cam_id: "UUID"

@@ -185,13 +185,26 @@
         target_platform: "{{ detected_platform }}"
       tags: ["always"]
 
+    - name: Import component resolution system
+      ansible.builtin.include_tasks: ../tasks/component-resolution.yml
+      tags: ["always"]
+
     - name: Initialize execution modes
       ansible.builtin.include_tasks: ../tasks/execution-modes.yml
       when: execution_mode == "full" # Skip for tag-based deployments to improve performance
       tags: ["always"]
 
   tasks:
-    - name: Determine components to deploy from inventory configuration
+    - name: Use component resolution results for deployment (primary path)
+      ansible.builtin.set_fact:
+        inventory_components: "{{ deployment_components | default([]) }}"
+      when:
+        - execution_mode == "full"
+        - tag_components | default([]) | length == 0
+        - deployment_components is defined
+        - deployment_components | length > 0
+
+    - name: Fallback to legacy component determination (if resolution failed)
       ansible.builtin.set_fact:
         inventory_components: >
           {{
@@ -207,20 +220,31 @@
       when:
         - execution_mode == "full"
         - tag_components | default([]) | length == 0
+        - (deployment_components is not defined or deployment_components | length == 0)
 
-    - name: Display determined components
+    - name: Display component resolution integration
       ansible.builtin.debug:
         msg: |
-          Components determined from inventory:
+          ===============================================
+          Component Deployment Integration
+          ===============================================
+          Resolution System: {{ 'ACTIVE' if (deployment_components is defined and deployment_components | length > 0) else 'FALLBACK' }}
+          Execution Mode: {{ execution_mode }}
+          Platform: {{ detected_platform }}
+          
+          {% if deployment_components is defined and deployment_components | length > 0 %}
+          Components (from resolution system): {{ deployment_components | join(', ') }}
+          {% else %}
+          Legacy component flags:
           - device_api.enabled: {{ device_api.enabled | default(false) }}
           - parking_monitor.enabled: {{ parking_monitor.enabled | default(false) }}
           - player.enabled: {{ player.enabled | default(false) }}
           - staging_video_feed.enabled: {{ staging_video_feed.enabled | default(false) }}
           - deploy_tracker: {{ oa_environment.deploy_tracker | default(false) }}
-          - deploy_alpr_service: {{ oa_environment.deploy_alpr_service | default(false) }}
-          - deploy_cursorcerer: {{ oa_environment.deploy_cursorcerer | default(false) }}
-
-          Final component list: {{ inventory_components | default([]) }}
+          {% endif %}
+          
+          Final deployment list: {{ inventory_components | join(', ') }}
+          ===============================================
       when:
         - execution_mode == "full"
         - tag_components | default([]) | length == 0

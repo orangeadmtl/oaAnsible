@@ -1,0 +1,64 @@
+---
+# Device API Component Configuration
+# Unified FastAPI service for device management across all platforms
+
+device_api_component:
+  # Service configuration
+  service:
+    name: "com.orangead.deviceapi"
+    port: 9090
+    bind_address: "127.0.0.1"
+    workers: 1
+    python_version: "{{ python_version_lookup.device_api }}"
+
+  # Deployment settings
+  deployment:
+    path: "{{ ansible_user_dir }}/orangead/oaDeviceAPI"
+    venv_path: "{{ ansible_user_dir }}/orangead/oaDeviceAPI/.venv"
+    user: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+  # Repository settings
+  repository:
+    url: "https://github.com/oa-device/oaDeviceAPI.git"
+    branch: "main"
+    force_update: false
+
+  # Platform-specific configuration
+  platform_config:
+    macos:
+      launchd:
+        plist_name: "com.orangead.deviceapi.plist"
+        run_at_load: true
+        keep_alive: true
+        standard_out_path: "/tmp/deviceapi.log"
+        standard_error_path: "/tmp/deviceapi.error.log"
+    
+    orangepi:
+      systemd:
+        unit_name: "deviceapi.service"
+        enabled: true
+        state: started
+
+  # Health monitoring
+  health:
+    enabled: true
+    check_endpoint: "/health"
+    check_interval: 30
+    timeout: 10
+    retries: 3
+
+  # Environment-specific overrides
+  environment_overrides:
+    staging:
+      debug_mode: true
+      log_level: "DEBUG"
+    
+    preprod:
+      debug_mode: false
+      log_level: "INFO"
+      
+    production:
+      debug_mode: false
+      log_level: "WARNING"
+      performance_monitoring: true

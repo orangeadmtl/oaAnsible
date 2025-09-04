@@ -1,0 +1,31 @@
+---
+# CamGuard Component Configuration
+# Camera monitoring and alert system
+
+camguard_component:
+  # Service configuration
+  service:
+    name: "com.orangead.camguard"
+    user: "{{ ansible_user }}"
+    
+  # Repository configuration
+  repository:
+    url: "https://github.com/oa-device/oaCamGuard.git"
+    branch: "main"
+    destination: "{{ ansible_user_dir }}/orangead/camguard"
+    
+  # Default configuration
+  config:
+    monitoring_enabled: true
+    alert_threshold: 5  # minutes
+    check_interval: 30  # seconds
+    
+  # Environment-specific overrides
+  environment_overrides:
+    staging:
+      debug_mode: true
+      check_interval: 10
+      
+    production:
+      debug_mode: false
+      alert_threshold: 10

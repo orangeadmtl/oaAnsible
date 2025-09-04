@@ -1,0 +1,35 @@
+---
+# Foundation Layer - Security Configuration
+# Security hardening for ALL hosts
+
+security_foundation:
+  # SSH configuration
+  ssh:
+    disable_password_auth: false  # Tailscale provides security
+    disable_root_login: true
+    change_default_port: false
+    
+  # User security
+  users:
+    disable_guest_user: true
+    require_password: true
+    admin_privileges: "{{ ansible_user }}"
+    
+  # System security
+  system:
+    enable_automatic_updates: false  # Manual control
+    enable_firewall: "{{ environment.security.firewall_enabled | default(false) }}"
+    disable_unnecessary_services: true
+    
+  # Application security
+  applications:
+    allow_camera_access: true  # Required for components
+    allow_microphone_access: false
+    allow_location_access: false
+    
+  # File permissions
+  file_permissions:
+    orangead_directory: "0755"
+    config_files: "0644"
+    executable_files: "0755"
+    log_files: "0644"

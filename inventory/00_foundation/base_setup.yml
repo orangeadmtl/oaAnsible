@@ -1,0 +1,71 @@
+---
+# Foundation Layer - Base Setup
+# Essential device preparation tasks for ALL hosts
+
+base_setup:
+  # Camera access configuration
+  camera:
+    permissions_required: true
+    test_camera_access: true
+    camera_privacy_settings: "allow"
+    
+  # System permissions
+  permissions:
+    full_disk_access: true
+    automation_permissions: true
+    accessibility_access: false  # Only if needed by components
+    
+  # Directory creation
+  directories:
+    create_base_structure: true
+    orangead_directory: "{{ ansible_user_dir }}/orangead"
+    logs_directory: "{{ ansible_user_dir }}/orangead/logs"
+    config_directory: "{{ ansible_user_dir }}/orangead/config"
+    
+  # Basic tools installation
+  tools:
+    install_python: true
+    install_homebrew: true  # macOS only
+    install_git: true
+    update_system: false  # Conservative default
+    
+  # Environment variables
+  environment:
+    ORANGEAD_HOME: "{{ ansible_user_dir }}/orangead"
+    ORANGEAD_LOGS: "{{ ansible_user_dir }}/orangead/logs"
+    PATH_ADDITIONS:
+      - "{{ ansible_user_dir }}/orangead/bin"
+      - "/opt/homebrew/bin"  # macOS Apple Silicon
+      
+  # Service management
+  services:
+    create_service_user: false  # Use ansible_user
+    setup_logging: true
+    log_rotation: true
+    
+# Platform-specific base setup
+platform_base_setup:
+  macos:
+    # macOS-specific setup
+    homebrew:
+      install: true
+      update: false
+      upgrade: false
+    
+    # System preferences
+    system_prefs:
+      disable_sleep: false  # Let components handle this
+      allow_remote_login: true
+      enable_firewall: false  # Environment-specific
+      
+  ubuntu:
+    # Ubuntu-specific setup
+    apt:
+      update_cache: true
+      upgrade: false  # Conservative default
+      
+    # System configuration
+    system_config:
+      disable_unattended_upgrades: false
+      configure_locale: true
+      timezone: "UTC"

@@ -1,0 +1,76 @@
+---
+# YUH Project Stack Definition
+# Parking monitoring solution for YUH Airport
+
+project_stack:
+  # Project-specific components (foundation components auto-included)
+  # Foundation: base, network, security, device-api are automatically included
+  components:
+    - parking-monitor    # AI parking detection and monitoring (port 9091)
+  
+  # Component-specific configuration
+  component_configs:
+    parking-monitor:
+      # API configuration
+      service:
+        port: 9091
+        bind_address: "127.0.0.1"
+        log_level: "INFO"
+      
+      # Detection configuration
+      detection:
+        confidence_threshold: 0.6
+        model: "yolov11m"
+        processing_fps: 30
+        
+      # Default camera configuration (can be overridden per host)
+      camera:
+        source: 0
+        resolution: "1920x1080"
+        
+      # Parking space configuration (will be host-specific)
+      parking_zones:
+        default_spaces: 4
+        
+    device-api:
+      # Integration with parking monitor
+      proxied_services:
+        parking-monitor: "http://localhost:9091"
+  
+  # Host role assignments for multi-service deployments
+  host_roles:
+    parking_monitor:
+      components: [base, network, security, device-api, parking-monitor]
+      description: "Parking monitoring host with AI detection"
+  
+  # Environment-specific overrides
+  environment_overrides:
+    staging:
+      parking-monitor:
+        # Staging-specific configs
+        service:
+          log_level: "DEBUG"
+        detection:
+          confidence_threshold: 0.5  # Lower threshold for testing
+        # Enable staging video feed for testing
+        enable_staging_video: true
+        
+    preprod:
+      parking-monitor:
+        service:
+          log_level: "INFO"
+        detection:
+          confidence_threshold: 0.65  # Slightly higher for pre-prod
+        enable_staging_video: false
+        
+    production:
+      parking-monitor:
+        service:
+          log_level: "WARNING"
+        detection:
+          confidence_threshold: 0.7   # High confidence for production
+        enable_staging_video: false
+        # Production monitoring
+        monitoring:
+          health_check_interval: 30
+          performance_alerts: true

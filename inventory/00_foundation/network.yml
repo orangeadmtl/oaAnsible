@@ -1,0 +1,30 @@
+---
+# Foundation Layer - Network Configuration
+# Network setup for ALL hosts
+
+network_foundation:
+  # Tailscale configuration (environment-controlled)
+  tailscale:
+    install: true
+    configure: "{{ environment.features.tailscale_configuration | default(false) }}"
+    hostname_prefix: "{{ target_env | default('unknown') }}"
+    exit_node: false
+    accept_routes: true
+    advertise_exit_node: false
+    
+  # WiFi configuration (staging only - local access required)
+  wifi:
+    configure: "{{ environment.network.access_type == 'local_ip' }}"
+    credentials_from_vault: true
+    
+  # Network security
+  security:
+    firewall_enabled: "{{ environment.security.firewall_enabled | default(false) }}"
+    allowed_ports: "{{ environment.security.allowed_ports | default([22]) }}"
+    
+  # DNS configuration
+  dns:
+    configure_custom: false
+    fallback_servers:
+      - "8.8.8.8"
+      - "1.1.1.1"
