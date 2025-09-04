@@ -5,7 +5,6 @@
 vault_tailscale_auth_key: "tskey-auth-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 vault_tailscale_api_key: "tskey-api-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 vault_tailscale_tailnet: "orangead.ca"
-vault_tailscale_tags_macos: "tag:oa-macos,tag:oa-tracker"
 
 # SSH keys - REQUIRED for all deployments
 vault_ssh_private_key: |

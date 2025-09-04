@@ -6,19 +6,19 @@
   ansible.builtin.debug:
     msg: |
       Tailscale configuration status:
-      - configure.tailscale: {{ configure.tailscale | default(true) }}
+      - tailscale.enabled: {{ tailscale.enabled | default(true) }}
       - Environment: {{ oa_environment.name | default('unknown') }}
 
-      {% if not (configure.tailscale | default(true)) %}
+      {% if not (tailscale.enabled | default(true)) %}
       SKIPPING: Tailscale configuration disabled in inventory.
       This is expected for production/pre-production environments where Tailscale is managed separately.
       {% else %}
       PROCEEDING: Tailscale configuration enabled.
       {% endif %}
 
-- name: End Tailscale role when configuration is disabled
-  ansible.builtin.meta: end_play
-  when: not (configure.tailscale | default(true))
+- name: Skip Tailscale configuration when disabled
+  ansible.builtin.meta: end_host
+  when: not (tailscale.enabled | default(true))
 
 - name: Install Go using Homebrew (latest version)
   community.general.homebrew:
@@ -58,4 +58,5 @@
     - name: Set Go path facts
       ansible.builtin.set_fact:
         go_path: "{{ go_env_output.stdout }}"
-        go_bin_path: "{{ go_env_output.stdout }}/bin"
+        go_bin_path_for_tailscale: "{{ go_env_output.stdout }}/bin"
+        go_executable_path: "{{ _homebrew_prefix }}/bin/go"

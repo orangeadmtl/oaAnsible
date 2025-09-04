@@ -20,7 +20,7 @@
 
 - name: Define expected Tailscale tags
   ansible.builtin.set_fact:
-    expected_tailscale_tags: "{{ tailscale.tags | default([]) }}"
+    expected_tailscale_tags: "{{ tailscale.tags | default(tailscale_tags | default([])) }}"
 
 - name: Compare current tags with expected tags
   ansible.builtin.set_fact:
@@ -36,7 +36,7 @@
         (current_tailscale_status.Self.DNSName | default('') | regex_replace('\\..*$', '') != ansible_hostname)
       }}
 
-- name: Debug Tailscale decision logic
+- name: Debug Tailscale variables and decision logic
   ansible.builtin.debug:
     msg: |
       Tailscale Authentication Analysis:
@@ -47,6 +47,20 @@
       - Current tags: {{ current_tailscale_status.Self.Tags | default([]) }}
       - Tags match: {{ tags_match }}
       - Needs authentication: {{ needs_full_auth }}
+      
+      Variable Debug:
+      - vault_tailscale_auth_key defined: {{ vault_tailscale_auth_key is defined }}
+      - tailscale_auth_key defined: {{ tailscale_auth_key is defined }}
+      - tailscale_auth_key value: {{ tailscale_auth_key | default('NOT SET') }}
+      - Auth key length: {{ (tailscale_auth_key | default('')) | length }}
+      
+      Tag Configuration:
+      - tailscale.tags (from inventory): {{ tailscale.tags | default('NOT SET') }}
+      - tailscale_tags (from defaults): {{ tailscale_tags | default('NOT SET') }}
+      - expected_tailscale_tags (resolved): {{ expected_tailscale_tags }}
+      
+      SSH Configuration:
+      - SSH always enabled: --ssh flag always applied
 
 - name: Handle hostname mismatch scenario
   when:
@@ -69,6 +83,8 @@
           --hostname="{{ ansible_hostname }}" \
           --accept-routes \
           --accept-dns=false \
+          --timeout=10s \
+          --ssh \
           {% if expected_tailscale_tags | length > 0 %}
           --advertise-tags="{{ expected_tailscale_tags | join(',') }}" \
           {% endif %}
@@ -77,10 +93,17 @@
         PATH: "{{ go_bin_path_for_tailscale }}:{{ ansible_env.PATH }}"
       register: tailscale_forced_reauth
       changed_when: tailscale_forced_reauth.rc == 0
+      timeout: 15
       when:
         - oa_environment.stage | default('') == 'staging'
         - tailscale_auth_key is defined
         - tailscale_auth_key != ""
+
+- name: Wait for Tailscale daemon to be ready
+  ansible.builtin.wait_for:
+    path: /var/run/tailscaled.socket
+    timeout: 10
+  when: needs_full_auth
 
 - name: Authenticate Tailscale if needed
   ansible.builtin.shell: |
@@ -88,6 +111,8 @@
       --hostname="{{ ansible_hostname }}" \
       --accept-routes \
       --accept-dns=false \
+      --timeout=10s \
+      --ssh \
       {% if expected_tailscale_tags | length > 0 %}
       --advertise-tags="{{ expected_tailscale_tags | join(',') }}" \
       {% endif %}
@@ -100,12 +125,57 @@
   when: needs_full_auth
   changed_when: tailscale_auth_result.rc == 0
   failed_when: false
+  timeout: 15
+
+- name: Check auth status after initial attempt
+  ansible.builtin.shell: |
+    {{ go_bin_path_for_tailscale }}/tailscale status --json
+  register: auth_check_result
+  when:
+    - needs_full_auth
+    - tailscale_auth_result.rc != 0
+  failed_when: false
+  timeout: 5
+
+- name: Retry authentication if first attempt failed and still needs login
+  ansible.builtin.shell: |
+    {{ go_bin_path_for_tailscale }}/tailscale up \
+      --hostname="{{ ansible_hostname }}" \
+      --accept-routes \
+      --accept-dns=false \
+      --timeout=8s \
+      --ssh \
+      {% if expected_tailscale_tags | length > 0 %}
+      --advertise-tags="{{ expected_tailscale_tags | join(',') }}" \
+      {% endif %}
+      {% if tailscale_auth_key is defined and tailscale_auth_key != "" %}
+      --auth-key="{{ tailscale_auth_key }}"
+      {% endif %}
+  environment:
+    PATH: "{{ go_bin_path_for_tailscale }}:{{ ansible_env.PATH }}"
+  register: tailscale_retry_result
+  when: 
+    - needs_full_auth
+    - tailscale_auth_result.rc != 0
+    - auth_check_result.rc == 0
+    - (auth_check_result.stdout | from_json).BackendState == "NeedsLogin"
+  failed_when: false
+  timeout: 10
 
 - name: Display authentication result
   ansible.builtin.debug:
     msg: |
-      Tailscale authentication: {{ 'successful' if tailscale_auth_result.rc == 0 else 'failed' }}
-      {% if tailscale_auth_result.stderr is defined %}
-      Error: {{ tailscale_auth_result.stderr }}
+      Tailscale authentication result:
+      - Status: {{ 'successful' if (tailscale_auth_result.rc == 0 or (tailscale_retry_result.rc is defined and tailscale_retry_result.rc == 0)) else 'failed' }}
+      - First attempt: {{ 'success' if tailscale_auth_result.rc == 0 else 'failed (rc: ' + (tailscale_auth_result.rc | string) + ')' }}
+      {% if auth_check_result.rc is defined %}
+      - Status check: {{ 'completed' if auth_check_result.rc == 0 else 'failed' }}
+      {% endif %}
+      {% if tailscale_retry_result.rc is defined %}
+      - Retry attempt: {{ 'success' if tailscale_retry_result.rc == 0 else 'failed (rc: ' + (tailscale_retry_result.rc | string) + ')' }}
+      {% endif %}
+      - Timeout settings: First attempt 15s (Tailscale internal 10s), retry 10s (Tailscale internal 8s)
+      {% if (tailscale_auth_result.stderr is defined and tailscale_auth_result.stderr | length > 0) or (tailscale_retry_result.stderr is defined and tailscale_retry_result.stderr | length > 0) %}
+      - Error details: {{ tailscale_auth_result.stderr | default('') }} {{ tailscale_retry_result.stderr | default('') }}
       {% endif %}
   when: needs_full_auth

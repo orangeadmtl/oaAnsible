@@ -1,0 +1,16 @@
+---
+# macOS Tailscale Network Configuration
+
+# Tailscale authentication and configuration
+tailscale_auth_key: "{{ vault_tailscale_auth_key }}"
+tailscale_accept_routes: true
+tailscale_accept_dns: false
+
+# macOS-specific tags (fallback if not set via group_vars)
+tailscale_tags:
+  - "tag:oa-macos"
+  - "tag:oa-device"
+
+# Version configuration (used by install_binaries.yml)
+tailscale_default_version: "v1.86.1"
+tailscale_fallback_version: "v1.84.1"

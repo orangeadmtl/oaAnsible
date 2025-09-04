@@ -2,69 +2,88 @@
 # Tailscale binary installation tasks
 # Handles download, installation, and binary management
 
+# Configuration variables
+- name: Set Tailscale installation defaults
+  ansible.builtin.set_fact:
+    tailscale_binaries:
+      - tailscale
+      - tailscaled
+
 - name: Get checksums of existing Tailscale binaries (if any)
   ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/{{ item }}"
   register: tailscale_checksums_before
   failed_when: false
   changed_when: false
-  loop:
-    - tailscale
-    - tailscaled
+  loop: "{{ tailscale_binaries }}"
 
 - name: Get latest stable Tailscale release version
   ansible.builtin.uri:
     url: https://api.github.com/repos/tailscale/tailscale/releases/latest
     method: GET
     return_content: true
+    validate_certs: false
+    timeout: 10
+    headers:
+      User-Agent: "Ansible Tailscale Installer"
   register: tailscale_latest_release
   failed_when: false
 
 - name: Extract latest version tag
   ansible.builtin.set_fact:
-    tailscale_latest_version: "{{ tailscale_latest_release.json.tag_name | default('v1.84.1') }}"
+    tailscale_latest_version: "{{ tailscale_latest_release.json.tag_name | default(tailscale_default_version) }}"
+    tailscale_version_source: "GitHub API"
   when: tailscale_latest_release.status == 200
 
-- name: Set fallback version if API call failed
+- name: Try alternative method to get version if API failed
+  ansible.builtin.shell: |
+    curl -s -L --max-time 5 --connect-timeout 3 --insecure \
+      "https://github.com/tailscale/tailscale/releases/latest" | \
+    grep -o 'releases/tag/v[0-9]*\.[0-9]*\.[0-9]*' | \
+    head -1 | \
+    cut -d'/' -f3 || echo "{{ tailscale_default_version }}"
+  register: curl_version_check
+  failed_when: false
+  when: tailscale_latest_release.status != 200
+
+- name: Set version from alternative method or fallback
   ansible.builtin.set_fact:
-    tailscale_latest_version: "v1.84.1"
+    tailscale_latest_version: "{{ curl_version_check.stdout | default(tailscale_default_version) }}"
+    tailscale_version_source: "{{ 'Fallback method' if curl_version_check.stdout == tailscale_default_version else 'Alternative curl method' }}"
   when: tailscale_latest_release.status != 200
 
 - name: Install/Update Tailscale binaries using Go (latest stable version)
   block:
+    - name: Clean existing Tailscale installations
+      ansible.builtin.file:
+        path: "{{ go_bin_path_for_tailscale }}/{{ item }}"
+        state: absent
+      loop: "{{ tailscale_binaries }}"
+
     - name: Install Tailscale binaries with proper build info (latest stable)
       ansible.builtin.shell: |
         set -e
         cd "{{ ansible_env.HOME }}"
-        export GOPATH="{{ ansible_env.HOME }}/go"
-        export GOBIN="{{ go_bin_path_for_tailscale }}"
-        export PATH="{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
-
-        # Clean any existing installs
-        rm -f "{{ go_bin_path_for_tailscale }}/tailscale" "{{ go_bin_path_for_tailscale }}/tailscaled"
-
-        # Install both binaries with proper version info
         "{{ go_executable_path }}" install -ldflags "-X tailscale.com/version.longStamp={{ tailscale_latest_version }}" tailscale.com/cmd/tailscale@{{ tailscale_latest_version }}
         "{{ go_executable_path }}" install -ldflags "-X tailscale.com/version.longStamp={{ tailscale_latest_version }}" tailscale.com/cmd/tailscaled@{{ tailscale_latest_version }}
       environment:
+        GOPATH: "{{ ansible_env.HOME }}/go"
+        GOBIN: "{{ go_bin_path_for_tailscale }}"
+        PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
         GOTOOLCHAIN: "auto"
       register: tailscale_install_with_buildinfo
-      changed_when: false
+      changed_when: tailscale_install_with_buildinfo.rc == 0
       failed_when: false
 
     - name: Try fallback version if latest stable failed
       ansible.builtin.shell: |
         set -e
         cd "{{ ansible_env.HOME }}"
-        export GOPATH="{{ ansible_env.HOME }}/go"
-        export GOBIN="{{ go_bin_path_for_tailscale }}"
-        export PATH="{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
-
-        # Clean any existing installs
-        rm -f "{{ go_bin_path_for_tailscale }}/tailscale" "{{ go_bin_path_for_tailscale }}/tailscaled"
-
-        # Install both binaries (fallback to working version)
-        "{{ go_executable_path }}" install tailscale.com/cmd/tailscale@v1.82.1
-        "{{ go_executable_path }}" install tailscale.com/cmd/tailscaled@v1.82.1
+        "{{ go_executable_path }}" install tailscale.com/cmd/tailscale@{{ tailscale_fallback_version }}
+        "{{ go_executable_path }}" install tailscale.com/cmd/tailscaled@{{ tailscale_fallback_version }}
+      environment:
+        GOPATH: "{{ ansible_env.HOME }}/go"
+        GOBIN: "{{ go_bin_path_for_tailscale }}"
+        PATH: "{{ _homebrew_prefix }}/bin:{{ ansible_env.HOME }}/go/bin:{{ ansible_env.PATH }}"
       register: tailscale_install_fallback
       when: tailscale_install_with_buildinfo.failed | default(false)
       changed_when: tailscale_install_fallback.rc == 0
@@ -74,23 +93,27 @@
   register: tailscale_binary_check
   failed_when: false
   changed_when: false
-  loop:
-    - tailscale
-    - tailscaled
+  loop: "{{ tailscale_binaries }}"
 
 - name: Get checksums of installed Tailscale binaries
   ansible.builtin.command: "shasum -a 256 {{ go_bin_path_for_tailscale }}/{{ item }}"
   register: tailscale_checksums_after
   failed_when: false
   changed_when: false
-  loop:
-    - tailscale
-    - tailscaled
+  loop: "{{ tailscale_binaries }}"
+
+- name: Set binary status facts
+  ansible.builtin.set_fact:
+    tailscale_client_working: "{{ (tailscale_binary_check.results[0].rc | default(1)) == 0 }}"
+    tailscaled_daemon_present: "{{ (tailscale_binary_check.results[1].rc | default(1)) == 1 and 'requires root' in (tailscale_binary_check.results[1].stderr | default('')) }}"
+    installation_successful: "{{ (tailscale_binary_check.results[0].rc | default(1)) == 0 and (tailscale_binary_check.results[1].rc | default(1)) == 1 and 'requires root' in (tailscale_binary_check.results[1].stderr | default('')) }}"
 
 - name: Display installation status
   ansible.builtin.debug:
     msg: |
       Tailscale installation status:
-      - Latest version: {{ tailscale_latest_version }}
-      - Binaries installed: {{ tailscale_binary_check.results | selectattr('rc', 'eq', 0) | list | length }}/2
-      - Installation {{ 'successful' if tailscale_binary_check.results | selectattr('rc', 'eq', 0) | list | length == 2 else 'failed' }}
+      - Version: {{ tailscale_latest_version }}
+      - Source: {{ tailscale_version_source | default('Default version') }}
+      - Client binary: {{ 'working' if tailscale_client_working else 'failed' }}
+      - Daemon binary: {{ 'present (requires root)' if tailscaled_daemon_present else 'missing' }}
+      - Overall status: {{ 'successful' if installation_successful else 'failed' }}

@@ -6,7 +6,7 @@
     <string>com.tailscale.tailscaled</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/tailscaled</string>
+        <string>{{ go_bin_path_for_tailscale }}/tailscaled</string>
         <string>--state=/var/lib/tailscale/tailscaled.state</string>
         <string>--socket=/var/run/tailscaled.socket</string>
         <string>--port=41641</string>
