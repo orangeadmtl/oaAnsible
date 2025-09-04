@@ -1,0 +1,56 @@
+---
+# UV PATH Fix Playbook
+# Fixes UV PATH issues on existing deployments where UV is installed but not accessible
+
+- name: Fix UV PATH Configuration
+  hosts: all
+  gather_facts: true
+  become: false
+  
+  tasks:
+    - name: Check if UV exists in cargo bin
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/.local/bin/uv"
+      register: uv_cargo_check
+
+    - name: Check if UV is already in PATH
+      ansible.builtin.shell: |
+        export PATH="$HOME/.local/bin:$PATH"
+        command -v uv
+      register: uv_path_check
+      changed_when: false
+      failed_when: false
+
+    - name: Display current UV status
+      ansible.builtin.debug:
+        msg: |
+          UV Status Check:
+          - UV exists at ~/.cargo/bin/uv: {{ uv_cargo_check.stat.exists }}
+          - UV accessible via PATH: {{ uv_path_check.rc == 0 }}
+          - UV path result: {{ uv_path_check.stdout | default('not found') }}
+
+    - name: Fix UV PATH in shell profiles
+      when: uv_cargo_check.stat.exists
+      block:
+        - name: Update shell profiles with correct UV PATH
+          ansible.builtin.lineinfile:
+            path: "{{ item }}"
+            line: 'export PATH="$HOME/.local/bin:$PATH"'
+            create: true
+            owner: "{{ ansible_user }}"
+            mode: "0644"
+            state: present
+            regexp: '^export PATH=.*\.local/bin.*'
+            insertafter: EOF
+          loop:
+            - "{{ ansible_user_dir }}/.bashrc"
+            - "{{ ansible_user_dir }}/.zshrc"
+
+        - name: Display installation results
+          ansible.builtin.debug:
+            msg: |
+              UV Installation Results:
+              {{ uv_install_result.stdout }}
+              
+              [WARNING]  Remember to reload your shell:
+                source ~/.bashrc (or ~/.zshrc)

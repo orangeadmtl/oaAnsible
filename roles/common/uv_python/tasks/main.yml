@@ -1,0 +1,61 @@
+---
+# UV Python Role - Unified Python Management
+# Replaces pyenv with UV for streamlined Python handling
+
+- name: Detect platform and architecture
+  ansible.builtin.set_fact:
+    uv_platform_arch: >-
+      {%- if ansible_system == "Darwin" -%}
+        {%- if ansible_architecture == "arm64" -%}macos-aarch64{%- else -%}macos-x86_64{%- endif -%}
+      {%- elif ansible_system == "Linux" -%}
+        {%- if ansible_architecture == "x86_64" -%}linux-x86_64{%- elif ansible_architecture == "aarch64" -%}linux-aarch64{%- else -%}linux-{{ ansible_architecture }}{%- endif -%}
+      {%- else -%}unknown{%- endif -%}
+
+- name: Install UV package manager
+  when: uv_install_method == "curl"
+  block:
+    - name: Download and install UV
+      ansible.builtin.shell: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        # UV installs to ~/.cargo/bin by default
+        export PATH="$HOME/.local/bin:$PATH"
+        uv --version
+      args:
+        creates: "{{ ansible_user_dir }}/.local/bin/uv"
+      register: uv_installation
+      become_user: "{{ ansible_user }}"
+
+    - name: Ensure UV is in PATH
+      ansible.builtin.lineinfile:
+        path: "{{ item }}"
+        line: 'export PATH="$HOME/.local/bin:$PATH"'
+        create: true
+        owner: "{{ ansible_user }}"
+        mode: "0644"
+        state: present
+        regexp: '^export PATH=.*\.local/bin.*'
+      loop: "{{ uv_shell_profiles }}"
+      when: uv_update_shell_profile
+
+    - name: Add UV env file sourcing (recommended by installer)
+      ansible.builtin.lineinfile:
+        path: "{{ item }}"
+        line: 'source $HOME/.local/bin/env'
+        create: true
+        owner: "{{ ansible_user }}"
+        mode: "0644"
+        state: present
+        regexp: '^source.*\.local/bin/env.*'
+        insertafter: EOF
+      loop: "{{ uv_shell_profiles }}"
+      when: uv_update_shell_profile
+
+# Set facts for dependent roles
+- name: Set UV Python environment facts
+  ansible.builtin.set_fact:
+    python_environment_ready: true
+    python_version_installed: "{{ uv_python_version }}"
+    python_manager: "uv"
+    uv_path: "{{ ansible_user_dir }}/.local/bin/uv"
+    uv_python_path: "uv run python"
+    python_executable: "uv run python"

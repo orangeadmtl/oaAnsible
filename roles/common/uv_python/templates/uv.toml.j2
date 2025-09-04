@@ -1,0 +1,35 @@
+# UV Configuration File
+# Managed by Ansible - UV Python Role
+
+[tool.uv]
+# Cache settings
+cache-dir = "{{ uv_cache_dir }}"
+
+# Installation behavior
+link-mode = "{{ uv_link_mode }}"
+concurrent-installs = {{ uv_concurrent_installs }}
+
+# Resolution strategy
+resolution = "{{ uv_resolution_strategy }}"
+
+# Python management
+python-preference = "managed"
+
+{% if uv_pip_compat %}
+# Pip compatibility
+pip-compatibility = true
+{% endif %}
+
+# Index configuration
+index-url = "https://pypi.org/simple"
+
+# Platform-specific settings
+{% if ansible_system == "Darwin" %}
+[tool.uv.macos]
+# macOS-specific UV settings
+prefer-binary = true
+{% elif ansible_system == "Linux" %}
+[tool.uv.linux]
+# Linux-specific UV settings  
+prefer-binary = true
+{% endif %}

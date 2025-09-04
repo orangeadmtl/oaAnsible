@@ -1,0 +1,143 @@
+---
+# UV Python Validation Playbook
+# Tests the new UV-based Python management system
+
+- name: Test UV Python Setup
+  hosts: all
+  gather_facts: true
+  become: false
+  vars:
+    test_python_version: "{{ runtime.python.version | default('3.11.11') }}"
+  
+  tasks:
+    - name: Import state detection
+      ansible.builtin.include_tasks: ../tasks/state-detection.yml
+      tags: ["always"]
+
+    - name: Test UV Python Role
+      when: 
+        - configure.uv_python | default(false)
+        - platform_state.is_macos or platform_state.is_ubuntu
+      block:
+        - name: Run UV Python role
+          import_role:
+            name: common/uv_python
+          vars:
+            uv_python_version: "{{ test_python_version }}"
+
+        - name: Verify UV installation
+          ansible.builtin.shell: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv --version
+          register: uv_version_check
+          changed_when: false
+          failed_when: uv_version_check.rc != 0
+
+        - name: Verify Python installation via UV
+          ansible.builtin.shell: |
+            export PATH="$HOME/.local/bin:$PATH" 
+            uv python list | grep "{{ test_python_version }}" || echo "not_found"
+          register: uv_python_check
+          changed_when: false
+          failed_when: uv_python_check.stdout == "not_found"
+
+        - name: Test UV Python execution
+          ansible.builtin.shell: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv run python --version
+          register: uv_python_exec
+          changed_when: false
+          failed_when: uv_python_exec.rc != 0
+
+        - name: Test UV project initialization
+          ansible.builtin.shell: |
+            export PATH="$HOME/.local/bin:$PATH"
+            cd /tmp
+            mkdir -p test_uv_project
+            cd test_uv_project
+            echo 'print("Hello from UV!")' > test.py
+            uv run python test.py
+          register: uv_project_test
+          changed_when: false
+          failed_when: uv_project_test.rc != 0
+
+        - name: Display UV test results
+          ansible.builtin.debug:
+            msg: |
+              ===== UV Python Test Results =====
+              UV Version: {{ uv_version_check.stdout }}
+              Python Available: {{ uv_python_check.stdout != "not_found" }}
+              Python Exec: {{ uv_python_exec.stdout }}
+              Project Test: {{ uv_project_test.stdout }}
+              ===================================
+
+    - name: Test Component Integration
+      when: configure.uv_python | default(false)
+      block:
+        - name: Test Device API Python Setup
+          ansible.builtin.shell: |
+            export PATH="$HOME/.local/bin:$PATH"
+            cd /tmp
+            mkdir -p test_device_api
+            cd test_device_api
+            echo '[project]' > pyproject.toml
+            echo 'name = "test-device-api"' >> pyproject.toml
+            echo 'version = "0.1.0"' >> pyproject.toml
+            echo 'requires-python = ">={{ test_python_version }}"' >> pyproject.toml
+            echo '[tool.uv]' >> pyproject.toml
+            echo 'dev-dependencies = []' >> pyproject.toml
+            uv sync
+          register: device_api_test
+          changed_when: false
+          failed_when: device_api_test.rc != 0
+
+        - name: Test Tracker Python Setup
+          ansible.builtin.shell: |
+            export PATH="$HOME/.local/bin:$PATH"
+            cd /tmp  
+            mkdir -p test_tracker
+            cd test_tracker
+            echo 'fastapi==0.104.1' > requirements.txt
+            echo 'uvicorn==0.24.0' >> requirements.txt
+            uv venv --python {{ test_python_version }}
+            uv pip install -r requirements.txt
+            uv run python -c "import fastapi; print(f'FastAPI: {fastapi.__version__}')"
+          register: tracker_test
+          changed_when: false
+          failed_when: tracker_test.rc != 0
+
+        - name: Display component test results
+          ansible.builtin.debug:
+            msg: |
+              ===== Component Integration Tests =====
+              Device API Test: {{ 'PASS' if device_api_test.rc == 0 else 'FAIL' }}
+              Tracker Test: {{ 'PASS' if tracker_test.rc == 0 else 'FAIL' }}
+              =======================================
+
+    - name: Cleanup test directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/test_uv_project
+        - /tmp/test_device_api
+        - /tmp/test_tracker
+      failed_when: false
+
+    - name: Final validation summary
+      ansible.builtin.debug:
+        msg: |
+          ==========================================
+          UV PYTHON VALIDATION SUMMARY
+          ==========================================
+          Host: {{ inventory_hostname }}
+          Platform: {{ ansible_system }}
+          UV Status: {{ 'INSTALLED' if uv_version_check.rc == 0 else 'MISSING' }}
+          Python {{ test_python_version }}: {{ 'AVAILABLE' if uv_python_check.stdout != 'not_found' else 'MISSING' }}
+          UV Execution: {{ 'WORKING' if uv_python_exec.rc == 0 else 'FAILED' }}
+          Project Test: {{ 'PASS' if uv_project_test.rc == 0 else 'FAIL' }}
+          Component Tests: {{ 'PASS' if (device_api_test.rc == 0 and tracker_test.rc == 0) else 'FAIL' }}
+          ==========================================
+          Overall Result: {{ 'SUCCESS [SUCCESS]' if (uv_version_check.rc == 0 and uv_python_check.stdout != 'not_found' and uv_python_exec.rc == 0 and uv_project_test.rc == 0) else 'FAILED [SUCCESS]' }}
+          ==========================================
+      when: configure.uv_python | default(false)

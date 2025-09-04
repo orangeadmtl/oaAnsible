@@ -1,0 +1,53 @@
+---
+# UV Python Role Defaults
+# Unified Python management using UV for all platforms
+
+# Python version configuration
+uv_python_version: "{{ runtime.python.version | default(python.version | default('3.11.11')) }}"
+
+# UV installation
+uv_install_method: "curl"  # curl, system, homebrew
+uv_install_dir: "{{ ansible_user_dir }}/.local/bin"
+uv_cache_dir: "{{ ansible_user_dir }}/.cache/uv"
+
+# Python installation via UV
+uv_python_install_dir: "{{ ansible_user_dir }}/.local/share/uv/python"
+uv_manage_python: true
+uv_python_variants:
+  - "{{ uv_python_version }}"
+
+# Virtual environment defaults (for legacy compatibility)
+uv_create_default_venv: false
+uv_default_venv_name: "default"
+uv_default_venv_path: "{{ ansible_user_dir }}/.venv"
+
+# System integration
+uv_update_shell_profile: true
+uv_shell_profiles:
+  - "{{ ansible_user_dir }}/.bashrc"
+  - "{{ ansible_user_dir }}/.zshrc"
+
+# Platform-specific defaults
+uv_macos_use_homebrew: "{{ homebrew_state.installed | default(false) }}"
+uv_ubuntu_install_deps: true
+
+# Development packages (Ubuntu only)
+uv_ubuntu_dev_packages:
+  - build-essential
+  - libssl-dev
+  - libffi-dev
+  - libbz2-dev
+  - libreadline-dev
+  - libsqlite3-dev
+  - libncursesw5-dev
+  - libgdbm-dev
+  - liblzma-dev
+
+# Performance settings
+uv_concurrent_installs: 4
+uv_link_mode: "copy"  # copy, hardlink, symlink
+uv_resolution_strategy: "highest"  # highest, lowest-direct
+
+# Compatibility settings
+uv_python_executable: "{{ uv_python_install_dir }}/cpython-{{ uv_python_version }}-{{ uv_platform_arch }}/bin/python"
+uv_pip_compat: true  # Enable pip compatibility shims
