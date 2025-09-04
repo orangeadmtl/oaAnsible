@@ -2,32 +2,72 @@
 # Service configuration for unified Device API
 # Handles both macOS (LaunchAgent) and Linux (systemd) services
 
-- name: Configure macOS LaunchAgent service
+- name: Configure macOS LaunchAgent service (with robust restart)
   when: platform_state.is_macos
   block:
     - name: Create LaunchAgent plist for unified Device API
       ansible.builtin.template:
         src: com.orangead.deviceapi.plist.j2
-        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.deviceapi.plist"
+        dest: "{{ ansible_user_dir }}/Library/LaunchAgents/{{ device_api_service_name }}.plist"
         owner: "{{ ansible_user }}"
         mode: "0644"
       become_user: "{{ ansible_user }}"
-      notify: restart_deviceapi_macos
+      register: plist_created
 
-    - name: Load LaunchAgent service
-      ansible.builtin.shell: |
-        launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.deviceapi.plist 2>/dev/null || true
-        launchctl load {{ ansible_user_dir }}/Library/LaunchAgents/com.orangead.deviceapi.plist
+    - name: Ensure LaunchAgent directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/Library/LaunchAgents"
+        state: directory
+        owner: "{{ ansible_user }}"
+        mode: "0755"
       become_user: "{{ ansible_user }}"
-      register: launchctl_load
+
+    - name: Stop any existing service instances (robust cleanup)
+      ansible.builtin.shell: |
+        # Kill any existing processes first
+        pkill -f "{{ device_api_path }}/main.py" || true
+        sleep 2
+        
+        # Unload the service
+        launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/{{ device_api_service_name }}.plist 2>/dev/null || true
+        launchctl stop {{ device_api_service_name }} 2>/dev/null || true
+        
+        # Wait for processes to fully stop
+        sleep 3
+        
+        # Final cleanup - kill any remaining processes
+        pkill -f "{{ device_api_path }}/main.py" || true
+        sleep 1
+      become_user: "{{ ansible_user }}"
+      register: service_cleanup
       changed_when: true
 
-    - name: Start LaunchAgent service
+    - name: Load and start LaunchAgent service (robust startup)
       ansible.builtin.shell: |
-        launchctl start com.orangead.deviceapi
+        # Load the service
+        launchctl load {{ ansible_user_dir }}/Library/LaunchAgents/{{ device_api_service_name }}.plist
+        
+        # Start the service explicitly
+        launchctl start {{ device_api_service_name }}
+        
+        # Wait a moment for startup
+        sleep 3
+        
+        # Verify the service is running
+        if launchctl list | grep -q {{ device_api_service_name }}; then
+          echo "Service loaded successfully"
+        else
+          echo "Service failed to load"
+          exit 1
+        fi
       become_user: "{{ ansible_user }}"
-      register: launchctl_start
+      register: service_startup
       changed_when: true
+
+    - name: Set macOS service restart status
+      ansible.builtin.set_fact:
+        deviceapi_service_restarted: true
+        deviceapi_service_startup_output: "{{ service_startup.stdout }}"
 
 - name: Configure Linux systemd service
   when: platform_state.is_ubuntu

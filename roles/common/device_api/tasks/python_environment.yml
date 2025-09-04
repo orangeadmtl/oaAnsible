@@ -1,59 +1,133 @@
 ---
-# Setup Python environment for unified Device API
+# Setup Python environment for unified Device API - Always Update Dependencies
 
 - name: Check if virtual environment exists
   ansible.builtin.stat:
     path: "{{ device_api_path }}/venv"
   register: venv_exists
 
-- name: Create virtual environment
+- name: Remove existing virtual environment for fresh setup
+  ansible.builtin.file:
+    path: "{{ device_api_path }}/venv"
+    state: absent
+  become_user: "{{ ansible_user }}"
+  when: deviceapi_force_update | default(false)
+
+- name: Create fresh virtual environment
   ansible.builtin.shell: |
     {{ device_api_python }} -m venv {{ device_api_path }}/venv
   become_user: "{{ ansible_user }}"
-  when: not venv_exists.stat.exists
+  register: venv_creation
+  changed_when: true
 
-- name: Upgrade pip in virtual environment
+- name: Upgrade pip and setuptools in virtual environment
   ansible.builtin.pip:
-    name: pip
+    name: 
+      - pip
+      - setuptools
+      - wheel
     state: latest
     virtualenv: "{{ device_api_path }}/venv"
     virtualenv_python: "{{ device_api_python }}"
   become_user: "{{ ansible_user }}"
+  register: pip_upgrade
 
-- name: Install Python dependencies
+- name: Check for requirements file
+  ansible.builtin.stat:
+    path: "{{ device_api_path }}/requirements.txt"
+  register: requirements_file
+
+- name: Check for pyproject.toml file  
+  ansible.builtin.stat:
+    path: "{{ device_api_path }}/pyproject.toml"
+  register: pyproject_file
+
+- name: Install dependencies using pip (requirements.txt)
   ansible.builtin.pip:
     requirements: "{{ device_api_path }}/requirements.txt"
     virtualenv: "{{ device_api_path }}/venv"
     virtualenv_python: "{{ device_api_python }}"
+    state: forcereinstall  # Always reinstall for fresh deployment
   become_user: "{{ ansible_user }}"
-  register: pip_install
+  register: pip_install_requirements
+  when: requirements_file.stat.exists
+
+- name: Install dependencies using uv (pyproject.toml)  
+  ansible.builtin.shell: |
+    source {{ device_api_path }}/venv/bin/activate
+    cd {{ device_api_path }}
+    if command -v uv &> /dev/null; then
+      uv pip install -e .
+    else
+      pip install -e .
+    fi
+  become_user: "{{ ansible_user }}"
+  register: pip_install_pyproject
+  changed_when: true
+  when: pyproject_file.stat.exists and not requirements_file.stat.exists
 
 - name: Update Python path for service
   ansible.builtin.set_fact:
     device_api_python: "{{ device_api_path }}/venv/bin/python"
 
-- name: Verify Python environment
+- name: Verify Python environment and imports
   ansible.builtin.shell: |
+    cd {{ device_api_path }}
     {{ device_api_python }} -c "
     import sys
+    import os
+    
+    print('=== Python Environment Verification ===')
     print('Python:', sys.version)
+    print('Working Directory:', os.getcwd())
+    print('Python Path:', sys.path[:3])
+    
+    # Add the project root to Python path
     sys.path.insert(0, '{{ device_api_path }}')
+    
     try:
-        from src.oaDeviceAPI.core.config import settings
-        print('oaDeviceAPI import: SUCCESS')
+        from src.oaDeviceAPI.core.config import settings, APP_VERSION
+        print('✅ Core config import: SUCCESS')
+        print('   App Version:', APP_VERSION)
+        
+        from src.oaDeviceAPI.core.platform import platform_manager
+        print('✅ Platform manager import: SUCCESS')
+        print('   Platform:', platform_manager.platform)
+        
+        # Test platform-specific imports
+        if platform_manager.is_macos():
+            from src.oaDeviceAPI.platforms.macos.routers import health
+            print('✅ macOS health router import: SUCCESS')
+        
+        print('🎉 All critical imports: SUCCESS')
+        
     except ImportError as e:
-        print('oaDeviceAPI import: FAILED -', e)
+        print('❌ Import FAILED:', str(e))
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
     "
   register: python_verification
-  failed_when: "'FAILED' in python_verification.stdout"
+  failed_when: python_verification.rc != 0
   become_user: "{{ ansible_user }}"
 
-- name: Display Python environment status
+- name: Display comprehensive Python environment status
   ansible.builtin.debug:
     msg: |
-      Python Environment:
-      - Python path: {{ device_api_python }}
-      - Dependencies installed: {{ pip_install.changed }}
-      - Verification: {{ 'SUCCESS' if python_verification.rc == 0 else 'FAILED' }}
-      - Details: {{ python_verification.stdout_lines | join(' ') }}
+      ===============================================
+      Python Environment Setup Complete
+      ===============================================
+      - Python Executable: {{ device_api_python }}
+      - Virtual Environment: {{ device_api_path }}/venv
+      - Venv Created: {{ venv_creation.changed | default(false) }}
+      - Pip Upgraded: {{ pip_upgrade.changed | default(false) }}
+      - Requirements Installed: {{ pip_install_requirements.changed | default(false) }}
+      - PyProject Installed: {{ pip_install_pyproject.changed | default(false) }}
+      - Verification Status: {{ 'SUCCESS' if python_verification.rc == 0 else 'FAILED' }}
+      - Force Update Applied: {{ deviceapi_force_update | default(false) }}
+      ===============================================
+      
+      Verification Output:
+      {{ python_verification.stdout_lines | join('
+      ') }}
+      ===============================================

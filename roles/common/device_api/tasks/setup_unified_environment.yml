@@ -17,22 +17,82 @@
 
 - name: Clone oaDeviceAPI repository (if not exists)
   ansible.builtin.git:
-    repo: "https://github.com/oa-device/oaDeviceAPI.git"
+    repo: "{{ device_api.repository_url | default('https://github.com/oa-device/oaDeviceAPI.git') }}"
     dest: "{{ device_api_path }}"
-    version: "main"
+    version: "{{ device_api.branch | default('main') }}"
     force: false
   when: not unified_api_dir.stat.exists
   become_user: "{{ ansible_user }}"
 
-- name: Update oaDeviceAPI to latest version
+- name: Force update oaDeviceAPI to latest version (always)
   ansible.builtin.git:
-    repo: "https://github.com/oa-device/oaDeviceAPI.git"
+    repo: "{{ device_api.repository_url | default('https://github.com/oa-device/oaDeviceAPI.git') }}"
     dest: "{{ device_api_path }}"
-    version: "main"
+    version: "{{ device_api.branch | default('main') }}"
     force: true
+    # Force fetch to ensure we get the absolute latest
+    update: true
   when: unified_api_dir.stat.exists
   become_user: "{{ ansible_user }}"
   register: unified_api_update
+
+- name: Force git reset to ensure clean state
+  ansible.builtin.shell: |
+    cd {{ device_api_path }}
+    git fetch --all
+    git reset --hard origin/{{ device_api.branch | default('main') }}
+    git clean -fd
+  become_user: "{{ ansible_user }}"
+  when: unified_api_dir.stat.exists
+  register: git_force_reset
+  changed_when: true
+
+- name: Check repository status and commit information
+  ansible.builtin.shell: |
+    cd {{ device_api_path }}
+    echo "BEFORE_COMMIT:$(git log -1 --format='%H' HEAD~1 2>/dev/null || echo 'initial')"
+    echo "AFTER_COMMIT:$(git log -1 --format='%H')"
+    echo "COMMIT_MESSAGE:$(git log -1 --format='%s')"
+    echo "BRANCH:$(git branch --show-current)"
+  become_user: "{{ ansible_user }}"
+  when: unified_api_dir.stat.exists
+  register: git_status_info
+  changed_when: false
+
+- name: Parse repository update information
+  ansible.builtin.set_fact:
+    deviceapi_repo_updated: true  # Always consider updated in force mode
+    deviceapi_before_commit: "{{ git_status_info.stdout_lines | select('match', '^BEFORE_COMMIT:') | first | regex_replace('^BEFORE_COMMIT:', '') | default('unknown') }}"
+    deviceapi_after_commit: "{{ git_status_info.stdout_lines | select('match', '^AFTER_COMMIT:') | first | regex_replace('^AFTER_COMMIT:', '') | default('unknown') }}"
+    deviceapi_commit_message: "{{ git_status_info.stdout_lines | select('match', '^COMMIT_MESSAGE:') | first | regex_replace('^COMMIT_MESSAGE:', '') | default('N/A') }}"
+    deviceapi_current_branch: "{{ git_status_info.stdout_lines | select('match', '^BRANCH:') | first | regex_replace('^BRANCH:', '') | default('main') }}"
+  when: unified_api_dir.stat.exists and git_status_info is defined and git_status_info.stdout_lines is defined
+
+- name: Set fallback repository information (when git status unavailable)
+  ansible.builtin.set_fact:
+    deviceapi_repo_updated: true
+    deviceapi_before_commit: "{{ unified_api_update.before | default('unknown') }}"
+    deviceapi_after_commit: "{{ unified_api_update.after | default('unknown') }}"
+    deviceapi_commit_message: "Force update applied"
+    deviceapi_current_branch: "{{ device_api.branch | default('main') }}"
+  when: unified_api_dir.stat.exists and (git_status_info is not defined or git_status_info.stdout_lines is not defined)
+
+- name: Display detailed repository update status
+  ansible.builtin.debug:
+    msg: |
+      ===============================================
+      Repository Update Status (Force Mode)
+      ===============================================
+      - Repository: {{ device_api.repository_url | default('https://github.com/oa-device/oaDeviceAPI.git') }}
+      - Target Branch: {{ device_api.branch | default('main') }}
+      - Current Branch: {{ deviceapi_current_branch | default('unknown') }}
+      - Before Commit: {{ deviceapi_before_commit | default('N/A') }}
+      - After Commit: {{ deviceapi_after_commit | default('N/A') }}
+      - Commit Message: {{ deviceapi_commit_message | default('N/A') }}
+      - Force Updated: {{ deviceapi_repo_updated | default(false) }}
+      - Git Reset Applied: {{ git_force_reset.changed | default(false) }}
+      ===============================================
+  when: unified_api_dir.stat.exists
 
 - name: Ensure proper ownership
   ansible.builtin.file:

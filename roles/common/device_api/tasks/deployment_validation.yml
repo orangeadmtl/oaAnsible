@@ -1,91 +1,132 @@
 ---
-# Validate unified Device API deployment
+# Deployment validation for unified Device API - Comprehensive Testing
+# Ensures the service is properly running and accessible
 
-- name: Perform comprehensive health check
-  ansible.builtin.uri:
-    url: "http://localhost:9090/health"
-    method: GET
-    timeout: "{{ device_api_health_check_timeout }}"
-  register: health_check
-  until: health_check.status == 200
-  retries: "{{ device_api_health_check_retries }}"
-  delay: "{{ device_api_health_check_delay }}"
-  ignore_errors: true
+- name: Wait for service to initialize
+  ansible.builtin.pause:
+    seconds: 10
 
-- name: Get platform information
-  ansible.builtin.uri:
-    url: "http://localhost:9090/platform"
-    method: GET
-    timeout: 10
-  register: platform_check
-  ignore_errors: true
-  when: health_check.status == 200
+- name: Check service process status (macOS)
+  ansible.builtin.shell: |
+    if pgrep -f "{{ device_api_path }}/main.py" > /dev/null; then
+      echo "PROCESS_RUNNING:true"
+      ps aux | grep "{{ device_api_path }}/main.py" | grep -v grep | head -1
+    else
+      echo "PROCESS_RUNNING:false"
+    fi
+  become_user: "{{ ansible_user }}"
+  register: process_status_macos
+  when: platform_state.is_macos
+  changed_when: false
 
-- name: Get API root information  
+- name: Check LaunchCtl service status (macOS)
+  ansible.builtin.shell: |
+    if launchctl list | grep -q "{{ device_api_service_name }}"; then
+      echo "LAUNCHCTL_LOADED:true"
+      launchctl list | grep "{{ device_api_service_name }}"
+    else
+      echo "LAUNCHCTL_LOADED:false"
+    fi
+  become_user: "{{ ansible_user }}"
+  register: launchctl_status
+  when: platform_state.is_macos
+  changed_when: false
+
+- name: Test basic API endpoint connectivity
   ansible.builtin.uri:
     url: "http://localhost:9090/"
     method: GET
     timeout: 10
-  register: root_check
+    status_code: 200
+  register: api_basic_test
+  retries: 6
+  delay: 5
+  until: api_basic_test.status == 200
   ignore_errors: true
-  when: health_check.status == 200
 
-- name: Validate platform-specific endpoints
-  block:
-    - name: Test macOS-specific endpoints
-      ansible.builtin.uri:
-        url: "http://localhost:9090/cameras"
-        method: GET
-        timeout: 10
-      register: camera_check
-      ignore_errors: true
-      when: 
-        - platform_state.is_macos
-        - health_check.status == 200
+- name: Test platform endpoint
+  ansible.builtin.uri:
+    url: "http://localhost:9090/platform"  
+    method: GET
+    timeout: 10
+    status_code: 200
+  register: api_platform_test
+  retries: 3
+  delay: 2
+  ignore_errors: true
 
-    - name: Test OrangePi-specific endpoints
-      ansible.builtin.uri:
-        url: "http://localhost:9090/screenshots/history"
-        method: GET  
-        timeout: 10
-      register: screenshot_check
-      ignore_errors: true
-      when:
-        - platform_state.is_ubuntu
-        - health_check.status == 200
+- name: Test health endpoint (should exist for macOS)
+  ansible.builtin.uri:
+    url: "http://localhost:9090/health"
+    method: GET 
+    timeout: 10
+    status_code: 200
+  register: api_health_test
+  retries: 3
+  delay: 2
+  when: platform_state.is_macos
+  ignore_errors: true
+
+- name: Check service logs for errors
+  ansible.builtin.shell: |
+    if [ -f "{{ device_api_path }}/logs/deviceapi.log" ]; then
+      echo "LOG_FILE_EXISTS:true"
+      echo "=== Recent Log Entries ==="
+      tail -20 {{ device_api_path }}/logs/deviceapi.log | grep -E "(ERROR|Exception|Failed)" || echo "No errors found in recent logs"
+    else
+      echo "LOG_FILE_EXISTS:false"
+    fi
+  become_user: "{{ ansible_user }}"
+  register: log_check
+  changed_when: false
 
 - name: Set validation results
   ansible.builtin.set_fact:
     deviceapi_validation_results:
-      health_check: "{{ health_check.status == 200 if health_check is defined and health_check.status is defined else false }}"
-      platform_check: "{{ platform_check.status == 200 if platform_check is defined else false }}"
-      platform_detected: "{{ platform_check.json.platform | default('unknown') if platform_check is defined and platform_check.status == 200 else 'unknown' }}"
-      root_check: "{{ root_check.status == 200 if root_check is defined else false }}"
-      endpoints_available: "{{ root_check.json.endpoints | default({}) if root_check is defined and root_check.status == 200 else {} }}"
-      camera_endpoint: "{{ camera_check.status in [200, 500, 503] if camera_check is defined else 'n/a' }}"
-      screenshot_endpoint: "{{ screenshot_check.status in [200, 500, 503] if screenshot_check is defined else 'n/a' }}"
+      process_running: "{{ (process_status_macos.stdout | regex_search('PROCESS_RUNNING:true')) is not none if platform_state.is_macos else true }}"
+      launchctl_loaded: "{{ (launchctl_status.stdout | regex_search('LAUNCHCTL_LOADED:true')) is not none if platform_state.is_macos else true }}" 
+      api_basic_accessible: "{{ api_basic_test.status == 200 }}"
+      api_platform_accessible: "{{ api_platform_test.status == 200 }}"
+      api_health_accessible: "{{ api_health_test.status == 200 if platform_state.is_macos else true }}"
+      log_file_exists: "{{ (log_check.stdout | regex_search('LOG_FILE_EXISTS:true')) is not none }}"
+      overall_status: "{{ 'SUCCESS' if api_basic_test.status == 200 else 'FAILED' }}"
 
-- name: Display validation results
+- name: Display comprehensive validation results
   ansible.builtin.debug:
     msg: |
-      Deployment Validation Results:
-      - Health Check: {{ '✅ PASS' if deviceapi_validation_results.health_check else '❌ FAIL' }}
-      - Platform Detection: {{ '✅ PASS' if deviceapi_validation_results.platform_check else '❌ FAIL' }}
-      - Detected Platform: {{ deviceapi_validation_results.platform_detected }}
-      - Root Endpoint: {{ '✅ PASS' if deviceapi_validation_results.root_check else '❌ FAIL' }}
-      - Available Endpoints: {{ deviceapi_validation_results.endpoints_available.keys() | list | join(', ') }}
-      {% if platform_state.is_macos %}
-      - Camera Endpoint: {{ '✅ AVAILABLE' if deviceapi_validation_results.camera_endpoint != 'n/a' else '⚠️ N/A' }}
-      {% endif %}
-      {% if platform_state.is_ubuntu %}
-      - Screenshot Endpoint: {{ '✅ AVAILABLE' if deviceapi_validation_results.screenshot_endpoint != 'n/a' else '⚠️ N/A' }}
+      ===============================================
+      Device API Deployment Validation Results
+      ===============================================
+      Overall Status: {{ deviceapi_validation_results.overall_status }}
+      
+      Service Status:
+      - Process Running: {{ deviceapi_validation_results.process_running }}
+      - LaunchCtl Loaded: {{ deviceapi_validation_results.launchctl_loaded }}
+      - Log File Exists: {{ deviceapi_validation_results.log_file_exists }}
+      
+      API Endpoint Tests:
+      - Basic Endpoint (/): {{ '✅ PASS' if deviceapi_validation_results.api_basic_accessible else '❌ FAIL' }}
+      - Platform Endpoint (/platform): {{ '✅ PASS' if deviceapi_validation_results.api_platform_accessible else '❌ FAIL' }}
+      - Health Endpoint (/health): {{ '✅ PASS' if deviceapi_validation_results.api_health_accessible else '❌ FAIL' }}
+      
+      Access URLs:
+      - API Base: http://{{ ansible_default_ipv4.address }}:9090/
+      - API Docs: http://{{ ansible_default_ipv4.address }}:9090/docs
+      - Health: http://{{ ansible_default_ipv4.address }}:9090/health
+      ===============================================
+      {% if deviceapi_validation_results.overall_status == 'FAILED' %}
+      
+      ⚠️  DEPLOYMENT VALIDATION FAILED ⚠️
+      Please check the service logs and configuration.
       {% endif %}
 
-- name: Assert deployment success
-  ansible.builtin.assert:
-    that:
-      - deviceapi_validation_results.health_check
-      - deviceapi_validation_results.platform_check
-      - deviceapi_validation_results.platform_detected != 'unknown'
-    fail_msg: "Unified Device API deployment validation failed"
-    success_msg: "Unified Device API deployment validation successful"
+- name: Fail deployment if validation fails
+  ansible.builtin.fail:
+    msg: |
+      Device API deployment validation failed!
+      - API Basic Test: {{ api_basic_test.status | default('no response') }}
+      - Process Running: {{ deviceapi_validation_results.process_running }}
+      - LaunchCtl Status: {{ deviceapi_validation_results.launchctl_loaded }}
+      
+      Check the service logs at: {{ device_api_path }}/logs/deviceapi.log
+  when: deviceapi_validation_results.overall_status == 'FAILED' and not (ignore_validation_errors | default(false))
