@@ -8,7 +8,7 @@
 
 - name: Configure UV and Python (Streamlined)
   when:
-    - macos_configure.uv_python | default(macos_configure.pyenv) | bool
+    - macos_configure.uv_python | default(true) | bool  # UV is now the default
     - platform_state.is_macos
   import_role:
     name: common/uv_python

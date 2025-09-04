@@ -42,4 +42,4 @@ macos_alpr_country: "ca"
 
 # Python environment settings
 macos_alpr_python_version: "3.12"
-macos_alpr_python_path: "{{ ansible_user_dir }}/.pyenv/versions/{{ macos_alpr_python_version }}/envs/alpr"
+macos_alpr_python_path: "{{ ansible_user_dir }}/orangead/alpr"  # UV project path

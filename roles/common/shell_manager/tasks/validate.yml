@@ -44,8 +44,9 @@
         # Use zsh to source the profile and check components
         {{ target_shell }} -c "
           source '{{ user_home }}/{{ shell_profile_file }}' 2>/dev/null || true
-          {% if shell_config.components.pyenv.enabled and shell_platform in shell_config.components.pyenv.enabled_platforms %}
-          command -v pyenv >/dev/null && echo 'pyenv: available' || echo 'pyenv: not found'
+          {% if shell_config.components.python.enabled and shell_platform in shell_config.components.python.enabled_platforms %}
+          command -v uv >/dev/null && echo 'uv: available' || echo 'uv: not found'
+          uv --version 2>/dev/null || echo 'uv: version check failed'
           {% endif %}
           {% if shell_config.components.nvm.enabled and shell_platform in shell_config.components.nvm.enabled_platforms %}
           [ -s \"\$NVM_DIR/nvm.sh\" ] && echo 'nvm: available' || echo 'nvm: not found'
@@ -125,7 +126,7 @@
           
           [RESOLUTION] Resolution: 
           - Your zsh enhancement is working
-          - Individual components (pyenv, nvm, bun) can be installed as needed
+          - Individual components (uv, nvm, bun) can be installed as needed
           - Run the deployment again to retry component installation
           
       when: validation_phase == "post_deployment"

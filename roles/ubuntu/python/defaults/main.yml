@@ -4,7 +4,7 @@
 
 # Python version management
 ubuntu_python_version: "3.11"
-ubuntu_install_pyenv: true
+ubuntu_install_pyenv: false  # Deprecated: Use UV instead
 ubuntu_install_system_python: true
 
 # Package managers
@@ -32,8 +32,8 @@ ubuntu_dev_packages:
   - uuid-dev
 
 # PyEnv configuration
-ubuntu_pyenv_root: "{{ ansible_user_dir }}/.pyenv"
-ubuntu_pyenv_install_python_versions:
+ubuntu_pyenv_root: "{{ ansible_user_dir }}/.pyenv"  # Legacy - deprecated
+ubuntu_pyenv_install_python_versions: []  # Deprecated: Use UV instead
   - "{{ ubuntu_python_version }}"
 
 # Virtual environment settings

@@ -1,18 +1,19 @@
 ---
 # Global Runtime Versions Configuration
 # Standardized runtime versions used across all environments and projects
+# NOTE: Python versions are now managed in python_runtime.yml
 
-# Python runtime configuration
+# Python runtime configuration (references centralized config)
 runtime:
   python:
-    version: "3.11.11"
-    manager: "uv"
+    version: "{{ python_runtime.default_version }}"
+    manager: "{{ python_runtime.manager }}"
   node:
     version: "22.11.0"
     manager: "nvm"
 
 # Legacy format support (for backward compatibility during transition)
 python:
-  version: "3.11.11"
+  version: "{{ python_runtime.default_version }}"
 node:
   version: "22.11.0"

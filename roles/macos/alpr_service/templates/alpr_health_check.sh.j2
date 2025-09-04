@@ -63,8 +63,8 @@ check_alpr_service_port() {
 }
 
 check_python_environment() {
-    export PATH="{{ ansible_user_dir }}/.pyenv/bin:$PATH"
-    if eval "$(pyenv init -)" && pyenv activate alpr 2>/dev/null; then
+    export PATH="{{ ansible_user_dir }}/.local/bin:$PATH"
+    if cd "{{ ansible_user_dir }}/orangead/alpr" && uv run python --version >/dev/null 2>&1; then
         log_message "[OK] Python virtual environment 'alpr' is available"
         return 0
     else

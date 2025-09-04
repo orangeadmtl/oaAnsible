@@ -2,24 +2,24 @@
 - name: Verify installations
   block:
     - name: Verify Python environment
-      when: configure.pyenv | bool
+      when: configure.uv_python | default(true) | bool
       tags: ["verify", "python"]
       block:
-        - name: Check pyenv installation
-          ansible.builtin.stat:
-            path: "{{ ansible_env.HOME }}/.pyenv/bin/pyenv"
-          register: pyenv_binary
-
-        - name: Get Python version
-          ansible.builtin.shell: |
-            export PYENV_ROOT="$HOME/.pyenv"
-            export PATH="$PYENV_ROOT/bin:$PATH"
-            eval "$($PYENV_ROOT/bin/pyenv init -)"
-            pyenv version
-          register: python_version
+        - name: Check UV installation
+          ansible.builtin.command:
+            cmd: uv --version
+          register: uv_version
           changed_when: false
           failed_when: false
-          when: pyenv_binary.stat.exists
+
+        - name: Get Python toolchains
+          ansible.builtin.shell: |
+            export PATH="{{ ansible_env.HOME }}/.local/bin:$PATH"
+            uv python list
+          register: python_toolchains
+          changed_when: false
+          failed_when: false
+          when: uv_version.rc == 0
 
         - name: Check common uv installation paths
           ansible.builtin.stat:
@@ -242,9 +242,9 @@
           ============================================================
 
           === CORE ENVIRONMENTS ===
-          {% if configure.pyenv is defined and configure.pyenv %}
-          Python:              {{ python_version.stdout if python_version is defined and python_version.rc is defined and python_version.rc == 0 else 'Not installed' }}
-          UV Package Manager:  {% if uv_path != '' and uv_version is defined and uv_version.rc is defined and uv_version.rc == 0 %}{{ uv_version.stdout }} ({{ uv_path }}){% else %}Not installed or not found{% endif %}
+          {% if configure.uv_python | default(true) %}
+          UV Package Manager:  {{ uv_version.stdout if uv_version is defined and uv_version.rc == 0 else 'Not installed' }}
+          Python Toolchains:   {{ python_toolchains.stdout_lines | length if python_toolchains is defined and python_toolchains.rc == 0 else '0' }} available
           {% endif %}
 
           {% if configure.node is defined and configure.node %}

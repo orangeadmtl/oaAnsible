@@ -1,0 +1,65 @@
+---
+# Python Runtime Standardization
+# Centralized Python version management across all environments
+
+# Primary Python Runtime Configuration (UV-First)
+python_runtime:
+  # Package manager - UV exclusively (pyenv deprecated)
+  manager: "uv"
+  # Standard version for all new deployments
+  default_version: "3.12"
+  
+  # Legacy compatibility for specific components
+  compatibility_matrix:
+    oaSentinel: "3.11.11"  # ML training compatibility
+    ml_workstation: "3.11.11"  # Existing ML environments
+    
+  # Environment-specific overrides
+  environment_overrides:
+    ml_environments:
+      version: "3.11.11"
+      reason: "PyTorch compatibility and existing model training"
+    
+    production_services:
+      version: "3.12"
+      reason: "Latest stable with performance improvements"
+      
+    development:
+      version: "3.12"
+      reason: "Latest features and debugging improvements"
+
+# Component-specific Python version resolution
+# This provides a lookup mechanism for roles to determine the correct version
+python_version_lookup:
+  parking_monitor: "{{ python_runtime.default_version }}"
+  device_api: "{{ python_runtime.default_version }}"
+  tracker: "{{ python_runtime.default_version }}"
+  ml_workstation: "{{ python_runtime.compatibility_matrix.oaSentinel }}"
+  oaSentinel: "{{ python_runtime.compatibility_matrix.oaSentinel }}"
+
+# UV-based Python interpreter paths (replaces pyenv paths)
+python_interpreter_paths:
+  # Standard UV-based interpreter resolution
+  default: "/usr/bin/python3"        # System python for UV projects
+  project_execution: "uv run python" # Project-scoped execution via UV
+  
+  # Platform-specific system interpreters
+  macos: "/opt/homebrew/bin/python3"
+  ubuntu: "/usr/bin/python3"
+
+# Ansible Python interpreter resolution (UV-first, system fallback)
+ansible_python_interpreter_strategy:
+  # Primary: Use system Python (UV manages project environments)
+  default: "{{ python_interpreter_paths.macos if ansible_os_family == 'Darwin' else python_interpreter_paths.ubuntu }}"
+  
+  # Project execution: UV handles virtual environments transparently
+  project_execution: "{{ python_interpreter_paths.project_execution }}"
+
+# Migration tracking
+migration_status:
+  pyenv_cleanup_completed: true
+  uv_standardization_completed: true
+  legacy_paths_removed: true
+
+# Backward compatibility (deprecated - use python_runtime.default_version)
+python_version: "{{ python_runtime.default_version }}"

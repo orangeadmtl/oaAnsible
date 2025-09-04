@@ -13,39 +13,6 @@
   become_user: "{{ ansible_user }}"
   when: deviceapi_force_update | default(false)
 
-- name: Check if UV is available
-  ansible.builtin.shell: |
-    command -v uv >/dev/null 2>&1 && echo "available" || echo "not_available"
-  register: uv_availability
-  changed_when: false
-
-- name: Initialize UV project with dependencies (when UV available)
-  ansible.builtin.shell: |
-    cd {{ device_api_path }}
-    {{ uv_path | default('uv') }} sync --frozen
-  become_user: "{{ ansible_user }}"
-  register: uv_sync_result
-  when: uv_availability.stdout == "available"
-  changed_when: true
-
-- name: Create virtual environment using venv (when UV not available)
-  ansible.builtin.shell: |
-    cd {{ device_api_path }}
-    python3 -m venv venv
-  become_user: "{{ ansible_user }}"
-  register: venv_creation
-  when: uv_availability.stdout == "not_available"
-  changed_when: true
-
-- name: Upgrade pip in virtual environment (when UV not available)
-  ansible.builtin.shell: |
-    cd {{ device_api_path }}
-    ./venv/bin/pip install --upgrade pip
-  become_user: "{{ ansible_user }}"
-  register: pip_upgrade
-  when: uv_availability.stdout == "not_available"
-  changed_when: true
-
 - name: Check for requirements file
   ansible.builtin.stat:
     path: "{{ device_api_path }}/requirements.txt"
@@ -56,22 +23,71 @@
     path: "{{ device_api_path }}/pyproject.toml"
   register: pyproject_file
 
+- name: Check if UV is available
+  ansible.builtin.shell: |
+    if [ -x "{{ ansible_user_dir }}/.local/bin/uv" ]; then
+        echo "available"
+    elif command -v uv >/dev/null 2>&1; then
+        echo "available"
+    else
+        echo "not_available"
+    fi
+  register: uv_availability
+  changed_when: false
+
+- name: Set UV path based on installation location
+  ansible.builtin.set_fact:
+    uv_executable: "{{ ansible_user_dir }}/.local/bin/uv"
+  when: uv_availability.stdout == "available"
+
+- name: Ensure Python 3.12 is available via UV (when UV available)
+  ansible.builtin.shell: |
+    {{ uv_executable | default('uv') }} python install {{ python_runtime.default_version | default('3.12') }}
+  become_user: "{{ ansible_user }}"
+  register: uv_python_install
+  when: uv_availability.stdout == "available"
+  changed_when: false
+  failed_when: false
+
+- name: Initialize UV project with dependencies (when UV available)
+  ansible.builtin.shell: |
+    cd {{ device_api_path }}
+    {{ uv_executable | default('uv') }} sync
+  become_user: "{{ ansible_user }}"
+  register: uv_sync_result
+  when: 
+    - uv_availability.stdout == "available"
+    - pyproject_file.stat.exists
+  changed_when: true
+
+- name: Create virtual environment using venv (when UV not available)
+  ansible.builtin.shell: |
+    cd {{ device_api_path }}
+    python3 -m venv venv
+  become_user: "{{ ansible_user }}"
+  register: venv_creation
+  when: 
+    - uv_availability.stdout == "not_available" or not pyproject_file.stat.exists
+  changed_when: true
+
+- name: Upgrade pip in virtual environment (when UV not available)
+  ansible.builtin.shell: |
+    cd {{ device_api_path }}
+    ./venv/bin/pip install --upgrade pip
+  become_user: "{{ ansible_user }}"
+  register: pip_upgrade
+  when: 
+    - uv_availability.stdout == "not_available" or not pyproject_file.stat.exists
+  changed_when: true
+
 - name: Install dependencies using UV (requirements.txt)
   ansible.builtin.shell: |
     cd {{ device_api_path }}
-    {{ uv_path | default('uv') }} pip install -r requirements.txt
+    {{ uv_executable | default('uv') }} pip install -r requirements.txt
   become_user: "{{ ansible_user }}"
   register: uv_install_requirements
   when: requirements_file.stat.exists and not pyproject_file.stat.exists and uv_availability.stdout == "available"
 
-- name: Install dependencies using UV (pyproject.toml)
-  ansible.builtin.shell: |
-    cd {{ device_api_path }}
-    {{ uv_path | default('uv') }} sync
-  become_user: "{{ ansible_user }}"
-  register: uv_install_pyproject
-  changed_when: true
-  when: pyproject_file.stat.exists and uv_availability.stdout == "available"
 
 - name: Install dependencies using pip (requirements.txt)
   ansible.builtin.shell: |
@@ -79,20 +95,25 @@
     ./venv/bin/pip install -r requirements.txt
   become_user: "{{ ansible_user }}"
   register: pip_install_requirements
-  when: requirements_file.stat.exists and not pyproject_file.stat.exists and uv_availability.stdout == "not_available"
+  when: 
+    - requirements_file.stat.exists 
+    - not pyproject_file.stat.exists 
+    - uv_availability.stdout == "not_available"
 
-- name: Install dependencies using pip (pyproject.toml)
+- name: Install dependencies using pip (pyproject.toml)  
   ansible.builtin.shell: |
     cd {{ device_api_path }}
     ./venv/bin/pip install -e .
   become_user: "{{ ansible_user }}"
   register: pip_install_pyproject
   changed_when: true
-  when: pyproject_file.stat.exists and uv_availability.stdout == "not_available"
+  when: 
+    - pyproject_file.stat.exists 
+    - uv_availability.stdout == "not_available"
 
 - name: Update Python path for service (UV)
   ansible.builtin.set_fact:
-    device_api_python: "{{ uv_path | default('uv') }} run python"
+    device_api_python: "{{ uv_executable | default('uv') }} run python"
     device_api_python_project_path: "{{ device_api_path }}"
   when: uv_availability.stdout == "available"
 
@@ -102,10 +123,10 @@
     device_api_python_project_path: "{{ device_api_path }}"
   when: uv_availability.stdout == "not_available"
 
-- name: Verify Python environment and imports
+- name: Verify Python environment and imports (UV)
   ansible.builtin.shell: |
     cd {{ device_api_path }}
-    {{ uv_path | default('uv') }} run python -c "
+    {{ uv_executable | default('uv') }} run python -c "
     import sys
     import os
     
@@ -139,6 +160,46 @@
   register: python_verification
   failed_when: python_verification.rc != 0
   become_user: "{{ ansible_user }}"
+  when: uv_availability.stdout == "available"
+
+- name: Verify Python environment and imports (pip/venv)
+  ansible.builtin.shell: |
+    cd {{ device_api_path }}
+    ./venv/bin/python -c "
+    import sys
+    import os
+    
+    print('=== venv Python Environment Verification ===')
+    print('Python:', sys.version)
+    print('Working Directory:', os.getcwd())
+    print('Python Path:', sys.path[:3])
+    
+    try:
+        from src.oaDeviceAPI.core.config import settings, APP_VERSION
+        print('[OK] Core config import: SUCCESS')
+        print('   App Version:', APP_VERSION)
+        
+        from src.oaDeviceAPI.core.platform import platform_manager
+        print('[OK] Platform manager import: SUCCESS')
+        print('   Platform:', platform_manager.platform)
+        
+        # Test platform-specific imports
+        if platform_manager.is_macos():
+            from src.oaDeviceAPI.platforms.macos.routers import health
+            print('[OK] macOS health router import: SUCCESS')
+        
+        print('[SUCCESS] All critical imports: SUCCESS')
+        
+    except ImportError as e:
+        print('[FAIL] Import FAILED:', str(e))
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+    "
+  register: python_verification
+  failed_when: python_verification.rc != 0
+  become_user: "{{ ansible_user }}"
+  when: uv_availability.stdout == "not_available"
 
 - name: Display comprehensive UV environment status
   ansible.builtin.debug:
@@ -149,14 +210,16 @@
       - Python Command: {{ device_api_python }}
       - Project Path: {{ device_api_path }}
       - UV Sync: {{ uv_sync_result.changed | default(false) }}
-      - UV Python Verify: {{ uv_python_verify.changed | default(false) }}
+      - UV Python Verify: {{ uv_python_install.changed | default(false) }}
       - Requirements Installed: {{ uv_install_requirements.changed | default(false) }}
       - PyProject Installed: {{ uv_install_pyproject.changed | default(false) }}
-      - Verification Status: {{ 'SUCCESS' if python_verification.rc == 0 else 'FAILED' }}
+      - Verification Status: {{ 'SUCCESS' if (python_verification is defined and python_verification.rc is defined and python_verification.rc == 0) else 'UNKNOWN' }}
       - Force Update Applied: {{ deviceapi_force_update | default(false) }}
       ===============================================
+      {% if python_verification is defined and python_verification.stdout_lines is defined %}
       
       Verification Output:
       {{ python_verification.stdout_lines | join('
       ') }}
+      {% endif %}
       ===============================================

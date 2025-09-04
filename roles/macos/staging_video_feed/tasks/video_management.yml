@@ -14,6 +14,7 @@
   environment:
     STORAGE_DIR: "{{ staging_video_feed_content.storage_dir }}"
     LOG_FILE: "{{ staging_video_feed_logging.log_file }}"
+    PATH: "/opt/homebrew/bin:/usr/local/bin:{{ ansible_env.PATH }}"
   when: existing_videos.files | length == 0 or staging_video_feed_content.download_on_deploy
   become: false
   register: video_download_result

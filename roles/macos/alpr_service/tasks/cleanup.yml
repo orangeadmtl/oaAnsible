@@ -23,14 +23,14 @@
 
     - name: Create ALPR Python virtual environment
       ansible.builtin.shell: |
-        export PATH="{{ ansible_user_dir }}/.pyenv/bin:$PATH"
-        eval "$(pyenv init -)"
-        pyenv virtualenv {{ alpr_python_version }} alpr
+        cd "{{ ansible_user_dir }}/orangead/alpr"
+        uv init --python {{ alpr_python_version }}
+        uv sync
       args:
         creates: "{{ alpr_python_path }}"
       become: false
       environment:
-        PATH: "{{ ansible_user_dir }}/.pyenv/bin:{{ homebrew_prefix }}/bin:/usr/local/bin:{{ ansible_env.PATH }}"
+        PATH: "{{ ansible_user_dir }}/.local/bin:{{ homebrew_prefix }}/bin:/usr/local/bin:{{ ansible_env.PATH }}"
 
     - name: Copy ALPR source files from role
       ansible.builtin.copy:
@@ -46,13 +46,12 @@
 
     - name: Install ALPR Python dependencies
       ansible.builtin.shell: |
-        export PATH="{{ ansible_user_dir }}/.pyenv/bin:$PATH"
-        eval "$(pyenv init -)"
-        pyenv activate alpr
+        cd "{{ ansible_user_dir }}/orangead/alpr"
+        uv run python -c "import sys; print(sys.version)"
         {{ homebrew_prefix }}/bin/uv pip install -r {{ ansible_user_dir }}/orangead/alpr/requirements.txt
       become: false
       environment:
-        PATH: "{{ ansible_user_dir }}/.pyenv/bin:{{ homebrew_prefix }}/bin:/usr/local/bin:{{ ansible_env.PATH }}"
+        PATH: "{{ ansible_user_dir }}/.local/bin:{{ homebrew_prefix }}/bin:/usr/local/bin:{{ ansible_env.PATH }}"
       changed_when: true
 
     - name: Generate ALPR health check script

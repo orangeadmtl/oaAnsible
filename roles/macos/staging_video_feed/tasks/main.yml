@@ -4,7 +4,7 @@
 
 - name: Validate staging environment
   debug:
-    msg: "Deploying staging video feed in {{ oa_environment.stage }} environment with parking monitor {{ 'enabled' if parking_monitor.enabled else 'disabled' }}"
+    msg: "Deploying staging video feed in {{ deployment_environment | default('unknown') }} environment with parking monitor {{ 'enabled' if parking_monitor.enabled | default(false) else 'disabled' }}"
   tags: [staging-video-feed, validation]
 
 - name: Include system dependencies setup

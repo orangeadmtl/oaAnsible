@@ -40,7 +40,9 @@
   become: false
 
 - name: Check FFmpeg installation
-  command: ffmpeg -version
+  shell: |
+    export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+    ffmpeg -version
   register: ffmpeg_check
   failed_when: false
   changed_when: false
@@ -51,7 +53,9 @@
   when: ffmpeg_check.rc != 0
 
 - name: Check yt-dlp installation
-  command: yt-dlp --version
+  shell: |
+    export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+    yt-dlp --version
   register: ytdlp_check
   failed_when: false
   changed_when: false

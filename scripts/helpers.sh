@@ -187,17 +187,19 @@ check_vault_password_file() {
 discover_inventories() {
   local inventories=()
   
-  # Look for inventories in the new project structure: inventory/projects/{project}/{env}.yml
-  if [ -d "$OA_ANSIBLE_INVENTORY_DIR/projects" ]; then
-    for project_dir in "$OA_ANSIBLE_INVENTORY_DIR/projects"/*; do
-      if [ -d "$project_dir" ]; then
+  # Look for inventories in the new project structure: inventory/30_projects/{project}/hosts/{env}.yml
+  if [ -d "$OA_ANSIBLE_INVENTORY_DIR/30_projects" ]; then
+    for project_dir in "$OA_ANSIBLE_INVENTORY_DIR/30_projects"/*; do
+      if [ -d "$project_dir" ] && [ "$(basename "$project_dir")" != "_template" ]; then
         local project_name=$(basename "$project_dir")
-        for env_file in "$project_dir"/*.yml; do
-          if [ -f "$env_file" ]; then
-            local env_name=$(basename "$env_file" .yml)
-            inventories+=("projects/${project_name}/${env_name}")
-          fi
-        done
+        if [ -d "$project_dir/hosts" ]; then
+          for env_file in "$project_dir/hosts"/*.yml; do
+            if [ -f "$env_file" ]; then
+              local env_name=$(basename "$env_file" .yml)
+              inventories+=("projects/${project_name}/${env_name}")
+            fi
+          done
+        fi
       fi
     done
   fi
@@ -233,7 +235,9 @@ get_inventory_path() {
   
   # Check if it's a new project structure path: projects/project/env
   if [[ "$inventory_name" =~ ^projects/([^/]+)/([^/]+)$ ]]; then
-    local project_path="$OA_ANSIBLE_INVENTORY_DIR/$inventory_name.yml"
+    local project="${BASH_REMATCH[1]}"
+    local env="${BASH_REMATCH[2]}"
+    local project_path="$OA_ANSIBLE_INVENTORY_DIR/30_projects/${project}/hosts/${env}.yml"
     if [ -f "$project_path" ]; then
       echo "$project_path"
       return 0

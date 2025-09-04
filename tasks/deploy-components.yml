@@ -237,7 +237,7 @@
   when:
     - target_platform == "macos"
     - "'parking-monitor' in deployment_components | default(selected_components)"
-    - oa_environment.stage == "staging"
+    - deployment_environment == "staging"
   tags: ["staging-video-feed", "parking-monitor"]
 
 - name: Deploy parking monitor component

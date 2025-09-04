@@ -38,12 +38,12 @@ shell_manager:
       enabled_platforms: ["ubuntu", "orangepi"]
       auto_detect: true
       
-    # Development environments
-    pyenv:
+    # Python environment management (UV-based)
+    python:
       enabled: true
       enabled_platforms: ["macos", "ubuntu", "orangepi"]
-      default_version: "3.11.11"
-      auto_global: true
+      manager: "uv"
+      default_version: "{{ python_runtime.default_version }}"
       
     nvm:
       enabled: true  
@@ -93,7 +93,7 @@ shell_manager:
     
     # Explicit PATH ordering (highest priority first)
     order:
-      - "$HOME/.pyenv/bin"
+      - "{{ ansible_user_dir }}/.local/bin"  # UV installation path
       - "$HOME/.cargo/bin"
       - "$HOME/.bun/bin"
       - "$HOME/.local/bin"

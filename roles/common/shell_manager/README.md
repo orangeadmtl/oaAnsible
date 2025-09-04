@@ -10,7 +10,7 @@ The Shell Manager provides unified shell configuration across macOS, Ubuntu, and
 
 - **Platform-Aware**: Automatically detects and configures for macOS, Ubuntu, and OrangePi
 - **Template-Driven**: Uses Jinja2 templates for consistent, duplicate-free configuration
-- **Component Management**: Declarative configuration for pyenv, nvm, bun, cargo, homebrew
+- **Component Management**: Declarative configuration for uv, nvm, bun, cargo, homebrew
 - **Validation & Rollback**: Built-in syntax validation and automatic rollback on failure
 - **Backup Management**: Automatic backup with configurable retention
 - **Zero Duplicates**: Eliminates PATH export duplication through template-based generation
@@ -47,9 +47,9 @@ shell_manager_overrides:
 
 | Platform | Shell | Components Supported |
 |----------|-------|---------------------|
-| macOS    | zsh   | homebrew, pyenv, nvm, bun, cargo, oh-my-zsh |
-| Ubuntu   | bash  | pyenv, nvm, bun, cargo |
-| OrangePi | zsh   | pyenv, nvm, bun, cargo, oh-my-zsh |
+| macOS    | zsh   | homebrew, uv, nvm, bun, cargo, oh-my-zsh |
+| Ubuntu   | bash  | uv, nvm, bun, cargo |
+| OrangePi | zsh   | uv, nvm, bun, cargo, oh-my-zsh |
 
 ## Configuration
 
@@ -58,7 +58,7 @@ shell_manager_overrides:
 ```yaml
 shell_manager:
   components:
-    pyenv:
+    python:  # UV-based Python environment
       enabled: true
       default_version: "3.11.11"
     nvm:

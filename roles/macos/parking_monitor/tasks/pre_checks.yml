@@ -35,7 +35,7 @@
     that:
       - python_version_check.rc == 0
       - parking_monitor_python.version in python_version_check.stdout
-    fail_msg: "Python {{ parking_monitor_python.version }} not found. Please install via pyenv or system package manager."
+    fail_msg: "Python {{ parking_monitor_python.version }} not found. Please install via UV or system package manager."
     success_msg: "[OK] Python {{ parking_monitor_python.version }} available"
 
 - name: Check for existing conflicting services

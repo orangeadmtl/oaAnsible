@@ -48,7 +48,7 @@ class ShellDeduplicator:
                 
             # Check for other problematic patterns
             problematic_patterns = [
-                r'eval.*pyenv.*init.*eval.*pyenv.*init',  # Double pyenv init
+                r'export PATH.*\.local/bin.*export PATH.*\.local/bin',  # Double UV path exports
                 r'export.*PYENV_ROOT.*export.*PYENV_ROOT',  # Double PYENV_ROOT
                 r'export.*NVM_DIR.*export.*NVM_DIR',      # Double NVM_DIR
             ]

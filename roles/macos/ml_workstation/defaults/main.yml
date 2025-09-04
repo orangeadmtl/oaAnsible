@@ -4,7 +4,7 @@
 
 # macOS-specific Python configuration
 macos_python_version: "{{ python_version | default('3.11') }}"
-macos_use_homebrew_python: false # Prefer pyenv for version management
+macos_use_homebrew_python: true  # Use system Python with UV for package management
 macos_install_xcode_tools: true
 
 # Apple Silicon optimizations

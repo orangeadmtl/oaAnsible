@@ -17,11 +17,10 @@ eval "$({{ shell_config.components.homebrew.prefix_x86 }}/bin/brew shellenv)"
 {% endif %}
 {% endif %}
 
-{% if shell_config.components.pyenv.enabled and shell_platform in shell_config.components.pyenv.enabled_platforms %}
-# Pyenv Configuration
-export PYENV_ROOT="$HOME/.pyenv"
-export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
+{% if shell_config.components.python.enabled and shell_platform in shell_config.components.python.enabled_platforms %}
+# Python Environment (UV)
+export PATH="$HOME/.local/bin:$PATH"
+# UV handles Python environments transparently
 {% endif %}
 
 {% if shell_config.components.nvm.enabled and shell_platform in shell_config.components.nvm.enabled_platforms %}
