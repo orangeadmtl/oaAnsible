@@ -20,7 +20,7 @@
     force_deployment: false
 
   pre_tasks:
-    - name: Process tag-based component selection
+    - name: Define component tag mappings
       ansible.builtin.set_fact:
         # Component tag mappings - allows for aliases
         component_tags:
@@ -60,51 +60,21 @@
           "storage-server": "storage"
           "reboot": "base"
           "stability": "base"
+      tags: ["always"]
+
+    - name: Process tag-based component selection
+      ansible.builtin.set_fact:
         # Extract component names from provided tags
         tag_components: >
-          {%- set tag_map = {
-            "player": "player",
-            "tracker": "tracker",
-            "device-api": "device-api",
-            "api": "device-api",
-            "alpr": "alpr",
-            "camguard": "camguard",
-            "mediamtx-demo": "mediamtx_demo",
-            "cursorcerer": "cursorcerer",
-            "transfer": "transfer",
-            "base": "base",
-            "network": "network",
-            "security": "security",
-            "shell": "shell",
-            "zsh": "shell",
-            "ssh": "ssh",
-            "nvidia": "nvidia",
-            "gpu": "nvidia",
-            "ml": "ml",
-            "health": "health",
-            "gpu-health": "health",
-            "oasentinel-setup": "oasentinel-setup",
-            "oasentinel-data": "oasentinel-data",
-            "oasentinel-train": "oasentinel-train",
-            "oasentinel-full": "oasentinel-full",
-            "parking-monitor": "parking-monitor",
-            "staging-video-feed": "staging-video-feed",
-            "oasentinel": "oasentinel-full",
-            "tailscale": "tailscale",
-            "vpn": "tailscale",
-            "monitoring": "monitoring",
-            "orangepi": "orangepi",
-            "opi": "orangepi",
-            "storage": "storage",
-            "storage-server": "storage",
-            "reboot": "base",
-            "stability": "base"
-          } -%} {%- set components = [] -%} {%- for tag in (provided_tags | default('')).split(',') -%}
+          {%- set tag_map = component_tags -%}
+          {%- set components = [] -%}
+          {%- for tag in (provided_tags | default('')).split(',') -%}
             {%- set clean_tag = tag.strip() -%}
             {%- if clean_tag in tag_map -%}
               {%- set _ = components.append(tag_map[clean_tag]) -%}
             {%- endif -%}
-          {%- endfor -%} {{ components | unique | list }}
+          {%- endfor -%}
+          {{ components | unique | list }}
         # Switch to component mode if tags were provided
         execution_mode: >-
           {%- if provided_tags is defined and provided_tags | length > 0 -%}
