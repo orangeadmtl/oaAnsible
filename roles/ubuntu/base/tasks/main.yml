@@ -1,16 +1,37 @@
 ---
 # Ubuntu base configuration tasks with intelligent checks
 
-- name: Fix any broken apt repository configurations (emergency fix)
-  ansible.builtin.shell: |
-    # Remove all Docker repositories to fix conflicting signed-by entries
-    rm -f /etc/apt/sources.list.d/*docker*.list
-    rm -f /etc/apt/sources.list.d/download_docker_com*.list
-    # Test if apt can now read sources
-    apt-get update || true
+- name: Remove conflicting Docker repository files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  become: true
+  loop:
+    - /etc/apt/sources.list.d/docker.list
+    - /etc/apt/sources.list.d/download_docker_com.list
+  failed_when: false
+
+- name: Find additional Docker repository files
+  ansible.builtin.find:
+    paths: /etc/apt/sources.list.d
+    patterns: "*docker*.list"
+  become: true
+  register: docker_repo_files
+
+- name: Remove additional Docker repository files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  become: true
+  loop: "{{ docker_repo_files.files }}"
+  when: docker_repo_files.files | length > 0
+
+- name: Update apt cache after repository cleanup
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 0
   become: true
   failed_when: false
-  changed_when: false
 
 - name: Check current system state
   block:
