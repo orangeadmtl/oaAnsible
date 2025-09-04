@@ -1,0 +1,119 @@
+---
+# Service Default Configurations
+# Centralized default settings that can be overridden per environment
+
+# Default Parking Monitor Configuration
+parking_monitor_defaults:
+  # Service Configuration
+  service:
+    name: "com.orangead.parking-monitor"
+    port: 9091
+    python_version: "{{ python_version_lookup.parking_monitor }}"
+    
+  # Repository Configuration
+  repository:
+    url: "https://github.com/oa-device/oaParkingMonitor.git"
+    branch: "main"
+    destination: "{{ ansible_user_dir }}/orangead/parking-monitor"
+    
+  # Detection Configuration (Conservative defaults)
+  detection:
+    model: "yolo11m"
+    confidence_threshold: 0.5
+    target_fps: 30
+    device: "mps"
+    debug_mode: false
+    save_detection_images: false
+    
+  # Camera Configuration
+  camera:
+    source: 0
+    resolution: [1920, 1080]
+    fps: 30
+    debug_capture: false
+    save_frames: false
+    staging_mode: false
+    
+  # Health Monitoring (Production defaults)
+  health_monitoring:
+    enabled: true
+    check_interval: 30
+    performance_alerts: true
+    debug_metrics: false
+    save_metrics: false
+    thresholds:
+      min_fps: 25
+      max_memory_gb: 4
+      max_cpu_percent: 80
+      min_accuracy: 0.9
+      
+  # Display Configuration
+  display:
+    enabled: true
+    overlay_enabled: true
+    overlay_opacity: 0.7
+    status_position: "top_right"
+    show_vehicle_info: true
+    show_debug_info: false
+    show_fps: false
+    show_model_info: false
+    ad_integration: true
+
+# Default Device API Configuration
+device_api_defaults:
+  service:
+    name: "com.orangead.deviceapi"
+    port: 9090
+    python_version: "{{ python_version_lookup.device_api }}"
+    
+  repository:
+    url: "https://github.com/oa-device/oaDeviceAPI.git"
+    branch: "main"
+    destination: "{{ ansible_user_dir }}/orangead/oaDeviceAPI"
+    
+  configuration:
+    debug_mode: false
+    platform_detection: true
+    health_monitoring: true
+
+# Environment-specific override templates
+environment_overrides:
+  development:
+    parking_monitor:
+      detection:
+        debug_mode: true
+        save_detection_images: true
+      camera:
+        debug_capture: true
+        save_frames: true
+      health_monitoring:
+        debug_metrics: true
+        save_metrics: true
+        check_interval: 10
+      display:
+        show_debug_info: true
+        show_fps: true
+        show_model_info: true
+        ad_integration: false
+    device_api:
+      configuration:
+        debug_mode: true
+        
+  staging:
+    parking_monitor:
+      detection:
+        model: "yolo11n"  # Lighter model
+        confidence_threshold: 0.3
+        debug_mode: true
+      camera:
+        staging_mode: true
+      health_monitoring:
+        performance_alerts: false
+        
+  production:
+    parking_monitor:
+      detection:
+        confidence_threshold: 0.5
+        debug_mode: false
+      health_monitoring:
+        performance_alerts: true

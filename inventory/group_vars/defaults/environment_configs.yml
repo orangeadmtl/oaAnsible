@@ -1,0 +1,251 @@
+---
+# Environment Configuration System
+# Centralized environment configurations to eliminate duplication
+
+# Standard Component Deployments by Project Type
+project_component_matrix:
+  alpr:
+    deploy_device_api: true
+    deploy_tracker: false
+    deploy_alpr_service: true
+    deploy_player: false
+    deploy_parking_monitor: false
+    
+  evenko:
+    deploy_device_api: false
+    deploy_tracker: false
+    deploy_alpr_service: false
+    deploy_player: true
+    deploy_parking_monitor: false
+    
+  spectra:
+    deploy_device_api: true
+    deploy_tracker: true
+    deploy_alpr_service: false
+    deploy_player: true
+    deploy_parking_monitor: false
+    
+  f1:
+    deploy_device_api: true
+    deploy_tracker: true
+    deploy_alpr_service: false
+    deploy_player: false
+    deploy_parking_monitor: false
+    
+  yuh:
+    deploy_device_api: true
+    deploy_tracker: false
+    deploy_alpr_service: false
+    deploy_player: true
+    deploy_parking_monitor: true
+
+# Standard Service Configurations by Project
+project_service_configs:
+  evenko:
+    player:
+      enabled: true
+      dual_screen: true
+      loop_mode: true
+      video_selection_strategy: "sequential"
+      health_check: true
+      restart_on_failure: true
+      health_check_interval: 180
+      restart_attempts: 3
+      restart_delay: 15
+      volume: 0.0
+      fullscreen: true
+      hide_cursor: true
+      black_background: true
+      disable_screensaver: true
+      system_volume_muted: true
+      hide_desktop_icons: true
+      schedule_enabled: true
+      schedules: "{{ evenko_schedules }}"
+      videos: "{{ evenko_fallback_videos }}"
+      
+  spectra:
+    player:
+      enabled: true
+      loop_mode: true
+      dual_screen: true
+      video_selection_strategy: "sequential"
+      health_check: true
+      restart_on_failure: true
+      volume: 0.0
+      videos:
+        - name: "Jazz_video.webm"
+          display: 1
+          enabled: true
+          loop: true
+          volume: 0.0
+        - name: "Jazz_video.webm"
+          display: 2
+          enabled: true
+          loop: true
+          volume: 0.0
+    tracker:
+      repository_url: "https://github.com/oa-device/oaTracker.git"
+      git_version: "main"
+      default_yolo_source: 0
+      default_model: "yolo12s.pt"
+      server_port: 8080
+      
+  f1:
+    tracker:
+      repository_url: "https://github.com/oa-device/oaTracker.git"
+      git_version: "main"
+      default_yolo_source: 0
+      default_model: "yolo12s.pt"
+      server_port: 8080
+      
+  alpr:
+    alpr:
+      enabled: true
+      docker_image: "platerecognizer/alpr"
+      api_port: 8080
+      camera_source: 0
+
+# Environment-specific Package Lists
+environment_packages:
+  staging:
+    - btop
+    - httpie
+    - telnet
+    - util-linux
+    - fish
+    - orbstack
+    
+  preprod:
+    - btop
+    - httpie
+    - telnet
+    - util-linux
+    - fish
+    
+  production:
+    - go
+    - git
+    - wget
+    - jq
+    - curl
+    - lsd
+
+# Project-specific Package Requirements
+project_packages:
+  evenko:
+    - mpv  # Required for video player
+  alpr:
+    - docker  # Required for ALPR
+  spectra: []  # Uses defaults
+  f1: []  # Uses defaults
+  yuh: []  # Uses defaults
+
+# Environment Permission Matrix
+environment_permissions:
+  staging:
+    allow_experimental: true
+    allow_server_optimizations: true
+    allow_destructive_operations: true
+    tailscale: true
+    
+  preprod:
+    allow_experimental: false
+    allow_server_optimizations: true
+    allow_destructive_operations: false
+    tailscale: false
+    
+  production:
+    allow_experimental: false
+    allow_server_optimizations: false
+    allow_destructive_operations: false
+    tailscale: false
+
+# Evenko Schedule Templates (centralized)
+evenko_schedules:
+  - name: "friday_daytime"
+    start_time: "00:00"
+    end_time: "22:50"
+    day_of_week: "friday"
+    videos:
+      - name: "LASSO_vendredi.mp4"
+        display: 1
+        enabled: true
+        loop: true
+        volume: 0.0
+      - name: "LASSO_vendredi.mp4"
+        display: 2
+        enabled: true
+        loop: true
+        volume: 0.0
+  - name: "friday_nighttime"
+    start_time: "22:50"
+    end_time: "23:59"
+    day_of_week: "friday"
+    videos:
+      - name: "POUR22h50_LASSO_vendredi.mp4"
+        display: 1
+        enabled: true
+        loop: true
+        volume: 0.0
+      - name: "POUR22h50_LASSO_vendredi.mp4"
+        display: 2
+        enabled: true
+        loop: true
+        volume: 0.0
+  - name: "saturday_daytime"
+    start_time: "00:00"
+    end_time: "22:50"
+    day_of_week: "saturday"
+    videos:
+      - name: "LASSO_samedi.mp4"
+        display: 1
+        enabled: true
+        loop: true
+        volume: 0.0
+      - name: "LASSO_samedi.mp4"
+        display: 2
+        enabled: true
+        loop: true
+        volume: 0.0
+  - name: "saturday_nighttime"
+    start_time: "22:50"
+    end_time: "23:59"
+    day_of_week: "saturday"
+    videos:
+      - name: "POUR22h50_LASSO_samedi.mp4"
+        display: 1
+        enabled: true
+        loop: true
+        volume: 0.0
+      - name: "POUR22h50_LASSO_samedi.mp4"
+        display: 2
+        enabled: true
+        loop: true
+        volume: 0.0
+  - name: "weekday_allday"
+    start_time: "00:00"
+    end_time: "23:59"
+    day_of_week: "weekday"
+    videos:
+      - name: "POUR22h50_LASSO_samedi.mp4"
+        display: 1
+        enabled: true
+        loop: true
+        volume: 0.0
+      - name: "POUR22h50_LASSO_samedi.mp4"
+        display: 2
+        enabled: true
+        loop: true
+        volume: 0.0
+
+evenko_fallback_videos:
+  - name: "LASSO_vendredi.mp4"
+    display: 1
+    enabled: true
+    loop: true
+    volume: 0.0
+  - name: "LASSO_vendredi.mp4"
+    display: 2
+    enabled: true
+    loop: true
+    volume: 0.0

@@ -44,9 +44,9 @@
   until: api_basic_test.status == 200
   ignore_errors: true
 
-- name: Test platform endpoint
+- name: Test platform endpoint (root provides platform info)
   ansible.builtin.uri:
-    url: "http://localhost:9090/platform"  
+    url: "http://localhost:9090/"  
     method: GET
     timeout: 10
     status_code: 200
@@ -55,9 +55,9 @@
   delay: 2
   ignore_errors: true
 
-- name: Test health endpoint (should exist for macOS)
+- name: Test health endpoint (platform-specific)
   ansible.builtin.uri:
-    url: "http://localhost:9090/health"
+    url: "http://localhost:9090/macos/health"
     method: GET 
     timeout: 10
     status_code: 200
@@ -83,12 +83,12 @@
 - name: Set validation results
   ansible.builtin.set_fact:
     deviceapi_validation_results:
-      process_running: "{{ (process_status_macos.stdout | regex_search(\"PROCESS_RUNNING:true\")) is not none if platform_state.is_macos else true }}"
-      launchctl_loaded: "{{ (launchctl_status.stdout | regex_search(\"LAUNCHCTL_LOADED:true\")) is not none if platform_state.is_macos else true }}" 
+      process_running: "{{ platform_state.is_macos | ternary((process_status_macos.stdout | regex_search('PROCESS_RUNNING:true')) is not none, true) }}"
+      launchctl_loaded: "{{ platform_state.is_macos | ternary((launchctl_status.stdout | regex_search('LAUNCHCTL_LOADED:true')) is not none, true) }}" 
       api_basic_accessible: "{{ api_basic_test.status == 200 }}"
       api_platform_accessible: "{{ api_platform_test.status == 200 }}"
-      api_health_accessible: "{{ api_health_test.status == 200 if platform_state.is_macos else true }}"
-      log_file_exists: "{{ (log_check.stdout | regex_search(\"LOG_FILE_EXISTS:true\")) is not none }}"
+      api_health_accessible: "{{ platform_state.is_macos | ternary((api_health_test.status == 200), true) }}"
+      log_file_exists: "{{ (log_check.stdout | regex_search('LOG_FILE_EXISTS:true')) is not none }}"
       overall_status: "{{ 'SUCCESS' if api_basic_test.status == 200 else 'FAILED' }}"
 
 - name: Display comprehensive validation results
