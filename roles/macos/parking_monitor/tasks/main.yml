@@ -6,9 +6,11 @@
   ansible.builtin.include_tasks: pre_checks.yml
   tags: [parking-monitor, pre-checks]
 
+
 - name: Include repository setup
   ansible.builtin.include_tasks: repository_setup.yml
   tags: [parking-monitor, repository]
+
 
 - name: Include Python environment setup
   ansible.builtin.include_tasks: python_environment.yml
@@ -26,11 +28,12 @@
   ansible.builtin.include_tasks: health_verification.yml
   tags: [parking-monitor, health, verify]
 
-- name: Display deployment summary
+
+- name: Display deployment summary with standardized commit verification
   ansible.builtin.debug:
     msg: |
       ===============================================
-      [INFO] Parking Monitor Device Setup Summary
+      [SUCCESS] Parking Monitor Deployment Complete
       ===============================================
       Repository: {{ parking_monitor_repository.url }}
       Branch: {{ parking_monitor_repository.branch }}
@@ -38,6 +41,19 @@
       Service: {{ parking_monitor_service.name }}
       Environment: {{ parking_monitor_environment.PARKING_MONITOR_ENV }}
       Python Setup: uv-managed virtual environment
+      
+      STANDARDIZED COMMIT VERIFICATION:
+      {% if parking_monitor_repo_info is defined %}
+      {% set info = parking_monitor_repo_info %}
+      Current Commit: {{ info.final_commit[:8] if info.final_commit != 'unknown' else 'N/A' }}
+      Branch: {{ info.final_branch }}
+      Last Message: {{ info.final_message }}
+      Author: {{ info.final_author }}
+      Updated: {{ info.final_timestamp }}
+      Repository Status: [{{ 'UPDATED' if info.updated else 'VERIFIED' }}]
+      {% else %}
+      Repository Status: [WARNING] Commit info not available
+      {% endif %}
       ===============================================
       [SUCCESS] Device setup completed successfully!
 
@@ -45,10 +61,12 @@
       - Configuration managed by project in config/ directory
       - Environment: {{ parking_monitor_environment.PARKING_MONITOR_ENV }}
       - Project will auto-configure based on environment
+      - Code verified with standardized git management
 
       Next steps:
       1. Service will start automatically via LaunchAgent
       2. Check project logs: {{ parking_monitor_repository.destination }}/logs/
       3. Monitor via oaDashboard for health and metrics
+      4. Force update: Use --force flag for all repositories
       ===============================================
   tags: [parking-monitor, summary]
