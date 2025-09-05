@@ -3,32 +3,34 @@
 # This role provides virtual camera functionality for parking monitor testing
 
 - name: Validate staging environment
-  debug:
-    msg: "Deploying staging video feed in {{ deployment_environment | default('unknown') }} environment with parking monitor {{ 'enabled' if parking_monitor.enabled | default(false) else 'disabled' }}"
+  ansible.builtin.debug:
+    msg:
+      "Deploying staging video feed in {{ deployment_environment | default('unknown') }} environment with parking monitor {{ 'enabled' if
+      parking_monitor.enabled | default(false) else 'disabled' }}"
   tags: [staging-video-feed, validation]
 
 - name: Include system dependencies setup
-  include_tasks: system_setup.yml
+  ansible.builtin.include_tasks: system_setup.yml
   tags: [staging-video-feed, system]
 
 - name: Include video content management
-  include_tasks: video_management.yml
+  ansible.builtin.include_tasks: video_management.yml
   tags: [staging-video-feed, videos]
 
 - name: Include virtual camera setup
-  include_tasks: virtual_camera.yml
+  ansible.builtin.include_tasks: virtual_camera.yml
   tags: [staging-video-feed, camera]
 
 - name: Include service configuration
-  include_tasks: service_setup.yml  
+  ansible.builtin.include_tasks: service_setup.yml
   tags: [staging-video-feed, service]
 
 - name: Include health verification
-  include_tasks: health_verification.yml
+  ansible.builtin.include_tasks: health_verification.yml
   tags: [staging-video-feed, health]
 
 - name: Display staging video feed summary
-  debug:
+  ansible.builtin.debug:
     msg: |
       ===============================================
       [CAMERA] Staging Video Feed Deployment Summary
@@ -39,15 +41,15 @@
       Working Directory: {{ staging_video_feed_service.working_dir }}
       ===============================================
       [OK] Staging Video Feed deployed successfully!
-      
+
       Integration:
       - Parking monitor will use camera source: {{ staging_video_feed_integration.camera_device_override }}
       - Virtual camera device: {{ staging_video_feed_camera.device_path }}
       - Service coordinates with parking monitor startup
-      
+
       Next steps:
       1. Service will auto-start before parking monitor
-      2. Videos will be downloaded and cycled automatically  
+      2. Videos will be downloaded and cycled automatically
       3. Virtual camera will be available for parking monitor
       ===============================================
   tags: [staging-video-feed, summary]

@@ -5,7 +5,7 @@ This directory contains centralized default configurations that can be imported 
 ## Usage Pattern
 
 ```yaml
-# In environment-specific files (e.g., yuh/staging.yml)
+# In environment-specific files (e.g., yhu/staging.yml)
 parking_monitor: "{{ parking_monitor_defaults | combine(environment_overrides.staging.parking_monitor, recursive=True) }}"
 ```
 

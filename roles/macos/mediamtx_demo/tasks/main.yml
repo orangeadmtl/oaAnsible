@@ -32,7 +32,7 @@
       loop:
         - "{{ mediamtx_demo.demo.base_dir }}"
         - "{{ mediamtx_demo.binary.install_dir }}"
-        - "{{ mediamtx_demo.binary.config_dir }}" 
+        - "{{ mediamtx_demo.binary.config_dir }}"
         - "{{ mediamtx_demo.storage.logs_dir }}"
         - "{{ mediamtx_demo.storage.scripts_dir }}"
         - "{{ mediamtx_demo.demo.base_dir }}/plist"
@@ -202,7 +202,7 @@
           - RTSP Stream: rtsp://{{ inventory_hostname }}:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
           - API: http://{{ inventory_hostname }}:{{ mediamtx_demo.streaming.api_port }}
           - Service Status: {{ 'Running [OK]' if service_status.rc == 0 else 'Not Running [FAIL]' }}
-          
+
           Quick Start:
           1. Test camera: {{ mediamtx_demo.storage.scripts_dir }}/test_camera.sh
           2. Start streaming: ffmpeg -f avfoundation -i "{{ mediamtx_demo.camera.device_id }}" -c:v {{ mediamtx_demo.camera.codec }} -preset {{ mediamtx_demo.camera.preset }} -r {{ mediamtx_demo.camera.framerate }} -f rtsp rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}

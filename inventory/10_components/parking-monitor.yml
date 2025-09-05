@@ -4,27 +4,27 @@
 
 parking_monitor_component:
   # Service configuration
-  service:
+  ansible.builtin.service:
     name: "com.orangead.parking-monitor"
     port: 9091
     bind_address: "127.0.0.1"
     python_version: "{{ python_version_lookup.parking_monitor }}"
-    
+
   # Repository configuration
   repository:
     url: "https://github.com/oa-device/oaParkingMonitor.git"
     branch: "main"
     destination: "{{ ansible_user_dir }}/orangead/parking-monitor"
-    
+
   # Detection configuration (conservative defaults)
   detection:
     model: "yolo11m"
     confidence_threshold: 0.5
     target_fps: 30
-    device: "mps"  # Apple Silicon optimization
+    device: "mps" # Apple Silicon optimization
     debug_mode: false
     save_detection_images: false
-    
+
   # Camera configuration
   camera:
     source: 0
@@ -33,7 +33,7 @@ parking_monitor_component:
     debug_capture: false
     save_frames: false
     staging_mode: false
-    
+
   # Health monitoring (production defaults)
   health_monitoring:
     enabled: true
@@ -46,7 +46,7 @@ parking_monitor_component:
       max_memory_gb: 4
       max_cpu_percent: 80
       min_accuracy: 0.9
-      
+
   # Display configuration
   display:
     enabled: true
@@ -66,7 +66,7 @@ parking_monitor_component:
         debug_mode: true
         save_detection_images: true
         confidence_threshold: 0.3
-        model: "yolo11n"  # Lighter model for staging
+        model: "yolo11n" # Lighter model for staging
       camera:
         debug_capture: true
         save_frames: true
@@ -80,14 +80,14 @@ parking_monitor_component:
         show_fps: true
         show_model_info: true
         ad_integration: false
-        
+
     preprod:
       detection:
         debug_mode: true
         confidence_threshold: 0.4
       health_monitoring:
         performance_alerts: false
-        
+
     production:
       detection:
         confidence_threshold: 0.5

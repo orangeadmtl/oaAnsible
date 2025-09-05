@@ -18,14 +18,14 @@
     dest: "{{ orangepi_project_root }}/util-scripts/oamonitor"
     owner: "{{ orangepi_user }}"
     group: "{{ orangepi_user }}"
-    mode: '0755'
+    mode: "0755"
   become: true
 
 - name: Configure log rotation for OrangePi services
   ansible.builtin.template:
     src: orangepi_logrotate.j2
     dest: /etc/logrotate.d/orangepi
-    mode: '0644'
+    mode: "0644"
   become: true
 
 - name: Create health check cron job

@@ -3,50 +3,50 @@
 # Handles downloading and optimizing YOLOv11 models for Mac M1
 
 - name: Check if base model exists
-  stat:
+  ansible.builtin.stat:
     path: "{{ parking_monitor_models.downloads_dir }}/{{ parking_monitor_models.base_model }}"
   register: base_model_exists
 
 - name: Download YOLOv11 base model
-  shell: |
+  ansible.builtin.shell: |
     cd "{{ parking_monitor_repository.destination }}"
     "{{ parking_monitor_python.env_path }}/bin/python" -c "
     from ultralytics import YOLO
     import os
-    
+
     # Ensure downloads directory exists
     os.makedirs('{{ parking_monitor_models.downloads_dir }}', exist_ok=True)
-    
+
     # Download base model
     model = YOLO('{{ parking_monitor_models.base_model }}')
-    
+
     # Move to downloads directory
     import shutil
     shutil.move('{{ parking_monitor_models.base_model }}', '{{ parking_monitor_models.downloads_dir }}/{{ parking_monitor_models.base_model }}')
-    
+
     print('[OK] Base model downloaded successfully')
     "
   when: not base_model_exists.stat.exists
   register: model_download
 
 - name: Check if CoreML export exists
-  stat:
+  ansible.builtin.stat:
     path: "{{ parking_monitor_models.exports_dir }}/{{ parking_monitor_models.base_model | replace('.pt', '_coreml') }}"
   register: coreml_export_exists
 
 - name: Export model to CoreML format
-  shell: |
+  ansible.builtin.shell: |
     cd "{{ parking_monitor_repository.destination }}"
     "{{ parking_monitor_python.env_path }}/bin/python" -c "
     from ultralytics import YOLO
     import os
-    
+
     # Ensure exports directory exists
     os.makedirs('{{ parking_monitor_models.exports_dir }}', exist_ok=True)
-    
+
     # Load base model and export to CoreML
     model = YOLO('{{ parking_monitor_models.downloads_dir }}/{{ parking_monitor_models.base_model }}')
-    
+
     # Export with optimization for Mac M1
     model.export(
         format='{{ parking_monitor_models.export_format }}',
@@ -54,30 +54,30 @@
         half=False,  # Full precision for better accuracy
         int8=False   # Keep float16/32 for M1 optimization
     )
-    
+
     # Move export to exports directory
     import glob
     import shutil
-    
+
     export_files = glob.glob('{{ parking_monitor_models.base_model | replace('.pt', '_coreml') }}*')
     for file in export_files:
         dest_file = os.path.join('{{ parking_monitor_models.exports_dir }}', os.path.basename(file))
         shutil.move(file, dest_file)
-        
+
     print('[OK] CoreML export completed successfully')
     "
-  when: 
+  when:
     - not coreml_export_exists.stat.exists
     - parking_monitor_models.optimization_enabled | default(true)
   register: coreml_export
-  
+
 - name: Test model loading
-  shell: |
+  ansible.builtin.shell: |
     cd "{{ parking_monitor_repository.destination }}"
     "{{ parking_monitor_python.env_path }}/bin/python" -c "
     from ultralytics import YOLO
     import torch
-    
+
     # Test loading base model
     try:
         model = YOLO('{{ parking_monitor_models.downloads_dir }}/{{ parking_monitor_models.base_model }}')
@@ -85,7 +85,7 @@
     except Exception as e:
         print(f'[FAIL] Base model error: {e}')
         raise
-        
+
     # Test CoreML model if available
     try:
         import glob
@@ -97,7 +97,7 @@
             print('[WARNING]  No CoreML models found')
     except Exception as e:
         print(f'[WARNING]  CoreML model test failed: {e}')
-    
+
     # Test MPS availability
     if torch.backends.mps.is_available():
         device = torch.device('mps')
@@ -109,33 +109,33 @@
   changed_when: false
 
 - name: Create model info file
-  copy:
+  ansible.builtin.copy:
     content: |
       # Parking Monitor Model Information
       Generated: {{ ansible_date_time.iso8601 }}
-      
+
       ## Base Model
       File: {{ parking_monitor_models.base_model }}
       Location: {{ parking_monitor_models.downloads_dir }}/{{ parking_monitor_models.base_model }}
       Status: {{ 'Downloaded' if model_download is changed else 'Existing' }}
-      
-      ## Optimized Model  
+
+      ## Optimized Model
       Format: {{ parking_monitor_models.export_format | upper }}
       Location: {{ parking_monitor_models.exports_dir }}/
       Status: {{ 'Exported' if coreml_export is changed else 'Existing' }}
-      
+
       ## Configuration
       Confidence Threshold: {{ parking_monitor_detection.confidence_threshold }}
       Target FPS: {{ parking_monitor_detection.target_fps }}
       Device: {{ parking_monitor_detection.device }}
-      
+
       ## Test Results
       {{ model_test.stdout }}
     dest: "{{ parking_monitor_models.model_dir }}/model_info.md"
-    mode: '0644'
+    mode: "0644"
 
 - name: Model management summary
-  debug:
+  ansible.builtin.debug:
     msg: |
       🤖 Model Management Complete:
       =============================

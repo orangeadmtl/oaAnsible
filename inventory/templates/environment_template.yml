@@ -6,29 +6,29 @@
 all:
   vars:
     # Environment Identification (REQUIRED)
-    target_env: "PROJECT-ENVIRONMENT"  # e.g., "yuh-staging"
+    target_env: "PROJECT-ENVIRONMENT"  # e.g., "yhu-staging"
     deployment_environment: "ENVIRONMENT"  # staging|preprod|production
-    
+
     oa_environment:
       name: "{{ target_env }}"
       stage: "{{ deployment_environment }}"
 
     # Project Configuration (REQUIRED)
-    project_name: "PROJECT_NAME"  # yuh|evenko|spectra|f1|alpr
+    project_name: "PROJECT_NAME"  # yhu|evenko|spectra|f1|alpr
     project_type: "PROJECT_TYPE"  # airport|venue|demo
     location: "LOCATION_DESCRIPTION"
-    
+
     # Service Configuration (use defaults + environment overrides)
     parking_monitor: "{{ parking_monitor_defaults | combine(
-      environment_overrides[deployment_environment].parking_monitor | default({}), 
+      environment_overrides[deployment_environment].parking_monitor | default({}),
       recursive=True
     ) }}"
-    
+
     device_api: "{{ device_api_defaults | combine(
       environment_overrides[deployment_environment].device_api | default({}),
-      recursive=True  
+      recursive=True
     ) }}"
-    
+
     # Player Configuration (customize as needed)
     player:
       enabled: true
@@ -41,11 +41,11 @@ all:
       restart_attempts: 3
       restart_delay: 15
       volume: 0.0
-      
+
       # Integration settings
       parking_overlay: true
       overlay_transparency: 0.3
-      
+
       # Kiosk mode (customize per environment)
       fullscreen: false  # Override for production
       hide_cursor: false  # Override for production
@@ -59,7 +59,7 @@ all:
       exit_node: false
       accept_routes: true
       advertise_exit_node: false
-      
+
     # Security Configuration (adjust per environment)
     security:
       firewall_enabled: "{{ deployment_environment == 'production' }}"
@@ -70,7 +70,7 @@ all:
       camera_permissions: true
       full_disk_access: true
       automation_permissions: true
-      
+
     # Logging Configuration (adjust verbosity per environment)
     logging:
       enabled: true
@@ -81,7 +81,7 @@ all:
       console_output: "{{ deployment_environment != 'production' }}"
       file_output: true
       structured_logging: true
-      
+
     # Monitoring Configuration (adjust per environment)
     monitoring:
       enabled: true
@@ -90,7 +90,7 @@ all:
       debug_monitoring: "{{ deployment_environment != 'production' }}"
       development_mode: "{{ deployment_environment in ['staging', 'preprod'] }}"
       alert_webhooks: "{{ [] if deployment_environment != 'production' else ['WEBHOOK_URL'] }}"
-      
+
       services:
         - parking_monitor
         - device_api
@@ -98,7 +98,7 @@ all:
 
   # Host Configuration (CUSTOMIZE FOR EACH ENVIRONMENT)
   children:
-    PROJECT_ENVIRONMENT_GROUP:  # e.g., yuh_staging
+    PROJECT_ENVIRONMENT_GROUP:  # e.g., yhu_staging
       children:
         macos:
           hosts:

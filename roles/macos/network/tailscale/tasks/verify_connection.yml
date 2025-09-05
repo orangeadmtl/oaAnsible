@@ -36,8 +36,8 @@
 
 - name: Check if Tailscale SSH is enabled (legacy)
   ansible.builtin.shell: >
-    {{ go_bin_path_for_tailscale }}/tailscale status --json | 
-    python3 -c "import sys, json; data=json.load(sys.stdin); print(str(data.get('Self', {}).get('RunningSSH', False)).lower())"
+    {{ go_bin_path_for_tailscale }}/tailscale status --json | python3 -c "import sys, json; data=json.load(sys.stdin); print(str(data.get('Self',
+    {}).get('RunningSSH', False)).lower())"
   register: tailscale_ssh_status
   changed_when: false
   failed_when: false
@@ -64,8 +64,8 @@
 - name: Warning about hostname duplication
   ansible.builtin.debug:
     msg: >
-      WARNING: Multiple devices detected with hostname '{{ ansible_hostname }}' (Count: {{ hostname_duplication_check.stdout }}).
-      This may cause connectivity issues. Consider using unique hostnames for each device.
+      WARNING: Multiple devices detected with hostname '{{ ansible_hostname }}' (Count: {{ hostname_duplication_check.stdout }}). This may cause connectivity
+      issues. Consider using unique hostnames for each device.
   when: hostname_duplication_check.stdout | int > 1
 
 - name: Final connection verification

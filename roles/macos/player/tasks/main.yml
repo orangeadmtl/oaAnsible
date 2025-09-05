@@ -61,7 +61,7 @@
           restart_attempts: 3
           restart_delay: 10
           # Enhanced autonomous display management
-          display_strategy: "hybrid"  # config|auto|hybrid
+          display_strategy: "hybrid" # config|auto|hybrid
           display_detection_interval: 2
           display_min_count: 1
           display_max_count: 2

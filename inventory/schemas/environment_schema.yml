@@ -23,28 +23,28 @@ properties:
           target_env:
             type: string
             pattern: "^[a-z0-9-]+$"
-            description: "Environment identifier (e.g., yuh-staging)"
-          
+            description: "Environment identifier (e.g., yhu-staging)"
+
           deployment_environment:
             type: string
             enum: ["staging", "preprod", "production"]
             description: "Deployment stage"
-          
+
           project_name:
             type: string
-            enum: ["yuh", "evenko", "spectra", "f1", "alpr", "mediamtx-demo"]
+            enum: ["yhu", "evenko", "spectra", "f1", "alpr", "mediamtx-demo"]
             description: "Project identifier"
-          
+
           project_type:
             type: string
             enum: ["airport", "venue", "demo", "ml"]
             description: "Project category"
-          
+
           # Service Configurations (should use defaults)
           parking_monitor:
             type: object
             properties:
-              service:
+              ansible.builtin.service:
                 type: object
                 properties:
                   port:
@@ -54,7 +54,7 @@ properties:
                   python_version:
                     type: string
                     pattern: "^3\\.(11|12)(\\.\\d+)?$"
-              
+
               detection:
                 type: object
                 properties:
@@ -69,11 +69,11 @@ properties:
                     type: integer
                     minimum: 10
                     maximum: 60
-          
+
           device_api:
             type: object
             properties:
-              service:
+              ansible.builtin.service:
                 type: object
                 properties:
                   port:
@@ -83,7 +83,7 @@ properties:
                   python_version:
                     type: string
                     pattern: "^3\\.(11|12)(\\.\\d+)?$"
-          
+
           # Security Configuration
           security:
             type: object
@@ -96,7 +96,7 @@ properties:
                   maximum: 65535
               firewall_enabled:
                 type: boolean
-          
+
           # Logging Configuration
           logging:
             type: object
@@ -107,7 +107,7 @@ properties:
               max_log_size:
                 type: string
                 pattern: "^\\d+MB$"
-      
+
       # Host Configuration
       children:
         type: object

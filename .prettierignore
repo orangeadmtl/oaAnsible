@@ -1,0 +1,20 @@
+# Prettier ignore file for oaAnsible
+# Exclude files that contain complex Jinja2 templating that prettier cannot parse
+
+# Project template files with complex Jinja2 expressions
+inventory/30_projects/_template/hosts/production.yml
+inventory/30_projects/_template/hosts/preprod.yml
+inventory/templates/environment_template.yml
+
+# Project-specific files with complex Jinja2 expressions
+inventory/30_projects/*/hosts/production.yml
+inventory/30_projects/*/hosts/preprod.yml
+
+# Vault files (should never be formatted)
+inventory/group_vars/*/vault.yml
+inventory/host_vars/*/vault.yml
+**/*vault*.yml
+
+# Generated files
+*.retry
+*.log

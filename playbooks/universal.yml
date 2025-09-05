@@ -66,15 +66,12 @@
       ansible.builtin.set_fact:
         # Extract component names from provided tags
         tag_components: >
-          {%- set tag_map = component_tags -%}
-          {%- set components = [] -%}
-          {%- for tag in (provided_tags | default('')).split(',') -%}
+          {%- set tag_map = component_tags -%} {%- set components = [] -%} {%- for tag in (provided_tags | default('')).split(',') -%}
             {%- set clean_tag = tag.strip() -%}
             {%- if clean_tag in tag_map -%}
               {%- set _ = components.append(tag_map[clean_tag]) -%}
             {%- endif -%}
-          {%- endfor -%}
-          {{ components | unique | list }}
+          {%- endfor -%} {{ components | unique | list }}
         # Switch to component mode if tags were provided
         execution_mode: >-
           {%- if provided_tags is defined and provided_tags | length > 0 -%}
@@ -231,7 +228,7 @@
           Resolution System: {{ 'ACTIVE' if (deployment_components is defined and deployment_components | length > 0) else 'FALLBACK' }}
           Execution Mode: {{ execution_mode }}
           Platform: {{ detected_platform }}
-          
+
           {% if deployment_components is defined and deployment_components | length > 0 %}
           Components (from resolution system): {{ deployment_components | join(', ') }}
           {% else %}
@@ -242,7 +239,7 @@
           - staging_video_feed.enabled: {{ staging_video_feed.enabled | default(false) }}
           - deploy_tracker: {{ oa_environment.deploy_tracker | default(false) }}
           {% endif %}
-          
+
           Final deployment list: {{ inventory_components | join(', ') }}
           ===============================================
       when:

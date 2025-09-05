@@ -11,18 +11,32 @@
         device_api_path: "{{ ansible_user_dir }}/orangead/oaDeviceAPI"
         device_api_service_name: "{{ 'com.orangead.deviceapi' if platform_state.is_macos else 'orangead-deviceapi' }}"
         device_api_python: "{{ ansible_python.executable | default('/usr/bin/python3') }}"
-        # Always force updates - this ensures every deployment run updates everything
-        deviceapi_force_update: true
-        deviceapi_force_service_restart: true
+        # Intelligent update strategy - only update when needed for better performance
+        device_api_force_update: "{{ device_api_force_update | default(false) }}"
+        device_api_force_service_restart: "{{ device_api_force_service_restart | default(false) }}"
 
-    - name: Stop existing service before updates (macOS)
+    - name: Check if service restart is needed (macOS)
+      ansible.builtin.shell: |
+        if pgrep -f "deviceapi" > /dev/null; then
+          echo "service_running"
+        else
+          echo "service_stopped"
+        fi
+      register: device_api_service_status
+      become_user: "{{ ansible_user }}"
+      when: platform_state.is_macos
+      changed_when: false
+      tags: ["deviceapi", "check"]
+
+    - name: Stop existing service only if restart needed (macOS)
       ansible.builtin.shell: |
         launchctl unload {{ ansible_user_dir }}/Library/LaunchAgents/{{ device_api_service_name }}.plist 2>/dev/null || true
         launchctl stop {{ device_api_service_name }} 2>/dev/null || true
         sleep 2
       become_user: "{{ ansible_user }}"
-      when: platform_state.is_macos
-      ignore_errors: true
+      when: 
+        - platform_state.is_macos
+        - device_api_force_service_restart or (device_api_service_status.stdout == "service_running")
       tags: ["deviceapi", "service", "stop"]
 
     - name: Stop existing service before updates (Linux)

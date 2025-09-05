@@ -47,18 +47,18 @@
       - Current tags: {{ current_tailscale_status.Self.Tags | default([]) }}
       - Tags match: {{ tags_match }}
       - Needs authentication: {{ needs_full_auth }}
-      
+
       Variable Debug:
       - vault_tailscale_auth_key defined: {{ vault_tailscale_auth_key is defined }}
       - tailscale_auth_key defined: {{ tailscale_auth_key is defined }}
       - tailscale_auth_key value: {{ tailscale_auth_key | default('NOT SET') }}
       - Auth key length: {{ (tailscale_auth_key | default('')) | length }}
-      
+
       Tag Configuration:
       - tailscale.tags (from inventory): {{ tailscale.tags | default('NOT SET') }}
       - tailscale_tags (from defaults): {{ tailscale_tags | default('NOT SET') }}
       - expected_tailscale_tags (resolved): {{ expected_tailscale_tags }}
-      
+
       SSH Configuration:
       - SSH always enabled: --ssh flag always applied
 
@@ -154,7 +154,7 @@
   environment:
     PATH: "{{ go_bin_path_for_tailscale }}:{{ ansible_env.PATH }}"
   register: tailscale_retry_result
-  when: 
+  when:
     - needs_full_auth
     - tailscale_auth_result.rc != 0
     - auth_check_result.rc == 0

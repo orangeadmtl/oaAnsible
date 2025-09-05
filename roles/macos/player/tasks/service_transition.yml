@@ -87,9 +87,7 @@
         {% else %}
       1
         {% endif %}
-      {% elif player.display_strategy == 'auto' %}
-      1
-      {% else %}
+      {% elif player.display_strategy == 'auto' %} 1 {% else %}
         {% if player.dual_screen == false %}
       1
         {% else %}

@@ -13,7 +13,7 @@
     deployment_profile: "player"
     # Component configuration - automatically determined by profile
     configure_components: []
-    
+
   pre_tasks:
     - name: Display OrangePi onboarding banner
       ansible.builtin.debug:
@@ -114,14 +114,14 @@
     # Player-specific Configuration (player profile only)
     - name: Advanced player configuration
       ansible.builtin.include_tasks:
-        file: tasks/player_advanced_config.yml
+        ansible.builtin.file: tasks/player_advanced_config.yml
       tags: [player]
       when: "'player' in configure_components"
 
     # Monitoring Setup (all profiles except minimal)
     - name: Enhanced monitoring and health checks
       ansible.builtin.include_tasks:
-        file: tasks/monitoring_setup.yml
+        ansible.builtin.file: tasks/monitoring_setup.yml
       tags: [monitoring]
       when: "'monitoring' in configure_components"
 

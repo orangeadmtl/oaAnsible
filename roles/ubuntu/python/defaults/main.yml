@@ -34,7 +34,6 @@ ubuntu_dev_packages:
 # PyEnv configuration
 ubuntu_pyenv_root: "{{ ansible_user_dir }}/.pyenv"  # Legacy - deprecated
 ubuntu_pyenv_install_python_versions: []  # Deprecated: Use UV instead
-  - "{{ ubuntu_python_version }}"
 
 # Virtual environment settings
 ubuntu_create_default_venv: false # ML workstation role will handle this

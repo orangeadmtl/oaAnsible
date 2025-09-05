@@ -4,20 +4,20 @@
 
 - name: Load foundation defaults
   ansible.builtin.include_vars:
-    file: "{{ playbook_dir }}/../inventory/00_foundation/defaults.yml"
+    ansible.builtin.file: "{{ playbook_dir }}/../inventory/00_foundation/defaults.yml"
     name: foundation_config
   tags: [always]
 
 - name: Load project stack configuration
   ansible.builtin.include_vars:
-    file: "{{ playbook_dir }}/../inventory/30_projects/{{ project_name }}/stack.yml"
+    ansible.builtin.file: "{{ playbook_dir }}/../inventory/30_projects/{{ project_name }}/stack.yml"
     name: project_stack_config
   when: project_name is defined
   tags: [always]
 
 - name: Load component registry
   ansible.builtin.include_vars:
-    file: "{{ playbook_dir }}/../inventory/10_components/_registry.yml"
+    ansible.builtin.file: "{{ playbook_dir }}/../inventory/10_components/_registry.yml"
     name: component_registry
   tags: [always]
 
@@ -44,7 +44,7 @@
 - name: Override with explicit components if provided (--tags)
   ansible.builtin.set_fact:
     resolved_components: "{{ explicit_components }}"
-  when: 
+  when:
     - explicit_components | length > 0
     - not (foundation_config.auto_include.include_foundation | default(true))
   tags: [always]
@@ -61,7 +61,7 @@
   ansible.builtin.set_fact:
     resolved_components: "{{ resolved_components + component_registry.components[item].dependencies | default([]) }}"
   loop: "{{ resolved_components }}"
-  when: 
+  when:
     - foundation_config.auto_include.resolve_dependencies | default(true)
     - item in component_registry.components
     - component_registry.components[item].dependencies is defined
@@ -92,8 +92,7 @@
     platform_compatible_components: "{{ platform_compatible_components + [item] }}"
   loop: "{{ component_registry.components.keys() }}"
   when: >
-    (component_registry.components[item].platforms is not defined) or
-    (target_platform in (component_registry.components[item].platforms | default([])))
+    (component_registry.components[item].platforms is not defined) or (target_platform in (component_registry.components[item].platforms | default([])))
   tags: [always]
 
 - name: Filter components by platform compatibility
@@ -117,14 +116,14 @@
       Project: {{ project_name | default('unknown') }}
       Environment: {{ deployment_environment | default('unknown') }}
       Platform: {{ target_platform | default('unknown') }}
-      
+
       Foundation Components: {{ foundation_components | join(', ') }}
       Project Components: {{ project_components | join(', ') }}
       Explicit Components: {{ explicit_components | join(', ') if explicit_components | length > 0 else 'None' }}
-      
+
       Final Deployment Components:
       {{ deployment_components | join(', ') }}
-      
+
       Component Details:
       {% for component in deployment_components %}
       - {{ component }}: {{ component_registry.components[component].name | default('Unknown') }}

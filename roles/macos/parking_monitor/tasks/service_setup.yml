@@ -3,79 +3,79 @@
 # Creates and configures the LaunchAgent service for parking monitor
 
 - name: Create LaunchAgents directory
-  file:
+  ansible.builtin.file:
     path: "{{ ansible_user_dir }}/Library/LaunchAgents"
     state: directory
-    mode: '0755'
+    mode: "0755"
 
 - name: Generate LaunchAgent plist
-  template:
+  ansible.builtin.template:
     src: com.orangead.parking-monitor.plist.j2
     dest: "{{ parking_monitor_launchd.plist_path }}"
-    mode: '0644'
+    mode: "0644"
     backup: true
   notify: restart parking monitor
 
 - name: Create scripts directory
-  file:
+  ansible.builtin.file:
     path: "{{ parking_monitor_repository.destination }}/scripts"
     state: directory
-    mode: '0755'
+    mode: "0755"
 
 - name: Create startup script
-  template:
+  ansible.builtin.template:
     src: start_parking_monitor.sh.j2
     dest: "{{ parking_monitor_repository.destination }}/scripts/start_parking_monitor.sh"
-    mode: '0755'
+    mode: "0755"
 
 - name: Create health check script
-  template:
+  ansible.builtin.template:
     src: health_check.sh.j2
     dest: "{{ parking_monitor_repository.destination }}/scripts/health_check.sh"
-    mode: '0755'
+    mode: "0755"
 
 - name: Create stop script
-  template:
+  ansible.builtin.template:
     src: stop_parking_monitor.sh.j2
     dest: "{{ parking_monitor_repository.destination }}/scripts/stop.sh"
-    mode: '0755'
+    mode: "0755"
 
 - name: Stop existing service if running
-  shell: |
+  ansible.builtin.shell: |
     launchctl unload "{{ parking_monitor_launchd.plist_path }}" 2>/dev/null || true
   changed_when: false
 
 - name: Load LaunchAgent service
-  shell: |
+  ansible.builtin.shell: |
     launchctl load "{{ parking_monitor_launchd.plist_path }}"
   register: service_load
-  
+
 - name: Wait for service to initialize
-  pause:
+  ansible.builtin.pause:
     seconds: 10
     prompt: "Waiting for parking monitor service to initialize..."
 
 - name: Check service status
-  shell: |
+  ansible.builtin.shell: |
     launchctl list | grep "{{ parking_monitor_service.name }}" || echo "not_running"
   register: service_status
   changed_when: false
 
 - name: Verify service is loaded
-  assert:
+  ansible.builtin.assert:
     that:
       - "'not_running' not in service_status.stdout"
     fail_msg: "Service failed to load. Check logs: tail -f {{ parking_monitor_launchd.standard_error_path }}"
     success_msg: "[OK] Service loaded successfully"
 
 - name: Create service management aliases
-  template:
+  ansible.builtin.template:
     src: parking_monitor_aliases.sh.j2
     dest: "{{ parking_monitor_repository.destination }}/scripts/aliases.sh"
-    mode: '0755'
+    mode: "0755"
 
 - name: Service setup summary
-  debug:
+  ansible.builtin.debug:
     msg: |
       [LAUNCH] Service Setup Complete:
       =========================
@@ -83,7 +83,7 @@
       LaunchAgent: {{ parking_monitor_launchd.plist_path }}
       Status: {{ 'Running' if 'not_running' not in service_status.stdout else 'Failed to start' }}
       Environment: {{ parking_monitor_environment.PARKING_MONITOR_ENV }}
-      
+
       Management Commands:
       • Start:   launchctl load {{ parking_monitor_launchd.plist_path }}
       • Stop:    launchctl unload {{ parking_monitor_launchd.plist_path }}

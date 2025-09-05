@@ -9,17 +9,17 @@ environment:
 
 # Network access configuration (most restrictive)
 network:
-  access_type: "tailscale_only"  # Only accessible via Tailscale
-  tailscale_management: false  # STRICTLY BANNED - production stability
-  ssh_access: "tailscale"  # SSH only via Tailscale network
+  access_type: "tailscale_only" # Only accessible via Tailscale
+  tailscale_management: false # STRICTLY BANNED - production stability
+  ssh_access: "tailscale" # SSH only via Tailscale network
 
 # Feature toggles (conservative for production)
 features:
-  tailscale_configuration: false  # STRICTLY BANNED
+  tailscale_configuration: false # STRICTLY BANNED
   debug_mode: false
   experimental_features: false
   destructive_operations: false
-  server_optimizations: false  # Conservative for production stability
+  server_optimizations: false # Conservative for production stability
 
 # Environment permissions (most restrictive)
 permissions:
@@ -27,8 +27,8 @@ permissions:
   allow_server_optimizations: false
   allow_destructive_operations: false
   allow_package_installation: false
-  allow_service_restarts: true  # Only for maintenance
-  allow_configuration_changes: false  # Minimal changes only
+  allow_service_restarts: true # Only for maintenance
+  allow_configuration_changes: false # Minimal changes only
 
 # Component-specific production overrides (optimized for stability)
 component_overrides:
@@ -36,11 +36,11 @@ component_overrides:
     debug_mode: false
     log_level: "WARNING"
     performance_monitoring: true
-    
+
   parking-monitor:
     detection:
       debug_mode: false
-      confidence_threshold: 0.5  # Balanced accuracy
+      confidence_threshold: 0.5 # Balanced accuracy
       save_detection_images: false
     health_monitoring:
       performance_alerts: true
@@ -49,23 +49,23 @@ component_overrides:
       show_debug_info: false
       show_fps: false
       ad_integration: true
-      
+
   player:
     fullscreen: true
     hide_cursor: true
     black_background: true
     disable_screensaver: true
-    health_check_interval: 300  # Less frequent checks
-    restart_attempts: 2  # Conservative restart policy
-    
+    health_check_interval: 300 # Less frequent checks
+    restart_attempts: 2 # Conservative restart policy
+
   tracker:
-    default_model: "yolo12s.pt"  # Production model
+    default_model: "yolo12s.pt" # Production model
     debug_mode: false
-    
+
   camguard:
     debug_mode: false
     check_interval: 60
-    alert_threshold: 10  # More conservative alerting
+    alert_threshold: 10 # More conservative alerting
 
 # Minimal packages for production (security focus)
 additional_packages:
@@ -76,7 +76,7 @@ additional_packages:
     - jq
     - curl
     - lsd
-    
+
 # Logging configuration (minimal but comprehensive)
 logging:
   level: "WARNING"
@@ -94,17 +94,17 @@ monitoring:
   development_mode: false
   metrics_collection: true
   performance_alerts: true
-  alert_webhooks: 
-    - "{{ production_webhook_url | default('') }}"  # Configure in secrets
+  alert_webhooks:
+    - "{{ production_webhook_url | default('') }}" # Configure in secrets
 
 # Security configuration
 security:
   firewall_enabled: true
   allowed_ports:
-    - 22     # SSH
-    - 9090   # Device API
-    - 9091   # Parking Monitor (if deployed)
-    - 8080   # Tracker (if deployed)
+    - 22 # SSH
+    - 9090 # Device API
+    - 9091 # Parking Monitor (if deployed)
+    - 8080 # Tracker (if deployed)
   camera_permissions: true
   full_disk_access: true
   automation_permissions: true

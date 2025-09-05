@@ -8,9 +8,9 @@
 
 - name: Configure UV and Python (Streamlined)
   when:
-    - macos_configure.uv_python | default(true) | bool  # UV is now the default
+    - macos_configure.uv_python | default(true) | bool # UV is now the default
     - platform_state.is_macos
-  import_role:
+  ansible.builtin.import_role:
     name: common/uv_python
   vars:
     uv_python_version: "{{ python_state.target_version }}"

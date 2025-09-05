@@ -123,7 +123,7 @@ def write_environment_file(config, output_path):
 
 def main():
     parser = argparse.ArgumentParser(description='Generate oaAnsible environment inventory')
-    parser.add_argument('project', choices=['alpr', 'evenko', 'spectra', 'f1', 'yuh'], 
+    parser.add_argument('project', choices=['alpr', 'evenko', 'spectra', 'f1', 'yhu'], 
                         help='Project name')
     parser.add_argument('environment', choices=['staging', 'preprod', 'production'], 
                         help='Environment stage')

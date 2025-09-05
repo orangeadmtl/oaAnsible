@@ -10,29 +10,29 @@ project_component_matrix:
     deploy_alpr_service: true
     deploy_player: false
     deploy_parking_monitor: false
-    
+
   evenko:
     deploy_device_api: false
     deploy_tracker: false
     deploy_alpr_service: false
     deploy_player: true
     deploy_parking_monitor: false
-    
+
   spectra:
     deploy_device_api: true
     deploy_tracker: true
     deploy_alpr_service: false
     deploy_player: true
     deploy_parking_monitor: false
-    
+
   f1:
     deploy_device_api: true
     deploy_tracker: true
     deploy_alpr_service: false
     deploy_player: false
     deploy_parking_monitor: false
-    
-  yuh:
+
+  yhu:
     deploy_device_api: true
     deploy_tracker: false
     deploy_alpr_service: false
@@ -62,7 +62,7 @@ project_service_configs:
       schedule_enabled: true
       schedules: "{{ evenko_schedules }}"
       videos: "{{ evenko_fallback_videos }}"
-      
+
   spectra:
     player:
       enabled: true
@@ -89,7 +89,7 @@ project_service_configs:
       default_yolo_source: 0
       default_model: "yolo12s.pt"
       server_port: 8080
-      
+
   f1:
     tracker:
       repository_url: "https://github.com/oa-device/oaTracker.git"
@@ -97,7 +97,7 @@ project_service_configs:
       default_yolo_source: 0
       default_model: "yolo12s.pt"
       server_port: 8080
-      
+
   alpr:
     alpr:
       enabled: true
@@ -114,14 +114,14 @@ environment_packages:
     - util-linux
     - fish
     - orbstack
-    
+
   preprod:
     - btop
     - httpie
     - telnet
     - util-linux
     - fish
-    
+
   production:
     - go
     - git
@@ -133,12 +133,12 @@ environment_packages:
 # Project-specific Package Requirements
 project_packages:
   evenko:
-    - mpv  # Required for video player
+    - mpv # Required for video player
   alpr:
-    - docker  # Required for ALPR
-  spectra: []  # Uses defaults
-  f1: []  # Uses defaults
-  yuh: []  # Uses defaults
+    - docker # Required for ALPR
+  spectra: [] # Uses defaults
+  f1: [] # Uses defaults
+  yhu: [] # Uses defaults
 
 # Environment Permission Matrix
 environment_permissions:
@@ -147,13 +147,13 @@ environment_permissions:
     allow_server_optimizations: true
     allow_destructive_operations: true
     tailscale: true
-    
+
   preprod:
     allow_experimental: false
     allow_server_optimizations: true
     allow_destructive_operations: false
     tailscale: false
-    
+
   production:
     allow_experimental: false
     allow_server_optimizations: false

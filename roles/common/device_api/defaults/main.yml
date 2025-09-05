@@ -1,12 +1,16 @@
 ---
+---
 # Default variables for unified Device API deployment
+# Uses centralized service defaults for consistency
 
-# API Configuration
-device_api_log_level: "INFO"
-device_api_service_timeout: 30
+# Import centralized service defaults
+device_api_service_name: "{{ service_defaults.naming.prefix }}.deviceapi"
+device_api_port: "{{ service_ports.device_api }}"
+device_api_log_level: "{{ service_defaults.common.log_level }}"
+device_api_service_timeout: "{{ service_defaults.common.timeout }}"
 
 # Network Configuration  
-tailscale_subnet: "100.64.0.0/10"
+tailscale_subnet: "{{ service_defaults.network.tailscale_subnet }}"
 
 # Platform-specific defaults
 device_api_screenshot_dir: "/tmp/screenshots"
@@ -14,14 +18,14 @@ device_api_display_config: "/etc/orangead/display.conf"
 device_api_player_service: "slideshow-player.service"
 
 # Deployment Configuration
-deviceapi_deployment_needed: true
-deviceapi_force_update: false
+device_api_deployment_needed: true
+device_api_force_update: false
 
 # Service Configuration
 device_api_enable_service: true
 device_api_start_service: true
 
-# Health Check Configuration
-device_api_health_check_timeout: 30
-device_api_health_check_retries: 6
-device_api_health_check_delay: 5
+# Health Check Configuration (using standardized values)
+device_api_health_check_timeout: "{{ service_defaults.common.timeout }}"
+device_api_health_check_retries: "{{ service_defaults.common.retries }}"
+device_api_health_check_delay: "{{ service_defaults.common.delay }}"

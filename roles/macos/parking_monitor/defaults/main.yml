@@ -6,22 +6,22 @@
 parking_monitor_repository:
   url: "https://github.com/oa-device/oaParkingMonitor.git"
   branch: "main"
-  destination: "{{ ansible_user_dir }}/orangead/parking-monitor"
+  destination: "{{ service_defaults.directories.base }}/parking-monitor"
   force_update: false
 
 # Service Configuration (Device Setup)
 parking_monitor_service:
-  name: "com.orangead.parking-monitor"
+  name: "{{ service_defaults.naming.prefix }}.parking-monitor"
   user: "{{ ansible_user }}"
   group: "staff"
-  port: 9091
+  port: "{{ service_ports.parking_monitor }}"
 
 # Python Environment Configuration (Device Setup)
 parking_monitor_python:
-  version: "3.12"
-  requirements_file: "requirements.txt"
-  project_path: "{{ ansible_user_dir }}/orangead/parking-monitor"
-  python_command: "{{ uv_path | default('uv') }} run python"
+  version: "{{ service_defaults.python.version }}"
+  requirements_file: "{{ service_defaults.python.requirements_file }}"
+  project_path: "{{ service_defaults.directories.base }}/parking-monitor"
+  python_command: "{{ service_defaults.python.package_manager }} run python"
 
 # LaunchAgent Configuration (Device Setup)
 parking_monitor_launchd:
@@ -61,10 +61,10 @@ parking_monitor_security:
     - camera_access
     - full_disk_access
     - automation_access
-  firewall_rules: []  # Can be overridden in inventory if needed
+  firewall_rules: [] # Can be overridden in inventory if needed
 
 # Models Configuration (Minimal for compatibility)
 parking_monitor_models:
   model_dir: "{{ parking_monitor_repository.destination }}/models"
-  auto_download: false  # Handled by project itself
+  auto_download: false # Handled by project itself
 

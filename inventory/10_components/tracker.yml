@@ -4,29 +4,29 @@
 
 tracker_component:
   # Service configuration
-  service:
+  ansible.builtin.service:
     name: "com.orangead.tracker"
     port: 8080
     user: "{{ ansible_user }}"
-    
+
   # Repository configuration
   repository:
     url: "https://github.com/oa-device/oaTracker.git"
     branch: "main"
     destination: "{{ ansible_user_dir }}/orangead/tracker"
-    
+
   # Detection configuration
   config:
     default_yolo_source: 0
     default_model: "yolo12s.pt"
     server_port: 8080
-    
+
   # Environment-specific overrides
   environment_overrides:
     staging:
-      default_model: "yolo11n.pt"  # Lighter model for staging
+      default_model: "yolo11n.pt" # Lighter model for staging
       debug_mode: true
-      
+
     production:
       default_model: "yolo12s.pt"
       debug_mode: false

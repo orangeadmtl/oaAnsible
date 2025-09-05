@@ -96,7 +96,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s yuh staging                    # Deploy all components to yuh staging
+  %(prog)s yhu staging                    # Deploy all components to yhu staging
   %(prog)s evenko production --components player,camguard  # Deploy specific components
   %(prog)s f1 preprod --hosts f1-ca-001   # Deploy to specific host only
   %(prog)s acme staging --dry-run         # Show what would be deployed

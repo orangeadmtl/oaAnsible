@@ -3,23 +3,23 @@
 # Verifies that the parking monitor service is healthy and responding
 
 - name: Wait for service startup
-  pause:
+  ansible.builtin.pause:
     seconds: 15
     prompt: "Waiting for parking monitor service to fully initialize..."
 
 - name: Check service process
-  shell: |
+  ansible.builtin.shell: |
     pgrep -f "parking.monitor" | head -1 || echo "not_running"
   register: process_check
   changed_when: false
 
 - name: Verify process is running
-  debug:
+  ansible.builtin.debug:
     msg: |
       [VERIFY] Process Status: {{ 'Running (PID: ' + process_check.stdout + ')' if process_check.stdout != 'not_running' else 'Not running' }}
 
 - name: Test health endpoint
-  uri:
+  ansible.builtin.uri:
     url: "http://localhost:{{ parking_monitor_service.port }}/health"
     method: GET
     return_content: true
@@ -31,23 +31,23 @@
   until: health_check.status == 200
 
 - name: Parse health response
-  set_fact:
+  ansible.builtin.set_fact:
     health_data: "{{ health_check.content | from_json }}"
   when: health_check.status == 200
 
 - name: Test parking status endpoint
-  uri:
+  ansible.builtin.uri:
     url: "http://localhost:{{ parking_monitor_service.port }}/api/parking/status"
     method: GET
     return_content: true
-    status_code: [200, 503]  # 503 acceptable if no camera yet
+    status_code: [200, 503] # 503 acceptable if no camera yet
     timeout: 30
   register: status_check
   retries: 3
   delay: 5
 
 - name: Test metrics endpoint
-  uri:
+  ansible.builtin.uri:
     url: "http://localhost:{{ parking_monitor_service.port }}/api/parking/metrics"
     method: GET
     return_content: true
@@ -58,7 +58,7 @@
   delay: 5
 
 - name: Check log files
-  stat:
+  ansible.builtin.stat:
     path: "{{ item }}"
   register: log_files
   loop:
@@ -67,7 +67,7 @@
     - "{{ parking_monitor_launchd.standard_error_path }}"
 
 - name: Read recent error logs
-  shell: |
+  ansible.builtin.shell: |
     if [ -f "{{ parking_monitor_launchd.standard_error_path }}" ]; then
       tail -n 20 "{{ parking_monitor_launchd.standard_error_path }}"
     else
@@ -77,7 +77,7 @@
   changed_when: false
 
 - name: Check system resources
-  shell: |
+  ansible.builtin.shell: |
     if [ "{{ process_check.stdout }}" != "not_running" ]; then
       ps -p {{ process_check.stdout }} -o pid,ppid,%cpu,%mem,time,command || echo "Process not found"
     else
@@ -88,7 +88,7 @@
   when: process_check.stdout != "not_running"
 
 - name: Run comprehensive health check script
-  shell: |
+  ansible.builtin.shell: |
     if [ -f "{{ parking_monitor_repository.destination }}/scripts/health_check.sh" ]; then
       "{{ parking_monitor_repository.destination }}/scripts/health_check.sh"
     else
@@ -98,7 +98,7 @@
   changed_when: false
 
 - name: Health verification summary
-  debug:
+  ansible.builtin.debug:
     msg: |
       [HOSPITAL] Health Verification Complete:
       ===============================
@@ -106,7 +106,7 @@
       Health Endpoint: {{ '[OK] Responding' if health_check.status == 200 else '[FAIL] Failed' }}
       Status Endpoint: {{ '[OK] Responding' if status_check.status == 200 else '[WARNING]  Limited (no camera?)' if status_check.status == 503 else '[FAIL] Failed' }}
       Metrics Endpoint: {{ '[OK] Responding' if metrics_check.status == 200 else '[WARNING]  Limited' if metrics_check.status == 503 else '[FAIL] Failed' }}
-      
+
       {% if health_data is defined -%}
       Service Info:
       • Service: {{ health_data.service | default('Unknown') }}
@@ -114,20 +114,20 @@
       • Version: {{ health_data.version | default('Unknown') }}
       • Uptime: {{ health_data.uptime | default('Unknown') }}
       {% endif %}
-      
+
       {% if process_check.stdout != "not_running" -%}
       Resource Usage:
       {{ resource_usage.stdout | indent(width=2) }}
       {% endif %}
-      
+
       {% if error_logs.stdout and error_logs.stdout != "No error log found" -%}
       Recent Errors:
       {{ error_logs.stdout | indent(width=2) }}
       {% endif %}
-      
+
       Comprehensive Health:
       {{ comprehensive_health.stdout | indent(width=2) }}
-      
+
       Next Steps:
       {% if health_check.status != 200 -%}
       • Service failed health check - check logs and configuration
@@ -141,13 +141,13 @@
       ===============================
 
 - name: Fail if critical health checks failed
-  fail:
+  ansible.builtin.fail:
     msg: |
       [FAIL] Critical health checks failed:
       • Process running: {{ process_check.stdout != 'not_running' }}
       • Health endpoint: {{ health_check.status == 200 }}
-      
+
       Check logs and configuration before proceeding.
-  when: 
+  when:
     - process_check.stdout == 'not_running' or health_check.status != 200
     - not (parking_monitor_debug.enabled | default(false))

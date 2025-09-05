@@ -8,22 +8,22 @@ python_runtime:
   manager: "uv"
   # Standard version for all new deployments
   default_version: "3.12"
-  
+
   # Legacy compatibility for specific components
   compatibility_matrix:
-    oaSentinel: "3.11.11"  # ML training compatibility
-    ml_workstation: "3.11.11"  # Existing ML environments
-    
+    oaSentinel: "3.11.11" # ML training compatibility
+    ml_workstation: "3.11.11" # Existing ML environments
+
   # Environment-specific overrides
   environment_overrides:
     ml_environments:
       version: "3.11.11"
       reason: "PyTorch compatibility and existing model training"
-    
+
     production_services:
       version: "3.12"
       reason: "Latest stable with performance improvements"
-      
+
     development:
       version: "3.12"
       reason: "Latest features and debugging improvements"
@@ -40,9 +40,9 @@ python_version_lookup:
 # UV-based Python interpreter paths (replaces pyenv paths)
 python_interpreter_paths:
   # Standard UV-based interpreter resolution
-  default: "/usr/bin/python3"        # System python for UV projects
+  default: "/usr/bin/python3" # System python for UV projects
   project_execution: "uv run python" # Project-scoped execution via UV
-  
+
   # Platform-specific system interpreters
   macos: "/opt/homebrew/bin/python3"
   ubuntu: "/usr/bin/python3"
@@ -51,7 +51,7 @@ python_interpreter_paths:
 ansible_python_interpreter_strategy:
   # Primary: Use system Python (UV manages project environments)
   default: "{{ python_interpreter_paths.macos if ansible_os_family == 'Darwin' else python_interpreter_paths.ubuntu }}"
-  
+
   # Project execution: UV handles virtual environments transparently
   project_execution: "{{ python_interpreter_paths.project_execution }}"
 

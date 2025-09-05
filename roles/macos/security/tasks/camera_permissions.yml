@@ -94,10 +94,8 @@
     api_python: "{{ ansible_user_dir }}/orangead/oaDeviceAPI/.venv/bin/python3"
     tracker_python: "{{ ansible_user_dir }}/orangead/tracker/.venv/bin/python3"
     python_execs:
-      real_api:
-        "{{ ansible_python_interpreter_strategy.default }}"
-      real_tracker:
-        "{{ ansible_python_interpreter_strategy.default }}"
+      real_api: "{{ ansible_python_interpreter_strategy.default }}"
+      real_tracker: "{{ ansible_python_interpreter_strategy.default }}"
 
 # Show Python executable paths
 - name: Show Python executable paths
@@ -402,7 +400,7 @@
     msg: |
       Camera permissions configuration was skipped because Python virtual environments
       are not present. This is normal for infrastructure-only deployments.
-      
+
       To enable camera permissions later:
       1. Deploy device-api and tracker components first
       2. Re-run the security role or full deployment

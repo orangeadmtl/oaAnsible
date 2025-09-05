@@ -23,6 +23,17 @@ else
     exit 1
 fi
 
+# Cross-platform sed function
+cross_platform_sed() {
+    local pattern="$1"
+    local file="$2"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "$pattern" "$file"
+    else
+        sed -i "$pattern" "$file"
+    fi
+}
+
 # Get the appropriate Python executable using helper function
 get_python_executable "$OA_ANSIBLE_ROOT_DIR"
 
@@ -94,7 +105,6 @@ fix_fqcn_issues() {
     log_info "Fixing FQCN (Fully Qualified Collection Names) issues..."
 
     # Common modules that need FQCN (excluding gather_facts which is typically playbook-level)
-    # Note: "user" module excluded to prevent breaking existing code
     local modules=(
         "debug" "set_fact" "fail" "copy" "file" "template" "lineinfile"
         "stat" "command" "shell" "service" "meta" "pause"
@@ -115,19 +125,18 @@ fix_fqcn_issues() {
 
                     # Process each module
                     for module in "${modules[@]}"; do
-                        # Only replace if it's a task module at the correct indentation level
-                        sed -i '' "s/^\\([[:space:]]*\\)${module}:/\\1ansible.builtin.${module}:/g" "$file"
+                        cross_platform_sed "s/^\\([[:space:]]*\\)${module}:/\\1ansible.builtin.${module}:/g" "$file"
                     done
 
                     # Fix incorrectly applied FQCN to common parameters
-                    sed -i '' 's/ansible\.builtin\.group: staff/group: staff/g' "$file"
-                    sed -i '' 's/ansible\.builtin\.owner:/owner:/g' "$file"
-                    sed -i '' 's/ansible\.builtin\.mode:/mode:/g' "$file"
-                    sed -i '' 's/ansible\.builtin\.state:/state:/g' "$file"
-                    sed -i '' 's/ansible\.builtin\.path:/path:/g' "$file"
+                    cross_platform_sed 's/ansible\.builtin\.group: staff/group: staff/g' "$file"
+                    cross_platform_sed 's/ansible\.builtin\.owner:/owner:/g' "$file"
+                    cross_platform_sed 's/ansible\.builtin\.mode:/mode:/g' "$file"
+                    cross_platform_sed 's/ansible\.builtin\.state:/state:/g' "$file"
+                    cross_platform_sed 's/ansible\.builtin\.path:/path:/g' "$file"
 
                     # Fix playbook-level gather_facts that got incorrectly converted
-                    sed -i '' 's/ansible\.builtin\.gather_facts: /gather_facts: /g' "$file"
+                    cross_platform_sed 's/ansible\.builtin\.gather_facts: /gather_facts: /g' "$file"
 
                     # Validate the result
                     if validate_yaml "$file"; then
@@ -153,12 +162,12 @@ process_root_files() {
             cp "$file" "${file}.bak"
 
             # Apply formatting fixes
-            sed -i '' -e 's/[[:space:]]*$//' "$file"
-            sed -i '' -e 's/: yes$/: true/g' "$file"
-            sed -i '' -e 's/: no$/: false/g' "$file"
+            cross_platform_sed 's/[[:space:]]*$//' "$file"
+            cross_platform_sed 's/: yes$/: true/g' "$file"
+            cross_platform_sed 's/: no$/: false/g' "$file"
 
             if ! head -n1 "$file" | grep -q "^---" && grep -q "^[[:space:]]*[^#[:space:]]" "$file"; then
-                sed -i '' '1i\
+                cross_platform_sed '1i\
 ---
 ' "$file"
             fi
@@ -192,15 +201,15 @@ fix_yaml_formatting() {
 
                     # Only make safe changes
                     # 1. Remove trailing spaces
-                    sed -i '' -e 's/[[:space:]]*$//' "$file"
+                    cross_platform_sed 's/[[:space:]]*$//' "$file"
 
                     # 2. Fix obvious truthy values
-                    sed -i '' -e 's/: yes$/: true/g' "$file"
-                    sed -i '' -e 's/: no$/: false/g' "$file"
+                    cross_platform_sed 's/: yes$/: true/g' "$file"
+                    cross_platform_sed 's/: no$/: false/g' "$file"
 
                     # 3. Add document start marker only if file is missing it and has content
                     if ! head -n1 "$file" | grep -q "^---" && grep -q "^[[:space:]]*[^#[:space:]]" "$file"; then
-                        sed -i '' '1i\
+                        cross_platform_sed '1i\
 ---
 ' "$file"
                     fi
@@ -244,10 +253,10 @@ run_ansible_lint_fixes() {
 
     if [ -f "$VENV_PATH/bin/ansible-lint" ]; then
         log_info "Applying automatic fixes with ansible-lint from virtual environment..."
-        "$VENV_PATH/bin/ansible-lint" --fix --offline -q || log_warn "Some ansible-lint issues could not be automatically fixed"
+        "$VENV_PATH/bin/ansible-lint" --write --offline -q || log_warn "Some ansible-lint issues could not be automatically fixed"
     elif command -v ansible-lint >/dev/null 2>&1; then
         log_info "Applying automatic fixes with system ansible-lint..."
-        ansible-lint --fix --offline -q || log_warn "Some ansible-lint issues could not be automatically fixed"
+        ansible-lint --write --offline -q || log_warn "Some ansible-lint issues could not be automatically fixed"
     else
         log_error "ansible-lint not found. Please install it with: pip install ansible-lint"
         return 1

@@ -16,14 +16,14 @@
   ansible.builtin.shell: |
     # Get primary display resolution using system_profiler
     display_info=$(system_profiler SPDisplaysDataType | grep "Resolution:" | head -1)
-    
+
     # Extract width and height using more robust parsing
     if echo "$display_info" | grep -q "Resolution:"; then
       # Parse resolution like "Resolution: 1920 x 1080"
       resolution=$(echo "$display_info" | sed 's/.*Resolution: *\([0-9]* x [0-9]*\).*/\1/')
       width=$(echo "$resolution" | cut -d' ' -f1)
       height=$(echo "$resolution" | cut -d' ' -f3)
-      
+
       # Determine orientation: horizontal if width >= height, vertical otherwise
       if [ "$width" -ge "$height" ]; then
         echo "horizontal"
@@ -51,7 +51,7 @@
 - name: Set wallpaper to custom background (horizontal)
   ansible.builtin.shell: |
     osascript -e 'tell application "System Events" to tell every desktop to set picture to "{{ ansible_env.HOME }}/desktop-background.png"'
-  when: 
+  when:
     - deploy_custom_wallpaper | default(false)
     - screen_orientation == "horizontal"
   changed_when: false
@@ -59,7 +59,7 @@
 - name: Set wallpaper to custom background (vertical)
   ansible.builtin.shell: |
     osascript -e 'tell application "System Events" to tell every desktop to set picture to "{{ ansible_env.HOME }}/desktop-background-vertical.png"'
-  when: 
+  when:
     - deploy_custom_wallpaper | default(false)
     - screen_orientation == "vertical"
   changed_when: false

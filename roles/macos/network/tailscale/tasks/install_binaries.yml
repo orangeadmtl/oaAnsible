@@ -105,8 +105,11 @@
 - name: Set binary status facts
   ansible.builtin.set_fact:
     tailscale_client_working: "{{ (tailscale_binary_check.results[0].rc | default(1)) == 0 }}"
-    tailscaled_daemon_present: "{{ (tailscale_binary_check.results[1].rc | default(1)) == 1 and 'requires root' in (tailscale_binary_check.results[1].stderr | default('')) }}"
-    installation_successful: "{{ (tailscale_binary_check.results[0].rc | default(1)) == 0 and (tailscale_binary_check.results[1].rc | default(1)) == 1 and 'requires root' in (tailscale_binary_check.results[1].stderr | default('')) }}"
+    tailscaled_daemon_present:
+      "{{ (tailscale_binary_check.results[1].rc | default(1)) == 1 and 'requires root' in (tailscale_binary_check.results[1].stderr | default('')) }}"
+    installation_successful:
+      "{{ (tailscale_binary_check.results[0].rc | default(1)) == 0 and (tailscale_binary_check.results[1].rc | default(1)) == 1 and 'requires root' in
+      (tailscale_binary_check.results[1].stderr | default('')) }}"
 
 - name: Display installation status
   ansible.builtin.debug:

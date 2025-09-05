@@ -8,10 +8,10 @@
   hosts: all
   become: false
   gather_facts: true
-  
+
   vars:
     cleanup_backup_suffix: ".cleanup_backup.{{ ansible_date_time.epoch }}"
-    
+
   tasks:
     - name: Shell Cleanup - Platform Detection
       ansible.builtin.set_fact:
@@ -25,24 +25,24 @@
           {%- else -%}
             unsupported
           {%- endif -%}
-          
+
     - name: Shell Cleanup - Set platform-specific files
       ansible.builtin.set_fact:
         shell_files_to_clean:
           - ".zshrc"
-          - ".zprofile" 
+          - ".zprofile"
           - ".bash_profile"
           - ".bashrc"
         legacy_files_to_remove:
           - "zshrc_enhancement.sh"
           - ".zshrc_enhancement.backup"
-          
+
     - name: Shell Cleanup - Create backup directory
       ansible.builtin.file:
         path: "{{ ansible_env.HOME }}/.shell_cleanup_backups"
         state: directory
         mode: "0755"
-        
+
     - name: Shell Cleanup - Backup existing files
       ansible.builtin.copy:
         src: "{{ ansible_env.HOME }}/{{ item }}"
@@ -52,14 +52,14 @@
       loop: "{{ shell_files_to_clean }}"
       ignore_errors: true
       register: backup_results
-      
+
     - name: Shell Cleanup - Remove legacy enhancement scripts
       ansible.builtin.file:
         path: "{{ ansible_env.HOME }}/{{ item }}"
         state: absent
       loop: "{{ legacy_files_to_remove }}"
       register: legacy_cleanup
-      
+
     - name: Shell Cleanup - Analyze and fix PATH duplicates
       ansible.builtin.script:
         cmd: shell_deduplicator.py
@@ -68,7 +68,7 @@
         PLATFORM: "{{ detected_platform }}"
         BACKUP_SUFFIX: "{{ cleanup_backup_suffix }}"
       register: deduplication_result
-      
+
     - name: Shell Cleanup - Create cleanup report
       ansible.builtin.copy:
         dest: "{{ ansible_env.HOME }}/.shell_cleanup_backups/cleanup_report_{{ ansible_date_time.epoch }}.txt"
@@ -79,29 +79,29 @@
           Date: {{ ansible_date_time.iso8601 }}
           Host: {{ inventory_hostname }}
           Platform: {{ detected_platform }}
-          
+
           Files Backed Up:
           {% for result in backup_results.results %}
           {% if result.changed %}
           - {{ result.item }}{{ cleanup_backup_suffix }}
           {% endif %}
           {% endfor %}
-          
+
           Legacy Files Removed:
           {% for result in legacy_cleanup.results %}
           {% if result.changed %}
           - {{ result.item }}
           {% endif %}
           {% endfor %}
-          
+
           Deduplication Results:
           {{ deduplication_result.stdout if deduplication_result.stdout is defined else 'No deduplication performed' }}
-          
+
           Next Steps:
           1. Verify shell functionality: source ~/.zprofile && source ~/.zshrc
           2. Check for PATH duplicates: echo $PATH | tr ':' '\n' | sort | uniq -d
           3. If issues occur, restore from: ~/.shell_cleanup_backups/
-          
+
     - name: Shell Cleanup - Display summary
       ansible.builtin.debug:
         msg: |
@@ -110,13 +110,13 @@
           Platform: {{ detected_platform }}
           Files Backed Up: {{ backup_results.results | selectattr('changed') | list | length }}
           Legacy Files Removed: {{ legacy_cleanup.results | selectattr('changed') | list | length }}
-          
+
           Backup Location: {{ ansible_env.HOME }}/.shell_cleanup_backups/
-          
+
           To complete migration to new shell_manager:
           1. Run: ansible-playbook universal.yml --tags shell_manager
           2. Verify: source ~/.zprofile && echo "Shell working: $PATH"
-          
+
           The new shell_manager provides:
           - No duplicate PATH exports
           - Platform-aware configuration

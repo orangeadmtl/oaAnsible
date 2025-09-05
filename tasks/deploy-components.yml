@@ -15,22 +15,22 @@
 - name: Check macOS component compatibility
   ansible.builtin.set_fact:
     compatible_components:
-      "{{ compatible_components + ['device-api', 'tracker', 'alpr', 'player', 'camguard', 'mediamtx_demo', 'cursorcerer', 'parking-monitor', 'staging-video-feed', 'base', 'network', 'security', 'ssh', 'shell'] }}"
+      "{{ compatible_components + ['device-api', 'tracker', 'alpr', 'player', 'camguard', 'mediamtx_demo', 'cursorcerer', 'parking-monitor',
+      'staging-video-feed', 'base', 'network', 'security', 'ssh', 'shell'] }}"
   when: target_platform == "macos"
   tags: ["always"]
 
 - name: Check Ubuntu component compatibility
   ansible.builtin.set_fact:
     compatible_components:
-      "{{ compatible_components + ['base', 'network', 'security', 'docker', 'monitoring', 'nvidia', 'ml', 'health', 'storage', 'shell', 'oasentinel-setup', 'oasentinel-data',
-      'oasentinel-train', 'oasentinel-full'] }}"
+      "{{ compatible_components + ['base', 'network', 'security', 'docker', 'monitoring', 'nvidia', 'ml', 'health', 'storage', 'shell', 'oasentinel-setup',
+      'oasentinel-data', 'oasentinel-train', 'oasentinel-full'] }}"
   when: target_platform == "ubuntu"
   tags: ["always"]
 
 - name: Check OrangePi component compatibility
   ansible.builtin.set_fact:
-    compatible_components:
-      "{{ compatible_components + ['base', 'shell', 'tailscale', 'player', 'monitoring'] }}"
+    compatible_components: "{{ compatible_components + ['base', 'shell', 'tailscale', 'player', 'monitoring'] }}"
   when: target_platform == "orangepi"
   tags: ["always"]
 
@@ -135,7 +135,6 @@
         name: orangepi/network/tailscale
       when: target_platform == "orangepi"
 
-
 - name: Deploy shell enhancements component
   when: "'shell' in deployment_components | default(selected_components)"
   tags: ["shell", "zsh"]
@@ -143,14 +142,14 @@
     - name: Deploy shell_manager (common role)
       ansible.builtin.include_role:
         name: common/shell_manager
-      when: 
+      when:
         - shell_manager_enabled | default(false)
         - target_platform in ["ubuntu", "debian", "macos"]
 
     - name: Deploy Ubuntu shell (legacy)
       ansible.builtin.include_role:
         name: ubuntu/shell
-      when: 
+      when:
         - target_platform == "ubuntu"
         - not (shell_manager_enabled | default(false))
 

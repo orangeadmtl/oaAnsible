@@ -121,7 +121,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s yuh staging yuh-staging-001 192.168.1.100 admin
+  %(prog)s yhu staging yhu-staging-001 192.168.1.100 admin
   %(prog)s evenko preprod evenko-ca-001 100.103.229.95 studio --override "player.dual_screen=false"
   %(prog)s f1 production f1-prod-001 100.88.17.33 admin --cam-id "12345-67890" --override "tracker.model=yolo12m.pt"
         """

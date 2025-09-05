@@ -5,8 +5,8 @@
     echo $HOME/.local/bin
   register: macos_uv_root
   changed_when: false
-  when: 
-    - configure.uv_python | default(true)  # UV is now the default Python manager
+  when:
+    - configure.uv_python | default(true) # UV is now the default Python manager
 
 - name: Set UV root fact
   ansible.builtin.set_fact:

@@ -4,25 +4,25 @@
 
 player_component:
   # Service configuration
-  service:
+  ansible.builtin.service:
     name: "com.orangead.player"
     user: "{{ ansible_user }}"
-    
+
   # Repository configuration
   repository:
     url: "https://github.com/oa-device/oaPlayer.git"
     branch: "main"
     destination: "{{ ansible_user_dir }}/orangead/player"
-    
+
   # Default player configuration
   config:
     enabled: true
     loop_mode: true
-    dual_screen: true  # Default to dual screen
+    dual_screen: true # Default to dual screen
     video_selection_strategy: "sequential"
     health_check: true
     restart_on_failure: true
-    health_check_interval: 180  # 3 minutes
+    health_check_interval: 180 # 3 minutes
     restart_attempts: 3
     restart_delay: 15
     volume: 0.0
@@ -50,7 +50,7 @@ player_component:
       hide_cursor: false
       black_background: false
       disable_screensaver: false
-      
+
     dual_screen:
       dual_screen: true
       fullscreen: true
@@ -65,14 +65,14 @@ player_component:
       hide_cursor: false
       black_background: false
       disable_screensaver: false
-      health_check_interval: 60  # More frequent checks in staging
-      
+      health_check_interval: 60 # More frequent checks in staging
+
     preprod:
       health_check_interval: 120
-      
+
     production:
-      health_check_interval: 300  # Less frequent in production
-      restart_attempts: 2  # More conservative restarts
+      health_check_interval: 300 # Less frequent in production
+      restart_attempts: 2 # More conservative restarts
 
   # Project-specific templates
   project_templates:
@@ -95,7 +95,7 @@ player_component:
               enabled: true
               loop: true
               volume: 0.0
-              
+
     spectra:
       dual_screen: true
       videos:

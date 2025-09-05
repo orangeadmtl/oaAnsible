@@ -3,7 +3,7 @@
 # Ensures system meets requirements before attempting deployment
 
 - name: Check macOS version compatibility
-  assert:
+  ansible.builtin.assert:
     that:
       - ansible_distribution == "MacOSX"
       - ansible_distribution_version is version('12.0', '>=')
@@ -11,27 +11,27 @@
     success_msg: "[OK] macOS version {{ ansible_distribution_version }} is compatible"
 
 - name: Check hardware architecture
-  assert:
+  ansible.builtin.assert:
     that:
       - ansible_architecture == "arm64"
     fail_msg: "Parking Monitor is optimized for Apple Silicon (M1/M2). Intel support not implemented."
     success_msg: "[OK] Apple Silicon ({{ ansible_architecture }}) detected"
 
 - name: Check available memory
-  assert:
+  ansible.builtin.assert:
     that:
-      - ansible_memtotal_mb >= 8192  # 8GB minimum
+      - ansible_memtotal_mb >= 8192 # 8GB minimum
     fail_msg: "Parking Monitor requires at least 8GB RAM. Found {{ ansible_memtotal_mb }}MB"
     success_msg: "[OK] Sufficient memory available: {{ ansible_memtotal_mb }}MB"
 
 - name: Check Python version availability
-  command: python{{ parking_monitor_python.version }} --version
+  ansible.builtin.command: python{{ parking_monitor_python.version }} --version
   register: python_version_check
   failed_when: false
   changed_when: false
 
 - name: Verify Python version
-  assert:
+  ansible.builtin.assert:
     that:
       - python_version_check.rc == 0
       - parking_monitor_python.version in python_version_check.stdout
@@ -39,13 +39,13 @@
     success_msg: "[OK] Python {{ parking_monitor_python.version }} available"
 
 - name: Check for existing conflicting services
-  shell: |
+  ansible.builtin.shell: |
     launchctl list | grep -E "(parking.monitor|alpr)" | wc -l
   register: conflicting_services
   changed_when: false
 
 - name: Warn about conflicting services
-  debug:
+  ansible.builtin.debug:
     msg: |
       [WARNING]  WARNING: Found {{ conflicting_services.stdout }} potentially conflicting services.
       This may indicate existing ALPR or parking monitor installations.
@@ -53,7 +53,7 @@
   when: conflicting_services.stdout | int > 0
 
 - name: Check port availability
-  wait_for:
+  ansible.builtin.wait_for:
     port: "{{ parking_monitor_service.port }}"
     state: stopped
     timeout: 1
@@ -61,53 +61,53 @@
   register: port_check
 
 - name: Warn about port conflicts
-  debug:
+  ansible.builtin.debug:
     msg: |
       [WARNING]  WARNING: Port {{ parking_monitor_service.port }} appears to be in use.
       This may cause deployment issues. Check with: lsof -i :{{ parking_monitor_service.port }}
   when: port_check is failed
 
 - name: Check disk space
-  shell: df -h "{{ ansible_user_dir }}" | tail -1 | awk '{print $4}' | sed 's/G//g'
+  ansible.builtin.shell: df -h "{{ ansible_user_dir }}" | tail -1 | awk '{print $4}' | sed 's/G//g'
   register: available_space
   changed_when: false
 
 - name: Verify sufficient disk space
-  assert:
+  ansible.builtin.assert:
     that:
-      - available_space.stdout | float >= 5.0  # 5GB minimum
+      - available_space.stdout | float >= 5.0 # 5GB minimum
     fail_msg: "Insufficient disk space. Need 5GB, found {{ available_space.stdout }}GB available"
     success_msg: "[OK] Sufficient disk space: {{ available_space.stdout }}GB available"
 
 - name: Check camera availability (optional)
-  shell: |
+  ansible.builtin.shell: |
     system_profiler SPCameraDataType | grep -q "Built-in" && echo "builtin" || echo "none"
   register: camera_check
   changed_when: false
   failed_when: false
 
 - name: Report camera status
-  debug:
+  ansible.builtin.debug:
     msg: |
       [CAMERA] Camera Status: {{ 'Built-in camera detected' if camera_check.stdout == 'builtin' else 'No built-in camera detected - ensure USB camera is connected' }}
 
 - name: Check Git availability and SSH key
   block:
     - name: Check Git installation
-      command: git --version
+      ansible.builtin.command: git --version
       register: git_version
       changed_when: false
 
     - name: Test SSH key access to GitHub
-      command: ssh -T git@github.com
+      ansible.builtin.command: ssh -T git@github.com
       register: ssh_test
       changed_when: false
       failed_when: false
 
     - name: Verify GitHub access
-      assert:
+      ansible.builtin.assert:
         that:
-          - ssh_test.rc == 1  # Expected return code for successful SSH test to GitHub
+          - ssh_test.rc == 1 # Expected return code for successful SSH test to GitHub
           - "'successfully authenticated' in ssh_test.stderr"
         fail_msg: |
           SSH key access to GitHub failed. Please ensure:
@@ -117,7 +117,7 @@
         success_msg: "[OK] GitHub SSH access verified"
 
 - name: Summary of pre-deployment checks
-  debug:
+  ansible.builtin.debug:
     msg: |
       [VERIFY] Pre-deployment Check Summary:
       ================================

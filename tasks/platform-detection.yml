@@ -36,7 +36,7 @@
       - "docker"
       - "server"
       - "shell"
-  when: 
+  when:
     - ansible_distribution in ["Ubuntu", "Debian"]
     - ansible_architecture != "aarch64"
   tags: ["always"]
@@ -51,10 +51,10 @@
       - "player"
       - "display"
       - "embedded"
-  when: 
+  when:
     - ansible_distribution == "Ubuntu"
     - ansible_architecture == "aarch64"
-    - platform_type is defined and platform_type == "orangepi"  # Explicit platform detection from inventory
+    - platform_type is defined and platform_type == "orangepi" # Explicit platform detection from inventory
   tags: ["always"]
 
 - name: Check for platform_type override from inventory
@@ -71,7 +71,7 @@
       - "docker"
       - "server"
       - "shell"
-  when: 
+  when:
     - detected_platform is not defined
     - platform_type is defined
     - platform_type in ["debian", "ubuntu", "macos", "orangepi"]

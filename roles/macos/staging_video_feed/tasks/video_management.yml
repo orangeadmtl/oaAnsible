@@ -2,13 +2,13 @@
 # Video content download and management
 
 - name: Check for existing video content
-  find:
+  ansible.builtin.find:
     paths: "{{ staging_video_feed_content.storage_dir }}"
     patterns: "*.mp4"
   register: existing_videos
 
 - name: Download parking lot surveillance videos
-  script: download_parking_videos.sh
+  ansible.builtin.script: download_parking_videos.sh
   args:
     chdir: "{{ staging_video_feed_service.working_dir }}"
   environment:
@@ -20,18 +20,18 @@
   register: video_download_result
 
 - name: Verify video downloads
-  find:
+  ansible.builtin.find:
     paths: "{{ staging_video_feed_content.storage_dir }}"
     patterns: "*.mp4"
   register: downloaded_videos
 
 - name: Fail if no videos are available
-  fail:
+  ansible.builtin.fail:
     msg: "No parking lot videos available for staging camera feed"
   when: downloaded_videos.files | length == 0
 
 - name: Select current video for streaming
-  file:
+  ansible.builtin.file:
     src: "{{ (downloaded_videos.files | first).path }}"
     dest: "{{ staging_video_feed_content.current_video }}"
     state: link
@@ -40,16 +40,16 @@
   when: downloaded_videos.files | length > 0
 
 - name: Create video cycling script
-  template:
+  ansible.builtin.template:
     src: cycle_videos.sh.j2
     dest: "{{ staging_video_feed_service.working_dir }}/scripts/cycle_videos.sh"
-    mode: '0755'
+    mode: "0755"
     owner: "{{ staging_video_feed_service.user }}"
     group: "{{ staging_video_feed_service.group }}"
   become: false
 
 - name: Display video content status
-  debug:
+  ansible.builtin.debug:
     msg: |
       Video Content Summary:
       - Storage: {{ staging_video_feed_content.storage_dir }}

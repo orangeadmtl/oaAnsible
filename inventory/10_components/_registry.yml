@@ -6,8 +6,8 @@ components:
   device-api:
     name: "Device API"
     description: "Unified FastAPI service for device management (macOS and OrangePi)"
-    mandatory: true  # Always deployed to all hosts
-    service:
+    mandatory: true # Always deployed to all hosts
+    ansible.builtin.service:
       name: "com.orangead.deviceapi"
       port: 9090
       bind_address: "127.0.0.1"
@@ -24,7 +24,7 @@ components:
     name: "Parking Monitor"
     description: "AI-powered parking space detection and monitoring"
     mandatory: false
-    service:
+    ansible.builtin.service:
       name: "com.orangead.parking-monitor"
       port: 9091
       bind_address: "127.0.0.1"
@@ -41,7 +41,7 @@ components:
     name: "Video Player"
     description: "MPV-based video player for kiosk displays"
     mandatory: false
-    service:
+    ansible.builtin.service:
       name: "com.orangead.player"
     repository:
       url: "https://github.com/oa-device/oaPlayer.git"
@@ -52,7 +52,7 @@ components:
     role: "macos/player"
     tags: ["player", "video"]
     variants:
-      single_screen: 
+      single_screen:
         description: "Single display configuration"
         config: { dual_screen: false }
       dual_screen:
@@ -63,7 +63,7 @@ components:
     name: "AI Tracker"
     description: "YOLOv11-based human detection and tracking"
     mandatory: false
-    service:
+    ansible.builtin.service:
       name: "com.orangead.tracker"
       port: 8080
     repository:
@@ -79,7 +79,7 @@ components:
     name: "Camera Guard"
     description: "Camera monitoring and alert system"
     mandatory: false
-    service:
+    ansible.builtin.service:
       name: "com.orangead.camguard"
     repository:
       url: "https://github.com/oa-device/oaCamGuard.git"
@@ -94,7 +94,7 @@ components:
     name: "License Plate Recognition"
     description: "Automatic License Plate Recognition system"
     mandatory: false
-    service:
+    ansible.builtin.service:
       name: "com.orangead.alpr"
       port: 8080
     platforms: ["macos", "ubuntu"]
@@ -109,22 +109,22 @@ compatibility:
   parking-monitor:
     conflicts: []
     enhances: ["device-api"]
-    
+
   player:
     conflicts: []
     enhances: ["device-api"]
-    
+
   tracker:
     conflicts: []
     enhances: ["device-api"]
-    
+
   camguard:
     conflicts: []
     enhances: ["device-api", "player"]
 
 # Deployment order (topological sort considering dependencies)
 deployment_order:
-  - device-api      # Always first (mandatory)
+  - device-api # Always first (mandatory)
   - parking-monitor
   - tracker
   - camguard

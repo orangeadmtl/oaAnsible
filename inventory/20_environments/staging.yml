@@ -9,16 +9,16 @@ environment:
 
 # Network access configuration
 network:
-  access_type: "local_ip"  # Can use 192.168.x.x addresses
-  tailscale_management: true  # Allowed to configure Tailscale
-  ssh_access: "direct"  # Direct SSH access via local network
+  access_type: "local_ip" # Can use 192.168.x.x addresses
+  tailscale_management: true # Allowed to configure Tailscale
+  ssh_access: "direct" # Direct SSH access via local network
 
 # Feature toggles (permissive for staging)
 features:
-  tailscale_configuration: true  # Can configure Tailscale
+  tailscale_configuration: true # Can configure Tailscale
   debug_mode: true
   experimental_features: true
-  destructive_operations: true  # Allowed for testing
+  destructive_operations: true # Allowed for testing
   server_optimizations: true
 
 # Environment permissions
@@ -35,13 +35,13 @@ component_overrides:
   device-api:
     debug_mode: true
     log_level: "DEBUG"
-    
+
   parking-monitor:
     detection:
       debug_mode: true
       save_detection_images: true
       confidence_threshold: 0.3
-      model: "yolo11n"  # Lighter model
+      model: "yolo11n" # Lighter model
     camera:
       debug_capture: true
       save_frames: true
@@ -53,18 +53,18 @@ component_overrides:
       show_debug_info: true
       show_fps: true
       ad_integration: false
-      
+
   player:
     fullscreen: false
     hide_cursor: false
     black_background: false
     disable_screensaver: false
     health_check_interval: 60
-    
+
   tracker:
     default_model: "yolo11n.pt"
     debug_mode: true
-    
+
   camguard:
     debug_mode: true
     check_interval: 10
@@ -77,8 +77,8 @@ additional_packages:
     - telnet
     - util-linux
     - fish
-    - orbstack  # Only in staging
-    
+    - orbstack # Only in staging
+
 # Logging configuration
 logging:
   level: "DEBUG"
@@ -94,4 +94,4 @@ monitoring:
   debug_monitoring: true
   development_mode: true
   metrics_collection: true
-  alert_webhooks: []  # No production alerts in staging
+  alert_webhooks: [] # No production alerts in staging

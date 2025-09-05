@@ -30,7 +30,7 @@
       {% else %}
       Virtual environments not found - skipping camera permissions setup
       This is normal for infrastructure-only deployments
-      
+
       To enable camera permissions later:
       1. Deploy device-api and parking-monitor components first
       2. Re-run the security role or full deployment

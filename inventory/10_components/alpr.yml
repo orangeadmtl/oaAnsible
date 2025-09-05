@@ -4,31 +4,31 @@
 
 alpr_component:
   # Service configuration
-  service:
+  ansible.builtin.service:
     name: "com.orangead.alpr"
     port: 8080
-    
+
   # Docker configuration
   docker:
     image: "platerecognizer/alpr"
     required_packages: ["docker"]
-    
+
   # Default configuration
   config:
     enabled: true
     camera_source: 0
     api_port: 8080
-    
+
   # Environment-specific configurations
   environment_overrides:
     staging:
       monitor_interval: 30
       detection_threshold: 0.7
-      
+
     preprod:
       monitor_interval: 15
       detection_threshold: 0.8
-      
+
     production:
       monitor_interval: 10
       detection_threshold: 0.9

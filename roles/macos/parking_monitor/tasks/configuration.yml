@@ -3,35 +3,35 @@
 # Creates and manages configuration files for the parking monitor service
 
 - name: Create configuration from template
-  template:
+  ansible.builtin.template:
     src: config.yaml.j2
     dest: "{{ parking_monitor_repository.destination }}/config.yaml"
-    mode: '0644'
+    mode: "0644"
     backup: "{{ parking_monitor_backup.config_backup | default(true) }}"
-  notify: 
+  notify:
     - backup configuration
     - reload parking monitor
 
 - name: Create environment configuration
-  template:
+  ansible.builtin.template:
     src: parking_monitor.env.j2
     dest: "{{ parking_monitor_repository.destination }}/.env"
-    mode: '0600'  # Sensitive environment variables
+    mode: "0600" # Sensitive environment variables
   notify: reload parking monitor
 
 - name: Create logging configuration
-  template:
+  ansible.builtin.template:
     src: logging.yaml.j2
     dest: "{{ parking_monitor_repository.destination }}/logging.yaml"
-    mode: '0644'
+    mode: "0644"
 
 - name: Validate configuration syntax
-  shell: |
+  ansible.builtin.shell: |
     cd "{{ parking_monitor_repository.destination }}"
     "{{ parking_monitor_python.env_path }}/bin/python" -c "
     import yaml
     import os
-    
+
     # Validate main config
     try:
         with open('config.yaml', 'r') as f:
@@ -42,7 +42,7 @@
         exit(1)
     except FileNotFoundError:
         print('[WARNING]  config.yaml not found - will be created by service')
-    
+
     # Validate logging config
     try:
         with open('logging.yaml', 'r') as f:
@@ -53,7 +53,7 @@
         exit(1)
     except FileNotFoundError:
         print('[WARNING]  logging.yaml not found')
-    
+
     # Check .env file
     if os.path.exists('.env'):
         print('[OK] .env file created')
@@ -64,9 +64,9 @@
   changed_when: false
 
 - name: Set configuration file permissions
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
-    mode: '0644'
+    mode: "0644"
     owner: "{{ parking_monitor_service.user }}"
     group: "{{ parking_monitor_service.group }}"
   loop:
@@ -75,14 +75,14 @@
   ignore_errors: true
 
 - name: Secure environment file permissions
-  file:
+  ansible.builtin.file:
     path: "{{ parking_monitor_repository.destination }}/.env"
-    mode: '0600'
+    mode: "0600"
     owner: "{{ parking_monitor_service.user }}"
     group: "{{ parking_monitor_service.group }}"
 
 - name: Configuration summary
-  debug:
+  ansible.builtin.debug:
     msg: |
       [SVC]  Configuration Setup Complete:
       ===============================

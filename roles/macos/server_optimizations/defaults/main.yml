@@ -32,7 +32,6 @@ macos_disable_mission_control: true
 macos_disable_notification_center: true
 macos_disable_animations: true
 macos_disable_desktop_icons: true
-
 # Dock configuration (when macos_disable_dock is false)
 # Note: macos_dock_essential_apps inherits from macos/base role defaults
 # Override in inventory if server environments need different dock apps

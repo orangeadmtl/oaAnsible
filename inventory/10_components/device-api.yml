@@ -4,7 +4,7 @@
 
 device_api_component:
   # Service configuration
-  service:
+  ansible.builtin.service:
     name: "com.orangead.deviceapi"
     port: 9090
     bind_address: "127.0.0.1"
@@ -33,9 +33,9 @@ device_api_component:
         keep_alive: true
         standard_out_path: "/tmp/deviceapi.log"
         standard_error_path: "/tmp/deviceapi.error.log"
-    
+
     orangepi:
-      systemd:
+      ansible.builtin.systemd:
         unit_name: "deviceapi.service"
         enabled: true
         state: started
@@ -53,11 +53,11 @@ device_api_component:
     staging:
       debug_mode: true
       log_level: "DEBUG"
-    
+
     preprod:
       debug_mode: false
       log_level: "INFO"
-      
+
     production:
       debug_mode: false
       log_level: "WARNING"

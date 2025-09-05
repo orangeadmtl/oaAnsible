@@ -8,19 +8,19 @@
   become: false
   vars:
     test_python_version: "{{ runtime.python.version | default('3.11.11') }}"
-  
+
   tasks:
     - name: Import state detection
       ansible.builtin.include_tasks: ../tasks/state-detection.yml
       tags: ["always"]
 
     - name: Test UV Python Role
-      when: 
+      when:
         - configure.uv_python | default(false)
         - platform_state.is_macos or platform_state.is_ubuntu
       block:
         - name: Run UV Python role
-          import_role:
+          ansible.builtin.import_role:
             name: common/uv_python
           vars:
             uv_python_version: "{{ test_python_version }}"
@@ -35,7 +35,7 @@
 
         - name: Verify Python installation via UV
           ansible.builtin.shell: |
-            export PATH="$HOME/.local/bin:$PATH" 
+            export PATH="$HOME/.local/bin:$PATH"
             uv python list | grep "{{ test_python_version }}" || echo "not_found"
           register: uv_python_check
           changed_when: false
@@ -94,7 +94,7 @@
         - name: Test Tracker Python Setup
           ansible.builtin.shell: |
             export PATH="$HOME/.local/bin:$PATH"
-            cd /tmp  
+            cd /tmp
             mkdir -p test_tracker
             cd test_tracker
             echo 'fastapi==0.104.1' > requirements.txt

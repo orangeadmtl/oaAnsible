@@ -6,7 +6,7 @@
   hosts: all
   gather_facts: true
   become: false
-  
+
   tasks:
     - name: Check if UV exists in cargo bin
       ansible.builtin.stat:
@@ -51,6 +51,6 @@
             msg: |
               UV Installation Results:
               {{ uv_install_result.stdout }}
-              
+
               [WARNING]  Remember to reload your shell:
                 source ~/.bashrc (or ~/.zshrc)

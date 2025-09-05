@@ -28,7 +28,7 @@
     dest: "{{ orangepi_project_root }}/util-scripts/oaplayermon"
     owner: "{{ orangepi_user }}"
     group: "{{ orangepi_user }}"
-    mode: '0755'
+    mode: "0755"
   become: true
 
 - name: Display player configuration status

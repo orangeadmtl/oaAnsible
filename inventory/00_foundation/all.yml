@@ -41,7 +41,7 @@ mandatory_components:
 service_defaults:
   user: "{{ ansible_user }}"
   group: "{{ ansible_user }}"
-  
+
 # Directory structure standards
 directory_structure:
   base_path: "{{ ansible_user_dir }}/orangead"
@@ -62,7 +62,7 @@ health_check_defaults:
 # Repository defaults
 repository_defaults:
   force_update: false
-  depth: 1  # Shallow clone for performance
+  depth: 1 # Shallow clone for performance
 
 # Deployment standards
 deployment_standards:

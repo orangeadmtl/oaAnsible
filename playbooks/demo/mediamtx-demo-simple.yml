@@ -6,12 +6,12 @@
 
 - name: MediaMTX Demo Simple Setup
   hosts: demo_hosts
-  become: no  # Run as user, not root
-  gather_facts: yes
-  
+  become: no # Run as user, not root
+  gather_facts: true
+
   vars:
     demo_banner: |
-      
+
       ╔════════════════════════════════════════════════════════════════╗
       ║                    MediaMTX Demo - Simple                      ║
       ║                                                                ║
@@ -22,14 +22,14 @@
       ║  Target: {{ inventory_hostname }}                              ║
       ║  Location: ~/mediamtx-demo                                     ║
       ╚════════════════════════════════════════════════════════════════╝
-      
+
   pre_tasks:
     - name: Display demo banner
-      debug:
+      ansible.builtin.debug:
         msg: "{{ demo_banner }}"
-    
+
     - name: Verify demo environment
-      debug:
+      ansible.builtin.debug:
         msg: |
           Demo Configuration:
           - Host: {{ inventory_hostname }}
@@ -42,20 +42,20 @@
   tasks:
     # Clean up old directories if they exist
     - name: Remove existing mediamtx-demo directory (clean slate)
-      file:
+      ansible.builtin.file:
         path: "{{ mediamtx_demo.demo.base_dir }}"
         state: absent
       tags: ["cleanup"]
-    
+
     # Deploy the MediaMTX Demo using our new role
     - name: Deploy MediaMTX Demo
-      include_role:
+      ansible.builtin.include_role:
         name: macos/mediamtx_demo
       tags: ["mediamtx-demo"]
 
     # Install Python dependencies if enabled
     - name: Install Python dependencies for camera reading
-      pip:
+      ansible.builtin.pip:
         name: "{{ mediamtx_demo.python.dependencies }}"
         state: present
         executable: pip3
@@ -64,17 +64,17 @@
 
   post_tasks:
     - name: Display demo completion message
-      debug:
+      ansible.builtin.debug:
         msg: |
-          
+
           [SUCCESS] MediaMTX Demo Environment Ready!
-          
+
           [LOCATION] Demo Machine: {{ inventory_hostname }}
           [WEB] Tailscale IP: {{ ansible_host }}
           [FILES] Location: {{ mediamtx_demo.demo.base_dir }}
           [VIDEO] RTSP Port: {{ mediamtx_demo.streaming.rtsp_port }}
           [LINK] API Port: {{ mediamtx_demo.streaming.api_port }}
-          
+
           [LAUNCH] Quick Start:
           1. SSH: ssh {{ ansible_user }}@{{ ansible_host }}
           2. Go to demo: cd {{ mediamtx_demo.demo.base_dir }}
@@ -82,22 +82,22 @@
           4. Start stream: ffmpeg -f avfoundation -i "{{ mediamtx_demo.camera.device_id }}" -c:v {{ mediamtx_demo.camera.codec }} -preset {{ mediamtx_demo.camera.preset }} -r {{ mediamtx_demo.camera.framerate }} -f rtsp rtsp://localhost:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
           5. Python demo: python3 scripts/{{ mediamtx_demo.python.script_name }} --headless
           6. View remote: vlc rtsp://{{ ansible_host }}:{{ mediamtx_demo.streaming.rtsp_port }}/{{ mediamtx_demo.streaming.stream_path }}
-          
+
           [LIST] Service: {{ mediamtx_demo.service.name }} (auto-starts on boot)
           [FOLDER] All files in: {{ mediamtx_demo.demo.base_dir }}
-          
+
     - name: Verify MediaMTX service is running
-      command: launchctl list {{ mediamtx_demo.service.name }}
+      ansible.builtin.command: launchctl list {{ mediamtx_demo.service.name }}
       register: service_check
       failed_when: false
       changed_when: false
-      
+
     - name: Service status summary
-      debug:
+      ansible.builtin.debug:
         msg: |
           [CONFIG] Service Status:
           - MediaMTX Demo: {{ 'Running [OK]' if service_check.rc == 0 else 'Not Running [FAIL]' }}
-          
+
           [TIPS] If service not running, troubleshoot with:
           - {{ mediamtx_demo.demo.base_dir }}/scripts/fix_permissions.sh
           - {{ mediamtx_demo.demo.base_dir }}/scripts/status.sh

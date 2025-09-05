@@ -82,19 +82,19 @@ all:
 ### Default Deployment (Foundation + Project Components)
 ```bash
 # Deploys: base, network, security, device-api, parking-monitor
-./scripts/run projects/yuh/staging
+./scripts/run projects/yhu/staging
 ```
 
 ### Explicit Component Selection (Still includes Foundation)
 ```bash
 # Deploys: base, network security, device-api, parking-monitor
-./scripts/run projects/yuh/staging --tags parking-monitor
+./scripts/run projects/yhu/staging --tags parking-monitor
 ```
 
 ### Foundation Only Deployment
 ```bash
 # Deploys: base, network, security, device-api
-./scripts/run projects/yuh/staging --tags device-api
+./scripts/run projects/yhu/staging --tags device-api
 ```
 
 ## Benefits

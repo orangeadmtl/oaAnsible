@@ -3,7 +3,7 @@
 # These handlers manage the LaunchAgent service lifecycle
 
 - name: restart parking monitor
-  shell: |
+  ansible.builtin.shell: |
     launchctl unload "{{ parking_monitor_launchd.plist_path }}" 2>/dev/null || true
     sleep 2
     launchctl load "{{ parking_monitor_launchd.plist_path }}"
@@ -11,25 +11,25 @@
   listen: "restart parking monitor"
 
 - name: reload parking monitor
-  shell: |
+  ansible.builtin.shell: |
     launchctl kickstart -k "gui/{{ ansible_user_id }}/{{ parking_monitor_service.name }}"
   become: false
   listen: "reload parking monitor"
 
 - name: stop parking monitor
-  shell: |
+  ansible.builtin.shell: |
     launchctl unload "{{ parking_monitor_launchd.plist_path }}" 2>/dev/null || true
   become: false
   listen: "stop parking monitor"
 
-- name: start parking monitor  
-  shell: |
+- name: start parking monitor
+  ansible.builtin.shell: |
     launchctl load "{{ parking_monitor_launchd.plist_path }}"
   become: false
   listen: "start parking monitor"
 
 - name: validate parking monitor service
-  uri:
+  ansible.builtin.uri:
     url: "http://localhost:9091/health"
     method: GET
     status_code: 200
@@ -39,7 +39,7 @@
   listen: "validate parking monitor service"
 
 - name: refresh python environment
-  shell: |
+  ansible.builtin.shell: |
     cd "{{ parking_monitor_repository.destination }}"
     uv sync
   become: false

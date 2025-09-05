@@ -5,17 +5,17 @@
 # Default Parking Monitor Configuration
 parking_monitor_defaults:
   # Service Configuration
-  service:
+  ansible.builtin.service:
     name: "com.orangead.parking-monitor"
     port: 9091
     python_version: "{{ python_version_lookup.parking_monitor }}"
-    
+
   # Repository Configuration
   repository:
     url: "https://github.com/oa-device/oaParkingMonitor.git"
     branch: "main"
     destination: "{{ ansible_user_dir }}/orangead/parking-monitor"
-    
+
   # Detection Configuration (Conservative defaults)
   detection:
     model: "yolo11m"
@@ -24,7 +24,7 @@ parking_monitor_defaults:
     device: "mps"
     debug_mode: false
     save_detection_images: false
-    
+
   # Camera Configuration
   camera:
     source: 0
@@ -33,7 +33,7 @@ parking_monitor_defaults:
     debug_capture: false
     save_frames: false
     staging_mode: false
-    
+
   # Health Monitoring (Production defaults)
   health_monitoring:
     enabled: true
@@ -46,7 +46,7 @@ parking_monitor_defaults:
       max_memory_gb: 4
       max_cpu_percent: 80
       min_accuracy: 0.9
-      
+
   # Display Configuration
   display:
     enabled: true
@@ -61,16 +61,16 @@ parking_monitor_defaults:
 
 # Default Device API Configuration
 device_api_defaults:
-  service:
+  ansible.builtin.service:
     name: "com.orangead.deviceapi"
     port: 9090
     python_version: "{{ python_version_lookup.device_api }}"
-    
+
   repository:
     url: "https://github.com/oa-device/oaDeviceAPI.git"
     branch: "main"
     destination: "{{ ansible_user_dir }}/orangead/oaDeviceAPI"
-    
+
   configuration:
     debug_mode: false
     platform_detection: true
@@ -98,18 +98,18 @@ environment_overrides:
     device_api:
       configuration:
         debug_mode: true
-        
+
   staging:
     parking_monitor:
       detection:
-        model: "yolo11n"  # Lighter model
+        model: "yolo11n" # Lighter model
         confidence_threshold: 0.3
         debug_mode: true
       camera:
         staging_mode: true
       health_monitoring:
         performance_alerts: false
-        
+
   production:
     parking_monitor:
       detection:

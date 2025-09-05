@@ -1,0 +1,54 @@
+---
+# Service Defaults - Common configurations across all services
+# Standardized naming conventions and default values
+
+# Service Configuration Standards
+service_defaults:
+  # Naming Conventions (snake_case)
+  naming:
+    prefix: "com.orangead"
+    user_prefix: "orangead"
+
+  # Common Service Settings
+  common:
+    log_level: "INFO"
+    timeout: 30
+    retries: 6
+    delay: 5
+    restart_policy: true
+    throttle_interval: 10
+
+  # Directory Standards
+  directories:
+    base: "{{ ansible_user_dir }}/orangead"
+    logs: "/tmp"
+    config: "config"
+    models: "models"
+
+  # Network Defaults
+  network:
+    tailscale_subnet: "100.64.0.0/10"
+
+  # Python Environment Standards
+  python:
+    version: "3.12"
+    requirements_file: "requirements.txt"
+    package_manager: "uv"
+
+# Port Allocations (centralized to avoid conflicts)
+service_ports:
+  device_api: 8000
+  tracker: 8080
+  parking_monitor: 9091
+  player: 8001
+  camguard: 8002
+  alpr: 8003
+
+# LaunchAgent Template Settings (macOS)
+launchd_defaults:
+  run_at_load: true
+  keep_alive: true
+  restart_on_failure: true
+  throttle_interval: "{{ service_defaults.common.throttle_interval }}"
+  standard_out_path: "{{ service_defaults.directories.logs }}"
+  standard_error_path: "{{ service_defaults.directories.logs }}"

@@ -3,31 +3,31 @@
 # Focuses on device preparation, repository setup, and service installation
 
 - name: Include pre-deployment checks
-  include_tasks: pre_checks.yml
+  ansible.builtin.include_tasks: pre_checks.yml
   tags: [parking-monitor, pre-checks]
 
 - name: Include repository setup
-  include_tasks: repository_setup.yml
+  ansible.builtin.include_tasks: repository_setup.yml
   tags: [parking-monitor, repository]
 
 - name: Include Python environment setup
-  include_tasks: python_environment.yml
+  ansible.builtin.include_tasks: python_environment.yml
   tags: [parking-monitor, python]
 
 - name: Include service setup (LaunchAgent)
-  include_tasks: service_setup.yml
+  ansible.builtin.include_tasks: service_setup.yml
   tags: [parking-monitor, service]
 
 - name: Include security configuration
-  include_tasks: security_setup.yml
+  ansible.builtin.include_tasks: security_setup.yml
   tags: [parking-monitor, security]
 
 - name: Include health verification
-  include_tasks: health_verification.yml
+  ansible.builtin.include_tasks: health_verification.yml
   tags: [parking-monitor, health, verify]
 
 - name: Display deployment summary
-  debug:
+  ansible.builtin.debug:
     msg: |
       ===============================================
       [INFO] Parking Monitor Device Setup Summary
@@ -40,12 +40,12 @@
       Python Setup: uv-managed virtual environment
       ===============================================
       [SUCCESS] Device setup completed successfully!
-      
+
       Project Configuration:
       - Configuration managed by project in config/ directory
       - Environment: {{ parking_monitor_environment.PARKING_MONITOR_ENV }}
       - Project will auto-configure based on environment
-      
+
       Next steps:
       1. Service will start automatically via LaunchAgent
       2. Check project logs: {{ parking_monitor_repository.destination }}/logs/

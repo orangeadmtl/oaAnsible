@@ -9,24 +9,24 @@ environment:
 
 # Network access configuration
 network:
-  access_type: "tailscale_only"  # Only accessible via Tailscale
-  tailscale_management: false  # NO Tailscale configuration changes
-  ssh_access: "tailscale"  # SSH only via Tailscale network
+  access_type: "tailscale_only" # Only accessible via Tailscale
+  tailscale_management: false # NO Tailscale configuration changes
+  ssh_access: "tailscale" # SSH only via Tailscale network
 
 # Feature toggles (conservative for preprod)
 features:
-  tailscale_configuration: false  # BANNED - pre-production stability
+  tailscale_configuration: false # BANNED - pre-production stability
   debug_mode: false
   experimental_features: false
   destructive_operations: false
-  server_optimizations: true  # Allowed for performance testing
+  server_optimizations: true # Allowed for performance testing
 
 # Environment permissions (more restrictive)
 permissions:
   allow_experimental: false
   allow_server_optimizations: true
   allow_destructive_operations: false
-  allow_package_installation: false  # Packages pre-installed
+  allow_package_installation: false # Packages pre-installed
   allow_service_restarts: true
   allow_configuration_changes: true
 
@@ -35,31 +35,31 @@ component_overrides:
   device-api:
     debug_mode: false
     log_level: "INFO"
-    
+
   parking-monitor:
     detection:
-      debug_mode: true  # Some debugging for validation
+      debug_mode: true # Some debugging for validation
       confidence_threshold: 0.4
       save_detection_images: false
     health_monitoring:
-      performance_alerts: false  # Not production-critical
+      performance_alerts: false # Not production-critical
       check_interval: 60
     display:
       show_debug_info: false
       show_fps: false
       ad_integration: true
-      
+
   player:
     fullscreen: true
     hide_cursor: true
     black_background: true
     disable_screensaver: true
     health_check_interval: 120
-    
+
   tracker:
     default_model: "yolo12s.pt"
     debug_mode: false
-    
+
   camguard:
     debug_mode: false
     check_interval: 30
@@ -72,7 +72,7 @@ additional_packages:
     - telnet
     - util-linux
     - fish
-    
+
 # Logging configuration (moderate verbosity)
 logging:
   level: "INFO"
@@ -88,4 +88,4 @@ monitoring:
   debug_monitoring: false
   development_mode: false
   metrics_collection: true
-  alert_webhooks: []  # No production alerts yet
+  alert_webhooks: [] # No production alerts yet

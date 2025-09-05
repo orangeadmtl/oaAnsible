@@ -38,16 +38,15 @@
         all_required_videos: >-
           {{
             (
-              player.schedules | default([]) | selectattr('videos', 'defined') | 
-              map(attribute='videos') | flatten | selectattr('enabled', 'equalto', true) | 
+              player.schedules | default([]) | selectattr('videos', 'defined') |
+              map(attribute='videos') | flatten | selectattr('enabled', 'equalto', true) |
               map(attribute='name') | list
-            ) + 
+            ) +
             (
-              player.videos | default([]) | selectattr('enabled', 'equalto', true) | 
+              player.videos | default([]) | selectattr('enabled', 'equalto', true) |
               map(attribute='name') | list
             )
-          | unique | list
-          }}
+          | unique | list }}
       when: player.schedule_enabled | default(false) or (player.videos is defined and player.videos | length > 0)
 
     - name: Check if required video files exist
