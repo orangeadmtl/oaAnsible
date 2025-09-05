@@ -1,0 +1,24 @@
+---
+# Global deployment defaults
+# Centralized configuration for deployment behavior across all components
+
+# Git Repository Management
+git_force_update: false  # Set to true via --force flag to update all repos to latest commits
+
+# Component-specific force update variables inherit from global
+# Individual components can still override these via --extra-vars if needed
+parking_monitor_force_update: "{{ git_force_update | default(false) }}"
+device_api_force_update: "{{ git_force_update | default(false) }}"
+tracker_force_update: "{{ git_force_update | default(false) }}"
+player_force_update: "{{ git_force_update | default(false) }}"  # Managed via oaDeviceAPI
+
+# Deployment Safety
+deployment_safety_checks: true  # Can be overridden by force_deployment
+
+# Service Management
+service_restart_on_update: true  # Restart services after git updates
+service_health_check_timeout: 30  # Seconds to wait for health checks after restart
+
+# Logging and Output
+verbose_git_operations: true  # Show detailed git operation logs
+show_commit_verification: true  # Display commit hashes and update status
