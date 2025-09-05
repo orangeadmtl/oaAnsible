@@ -8,11 +8,11 @@ project_stack:
   components:
     # Uncomment components as needed for your project:
     # - parking-monitor  # AI parking detection (FastAPI on port 9091)
-    # - player          # Video player for displays  
+    # - player          # Video player for displays
     # - tracker         # Human detection/tracking (FastAPI on port 8080)
     # - camguard        # Camera monitoring
     # - alpr            # License plate recognition
-    
+
   # Component-specific configuration overrides
   component_configs:
     # Example parking-monitor configuration:
@@ -24,7 +24,7 @@ project_stack:
     #   parking_zones:
     #     - name: "Zone A"
     #       coordinates: [[100, 100], [200, 100], [200, 200], [100, 200]]
-    
+
     # Example player configuration:
     # player:
     #   dual_screen: true
@@ -33,12 +33,12 @@ project_stack:
     #       display: 1
     #       enabled: true
     #       loop: true
-    
+
     # Example tracker configuration:
     # tracker:
     #   default_model: "yolo12s.pt"
     #   default_yolo_source: 0
-    
+
   # Host role assignments (optional - for multi-role deployments)
   host_roles:
     # Example:
@@ -46,17 +46,17 @@ project_stack:
     #   components: [device-api, player, camguard]
     # monitoring_hosts:
     #   components: [device-api, parking-monitor, tracker]
-    
+
   # Environment-specific stack overrides
   environment_overrides:
     staging:
       # Staging-specific component configs
       # Example: use lighter models, enable debug modes
-      
+
     preprod:
       # Pre-production specific configs
       # Example: reduced logging, production-like settings
-      
+
     production:
-      # Production-specific configs  
+      # Production-specific configs
       # Example: optimized settings, alerting enabled

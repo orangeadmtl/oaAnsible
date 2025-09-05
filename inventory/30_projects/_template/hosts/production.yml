@@ -7,16 +7,16 @@ all:
     # Environment identification
     target_env: "{{ project_metadata.name }}-production"
     deployment_environment: "production"
-    
+
     # Project reference
     project_name: "{{ project_metadata.name }}"
-    
+
     # Component deployment (from stack.yml)
     components_to_deploy: "{{ project_stack.components }}"
-    
+
     # Component configurations (from stack.yml + environment overrides)
     component_configurations: "{{ project_stack.component_configs | combine(
-      project_stack.environment_overrides.production | default({}), 
+      project_stack.environment_overrides.production | default({}),
       recursive=True
     ) }}"
 
@@ -32,7 +32,7 @@ all:
             #   ansible_user: "admin"
             #   ansible_port: 22
             #   ansible_become_password: "{{ vault_sudo_passwords['{{ project_metadata.name }}-prod-001'] }}"
-            #   
+            #
             #   # Production host configuration
             #   cam_id: "PRODUCTION-CAM-UUID"
             #   environment_type: "production"

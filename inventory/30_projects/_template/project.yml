@@ -3,21 +3,21 @@
 # Copy and customize for new projects
 
 project_metadata:
-  name: "REPLACE_WITH_PROJECT_NAME"  # e.g., "yuh", "evenko", "acme"
-  type: "REPLACE_WITH_PROJECT_TYPE"  # airport|venue|sports|demo|ml
+  name: "REPLACE_WITH_PROJECT_NAME" # e.g., "yhu", "evenko", "acme"
+  type: "REPLACE_WITH_PROJECT_TYPE" # airport|venue|sports|demo|ml
   description: "REPLACE_WITH_DESCRIPTION"
   location: "REPLACE_WITH_LOCATION"
-  
+
   # Project contact information
   contacts:
     primary: "REPLACE_WITH_PRIMARY_CONTACT"
     technical: "REPLACE_WITH_TECHNICAL_CONTACT"
-    
+
   # Project-specific configuration
   configuration:
     timezone: "UTC"
     locale: "en_US.UTF-8"
-    
+
   # Custom project variables (optional)
   custom_vars: {}
     # Example:
