@@ -48,8 +48,16 @@
       ignore_errors: true
       tags: ["deviceapi", "service", "stop"]
 
-    - name: Setup unified API environment (always update)
-      ansible.builtin.include_tasks: setup_unified_environment.yml
+    - name: Setup unified API environment (standardized git management)
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/git-repository-management.yml"
+      vars:
+        repo_component_name: "device_api"
+        repo_url: "{{ device_api.repository_url | default('https://github.com/oa-device/oaDeviceAPI.git') }}"
+        repo_branch: "{{ device_api.branch | default('main') }}"
+        repo_destination: "{{ device_api_path }}"
+        repo_force_update: "{{ device_api_force_update | default(false) }}"
+        repo_owner: "{{ ansible_user }}"
+        repo_group: "{{ 'staff' if platform_state.is_macos else ansible_user }}"
       tags: ["deviceapi", "setup", "files"]
 
     - name: Configure Python environment (always update dependencies)
@@ -64,20 +72,35 @@
       ansible.builtin.include_tasks: deployment_validation.yml
       tags: ["deviceapi", "validation"]
 
-    - name: Display deployment completion status
+    - name: Display deployment completion status (standardized git info)
       ansible.builtin.debug:
         msg: |
           ===============================================
           Device API Deployment Completed Successfully!
           ===============================================
-          - Repository: {{ device_api.repository_url | default('https://github.com/oa-device/oaDeviceAPI.git') }}
-          - Branch: {{ device_api.branch | default('main') }}
-          - Before Commit: {{ deviceapi_before_commit | default('N/A') }}
-          - After Commit: {{ deviceapi_after_commit | default('N/A') }}
-          - Repository Updated: {{ deviceapi_repo_updated | default(false) }}
-          - Service: {{ device_api_service_name }}
-          - Service Restarted: {{ deviceapi_service_restarted | default(false) }}
-          - Force Update Applied: {{ deviceapi_force_update }}
+          Repository: {{ device_api.repository_url | default('https://github.com/oa-device/oaDeviceAPI.git') }}
+          Branch: {{ device_api.branch | default('main') }}
+          Service: {{ device_api_service_name }}
+          Platform: {{ 'macOS' if platform_state.is_macos else 'Ubuntu' }}
+          
+          STANDARDIZED COMMIT VERIFICATION:
+          {% if device_api_repo_info is defined %}
+          {% set info = device_api_repo_info %}
+          Current Commit: {{ info.final_commit[:8] if info.final_commit != 'unknown' else 'N/A' }}
+          Branch: {{ info.final_branch }}
+          Last Message: {{ info.final_message }}
+          Author: {{ info.final_author }}
+          Updated: {{ info.final_timestamp }}
+          Repository Status: [{{ 'UPDATED' if info.updated else 'VERIFIED' }}]
+          {% if info.update_operation and info.before_commit != 'none' %}
+          Change: {{ info.before_commit[:8] }} → {{ info.final_commit[:8] }}
+          {% endif %}
+          {% else %}
+          Repository Status: [WARNING] Commit info not available
+          {% endif %}
+          
+          Force Update Applied: {{ device_api_force_update | default(false) }}
+          Service Restarted: {{ deviceapi_service_restarted | default(false) }}
           ===============================================
 
 - name: Set deployment completion facts

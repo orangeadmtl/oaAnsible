@@ -24,28 +24,41 @@
   when: not unified_api_dir.stat.exists
   become_user: "{{ ansible_user }}"
 
-- name: Force update oaDeviceAPI to latest version (always)
+- name: Update oaDeviceAPI to latest version (conditional on force flag)
   ansible.builtin.git:
     repo: "{{ device_api.repository_url | default('https://github.com/oa-device/oaDeviceAPI.git') }}"
     dest: "{{ device_api_path }}"
     version: "{{ device_api.branch | default('main') }}"
     force: true
-    # Force fetch to ensure we get the absolute latest
     update: true
-  when: unified_api_dir.stat.exists
+  when: 
+    - unified_api_dir.stat.exists
+    - device_api_force_update | default(false)
   become_user: "{{ ansible_user }}"
   register: unified_api_update
 
-- name: Force git reset to ensure clean state
+- name: Force git reset to ensure clean state (when force update enabled)
   ansible.builtin.shell: |
     cd {{ device_api_path }}
     git fetch --all
     git reset --hard origin/{{ device_api.branch | default('main') }}
     git clean -fd
   become_user: "{{ ansible_user }}"
-  when: unified_api_dir.stat.exists
+  when: 
+    - unified_api_dir.stat.exists
+    - device_api_force_update | default(false)
   register: git_force_reset
   changed_when: true
+
+- name: Report git force update status
+  ansible.builtin.debug:
+    msg: |
+      [GIT] Device API Force Update: {{ 'ENABLED' if device_api_force_update | default(false) else 'DISABLED' }}
+      {% if device_api_force_update | default(false) %}
+      Repository will be forcefully updated to latest commit
+      {% else %}
+      Repository will remain at current commit (use --force to update)
+      {% endif %}
 
 - name: Check repository status and commit information
   ansible.builtin.shell: |
@@ -55,27 +68,35 @@
     echo "COMMIT_MESSAGE:$(git log -1 --format='%s')"
     echo "BRANCH:$(git branch --show-current)"
   become_user: "{{ ansible_user }}"
-  when: unified_api_dir.stat.exists
+  when: 
+    - unified_api_dir.stat.exists
+    - device_api_force_update | default(false)
   register: git_status_info
   changed_when: false
 
-- name: Parse repository update information
+- name: Parse repository update information (when force update was applied)
   ansible.builtin.set_fact:
-    deviceapi_repo_updated: true  # Always consider updated in force mode
+    deviceapi_repo_updated: "{{ device_api_force_update | default(false) }}"
     deviceapi_before_commit: "{{ git_status_info.stdout_lines | select('match', '^BEFORE_COMMIT:') | first | regex_replace('^BEFORE_COMMIT:', '') | default('unknown') }}"
     deviceapi_after_commit: "{{ git_status_info.stdout_lines | select('match', '^AFTER_COMMIT:') | first | regex_replace('^AFTER_COMMIT:', '') | default('unknown') }}"
     deviceapi_commit_message: "{{ git_status_info.stdout_lines | select('match', '^COMMIT_MESSAGE:') | first | regex_replace('^COMMIT_MESSAGE:', '') | default('N/A') }}"
     deviceapi_current_branch: "{{ git_status_info.stdout_lines | select('match', '^BRANCH:') | first | regex_replace('^BRANCH:', '') | default('main') }}"
-  when: unified_api_dir.stat.exists and git_status_info is defined and git_status_info.stdout_lines is defined
+  when: 
+    - unified_api_dir.stat.exists 
+    - device_api_force_update | default(false)
+    - git_status_info is defined 
+    - git_status_info.stdout_lines is defined
 
-- name: Set fallback repository information (when git status unavailable)
+- name: Set fallback repository information (when no force update)
   ansible.builtin.set_fact:
-    deviceapi_repo_updated: true
-    deviceapi_before_commit: "{{ unified_api_update.before | default('unknown') }}"
-    deviceapi_after_commit: "{{ unified_api_update.after | default('unknown') }}"
-    deviceapi_commit_message: "Force update applied"
+    deviceapi_repo_updated: false
+    deviceapi_before_commit: "current"
+    deviceapi_after_commit: "current"
+    deviceapi_commit_message: "No update performed (force flag not set)"
     deviceapi_current_branch: "{{ device_api.branch | default('main') }}"
-  when: unified_api_dir.stat.exists and (git_status_info is not defined or git_status_info.stdout_lines is not defined)
+  when: 
+    - unified_api_dir.stat.exists
+    - not (device_api_force_update | default(false))
 
 - name: Display detailed repository update status
   ansible.builtin.debug:
