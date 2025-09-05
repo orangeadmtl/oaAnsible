@@ -4,21 +4,26 @@
 
 - name: Load foundation defaults
   ansible.builtin.include_vars:
-    ansible.builtin.file: "{{ playbook_dir }}/../inventory/00_foundation/defaults.yml"
+    file: "{{ playbook_dir }}/../inventory/00_foundation/defaults.yml"
     name: foundation_config
   tags: [always]
 
 - name: Load project stack configuration
   ansible.builtin.include_vars:
-    ansible.builtin.file: "{{ playbook_dir }}/../inventory/30_projects/{{ project_name }}/stack.yml"
+    file: "{{ playbook_dir }}/../inventory/30_projects/{{ project_name }}/stack.yml"
     name: project_stack_config
   when: project_name is defined
   tags: [always]
 
 - name: Load component registry
   ansible.builtin.include_vars:
-    ansible.builtin.file: "{{ playbook_dir }}/../inventory/10_components/_registry.yml"
+    file: "{{ playbook_dir }}/../inventory/10_components/_registry.yml"
     name: component_registry
+  tags: [always]
+
+- name: Load service defaults (required for all roles)
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../inventory/group_vars/all/service_defaults.yml"
   tags: [always]
 
 - name: Initialize component resolution variables
