@@ -330,6 +330,13 @@
       when: execution_mode == "network"
 
   post_tasks:
+    - name: Display unified git status dashboard
+      ansible.builtin.include_tasks: ../tasks/git-status-dashboard.yml
+      when: 
+        - show_commit_verification | default(true)
+        - git_force_update is defined or parking_monitor_repo_info is defined or device_api_repo_info is defined or tracker_repo_info is defined
+      tags: ["always"]
+
     - name: Display completion summary
       ansible.builtin.debug:
         msg: |
