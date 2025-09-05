@@ -1,0 +1,211 @@
+---
+# Reusable Git Repository Management
+# Provides standardized git operations with comprehensive commit verification
+# 
+# Required parameters:
+#   repo_component_name: Component name (e.g., "parking_monitor", "device_api", "tracker")
+#   repo_url: Git repository URL
+#   repo_branch: Target branch (e.g., "main", "develop")
+#   repo_destination: Local repository path
+#   repo_force_update: Boolean flag for force updates
+#   repo_owner: Repository owner (usually ansible_user)
+#   repo_group: Repository group (usually "staff")
+#
+# Optional parameters:
+#   repo_accept_hostkey: Accept SSH host keys (default: true)
+#   repo_verbose: Enable verbose git output (default: false)
+#   repo_tags: Tag list for task inheritance (default: ['always'])
+
+- name: Validate required git repository parameters
+  ansible.builtin.assert:
+    that:
+      - repo_component_name is defined
+      - repo_url is defined
+      - repo_branch is defined
+      - repo_destination is defined
+      - repo_force_update is defined
+      - repo_owner is defined
+      - repo_group is defined
+    fail_msg: |
+      Missing required parameters for git repository management.
+      Required: repo_component_name, repo_url, repo_branch, repo_destination, 
+               repo_force_update, repo_owner, repo_group
+  tags: "{{ repo_tags | default(['always']) }}"
+
+- name: "[{{ repo_component_name | upper }}] Report git force update status"
+  ansible.builtin.debug:
+    msg: |
+      [GIT] {{ repo_component_name | title }} Force Update: {{ 'ENABLED' if repo_force_update else 'DISABLED' }}
+      Repository: {{ repo_url }}
+      Branch: {{ repo_branch }}
+      Destination: {{ repo_destination }}
+      {% if repo_force_update %}
+      Repository will be forcefully updated to latest commit
+      {% else %}
+      Repository will remain at current commit (use --force to update)
+      {% endif %}
+  tags: "{{ repo_tags | default(['always']) }}"
+
+- name: "[{{ repo_component_name | upper }}] Ensure parent directory exists"
+  ansible.builtin.file:
+    path: "{{ repo_destination | dirname }}"
+    state: directory
+    owner: "{{ repo_owner }}"
+    group: "{{ repo_group }}"
+    mode: "0755"
+  tags: "{{ repo_tags | default(['always']) }}"
+
+- name: "[{{ repo_component_name | upper }}] Check if repository exists"
+  ansible.builtin.stat:
+    path: "{{ repo_destination }}"
+  register: repo_dir_exists
+  tags: "{{ repo_tags | default(['always']) }}"
+
+- name: "[{{ repo_component_name | upper }}] Check if git repository is initialized"
+  ansible.builtin.stat:
+    path: "{{ repo_destination }}/.git"
+  register: repo_git_exists
+  tags: "{{ repo_tags | default(['always']) }}"
+
+# Initial clone for new repositories
+- name: "[{{ repo_component_name | upper }}] Clone repository (initial setup)"
+  ansible.builtin.git:
+    repo: "{{ repo_url }}"
+    dest: "{{ repo_destination }}"
+    version: "{{ repo_branch }}"
+    force: false
+    accept_hostkey: "{{ repo_accept_hostkey | default(true) }}"
+  when: not repo_git_exists.stat.exists | default(false)
+  become_user: "{{ repo_owner }}"
+  register: git_clone_result
+  tags: "{{ repo_tags | default(['always']) }}"
+
+# Get commit information before any updates
+- name: "[{{ repo_component_name | upper }}] Get current commit information (before update)"
+  ansible.builtin.shell:
+    cmd: |
+      cd "{{ repo_destination }}"
+      echo "CURRENT_COMMIT:$(git rev-parse HEAD 2>/dev/null || echo 'none')"
+      echo "CURRENT_BRANCH:$(git branch --show-current 2>/dev/null || echo 'none')"
+      echo "CURRENT_MESSAGE:$(git log -1 --pretty=format:'%s' 2>/dev/null || echo 'none')"
+      echo "CURRENT_AUTHOR:$(git log -1 --pretty=format:'%an' 2>/dev/null || echo 'none')"
+      echo "CURRENT_TIMESTAMP:$(git log -1 --pretty=format:'%ci' 2>/dev/null || echo 'none')"
+      git fetch origin >/dev/null 2>&1 || true
+      echo "REMOTE_COMMIT:$(git rev-parse origin/{{ repo_branch }} 2>/dev/null || echo 'none')"
+  when: repo_git_exists.stat.exists | default(false)
+  become_user: "{{ repo_owner }}"
+  register: git_before_info
+  changed_when: false
+  tags: "{{ repo_tags | default(['always']) }}"
+
+# Force update existing repositories when requested
+- name: "[{{ repo_component_name | upper }}] Force update repository to latest"
+  ansible.builtin.git:
+    repo: "{{ repo_url }}"
+    dest: "{{ repo_destination }}"
+    version: "{{ repo_branch }}"
+    force: true
+    update: true
+    accept_hostkey: "{{ repo_accept_hostkey | default(true) }}"
+  when: 
+    - repo_git_exists.stat.exists | default(false)
+    - repo_force_update | default(false)
+  become_user: "{{ repo_owner }}"
+  register: git_update_result
+  tags: "{{ repo_tags | default(['always']) }}"
+
+# Get commit information after updates
+- name: "[{{ repo_component_name | upper }}] Get final commit information (after update)"
+  ansible.builtin.shell:
+    cmd: |
+      cd "{{ repo_destination }}"
+      echo "FINAL_COMMIT:$(git rev-parse HEAD)"
+      echo "FINAL_BRANCH:$(git branch --show-current)"
+      echo "FINAL_MESSAGE:$(git log -1 --pretty=format:'%s')"
+      echo "FINAL_AUTHOR:$(git log -1 --pretty=format:'%an')"
+      echo "FINAL_TIMESTAMP:$(git log -1 --pretty=format:'%ci')"
+      echo "FINAL_SHORT:$(git log -1 --pretty=format:'%h - %s (%an, %ar)')"
+  when: repo_git_exists.stat.exists | default(false) or git_clone_result is defined
+  become_user: "{{ repo_owner }}"
+  register: git_after_info
+  changed_when: false
+  tags: "{{ repo_tags | default(['always']) }}"
+
+# Parse and set repository facts
+- name: "[{{ repo_component_name | upper }}] Parse git repository information"
+  ansible.builtin.set_fact:
+    "{{ repo_component_name }}_repo_info": {
+      "updated": "{{ (git_clone_result is defined and git_clone_result.changed) or (git_update_result is defined and git_update_result.changed) }}",
+      "clone_operation": "{{ git_clone_result is defined and git_clone_result.changed }}",
+      "update_operation": "{{ git_update_result is defined and git_update_result.changed }}",
+      "force_update_requested": "{{ repo_force_update }}",
+      "repository_url": "{{ repo_url }}",
+      "target_branch": "{{ repo_branch }}",
+      "destination": "{{ repo_destination }}",
+      
+      # Before update information
+      "before_commit": "{{ git_before_info.stdout_lines | select('match', '^CURRENT_COMMIT:') | first | regex_replace('^CURRENT_COMMIT:', '') | default('none') if git_before_info is defined and git_before_info.stdout_lines is defined else 'none' }}",
+      "before_branch": "{{ git_before_info.stdout_lines | select('match', '^CURRENT_BRANCH:') | first | regex_replace('^CURRENT_BRANCH:', '') | default('none') if git_before_info is defined and git_before_info.stdout_lines is defined else 'none' }}",
+      "before_message": "{{ git_before_info.stdout_lines | select('match', '^CURRENT_MESSAGE:') | first | regex_replace('^CURRENT_MESSAGE:', '') | default('none') if git_before_info is defined and git_before_info.stdout_lines is defined else 'none' }}",
+      "before_author": "{{ git_before_info.stdout_lines | select('match', '^CURRENT_AUTHOR:') | first | regex_replace('^CURRENT_AUTHOR:', '') | default('none') if git_before_info is defined and git_before_info.stdout_lines is defined else 'none' }}",
+      "before_timestamp": "{{ git_before_info.stdout_lines | select('match', '^CURRENT_TIMESTAMP:') | first | regex_replace('^CURRENT_TIMESTAMP:', '') | default('none') if git_before_info is defined and git_before_info.stdout_lines is defined else 'none' }}",
+      "remote_commit": "{{ git_before_info.stdout_lines | select('match', '^REMOTE_COMMIT:') | first | regex_replace('^REMOTE_COMMIT:', '') | default('none') if git_before_info is defined and git_before_info.stdout_lines is defined else 'none' }}",
+      
+      # After update information  
+      "final_commit": "{{ git_after_info.stdout_lines | select('match', '^FINAL_COMMIT:') | first | regex_replace('^FINAL_COMMIT:', '') | default('unknown') if git_after_info is defined and git_after_info.stdout_lines is defined else 'unknown' }}",
+      "final_branch": "{{ git_after_info.stdout_lines | select('match', '^FINAL_BRANCH:') | first | regex_replace('^FINAL_BRANCH:', '') | default('unknown') if git_after_info is defined and git_after_info.stdout_lines is defined else 'unknown' }}",
+      "final_message": "{{ git_after_info.stdout_lines | select('match', '^FINAL_MESSAGE:') | first | regex_replace('^FINAL_MESSAGE:', '') | default('unknown') if git_after_info is defined and git_after_info.stdout_lines is defined else 'unknown' }}",
+      "final_author": "{{ git_after_info.stdout_lines | select('match', '^FINAL_AUTHOR:') | first | regex_replace('^FINAL_AUTHOR:', '') | default('unknown') if git_after_info is defined and git_after_info.stdout_lines is defined else 'unknown' }}",
+      "final_timestamp": "{{ git_after_info.stdout_lines | select('match', '^FINAL_TIMESTAMP:') | first | regex_replace('^FINAL_TIMESTAMP:', '') | default('unknown') if git_after_info is defined and git_after_info.stdout_lines is defined else 'unknown' }}",
+      "final_short": "{{ git_after_info.stdout_lines | select('match', '^FINAL_SHORT:') | first | regex_replace('^FINAL_SHORT:', '') | default('unknown') if git_after_info is defined and git_after_info.stdout_lines is defined else 'unknown' }}"
+    }
+  tags: "{{ repo_tags | default(['always']) }}"
+
+- name: "[{{ repo_component_name | upper }}] Set repository permissions"
+  ansible.builtin.file:
+    path: "{{ repo_destination }}"
+    owner: "{{ repo_owner }}"
+    group: "{{ repo_group }}"
+    mode: "0755"
+    recurse: true
+  when: repo_dir_exists.stat.exists or git_clone_result is defined
+  tags: "{{ repo_tags | default(['always']) }}"
+
+- name: "[{{ repo_component_name | upper }}] Display repository operation summary"
+  ansible.builtin.debug:
+    msg: |
+      ========================================
+      [{{ repo_component_name | upper }}] Git Repository Summary
+      ========================================
+      {% set info = vars[repo_component_name + '_repo_info'] %}
+      Repository: {{ info.repository_url }}
+      Destination: {{ info.destination }}
+      Target Branch: {{ info.target_branch }}
+      
+      {% if info.clone_operation %}
+      OPERATION: Repository cloned (initial setup)
+      └─ Commit: {{ info.final_commit[:8] if info.final_commit != 'unknown' else 'unknown' }}
+      └─ Message: {{ info.final_message }}
+      └─ Author: {{ info.final_author }}
+      {% elif info.update_operation %}
+      OPERATION: Repository force updated
+      ├─ Before: {{ info.before_commit[:8] if info.before_commit != 'none' else 'none' }}
+      ├─ After:  {{ info.final_commit[:8] if info.final_commit != 'unknown' else 'unknown' }}
+      └─ Changed: {{ 'Yes' if info.before_commit != info.final_commit else 'No' }}
+      {% elif info.force_update_requested %}
+      OPERATION: Force update requested but no changes detected
+      └─ Current: {{ info.final_commit[:8] if info.final_commit != 'unknown' else 'unknown' }}
+      {% else %}
+      OPERATION: No update requested
+      └─ Current: {{ info.before_commit[:8] if info.before_commit != 'none' else 'none' }} (use --force to update)
+      {% endif %}
+      
+      CURRENT STATE:
+      ├─ Commit: {{ info.final_commit }}
+      ├─ Branch: {{ info.final_branch }}
+      ├─ Message: {{ info.final_message }}
+      ├─ Author: {{ info.final_author }}
+      └─ Updated: {{ info.final_timestamp }}
+      ========================================
+  when: verbose_git_operations | default(true)
+  tags: "{{ repo_tags | default(['always']) }}"
