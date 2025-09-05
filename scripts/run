@@ -46,7 +46,7 @@ show_usage() {
     echo "  --extra-vars VARS   - Pass extra variables to Ansible (key=value format)"
     echo "  --dry-run          - Preview changes without executing (safe mode)"
     echo "  --check            - Validation mode - check configuration only"
-    echo "  --force            - Skip safety checks and confirmations"
+    echo "  --force            - Skip safety checks and force update all git repositories"
     echo "  -v, --verbose      - Detailed output for debugging"
     echo "  -h, --help         - Show this comprehensive help"
     echo ""
@@ -140,7 +140,9 @@ while [[ $# -gt 0 ]]; do
             ;;
         --force)
             EXECUTION_MODE="force"
+            # Enable both deployment force and git repository force updates
             ANSIBLE_EXTRA_ARGS+=("--extra-vars" "force_deployment=true")
+            ANSIBLE_EXTRA_ARGS+=("--extra-vars" "git_force_update=true")
             shift
             ;;
         --extra-vars)
