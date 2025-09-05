@@ -1,0 +1,32 @@
+---
+# Global git force update status reporting
+# Shows unified status for all components with git repositories
+
+- name: Global git force update status
+  ansible.builtin.debug:
+    msg: |
+      ========================================================================
+      [GLOBAL] Git Force Update Status Summary
+      ========================================================================
+      Force Mode: {{ 'ENABLED' if git_force_update | default(false) else 'DISABLED' }}
+      {% if git_force_update | default(false) %}
+      ALL repositories will be forcefully updated to latest commits
+      {% else %}
+      Repositories will remain at current commits
+      {% endif %}
+      
+      Component Status:
+      - Parking Monitor: {{ 'FORCE UPDATE' if parking_monitor_force_update | default(false) else 'CURRENT COMMIT' }}
+      - Device API:      {{ 'FORCE UPDATE' if device_api_force_update | default(false) else 'CURRENT COMMIT' }}
+      - Tracker:         {{ 'FORCE UPDATE' if tracker_force_update | default(false) else 'CURRENT COMMIT' }}
+      - Player:          {{ 'FORCE UPDATE' if player_force_update | default(false) else 'CURRENT COMMIT' }}
+      
+      Usage:
+      • To force update all repositories: use --force flag
+      • To force specific component: --extra-vars "component_force_update=true"
+      • Normal deployments will use current repository state
+      ========================================================================
+  when: 
+    - show_commit_verification | default(true)
+    - ansible_verbosity >= 0
+  tags: [always]

@@ -1,0 +1,86 @@
+---
+# Unified Git Status Dashboard
+# Displays comprehensive repository status for all git-based components
+# Shows current state, update status, and commit information
+
+- name: Collect all git repository information
+  ansible.builtin.set_fact:
+    git_repositories: |
+      {%- set repos = [] -%}
+      {%- if parking_monitor_repo_info is defined -%}
+        {%- set _ = repos.append({
+          'name': 'Parking Monitor',
+          'component': 'parking_monitor',
+          'info': parking_monitor_repo_info
+        }) -%}
+      {%- endif -%}
+      {%- if device_api_repo_info is defined -%}
+        {%- set _ = repos.append({
+          'name': 'Device API',
+          'component': 'device_api', 
+          'info': device_api_repo_info
+        }) -%}
+      {%- endif -%}
+      {%- if tracker_repo_info is defined -%}
+        {%- set _ = repos.append({
+          'name': 'Tracker',
+          'component': 'tracker',
+          'info': tracker_repo_info
+        }) -%}
+      {%- endif -%}
+      {{ repos }}
+
+- name: Display unified git status dashboard
+  ansible.builtin.debug:
+    msg: |
+      ╔════════════════════════════════════════════════════════════════════════════════════════╗
+      ║                              GIT REPOSITORIES STATUS DASHBOARD                          ║
+      ╠════════════════════════════════════════════════════════════════════════════════════════╣
+      ║ Force Update Mode: {{ 'ENABLED' if git_force_update | default(false) else 'DISABLED' }}{{ ' ' * (60 - ('ENABLED' if git_force_update | default(false) else 'DISABLED') | length) }}║
+      ║ Repositories Managed: {{ git_repositories | length }}{{ ' ' * (67 - (git_repositories | length | string | length)) }}║
+      ╠════════════════════════════════════════════════════════════════════════════════════════╣
+      {% for repo in git_repositories %}
+      {% set info = repo.info %}
+      ║ [{{ repo.name | upper }}]{{ ' ' * (76 - repo.name | length) }}║
+      ║ ├─ Repository: {{ info.repository_url[:60] }}{{ '...' if info.repository_url | length > 60 else '' }}{{ ' ' * (77 - (info.repository_url[:60] | length)) }}║
+      ║ ├─ Branch: {{ info.target_branch }}{{ ' ' * (70 - info.target_branch | length) }}║
+      ║ ├─ Status: {% if info.clone_operation %}Cloned (Initial Setup){% elif info.update_operation %}Force Updated{% elif info.force_update_requested %}No Changes (Already Latest){% else %}No Update (Current State){% endif %}{{ ' ' * (72 - (('Cloned (Initial Setup)' if info.clone_operation else 'Force Updated' if info.update_operation else 'No Changes (Already Latest)' if info.force_update_requested else 'No Update (Current State)') | length)) }}║
+      ║ ├─ Current Commit: {{ info.final_commit[:10] }}...{% if info.final_commit != 'unknown' %}{% else %}unknown{% endif %}{{ ' ' * (55 - ((info.final_commit[:10] + '...') | length)) }}║
+      ║ ├─ Last Message: {{ info.final_message[:55] }}{{ '...' if info.final_message | length > 55 else '' }}{{ ' ' * (67 - ((info.final_message[:55] + ('...' if info.final_message | length > 55 else '')) | length)) }}║
+      ║ ├─ Author: {{ info.final_author }}{{ ' ' * (71 - info.final_author | length) }}║
+      ║ ├─ Updated: {{ info.final_timestamp[:25] }}{{ ' ' * (66 - (info.final_timestamp[:25] | length)) }}║
+      {% if info.update_operation and info.before_commit != 'none' and info.final_commit != 'unknown' %}
+      ║ └─ Change: {{ info.before_commit[:10] }} → {{ info.final_commit[:10] }}{{ ' ' * (56 - ((info.before_commit[:10] + ' → ' + info.final_commit[:10]) | length)) }}║
+      {% else %}
+      ║ └─ Path: {{ info.destination[:65] }}{{ '...' if info.destination | length > 65 else '' }}{{ ' ' * (68 - ((info.destination[:65] + ('...' if info.destination | length > 65 else '')) | length)) }}║
+      {% endif %}
+      {% if not loop.last %}
+      ╠────────────────────────────────────────────────────────────────────────────────────────╣
+      {% endif %}
+      {% endfor %}
+      ╠════════════════════════════════════════════════════════════════════════════════════════╣
+      ║ SUMMARY                                                                                ║
+      ║ ├─ Total Repositories: {{ git_repositories | length }}{{ ' ' * (64 - (git_repositories | length | string | length)) }}║
+      ║ ├─ Cloned (New): {{ git_repositories | selectattr('info.clone_operation', 'equalto', true) | list | length }}{{ ' ' * (69 - ((git_repositories | selectattr('info.clone_operation', 'equalto', true) | list | length) | string | length)) }}║
+      ║ ├─ Updated: {{ git_repositories | selectattr('info.update_operation', 'equalto', true) | list | length }}{{ ' ' * (72 - ((git_repositories | selectattr('info.update_operation', 'equalto', true) | list | length) | string | length)) }}║
+      ║ └─ Unchanged: {{ git_repositories | rejectattr('info.clone_operation', 'equalto', true) | rejectattr('info.update_operation', 'equalto', true) | list | length }}{{ ' ' * (70 - ((git_repositories | rejectattr('info.clone_operation', 'equalto', true) | rejectattr('info.update_operation', 'equalto', true) | list | length) | string | length)) }}║
+      ╚════════════════════════════════════════════════════════════════════════════════════════╝
+      
+      USAGE TIPS:
+      • Use --force flag to update all repositories to latest commits
+      • Use --extra-vars "component_force_update=true" for specific component updates
+      • Repository information is available in {component}_repo_info variables
+  when: git_repositories | length > 0
+
+- name: No git repositories found
+  ansible.builtin.debug:
+    msg: |
+      ╔════════════════════════════════════════════════════════════════╗
+      ║                     GIT REPOSITORIES STATUS                     ║
+      ╠════════════════════════════════════════════════════════════════╣
+      ║                      No repositories managed                   ║
+      ║                                                                ║
+      ║ This may indicate that no git-based components were deployed  ║
+      ║ or that the git repository management tasks were not executed  ║
+      ╚════════════════════════════════════════════════════════════════╝
+  when: git_repositories | length == 0
