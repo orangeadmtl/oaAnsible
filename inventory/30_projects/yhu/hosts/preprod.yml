@@ -1,0 +1,38 @@
+---
+# Project Template - Preprod Hosts
+# Define pre-production environment hosts for this project
+
+all:
+  vars:
+    # Environment identification
+    target_env: "yhu-preprod"
+    deployment_environment: "preprod"
+
+    # Project reference
+    project_name: "yhu"
+
+    # Component deployment (from stack.yml)
+    components_to_deploy: "{{ project_stack.components }}"
+
+    # Component configurations (from stack.yml + environment overrides)
+    component_configurations: "{{ project_stack.component_configs | combine(
+      project_stack.environment_overrides.preprod | default({}),
+      recursive=True
+    ) }}"
+
+  children:
+    "yhu_preprod":
+      children:
+        macos:
+          hosts:
+            # REPLACE WITH ACTUAL HOSTS (Tailscale IPs only)
+            # Example:
+            # "yhu-preprod-001":
+            #   ansible_host: "100.x.x.x"  # TAILSCALE IP ONLY
+            #   ansible_user: "admin"
+            #   ansible_port: 22
+            #   ansible_become_password: "{{ vault_sudo_passwords['yhu-preprod-001'] }}"
+            #
+            #   # Host-specific configuration
+            #   cam_id: "87654321-4321-4321-4321-210987654321"
+            #   environment_type: "preprod"

@@ -125,7 +125,7 @@ inventory/
 │   └── staging.yml                   # Staging settings
 ├── 30_projects/                       # Project-specific inventories
 │   ├── _template/                     # Project template structure
-│   └── yuh/                          # YUH project example
+│   └── yhu/                          # YUH project example
 │       ├── hosts/
 │       │   ├── production.yml         # Production hosts
 │       │   ├── preprod.yml            # Pre-production hosts
@@ -144,15 +144,15 @@ inventory/
 
 ### Inventory Examples
 
-**Project inventory file** (`inventory/30_projects/yuh/hosts/staging.yml`):
+**Project inventory file** (`inventory/30_projects/yhu/hosts/staging.yml`):
 
 ```yaml
 all:
   vars:
     # Environment identification
-    target_env: yuh-staging
+    target_env: yhu-staging
     deployment_environment: staging
-    project_name: yuh
+    project_name: yhu
     
     # Component selection (from stack.yml)
     deploy_device_api: true
@@ -179,18 +179,18 @@ The `./scripts/run` script is your main entry point for all deployments:
 
 ```bash
 # Deploy specific components with tags
-./scripts/run projects/yuh/staging -t device-api,parking-monitor
-./scripts/run projects/yuh/production -t base,network,security
+./scripts/run projects/yhu/staging -t device-api,parking-monitor
+./scripts/run projects/yhu/production -t base,network,security
 
 # Preview changes before deployment
-./scripts/run projects/yuh/staging --dry-run
-./scripts/run projects/yuh/production --check --diff
+./scripts/run projects/yhu/staging --dry-run
+./scripts/run projects/yhu/production --check --diff
 
 # Limit deployment to specific hosts
-./scripts/run projects/yuh/staging -t tracker -l f1-ca-015
+./scripts/run projects/yhu/staging -t tracker -l f1-ca-015
 
 # Deploy with verbose output for debugging
-./scripts/run projects/yuh/staging -t device-api -v
+./scripts/run projects/yhu/staging -t device-api -v
 ```
 
 ### Component Tags
@@ -208,13 +208,13 @@ Control deployment scope with these tags:
 
 ```bash
 # Stop services for maintenance
-ansible-playbook -i inventory/30_projects/yuh/hosts/production.yml playbooks/maintenance/stop_services.yml --tags api
+ansible-playbook -i inventory/30_projects/yhu/hosts/production.yml playbooks/maintenance/stop_services.yml --tags api
 
 # Reboot hosts safely with service shutdown
-ansible-playbook -i inventory/30_projects/yuh/hosts/production.yml playbooks/maintenance/reboot_hosts.yml --extra-vars "confirm_reboot=yes"
+ansible-playbook -i inventory/30_projects/yhu/hosts/production.yml playbooks/maintenance/reboot_hosts.yml --extra-vars "confirm_reboot=yes"
 
 # Stop specific services across environment
-ansible-playbook -i inventory/30_projects/yuh/hosts/staging.yml playbooks/maintenance/stop_services.yml --tags "tracker,player"
+ansible-playbook -i inventory/30_projects/yhu/hosts/staging.yml playbooks/maintenance/stop_services.yml --tags "tracker,player"
 ```
 
 **See `playbooks/maintenance/README.md` for complete operational procedures.**
@@ -242,8 +242,8 @@ ansible-playbook -i inventory/30_projects/yuh/hosts/staging.yml playbooks/mainte
 main.yml → universal.yml (tag-based component framework)
 
 # Direct usage examples
-ansible-playbook universal.yml -i inventory/30_projects/yuh/hosts/production.yml -t device-api
-ansible-playbook universal.yml -i inventory/30_projects/yuh/hosts/staging.yml -t tracker,security
+ansible-playbook universal.yml -i inventory/30_projects/yhu/hosts/production.yml -t device-api
+ansible-playbook universal.yml -i inventory/30_projects/yhu/hosts/staging.yml -t tracker,security
 ```
 
 ### Component Framework
@@ -384,13 +384,13 @@ ansible-vault view inventory/group_vars/all/vault.yml
 
 ```bash
 # Check service status across environment
-ansible all -i inventory/30_projects/yuh/hosts/production.yml -m shell -a "launchctl list | grep com.orangead"
+ansible all -i inventory/30_projects/yhu/hosts/production.yml -m shell -a "launchctl list | grep com.orangead"
 
 # Test API endpoints
-ansible macos -i inventory/30_projects/yuh/hosts/staging.yml -m uri -a "url=http://localhost:9090/health method=GET"
+ansible macos -i inventory/30_projects/yhu/hosts/staging.yml -m uri -a "url=http://localhost:9090/health method=GET"
 
 # Verify system resources
-ansible all -i inventory/30_projects/yuh/hosts/production.yml -m setup -a "filter=ansible_memory_mb"
+ansible all -i inventory/30_projects/yhu/hosts/production.yml -m setup -a "filter=ansible_memory_mb"
 ```
 
 ### Common Issues
@@ -399,21 +399,21 @@ ansible all -i inventory/30_projects/yuh/hosts/production.yml -m setup -a "filte
 
 ```bash
 # Test SSH connectivity
-ansible all -i inventory/30_projects/yuh/hosts/production.yml -m ping
+ansible all -i inventory/30_projects/yhu/hosts/production.yml -m ping
 
 # Debug connection issues
-./scripts/run projects/yuh/production -t base --check -vvv
+./scripts/run projects/yhu/production -t base --check -vvv
 ```
 
 **Service Issues:**
 
 ```bash
 # Check service logs
-ansible macos -i inventory/30_projects/yuh/hosts/production.yml -m fetch \
+ansible macos -i inventory/30_projects/yhu/hosts/production.yml -m fetch \
   -a "src=~/orangead/oaDeviceAPI/logs/api.log dest=./logs/"
 
 # Restart services
-ansible macos -i inventory/30_projects/yuh/hosts/production.yml -m shell \
+ansible macos -i inventory/30_projects/yhu/hosts/production.yml -m shell \
   -a "launchctl kickstart -k gui/\$(id -u)/com.orangead.deviceapi"
 ```
 
@@ -433,13 +433,13 @@ ansible macos -i inventory/30_projects/yuh/hosts/production.yml -m shell \
 
 ```bash
 # Weekly system updates
-ansible all -i inventory/30_projects/yuh/hosts/production.yml -m package -a "name=* state=latest" --become
+ansible all -i inventory/30_projects/yhu/hosts/production.yml -m package -a "name=* state=latest" --become
 
 # Log rotation and cleanup
 ansible all -m shell -a "find ~/orangead -name '*.log' -mtime +7 -delete"
 
 # Health check across environment
-ansible all -i inventory/30_projects/yuh/hosts/production.yml -m service_facts
+ansible all -i inventory/30_projects/yhu/hosts/production.yml -m service_facts
 ```
 
 ### Version Management
@@ -449,7 +449,7 @@ ansible all -i inventory/30_projects/yuh/hosts/production.yml -m service_facts
 ansible macos -m shell -a "cat ~/orangead/.version"
 
 # Deployment with version tracking
-./scripts/run projects/yuh/production -t device-api -e "deployment_version=v2.3.0"
+./scripts/run projects/yhu/production -t device-api -e "deployment_version=v2.3.0"
 ```
 
 ## 🚀 Project Transformation Achieved

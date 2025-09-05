@@ -1,0 +1,43 @@
+---
+all:
+  vars:
+    # Environment identification
+    target_env: yhu-staging
+    deployment_environment: staging
+    project_name: yhu
+
+    # Component selection - uses foundation defaults + project stack
+    # Foundation components (base, network, security, device-api) auto-included
+    # Project components from stack.yml: [parking-monitor]
+    # No explicit deploy_* flags needed - determined from stack.yml
+
+    # Environment configuration reference
+    environment: "{{ environments.staging | default({}) }}"
+
+    # Python runtime configuration (from foundation defaults)
+    python_runtime:
+      manager: "uv"
+      default_version: "3.12"
+      compatibility_matrix:
+        oaSentinel: "3.11.11"
+        ml_workstation: "3.11.11"
+
+  children:
+    # Standard Ansible group structure
+    macos:
+      hosts:
+        f1-ca-015:
+          ansible_host: 192.168.2.47
+          ansible_user: admin
+          ansible_port: 22
+          ansible_become_password: "{{ vault_sudo_passwords['f1-ca-015'] }}"
+
+          # Host-specific component overrides
+          parking_monitor:
+            camera:
+              source: 1
+
+          # Host metadata
+          cam_id: "f5f9b8d0-6048-4cbb-8fb7-39df676733a0"
+          device_role: "parking_monitor"
+          location: "YUH Airport - Staging"
