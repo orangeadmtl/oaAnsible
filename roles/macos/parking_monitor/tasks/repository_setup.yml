@@ -1,44 +1,19 @@
 ---
-# Repository setup tasks
-# Handles cloning and updating the oaParkingMonitor repository
+# Repository setup tasks with standardized git management
+# Uses the unified git-repository-management.yml for consistent behavior
 
-- name: Create orangead directory
-  ansible.builtin.file:
-    path: "{{ ansible_user_dir }}/orangead"
-    state: directory
-    mode: "0755"
-
-- name: Check if repository already exists
-  ansible.builtin.stat:
-    path: "{{ parking_monitor_repository.destination }}"
-  register: repo_exists
-
-- name: Clone parking monitor repository
-  ansible.builtin.git:
-    repo: "{{ parking_monitor_repository.url }}"
-    dest: "{{ parking_monitor_repository.destination }}"
-    version: "{{ parking_monitor_repository.branch }}"
-    force: "{{ parking_monitor_repository.force_update | default(false) }}"
-    update: true
-  register: repo_clone
-  when: not repo_exists.stat.exists or parking_monitor_repository.force_update | default(false)
-
-- name: Update existing repository
-  ansible.builtin.git:
-    repo: "{{ parking_monitor_repository.url }}"
-    dest: "{{ parking_monitor_repository.destination }}"
-    version: "{{ parking_monitor_repository.branch }}"
-    update: true
-  register: repo_update
-  when: repo_exists.stat.exists and not parking_monitor_repository.force_update | default(false)
-
-- name: Set repository permissions
-  ansible.builtin.file:
-    path: "{{ parking_monitor_repository.destination }}"
-    owner: "{{ parking_monitor_service.user }}"
-    group: "{{ parking_monitor_service.group }}"
-    mode: "0755"
-    recurse: true
+- name: Setup parking monitor repository with standardized git management
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/git-repository-management.yml"
+  vars:
+    repo_component_name: "parking_monitor"
+    repo_url: "{{ parking_monitor_repository.url }}"
+    repo_branch: "{{ parking_monitor_repository.branch }}"
+    repo_destination: "{{ parking_monitor_repository.destination }}"
+    repo_force_update: "{{ parking_monitor_force_update | default(false) }}"
+    repo_owner: "{{ parking_monitor_service.user }}"
+    repo_group: "{{ parking_monitor_service.group }}"
+    repo_tags: [parking-monitor, repository]
+  tags: [parking-monitor, repository]
 
 - name: Make scripts executable
   ansible.builtin.file:
@@ -46,13 +21,15 @@
     mode: "0755"
   with_fileglob:
     - "{{ parking_monitor_repository.destination }}/scripts/*"
-  ignore_errors: true # Some files might not exist yet
+  ignore_errors: true
+  tags: [parking-monitor, repository]
 
 - name: Create logs directory
   ansible.builtin.file:
     path: "{{ parking_monitor_repository.destination }}/logs"
     state: directory
     mode: "0755"
+  tags: [parking-monitor, repository]
 
 - name: Create models directories
   ansible.builtin.file:
@@ -63,14 +40,4 @@
     - "{{ parking_monitor_models.model_dir }}"
     - "{{ parking_monitor_models.downloads_dir }}"
     - "{{ parking_monitor_models.exports_dir }}"
-
-- name: Repository setup summary
-  ansible.builtin.debug:
-    msg: |
-      [PACKAGE] Repository Setup Complete:
-      =============================
-      Repository: {{ parking_monitor_repository.url }}
-      Branch: {{ parking_monitor_repository.branch }}
-      Location: {{ parking_monitor_repository.destination }}
-      Status: {{ 'Cloned' if repo_clone is changed else ('Updated' if repo_update is changed else 'Already up-to-date') }}
-      =============================
+  tags: [parking-monitor, repository]

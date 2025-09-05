@@ -7,7 +7,10 @@ parking_monitor_repository:
   url: "https://github.com/oa-device/oaParkingMonitor.git"
   branch: "main"
   destination: "{{ service_defaults.directories.base }}/parking-monitor"
-  force_update: false
+  force_update: "{{ parking_monitor_force_update | default(false) }}"
+  # Options for forcing updates:
+  # - Set parking_monitor_force_update: true in inventory to force update
+  # - Use --extra-vars "parking_monitor_force_update=true" for one-time force update
 
 # Service Configuration (Device Setup)
 parking_monitor_service:
@@ -66,5 +69,7 @@ parking_monitor_security:
 # Models Configuration (Minimal for compatibility)
 parking_monitor_models:
   model_dir: "{{ parking_monitor_repository.destination }}/models"
+  downloads_dir: "{{ parking_monitor_repository.destination }}/models/downloads"
+  exports_dir: "{{ parking_monitor_repository.destination }}/models/exports"
   auto_download: false # Handled by project itself
 
