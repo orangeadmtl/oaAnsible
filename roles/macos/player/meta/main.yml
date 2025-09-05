@@ -1,0 +1,30 @@
+---
+# Player Role Metadata
+# Video player service for digital signage
+
+collections:
+  - community.general
+
+galaxy_info:
+  author: OrangeAd Engineering
+  description: Video player service for macOS digital signage deployment
+  license: MIT
+  min_ansible_version: "2.15"
+
+  platforms:
+    - name: macOS
+      versions:
+        - "12"
+        - "13"
+        - "14"
+        - "15"
+
+  galaxy_tags:
+    - player
+    - video
+    - signage
+    - macos
+
+dependencies:
+  - role: macos/base
+    when: ansible_os_family == "Darwin"

@@ -1,0 +1,33 @@
+---
+# Parking Monitor Role Metadata
+# Vehicle detection and parking analysis service
+
+collections:
+  - community.general
+
+galaxy_info:
+  author: OrangeAd Engineering
+  description: Parking Monitor service deployment for vehicle detection and analytics
+  license: MIT
+  min_ansible_version: "2.15"
+
+  platforms:
+    - name: macOS
+      versions:
+        - "12"
+        - "13"
+        - "14"
+        - "15"
+
+  galaxy_tags:
+    - parking
+    - vehicle-detection
+    - ai
+    - monitoring
+    - yolo
+
+dependencies:
+  - role: common/uv_python
+    when: ansible_os_family == "Darwin"
+  - role: macos/base
+    when: ansible_os_family == "Darwin"
