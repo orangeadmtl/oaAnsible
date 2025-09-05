@@ -7,13 +7,26 @@
   ansible.builtin.include_tasks: system_setup.yml
   tags: ["tracker", "system", "setup"]
 
-# Directory management and git operations
-- name: Directory management and repository setup
+# Directory management
+- name: Directory management and setup
   ansible.builtin.include_tasks: directory_mgmt.yml
-  tags: ["tracker", "directory", "git"]
+  tags: ["tracker", "directory"]
 
-# Configuration validation and git checkout
-- name: Configuration validation and git setup
+# Git repository management (standardized)
+- name: Repository setup (standardized git management)
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/git-repository-management.yml"
+  vars:
+    repo_component_name: "tracker"
+    repo_url: "{{ merged_tracker_config.repository_url }}"
+    repo_branch: "{{ final_git_version }}"
+    repo_destination: "{{ ansible_user_dir }}/orangead/tracker"
+    repo_force_update: "{{ tracker_force_update | default(false) }}"
+    repo_owner: "{{ ansible_user }}"
+    repo_group: "staff"
+  tags: ["tracker", "git", "repository"]
+
+# Configuration validation (non-git tasks only)
+- name: Configuration validation
   ansible.builtin.include_tasks: config_validation.yml
   tags: ["tracker", "config", "validation"]
 

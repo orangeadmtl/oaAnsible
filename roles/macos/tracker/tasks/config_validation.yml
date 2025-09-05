@@ -29,7 +29,7 @@
   ansible.builtin.set_fact:
     final_git_version: "{{ merged_tracker_config.git_commit | default(merged_tracker_config.git_version | default('main')) }}"
 
-- name: Display git version being used for tracker
+- name: Display git version configuration for tracker
   ansible.builtin.debug:
     msg: |
       Git configuration:
@@ -39,19 +39,5 @@
       - Specific commit: {{ merged_tracker_config.git_commit }}
       {% endif %}
       - Final version: {{ final_git_version }}
-
-- name: Clone or update tracker repository
-  ansible.builtin.git:
-    repo: "{{ merged_tracker_config.repository_url }}"
-    dest: "{{ ansible_user_dir }}/orangead/tracker"
-    version: "{{ final_git_version }}"
-    force: true
-    accept_hostkey: true
-  register: git_clone_result
-
-- name: Display git operation result
-  ansible.builtin.debug:
-    msg: |-
-      Git operation: {{ 'cloned' if git_clone_result.before is none else 'updated' }}
-      Before: {{ git_clone_result.before | default('N/A') }}
-      After: {{ git_clone_result.after }}
+      
+      Note: Repository management is now handled by standardized git include
