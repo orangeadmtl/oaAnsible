@@ -422,10 +422,11 @@ ansible macos -i inventory/30_projects/yhu/hosts/production.yml -m shell \
 **Current documentation resources:**
 
 - **[Main README](README.md)** - Complete system overview and usage guide (you are here)
-- **[Role Documentation](roles/)** - Detailed technical documentation for each component role
+- **[Roles Reference](ROLES_REFERENCE.md)** - Consolidated guide to all Ansible roles and components
 - **[Playbook Guides](playbooks/README.md)** - Playbook usage and operational procedures
 - **[Maintenance Procedures](playbooks/maintenance/README.md)** - Service management and operational tasks
 - **[Template Documentation](inventory/templates/README.md)** - Inventory template usage and customization
+- **[Cleanup Documentation](docs/CLEANUP_PLAN.md)** - Recent cleanup activities and architectural decisions
 
 ## 🔄 Maintenance & Updates
 
