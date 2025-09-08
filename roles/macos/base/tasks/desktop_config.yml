@@ -48,25 +48,34 @@
     msg: "Detected screen orientation: {{ screen_orientation | default('not detected') }}"
   when: deploy_custom_wallpaper | default(false)
 
-- name: Set wallpaper to custom background (horizontal)
+- name: Set wallpaper to custom background (horizontal) - robust method
   ansible.builtin.shell: |
-    osascript -e 'tell application "System Events" to tell every desktop to set picture to "{{ ansible_env.HOME }}/desktop-background.png"'
+    # Use defaults method - works reliably over SSH
+    defaults write com.apple.desktop Background "{default = {ImageFilePath = \"{{ ansible_env.HOME }}/desktop-background.png\"; };}";
+    # Trigger desktop refresh
+    killall Dock 2>/dev/null || true
   when:
     - deploy_custom_wallpaper | default(false)
     - screen_orientation == "horizontal"
   changed_when: false
 
-- name: Set wallpaper to custom background (vertical)
+- name: Set wallpaper to custom background (vertical) - robust method
   ansible.builtin.shell: |
-    osascript -e 'tell application "System Events" to tell every desktop to set picture to "{{ ansible_env.HOME }}/desktop-background-vertical.png"'
+    # Use defaults method - works reliably over SSH
+    defaults write com.apple.desktop Background "{default = {ImageFilePath = \"{{ ansible_env.HOME }}/desktop-background-vertical.png\"; };}";
+    # Trigger desktop refresh
+    killall Dock 2>/dev/null || true
   when:
     - deploy_custom_wallpaper | default(false)
     - screen_orientation == "vertical"
   changed_when: false
 
-- name: Set wallpaper to solid color (dark gray)
+- name: Set wallpaper to solid color (dark gray) - robust method
   ansible.builtin.shell: |
-    osascript -e 'tell application "System Events" to tell every desktop to set picture to "/System/Library/Desktop Pictures/Solid Colors/Stone.png"'
+    # Use defaults method - works reliably over SSH
+    defaults write com.apple.desktop Background "{default = {ImageFilePath = \"/System/Library/Desktop Pictures/Solid Colors/Stone.png\"; };}";
+    # Trigger desktop refresh
+    killall Dock 2>/dev/null || true
   when: not (deploy_custom_wallpaper | default(false))
   changed_when: false
 

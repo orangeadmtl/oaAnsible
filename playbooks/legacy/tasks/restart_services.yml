@@ -1,8 +1,0 @@
----
-# Legacy macOS restart services (minimal stub for syntax-check)
-- name: Restart OrangeAd services (Legacy)
-  ansible.builtin.debug:
-    msg: |
-      === macOS Restart Services (Legacy) ===
-      Restart steps are handled by modern roles; legacy stub only.
-  changed_when: false

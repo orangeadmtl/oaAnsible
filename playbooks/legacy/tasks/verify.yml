@@ -1,8 +1,0 @@
----
-# Legacy macOS post-verify (minimal stub for syntax-check)
-- name: Verify macOS deployment (Legacy)
-  ansible.builtin.debug:
-    msg: |
-      === macOS Verify (Legacy) ===
-      Basic verification complete.
-  changed_when: false

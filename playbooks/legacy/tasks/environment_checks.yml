@@ -1,9 +1,0 @@
----
-# Legacy macOS environment checks (minimal stub for syntax-check)
-- name: Verify macOS environment (Legacy)
-  ansible.builtin.debug:
-    msg: |
-      === macOS Environment Checks (Legacy) ===
-      Python: {{ ansible_python.executable | default('n/a') }}
-      Shell: {{ ansible_env.SHELL | default('n/a') }}
-  changed_when: false
