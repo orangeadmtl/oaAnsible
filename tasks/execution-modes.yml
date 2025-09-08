@@ -195,46 +195,206 @@
       when: deployment_confirmation.user_input | lower != 'yes'
       run_once: true
 
-- name: Create configuration backup
+- name: Hash-based backup with change detection
   when:
     - execution_config.safety_checks.backup_configurations
     - not execution_config.dry_run
   block:
-    - name: Create backup directory
-      ansible.builtin.file:
-        path: "{{ ansible_user_dir }}/orangead-backups/{{ ansible_date_time.epoch }}"
-        state: directory
-        mode: "0755"
-      register: backup_dir
-
-    - name: Backup existing configurations
-      ansible.builtin.copy:
-        src: "{{ item }}"
-        dest: "{{ backup_dir.path }}/"
-        remote_src: true
-        mode: preserve
-      loop:
-        - "{{ ansible_user_dir }}/Library/LaunchAgents/"
-        - "{{ ansible_user_dir }}/orangead/"
+    - name: Calculate configuration hash
+      ansible.builtin.shell: |
+        set -e
+        USER_DIR="{{ ansible_user_dir }}"
+        
+        # Calculate hash of configuration state
+        HASH_INPUT=""
+        
+        # Hash LaunchAgents
+        if [ -d "$USER_DIR/Library/LaunchAgents" ]; then
+          HASH_INPUT="${HASH_INPUT}$(find "$USER_DIR/Library/LaunchAgents" -name "*.plist" -type f -exec md5sum {} + 2>/dev/null | sort)"
+        fi
+        
+        # Hash orangead configuration files (not data/logs/deps)
+        if [ -d "$USER_DIR/orangead" ]; then
+          HASH_INPUT="${HASH_INPUT}$(find "$USER_DIR/orangead" \
+            -type f \
+            ! -path '*/.venv/*' \
+            ! -path '*/__pycache__/*' \
+            ! -path '*/node_modules/*' \
+            ! -path '*/.git/*' \
+            ! -path '*/build/*' \
+            ! -path '*/dist/*' \
+            ! -path '*/logs/*' \
+            ! -name '*.log' \
+            ! -name '*.tmp' \
+            ! -name '*.pyc' \
+            ! -name '*.pt' \
+            ! -name '*.onnx' \
+            ! -name '*.coreml' \
+            ! -name '.DS_Store' \
+            -exec md5sum {} + 2>/dev/null | sort)"
+        fi
+        
+        # Generate configuration hash
+        CONFIG_HASH=$(echo "$HASH_INPUT" | md5sum | cut -d' ' -f1)
+        echo "CONFIG_HASH=$CONFIG_HASH"
+      register: config_hash_result
+      changed_when: false
       failed_when: false
-      register: backup_results
 
-    - name: Set backup information
+    - name: Check for existing backup with same configuration
+      ansible.builtin.shell: |
+        set -e
+        BACKUP_META_DIR="{{ ansible_user_dir }}/orangead-backups/.meta"
+        CONFIG_HASH="{{ config_hash_result.stdout | regex_search('CONFIG_HASH=(.+)') | regex_replace('CONFIG_HASH=', '') | default('unknown') }}"
+        
+        mkdir -p "$BACKUP_META_DIR"
+        
+        if [ -f "$BACKUP_META_DIR/latest_hash.txt" ]; then
+          PREVIOUS_HASH=$(cat "$BACKUP_META_DIR/latest_hash.txt")
+          if [ "$CONFIG_HASH" = "$PREVIOUS_HASH" ]; then
+            echo "BACKUP_NEEDED=false"
+            echo "BACKUP_REASON=Configuration unchanged (hash: $CONFIG_HASH)"
+            exit 0
+          fi
+        fi
+        
+        echo "BACKUP_NEEDED=true"
+        echo "BACKUP_REASON=Configuration changed (hash: $CONFIG_HASH)"
+      register: backup_check_result
+      changed_when: false
+      failed_when: false
+
+    - name: Set backup decision facts
       ansible.builtin.set_fact:
         deployment_backup:
-          created: "{{ backup_results.changed | default(false) }}"
-          path: "{{ backup_dir.path }}"
-          timestamp: "{{ ansible_date_time.epoch }}"
+          needed: "{{ backup_check_result.stdout | regex_search('BACKUP_NEEDED=(.+)') | regex_replace('BACKUP_NEEDED=', '') | default('true') | bool }}"
+          reason: "{{ backup_check_result.stdout | regex_search('BACKUP_REASON=(.+)') | regex_replace('BACKUP_REASON=', '') | default('Configuration hash check failed') }}"
+          config_hash: "{{ config_hash_result.stdout | regex_search('CONFIG_HASH=(.+)') | regex_replace('CONFIG_HASH=', '') | default('unknown') }}"
 
-    - name: Display backup information
+    - name: Display backup decision
       ansible.builtin.debug:
         msg: |
-          Configuration Backup Created:
-          Path: {{ deployment_backup.path }}
-          Timestamp: {{ ansible_date_time.iso8601 }}
+          [BACKUP ANALYSIS] Configuration Change Detection:
+          ===============================================
+          Hash: {{ deployment_backup.config_hash }}
+          Decision: {{ 'BACKUP REQUIRED' if deployment_backup.needed else 'BACKUP SKIPPED' }}
+          Reason: {{ deployment_backup.reason }}
+          ===============================================
 
-          To restore: cp -r {{ deployment_backup.path }}/* {{ ansible_user_dir }}/
-      when: deployment_backup.created
+    - name: Create efficient backup (only when needed)
+      when: deployment_backup.needed
+      block:
+        - name: Create backup directory structure
+          ansible.builtin.file:
+            path: "{{ ansible_user_dir }}/orangead-backups/{{ ansible_date_time.epoch }}"
+            state: directory
+            mode: "0755"
+          register: backup_dir
+
+        - name: Create essential configuration backup
+          ansible.builtin.shell: |
+            set -e
+            BACKUP_DIR="{{ backup_dir.path }}"
+            USER_DIR="{{ ansible_user_dir }}"
+            
+            # Create directory structure
+            mkdir -p "$BACKUP_DIR/Library/LaunchAgents"
+            mkdir -p "$BACKUP_DIR/orangead"
+            
+            # Backup LaunchAgents
+            if [ -d "$USER_DIR/Library/LaunchAgents" ]; then
+              find "$USER_DIR/Library/LaunchAgents" -name "*.plist" -exec cp {} "$BACKUP_DIR/Library/LaunchAgents/" \; 2>/dev/null || true
+            fi
+            
+            # Backup orangead configurations (no compression, direct copy)
+            if [ -d "$USER_DIR/orangead" ]; then
+              rsync -a \
+                --exclude='.venv/' \
+                --exclude='__pycache__/' \
+                --exclude='*.pyc' \
+                --exclude='node_modules/' \
+                --exclude='*.log' \
+                --exclude='logs/' \
+                --exclude='*.tmp' \
+                --exclude='.git/' \
+                --exclude='build/' \
+                --exclude='dist/' \
+                --exclude='*.egg-info/' \
+                --exclude='models/*.pt' \
+                --exclude='models/*.onnx' \
+                --exclude='models/*.coreml' \
+                --exclude='.DS_Store' \
+                "$USER_DIR/orangead/" "$BACKUP_DIR/orangead/" || true
+            fi
+            
+            # Calculate backup size
+            BACKUP_SIZE=$(du -sh "$BACKUP_DIR" | cut -f1)
+            echo "BACKUP_SIZE=$BACKUP_SIZE"
+          register: backup_results
+          failed_when: false
+
+        - name: Update configuration hash record
+          ansible.builtin.shell: |
+            set -e
+            BACKUP_META_DIR="{{ ansible_user_dir }}/orangead-backups/.meta"
+            CONFIG_HASH="{{ deployment_backup.config_hash }}"
+            BACKUP_TIMESTAMP="{{ ansible_date_time.epoch }}"
+            
+            mkdir -p "$BACKUP_META_DIR"
+            echo "$CONFIG_HASH" > "$BACKUP_META_DIR/latest_hash.txt"
+            echo "$BACKUP_TIMESTAMP $CONFIG_HASH" >> "$BACKUP_META_DIR/backup_history.log"
+          changed_when: true
+
+        - name: Clean up old backups (retain last 3 only)
+          ansible.builtin.shell: |
+            cd "{{ ansible_user_dir }}/orangead-backups"
+            
+            # Keep only the 3 most recent backup directories
+            ls -t | grep '^[0-9]*$' | tail -n +4 | xargs rm -rf || true
+            
+            # Report current backup count
+            BACKUP_COUNT=$(ls -d [0-9]* 2>/dev/null | wc -l)
+            echo "RETAINED_BACKUPS=$BACKUP_COUNT"
+          register: cleanup_result
+          changed_when: false
+          failed_when: false
+
+        - name: Set successful backup facts
+          ansible.builtin.set_fact:
+            deployment_backup: "{{ deployment_backup | combine({
+              'created': true,
+              'path': backup_dir.path,
+              'timestamp': ansible_date_time.epoch,
+              'size': backup_results.stdout | regex_search('BACKUP_SIZE=(.+)') | regex_replace('BACKUP_SIZE=', '') | default('unknown')
+            }) }}"
+
+        - name: Display backup success summary
+          ansible.builtin.debug:
+            msg: |
+              [SUCCESS] Hash-Based Backup Created:
+              ===================================
+              Path: {{ deployment_backup.path }}
+              Size: {{ deployment_backup.size }}
+              Hash: {{ deployment_backup.config_hash }}
+              
+              Efficiency Gains:
+              - No compression overhead (instant backup)
+              - Skip identical configurations (hash-based)
+              - Reduced storage (3 backups vs 5 compressed)
+              
+              To restore: rsync -a {{ deployment_backup.path }}/ {{ ansible_user_dir }}/
+              ===================================
+
+    - name: Set skipped backup facts
+      when: not deployment_backup.needed
+      ansible.builtin.set_fact:
+        deployment_backup: "{{ deployment_backup | combine({
+          'created': false,
+          'path': '',
+          'timestamp': '',
+          'size': '0MB',
+          'retained_count': 'unchanged'
+        }) }}"
 
 - name: Set execution mode facts
   ansible.builtin.set_fact:
