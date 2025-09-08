@@ -104,7 +104,7 @@
         name: macos/network/tailscale
       when:
         - target_platform == "macos"
-        - configure.tailscale | default(true)
+        - features.tailscale_configuration | default(false)
 
     - name: Deploy Ubuntu network
       ansible.builtin.include_role:
@@ -235,8 +235,8 @@
     name: macos/staging_video_feed
   when:
     - target_platform == "macos"
-    - "'parking-monitor' in deployment_components | default(selected_components)"
-    - deployment_environment == "staging"
+    - "('parking-monitor' in deployment_components | default(selected_components)) or ('staging-video-feed' in deployment_components | default(selected_components))"
+    - target_env is match(".*staging.*")
   tags: ["staging-video-feed", "parking-monitor"]
 
 - name: Deploy parking monitor component

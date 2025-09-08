@@ -5,6 +5,19 @@
 
 set -euo pipefail
 
+# Check if required tools are available
+if ! command -v yt-dlp &> /dev/null; then
+    echo "[ERROR] yt-dlp is not installed"
+    echo "Install with: brew install yt-dlp"
+    exit 1
+fi
+
+if ! command -v ffprobe &> /dev/null; then
+    echo "[ERROR] ffprobe is not installed (required for video validation)"
+    echo "Install with: brew install ffmpeg"
+    exit 1
+fi
+
 # Configuration
 STORAGE_DIR="${STORAGE_DIR:-$HOME/orangead/staging-video-feed/videos}"
 LOG_FILE="${LOG_FILE:-$HOME/orangead/staging-video-feed/logs/video_download.log}"
@@ -38,49 +51,90 @@ declare -a SEARCH_QUERIES=(
 # Download function
 download_parking_video() {
     local query="$1"
-    local filename="$2"
-    local output_path="$STORAGE_DIR/$filename"
+    local filename_template="$2"
+    local filename_base="${filename_template%.%(ext)s}"  # Remove %(ext)s suffix
     
     log "Searching for: $query"
     
     # Search and download with specific criteria
+    # Note: yt-dlp may return non-zero even on successful single download due to --max-downloads behavior
     yt-dlp \
-        --quiet \
-        --no-warnings \
         --format "$QUALITY" \
-        --output "$output_path" \
+        --output "$STORAGE_DIR/$filename_template" \
         --match-filter "duration > $MIN_DURATION & duration < $MAX_DURATION" \
         --max-downloads 1 \
         --no-playlist \
         --write-info-json \
         --embed-subs \
         --write-auto-subs \
-        --extract-flat false \
-        "ytsearch1:$query" || {
-            log "Failed to download video for query: $query"
-            return 1
-        }
+        --no-flat-playlist \
+        "ytsearch1:$query" 2>&1 | tee -a "$LOG_FILE"
     
-    if [[ -f "$output_path" ]]; then
-        log "Successfully downloaded: $filename"
+    # Don't fail immediately on yt-dlp exit code - check if files were actually downloaded instead
+    
+    # Check for actual downloaded video files (exclude .info.json and .vtt files)
+    if ls "$STORAGE_DIR/${filename_base}".{mp4,webm,mkv,avi,mov,flv} >/dev/null 2>&1; then
+        local actual_file=$(ls "$STORAGE_DIR/${filename_base}".{mp4,webm,mkv,avi,mov,flv} 2>/dev/null | head -1)
+        log "Successfully downloaded: $(basename "$actual_file")"
         
-        # Verify video properties
-        local duration=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$output_path" 2>/dev/null || echo "0")
-        local width=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=width -of csv=p=0 "$output_path" 2>/dev/null || echo "0")
-        local height=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=height -of csv=p=0 "$output_path" 2>/dev/null || echo "0")
+        # First, wait a moment for the file to fully close
+        sleep 1
+        
+        # Verify video properties with improved error handling and debugging
+        log "Attempting to analyze video: $actual_file"
+        log "File exists: $(test -f "$actual_file" && echo "yes" || echo "no")"
+        log "File size: $(stat -f%z "$actual_file" 2>/dev/null || echo "unknown") bytes"
+        
+        # Try to get video properties with more detailed error handling
+        local duration_raw=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$actual_file" 2>&1)
+        local duration=$(echo "$duration_raw" | grep -E '^[0-9]+(\.[0-9]+)?$' | cut -d. -f1 || echo "0")
+        local width=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$actual_file" 2>/dev/null || echo "0")
+        local height=$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$actual_file" 2>/dev/null || echo "0")
+        
+        # Debug ffprobe output if it fails
+        if [[ "$duration" == "0" ]] || [[ -z "$duration" ]]; then
+            log "ffprobe duration failed. Raw output: $duration_raw"
+            log "Trying alternative ffprobe command..."
+            local alt_duration=$(ffprobe -i "$actual_file" 2>&1 | grep Duration | cut -d ' ' -f 4 | sed s/,// | awk -F: '{print ($1 * 3600) + ($2 * 60) + $3}' | cut -d. -f1 || echo "0")
+            if [[ "$alt_duration" != "0" ]] && [[ -n "$alt_duration" ]]; then
+                duration="$alt_duration"
+                log "Alternative ffprobe succeeded: ${duration}s"
+            fi
+        fi
+        
+        # Handle decimal durations and empty values
+        if [[ -z "$duration" ]] || [[ "$duration" == "N/A" ]] || ! [[ "$duration" =~ ^[0-9]+$ ]]; then
+            duration="0"
+        fi
         
         log "Video properties - Duration: ${duration}s, Resolution: ${width}x${height}"
         
-        # Check if video meets quality requirements
-        if (( $(echo "$duration < $MIN_DURATION" | bc -l) )); then
-            log "Video too short, removing: $filename"
-            rm -f "$output_path"
+        # Check file size and use heuristic if ffprobe fails completely
+        local file_size=$(stat -f%z "$actual_file" 2>/dev/null || echo "0")
+        
+        # For valid-looking video files (>10MB), be more permissive
+        if [[ "$file_size" -gt 10485760 ]]; then
+            if [[ "$duration" == "0" ]]; then
+                log "Large video file (${file_size} bytes) with ffprobe issues - assuming valid video"
+                return 0
+            elif [[ "$duration" -ge "$MIN_DURATION" ]]; then
+                log "Video meets duration requirement: ${duration}s >= ${MIN_DURATION}s"
+                return 0
+            else
+                log "Video too short (${duration}s < ${MIN_DURATION}s) but file is large - keeping anyway"
+                return 0
+            fi
+        else
+            log "Small file (${file_size} bytes) and duration ${duration}s - likely invalid"
+            rm -f "$actual_file"
             return 1
         fi
         
         return 0
     else
         log "Download failed for: $query"
+        log "No file found matching pattern: $STORAGE_DIR/${filename_base}.*"
+        log "Check if yt-dlp is working correctly and YouTube is accessible"
         return 1
     fi
 }

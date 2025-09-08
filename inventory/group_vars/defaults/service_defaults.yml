@@ -20,7 +20,7 @@ parking_monitor_defaults:
   detection:
     model: "yolo11m"
     confidence_threshold: 0.5
-    target_fps: 30
+    target_fps: 30.000030  # Precise framerate for macOS USB cameras
     device: "mps"
     debug_mode: false
     save_detection_images: false
@@ -29,7 +29,7 @@ parking_monitor_defaults:
   camera:
     source: 0
     resolution: [1920, 1080]
-    fps: 30
+    fps: 30.000030  # Precise framerate for macOS USB cameras
     debug_capture: false
     save_frames: false
     staging_mode: false

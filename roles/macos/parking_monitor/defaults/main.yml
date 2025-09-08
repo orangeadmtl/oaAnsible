@@ -66,6 +66,29 @@ parking_monitor_security:
     - automation_access
   firewall_rules: [] # Can be overridden in inventory if needed
 
+# Detection Configuration (Minimal for template compatibility)
+parking_monitor_detection:
+  model_path: "models/yolo11m.pt"
+  confidence_threshold: 0.5
+  nms_threshold: 0.4
+  target_fps: 30.000030
+  device: "mps"  # Apple Silicon optimization
+
+# Camera Configuration (Minimal for template compatibility)
+parking_monitor_camera:
+  source: 0  # Default camera
+  resolution: [1920, 1080]
+  fps: 30.000030
+
+# Logging Configuration (Minimal for template compatibility)
+parking_monitor_logging:
+  level: "INFO"
+  format: "structured"
+  max_file_size: "100MB"
+  max_files: 5
+  console_output: false
+  file_output: true
+
 # Models Configuration (Minimal for compatibility)
 parking_monitor_models:
   model_dir: "{{ parking_monitor_repository.destination }}/models"

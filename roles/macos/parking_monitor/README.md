@@ -34,7 +34,7 @@ The Parking Monitor role deploys a YOLOv11-based intelligent parking space detec
 ### Required Variables
 ```yaml
 # Repository configuration
-parking_monitor_repository_url: "git@github.com:oa-device/oaParkingMonitor.git"
+parking_monitor_repository_url: "https://github.com/oa-device/oaParkingMonitor.git"
 parking_monitor_branch: "main"
 
 # Service configuration

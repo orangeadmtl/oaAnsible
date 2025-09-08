@@ -6,7 +6,7 @@ parking_monitor_component:
   # Service configuration
   ansible.builtin.service:
     name: "com.orangead.parking-monitor"
-    port: 9091
+    port: "{{ service_ports.parking_monitor }}"
     bind_address: "127.0.0.1"
     python_version: "{{ python_version_lookup.parking_monitor }}"
 
@@ -20,7 +20,7 @@ parking_monitor_component:
   detection:
     model: "yolo11m"
     confidence_threshold: 0.5
-    target_fps: 30
+    target_fps: 30.000030  # Precise framerate for macOS USB cameras
     device: "mps" # Apple Silicon optimization
     debug_mode: false
     save_detection_images: false
@@ -29,7 +29,7 @@ parking_monitor_component:
   camera:
     source: 0
     resolution: [1920, 1080]
-    fps: 30
+    fps: 30.000030  # Precise framerate for macOS USB cameras
     debug_capture: false
     save_frames: false
     staging_mode: false

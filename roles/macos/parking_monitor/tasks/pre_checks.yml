@@ -24,19 +24,48 @@
     fail_msg: "Parking Monitor requires at least 8GB RAM. Found {{ ansible_memtotal_mb }}MB"
     success_msg: "[OK] Sufficient memory available: {{ ansible_memtotal_mb }}MB"
 
-- name: Check Python version availability
-  ansible.builtin.command: python{{ parking_monitor_python.version }} --version
+- name: Check UV installation and Python version availability
+  ansible.builtin.shell: |
+    set -e
+    
+    # Check if UV is available
+    if command -v uv >/dev/null 2>&1; then
+      # UV is available, check if it can provide Python {{ parking_monitor_python.version }}
+      if uv python list | grep -q "{{ parking_monitor_python.version }}"; then
+        echo "UV_PYTHON_OK={{ parking_monitor_python.version }}"
+        exit 0
+      elif uv python install {{ parking_monitor_python.version }} --quiet 2>/dev/null; then
+        echo "UV_PYTHON_INSTALLED={{ parking_monitor_python.version }}"
+        exit 0
+      fi
+    fi
+    
+    # Fallback: check system Python
+    if command -v python{{ parking_monitor_python.version }} >/dev/null 2>&1; then
+      PYTHON_VERSION=$(python{{ parking_monitor_python.version }} --version 2>&1)
+      if echo "$PYTHON_VERSION" | grep -q "{{ parking_monitor_python.version }}"; then
+        echo "SYSTEM_PYTHON_OK={{ parking_monitor_python.version }}"
+        exit 0
+      fi
+    fi
+    
+    # No Python found
+    echo "NO_PYTHON_FOUND"
+    exit 1
   register: python_version_check
   failed_when: false
   changed_when: false
 
-- name: Verify Python version
+- name: Verify Python version availability
   ansible.builtin.assert:
     that:
       - python_version_check.rc == 0
-      - parking_monitor_python.version in python_version_check.stdout
-    fail_msg: "Python {{ parking_monitor_python.version }} not found. Please install via UV or system package manager."
-    success_msg: "[OK] Python {{ parking_monitor_python.version }} available"
+      - python_version_check.stdout != "NO_PYTHON_FOUND"
+    fail_msg: |
+      Python {{ parking_monitor_python.version }} not available.
+      Please ensure UV is installed or Python {{ parking_monitor_python.version }} is available system-wide.
+      UV installation: curl -LsSf https://astral.sh/uv/install.sh | sh
+    success_msg: "[OK] Python {{ parking_monitor_python.version }} available ({{ python_version_check.stdout }})"
 
 - name: Check for existing conflicting services
   ansible.builtin.shell: |
@@ -68,7 +97,7 @@
   when: port_check is failed
 
 - name: Check disk space
-  ansible.builtin.shell: df -h "{{ ansible_user_dir }}" | tail -1 | awk '{print $4}' | sed 's/G//g'
+  ansible.builtin.shell: df -h "{{ ansible_user_dir }}" | tail -1 | awk '{print $4}' | sed 's/[iGMTB]//g'
   register: available_space
   changed_when: false
 
@@ -91,30 +120,31 @@
     msg: |
       [CAMERA] Camera Status: {{ 'Built-in camera detected' if camera_check.stdout == 'builtin' else 'No built-in camera detected - ensure USB camera is connected' }}
 
-- name: Check Git availability and SSH key
+- name: Check Git availability and GitHub access
   block:
     - name: Check Git installation
       ansible.builtin.command: git --version
       register: git_version
       changed_when: false
 
-    - name: Test SSH key access to GitHub
-      ansible.builtin.command: ssh -T git@github.com
-      register: ssh_test
+    - name: Test HTTPS access to GitHub repository
+      ansible.builtin.command: git ls-remote --heads {{ parking_monitor_repository.url }}
+      register: github_test
       changed_when: false
       failed_when: false
+      timeout: 30
 
-    - name: Verify GitHub access
+    - name: Verify GitHub repository access
       ansible.builtin.assert:
         that:
-          - ssh_test.rc == 1 # Expected return code for successful SSH test to GitHub
-          - "'successfully authenticated' in ssh_test.stderr"
+          - github_test.rc == 0
+          - github_test.stdout | length > 0
         fail_msg: |
-          SSH key access to GitHub failed. Please ensure:
-          1. SSH key is added to SSH agent
-          2. Public key is added to GitHub account
-          3. Test with: ssh -T git@github.com
-        success_msg: "[OK] GitHub SSH access verified"
+          HTTPS access to GitHub repository failed.
+          Repository: {{ parking_monitor_repository.url }}
+          Please ensure network connectivity and repository accessibility.
+          Test with: git ls-remote --heads {{ parking_monitor_repository.url }}
+        success_msg: "[OK] GitHub HTTPS repository access verified"
 
 - name: Summary of pre-deployment checks
   ansible.builtin.debug:

@@ -8,9 +8,7 @@
     dest: "{{ parking_monitor_repository.destination }}/config.yaml"
     mode: "0644"
     backup: "{{ parking_monitor_backup.config_backup | default(true) }}"
-  notify:
-    - backup configuration
-    - reload parking monitor
+  notify: reload parking monitor
 
 - name: Create environment configuration
   ansible.builtin.template:
@@ -28,7 +26,7 @@
 - name: Validate configuration syntax
   ansible.builtin.shell: |
     cd "{{ parking_monitor_repository.destination }}"
-    "{{ parking_monitor_python.env_path }}/bin/python" -c "
+    uv run --project "{{ parking_monitor_repository.destination }}" python -c "
     import yaml
     import os
 

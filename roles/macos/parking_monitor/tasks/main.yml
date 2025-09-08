@@ -16,6 +16,10 @@
   ansible.builtin.include_tasks: python_environment.yml
   tags: [parking-monitor, python]
 
+- name: Include configuration setup
+  ansible.builtin.include_tasks: configuration.yml
+  tags: [parking-monitor, configuration]
+
 - name: Include service setup (LaunchAgent)
   ansible.builtin.include_tasks: service_setup.yml
   tags: [parking-monitor, service]

@@ -33,10 +33,9 @@
   become: false
 
 - name: Install required Homebrew packages
-  homebrew:
-    name: "{{ item }}"
+  community.general.homebrew:
+    name: "{{ staging_video_feed_dependencies.homebrew_packages }}"
     state: present
-  loop: "{{ staging_video_feed_dependencies.homebrew_packages }}"
   become: false
 
 - name: Check FFmpeg installation

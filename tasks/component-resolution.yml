@@ -77,6 +77,27 @@
     resolved_components: "{{ resolved_components | unique }}"
   tags: [always]
 
+- name: Recursively resolve all component dependencies (fix missing deps)
+  ansible.builtin.set_fact:
+    resolved_components: >-
+      {%- set all_components = resolved_components | list -%}
+      {%- set new_deps = [] -%}
+      {%- for component in resolved_components -%}
+        {%- if component in component_registry.components -%}
+          {%- if component_registry.components[component].dependencies is defined -%}
+            {%- for dep in component_registry.components[component].dependencies -%}
+              {%- if dep not in all_components -%}
+                {%- set _ = new_deps.append(dep) -%}
+              {%- endif -%}
+            {%- endfor -%}
+          {%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ (all_components + new_deps) | unique | list }}
+  when: component_registry is defined
+  tags: [always]
+
+
 - name: Add mandatory components (device-api, etc.)
   ansible.builtin.set_fact:
     resolved_components: "{{ resolved_components + [item] }}"
@@ -102,9 +123,10 @@
 
 - name: Filter components by platform compatibility
   ansible.builtin.set_fact:
-    resolved_components: "{{ resolved_components | intersect(platform_compatible_components) }}"
+    resolved_components: "{{ (resolved_components | intersect(platform_compatible_components)) + (resolved_components | intersect(foundation_components)) | unique }}"
   when: foundation_config.component_filters.platform_filter | default(true)
   tags: [always]
+
 
 - name: Set final deployment components
   ansible.builtin.set_fact:
@@ -146,7 +168,10 @@
   ansible.builtin.fail:
     msg: |
       Component dependency validation failed!
-      Missing dependency: {{ item }} is required by components but not included in deployment.
+      Component '{{ item }}' requires dependencies that are not included in deployment:
+      Missing: {{ component_registry.components[item].dependencies | difference(deployment_components) | join(', ') }}
+      Current deployment: {{ deployment_components | join(', ') }}
+      Required dependencies: {{ component_registry.components[item].dependencies | join(', ') }}
   loop: "{{ deployment_components }}"
   when:
     - item in component_registry.components
