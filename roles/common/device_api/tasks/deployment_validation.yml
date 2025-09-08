@@ -2,15 +2,24 @@
 # Deployment validation for unified Device API - Comprehensive Testing
 # Ensures the service is properly running and accessible
 
-- name: Wait for service to initialize
-  ansible.builtin.pause:
-    seconds: 10
+- name: Progressive service initialization check
+  ansible.builtin.uri:
+    url: "http://localhost:{{ device_api_port }}/"
+    method: GET
+    timeout: 5
+    status_code: [200, 404, 503]  # Accept various states during startup
+  register: service_startup_check
+  retries: 12  # 1 minute total wait time 
+  delay: 5
+  until: service_startup_check.status == 200
+  ignore_errors: true
 
 - name: Check service process status (macOS)
   ansible.builtin.shell: |
-    if pgrep -f "{{ device_api_path }}/main.py" > /dev/null; then
+    # Check for both the wrapper script and main.py
+    if pgrep -f "{{ device_api_path }}/run_deviceapi.sh" > /dev/null || pgrep -f "{{ device_api_path }}/main.py" > /dev/null; then
       echo "PROCESS_RUNNING:true"
-      ps aux | grep "{{ device_api_path }}/main.py" | grep -v grep | head -1
+      ps aux | grep -E "({{ device_api_path }}/run_deviceapi.sh|{{ device_api_path }}/main.py)" | grep -v grep | head -1
     else
       echo "PROCESS_RUNNING:false"
     fi
@@ -34,37 +43,36 @@
 
 - name: Test basic API endpoint connectivity
   ansible.builtin.uri:
-    url: "http://localhost:9090/"
+    url: "http://localhost:{{ device_api_port }}/"
     method: GET
     timeout: 10
     status_code: 200
   register: api_basic_test
-  retries: 6
-  delay: 5
+  retries: 3
+  delay: 2
   until: api_basic_test.status == 200
   ignore_errors: true
 
-- name: Test platform endpoint (root provides platform info)
+- name: Test generic health endpoint (deployment-friendly)
   ansible.builtin.uri:
-    url: "http://localhost:9090/"  
+    url: "http://localhost:{{ device_api_port }}/health"
     method: GET
     timeout: 10
-    status_code: 200
-  register: api_platform_test
+    status_code: [200, 404]  # Accept 404 as known issue with /health endpoint
+  register: api_health_test
   retries: 3
   delay: 2
   ignore_errors: true
 
-- name: Test health endpoint (platform-specific)
+- name: Test platform-specific health endpoint (detailed diagnostics)
   ansible.builtin.uri:
-    url: "http://localhost:9090/macos/health"
-    method: GET 
+    url: "http://localhost:{{ device_api_port }}/{{ platform_state.is_macos | ternary('macos', 'orangepi') }}/health"
+    method: GET
     timeout: 10
-    status_code: 200
-  register: api_health_test
-  retries: 3
-  delay: 2
-  when: platform_state.is_macos
+    status_code: [200, 404]  # 404 is expected if platform router isn't loaded
+  register: api_platform_health_test
+  retries: 2
+  delay: 1
   ignore_errors: true
 
 - name: Check service logs for errors
@@ -86,10 +94,11 @@
       process_running: "{{ platform_state.is_macos | ternary((process_status_macos.stdout | regex_search('PROCESS_RUNNING:true')) is not none, true) }}"
       launchctl_loaded: "{{ platform_state.is_macos | ternary((launchctl_status.stdout | regex_search('LAUNCHCTL_LOADED:true')) is not none, true) }}" 
       api_basic_accessible: "{{ api_basic_test.status == 200 }}"
-      api_platform_accessible: "{{ api_platform_test.status == 200 }}"
-      api_health_accessible: "{{ platform_state.is_macos | ternary((api_health_test.status == 200), true) }}"
+      api_health_accessible: "{{ api_health_test.status == 200 }}"
+      api_platform_health_accessible: "{{ api_platform_health_test.status in [200, 404] }}"
       log_file_exists: "{{ (log_check.stdout | regex_search('LOG_FILE_EXISTS:true')) is not none }}"
-      overall_status: "{{ 'SUCCESS' if api_basic_test.status == 200 else 'FAILED' }}"
+      startup_time_acceptable: "{{ service_startup_check.elapsed | default(0) < 30 }}"
+      overall_status: "{{ 'SUCCESS' if (api_basic_test.status == 200 and (api_health_test.status in [200, 404]) and api_platform_health_test.status == 200) else 'FAILED' }}"
 
 - name: Display comprehensive validation results
   ansible.builtin.debug:
@@ -97,27 +106,31 @@
       ===============================================
       Device API Deployment Validation Results
       ===============================================
-      Overall Status: {{ deviceapi_validation_results.overall_status }}
+      Overall Status: {{ '[SUCCESS]' if deviceapi_validation_results.overall_status == 'SUCCESS' else '[FAILED]' }}
+      Platform: {{ platform_state.is_macos | ternary('macOS', 'OrangePi/Linux') }}
+      Startup Time: {{ service_startup_check.elapsed | default('N/A') }}s
       
       Service Status:
-      - Process Running: {{ deviceapi_validation_results.process_running }}
-      - LaunchCtl Loaded: {{ deviceapi_validation_results.launchctl_loaded }}
-      - Log File Exists: {{ deviceapi_validation_results.log_file_exists }}
+      - Process Running: {{ '[OK]' if deviceapi_validation_results.process_running else '[FAIL]' }} {{ deviceapi_validation_results.process_running }}
+      - Service Manager: {{ '[OK]' if deviceapi_validation_results.launchctl_loaded else '[FAIL]' }} {{ deviceapi_validation_results.launchctl_loaded }}
+      - Log File Exists: {{ '[OK]' if deviceapi_validation_results.log_file_exists else '[FAIL]' }} {{ deviceapi_validation_results.log_file_exists }}
+      - Startup Time: {{ '[OK]' if deviceapi_validation_results.startup_time_acceptable else '[WARN]' }} {{ 'Acceptable' if deviceapi_validation_results.startup_time_acceptable else 'Slow' }}
       
       API Endpoint Tests:
-      - Basic Endpoint (/): {{ '[OK] PASS' if deviceapi_validation_results.api_basic_accessible else '[FAIL] FAIL' }}
-      - Platform Endpoint (/platform): {{ '[OK] PASS' if deviceapi_validation_results.api_platform_accessible else '[FAIL] FAIL' }}
-      - Health Endpoint (/health): {{ '[OK] PASS' if deviceapi_validation_results.api_health_accessible else '[FAIL] FAIL' }}
+      - Basic API (/): {{ '[OK] PASS' if deviceapi_validation_results.api_basic_accessible else '[FAIL] FAIL' }}
+      - Generic Health (/health): {{ '[OK] PASS' if deviceapi_validation_results.api_health_accessible else '[FAIL] FAIL' }}
+      - Platform Health (/{{ platform_state.is_macos | ternary('macos', 'orangepi') }}/health): {{ '[OK] AVAILABLE' if api_platform_health_test.status == 200 else '[INFO] OPTIONAL (404)' if api_platform_health_test.status == 404 else '[WARN] FAILED' }}
       
       Access URLs:
-      - API Base: http://{{ ansible_default_ipv4.address }}:9090/
-      - API Docs: http://{{ ansible_default_ipv4.address }}:9090/docs
-      - Health: http://{{ ansible_default_ipv4.address }}:9090/health
+      - API Base: http://{{ ansible_default_ipv4.address }}:{{ device_api_port }}/
+      - Generic Health: http://{{ ansible_default_ipv4.address }}:{{ device_api_port }}/health
+      - Platform Health: http://{{ ansible_default_ipv4.address }}:{{ device_api_port }}/{{ platform_state.is_macos | ternary('macos', 'orangepi') }}/health
+      - API Docs: http://{{ ansible_default_ipv4.address }}:{{ device_api_port }}/docs
       ===============================================
       {% if deviceapi_validation_results.overall_status == 'FAILED' %}
       
-      [WARNING]  DEPLOYMENT VALIDATION FAILED [WARNING]
-      Please check the service logs and configuration.
+      [WARNING] DEPLOYMENT VALIDATION FAILED [WARNING]
+      Essential endpoints are not responding. Check service logs and configuration.
       {% endif %}
 
 - name: Fail deployment if validation fails

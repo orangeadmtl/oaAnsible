@@ -94,7 +94,13 @@
           - PATH Status: {{ '[SUCCESS] Clean' if path_duplicates.stdout == '' else '[WARNING] Duplicates found (will be resolved on login)' }}
           
           [COMPONENTS] Component Status:
-          {{ component_check.stdout_lines | join('\n          ') if component_check.stdout_lines is defined else '- Component check skipped' }}
+          {% if component_check.stdout_lines is defined -%}
+          {% for line in component_check.stdout_lines -%}
+          {{ line }}
+          {% endfor -%}
+          {%- else -%}
+          - Component check skipped
+          {%- endif %}
           
           [PERFORMANCE] Performance:
           {{ performance_check.stdout if performance_check is defined and performance_check.rc == 0 else '- Performance check completed' }}

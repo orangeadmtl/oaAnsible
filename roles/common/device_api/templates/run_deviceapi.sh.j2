@@ -1,0 +1,17 @@
+#!/bin/bash
+# Device API startup wrapper script
+# Handles both UV and venv execution
+
+cd "{{ device_api_path }}"
+
+# Check if UV is available and use it
+if [ -x "{{ ansible_user_dir }}/.local/bin/uv" ]; then
+    echo "[INFO] Starting Device API with UV"
+    exec {{ ansible_user_dir }}/.local/bin/uv run python main.py
+elif [ -x "{{ device_api_path }}/venv/bin/python" ]; then
+    echo "[INFO] Starting Device API with venv"
+    exec {{ device_api_path }}/venv/bin/python main.py
+else
+    echo "[ERROR] No Python environment found!"
+    exit 1
+fi

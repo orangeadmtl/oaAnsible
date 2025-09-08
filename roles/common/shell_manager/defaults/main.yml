@@ -43,7 +43,7 @@ shell_manager:
       enabled: true
       enabled_platforms: ["macos", "ubuntu", "orangepi"]
       manager: "uv"
-      default_version: "{{ python_runtime.default_version }}"
+      default_version: "{{ python_runtime.default_version | default('3.12') }}"
       
     nvm:
       enabled: true  

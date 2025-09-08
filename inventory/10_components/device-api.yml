@@ -6,7 +6,7 @@ device_api_component:
   # Service configuration
   ansible.builtin.service:
     name: "com.orangead.deviceapi"
-    port: 9090
+    port: "{{ service_ports.device_api }}"
     bind_address: "127.0.0.1"
     workers: 1
     python_version: "{{ python_version_lookup.device_api }}"

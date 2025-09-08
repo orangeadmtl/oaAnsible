@@ -16,7 +16,7 @@ components:
       branch: "main"
       destination: "{{ ansible_user_dir }}/orangead/oaDeviceAPI"
     platforms: ["macos", "orangepi"]
-    dependencies: []
+    dependencies: ["base", "network", "security"] # Requires Python/uv, network config, SSH access
     role: "common/device_api"
     tags: ["device-api", "api"]
 

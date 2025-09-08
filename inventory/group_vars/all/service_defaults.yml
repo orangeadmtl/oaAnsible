@@ -37,7 +37,7 @@ service_defaults:
 
 # Port Allocations (centralized to avoid conflicts)
 service_ports:
-  device_api: 8000
+  device_api: 9090
   tracker: 8080
   parking_monitor: 9091
   player: 8001

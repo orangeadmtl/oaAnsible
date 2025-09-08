@@ -5,6 +5,14 @@
 - name: Configure macOS LaunchAgent service (with robust restart)
   when: platform_state.is_macos
   block:
+    - name: Create startup wrapper script for Device API
+      ansible.builtin.template:
+        src: run_deviceapi.sh.j2
+        dest: "{{ device_api_path }}/run_deviceapi.sh"
+        owner: "{{ ansible_user }}"
+        mode: "0755"
+      become_user: "{{ ansible_user }}"
+
     - name: Create LaunchAgent plist for unified Device API
       ansible.builtin.template:
         src: com.orangead.deviceapi.plist.j2
@@ -96,7 +104,7 @@
 
 - name: Wait for service to be ready
   ansible.builtin.uri:
-    url: "http://localhost:9090/platform"
+    url: "http://localhost:{{ device_api_port }}/"
     method: GET
     timeout: 30
   register: service_health_check

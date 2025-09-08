@@ -4,11 +4,22 @@
 
 # Default component stack - always deployed unless explicitly disabled
 default_components:
-  foundation:
-    - base # System foundation setup
+  # Infrastructure components (deployed first - no service dependencies)
+  infrastructure:
+    - base # System foundation setup, Python/uv installation
     - network # Network configuration (Tailscale, SSH, etc.)
     - security # Security hardening and SSH keys
-    - device-api # Unified device API (mandatory)
+  
+  # Core services (deployed after infrastructure is ready)
+  core_services:
+    - device-api # Unified device API (requires Python/uv from base)
+  
+  # Merged foundation for backward compatibility (listed explicitly)
+  foundation:
+    - base # System foundation setup, Python/uv installation
+    - network # Network configuration (Tailscale, SSH, etc.)
+    - security # Security hardening and SSH keys
+    - device-api # Unified device API (deployed after infrastructure)
 
   # Additional components based on project requirements
   project_specific: [] # Populated from project stack.yml
