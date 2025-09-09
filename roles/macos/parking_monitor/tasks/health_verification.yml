@@ -35,9 +35,9 @@
     health_data: "{{ health_check.content | from_json }}"
   when: health_check.status == 200
 
-- name: Test parking stats endpoint
+- name: Test parking status endpoint
   ansible.builtin.uri:
-    url: "http://localhost:{{ parking_monitor_service.port }}/api/stats"
+    url: "http://localhost:{{ parking_monitor_service.port }}/api/status"
     method: GET
     return_content: true
     status_code: [200, 503] # 503 acceptable if no camera yet
@@ -105,7 +105,7 @@
       ===============================
       Process: {{ 'Running (PID: ' + process_check.stdout + ')' if process_check.stdout != 'not_running' else '[FAIL] Not running' }}
       Health Endpoint: {{ '[OK] Responding' if health_check.status == 200 else '[FAIL] Failed' }}
-      Stats Endpoint (/api/stats): {{ '[OK] Responding' if status_check.status == 200 else '[WARNING]  Limited (no camera?)' if status_check.status == 503 else '[FAIL] Failed' }}
+      Status Endpoint (/api/status): {{ '[OK] Responding' if status_check.status == 200 else '[WARNING]  Limited (no camera?)' if status_check.status == 503 else '[FAIL] Failed' }}
       Detection Endpoint (/api/detection): {{ '[OK] Responding' if metrics_check.status == 200 else '[WARNING]  Limited' if metrics_check.status == 503 else '[FAIL] Failed' }}
 
       {% if health_data is defined -%}
