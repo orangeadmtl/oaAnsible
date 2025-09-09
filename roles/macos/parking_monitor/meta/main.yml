@@ -26,8 +26,7 @@ galaxy_info:
     - monitoring
     - yolo
 
-dependencies:
-  - role: common/uv_python
-    when: ansible_os_family == "Darwin"
-  - role: macos/base
-    when: ansible_os_family == "Darwin"
+# Dependencies removed: These components are handled by the component dependency system
+# in inventory/10_components/_registry.yml where parking-monitor depends on device-api,
+# and device-api depends on base, network, security components.
+# Role-level dependencies here cause redundant execution after component resolution.

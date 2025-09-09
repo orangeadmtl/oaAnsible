@@ -1,0 +1,83 @@
+# YHU Preprod Parking Monitor Configuration
+# Live aerial camera feed from f1-ca-014 machine
+
+# Service configuration
+service:
+  name: "YHU Preprod Parking Monitor"
+  port: 9091
+  host: "0.0.0.0"
+  environment: "preprod"
+  log_level: "INFO"
+
+# Video source configuration  
+video:
+  # This should be the actual camera feed URL or device ID
+  source: 0  # Update this to actual camera source
+  fps_target: 10
+  frame_width: 1280
+  frame_height: 720
+  
+# Parking zone definitions based on the aerial view image - Updated coordinates
+parking_zones:
+  # Zone1
+  - name: "Zone1"
+    coordinates: [[332, 303], [153, 289], [5, 538], [212, 576]]
+    space_id: 1
+    description: "Parking space Zone1"
+
+  # Zone2
+  - name: "Zone2"
+    coordinates: [[340, 297], [217, 573], [434, 581], [527, 300]]
+    space_id: 2
+    description: "Parking space Zone2"
+
+  # Zone3
+  - name: "Zone3"
+    coordinates: [[535, 311], [710, 316], [659, 594], [447, 589]]
+    space_id: 3
+    description: "Parking space Zone3"
+
+  # Zone4
+  - name: "Zone4"
+    coordinates: [[720, 316], [897, 332], [892, 621], [672, 602]]
+    space_id: 4
+    description: "Parking space Zone4"
+
+  # Zone5
+  - name: "Zone5"
+    coordinates: [[913, 332], [1114, 340], [1138, 627], [908, 621]]
+    space_id: 5
+    description: "Parking space Zone5"
+
+  # Zone6
+  - name: "Zone6"
+    coordinates: [[1125, 348], [1325, 353], [1395, 627], [1151, 629]]
+    space_id: 6
+    description: "Parking space Zone6"
+
+# Detection settings
+detection:
+  model: "yolo11m.pt"  
+  confidence_threshold: 0.4
+  vehicle_classes: [2, 3, 5, 7, 8]  # car, motorcycle, bus, truck, boat
+  occupied_threshold: 0.3  # 30% overlap to consider space occupied
+  
+# Performance settings for Mac Mini M1
+performance:
+  use_mps: true  # Apple Metal Performance Shaders
+  batch_size: 1
+  max_workers: 2
+  cache_size: 50
+
+# Monitoring and alerts
+monitoring:
+  enable_webhooks: false
+  health_check_interval: 30
+  stats_retention_hours: 24
+  
+# Logging
+logging:
+  level: "INFO"
+  file: "logs/parking-monitor.log"
+  max_size_mb: 100
+  backup_count: 5

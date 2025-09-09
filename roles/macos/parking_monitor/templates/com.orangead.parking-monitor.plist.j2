@@ -7,8 +7,9 @@
     
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
-        <string>{{ parking_monitor_repository.destination }}/scripts/start_parking_monitor.sh</string>
+        <string>{{ parking_monitor_repository.destination }}/.venv/bin/python</string>
+        <string>-m</string>
+        <string>src.main</string>
     </array>
     
     <key>WorkingDirectory</key>
@@ -40,6 +41,8 @@
         <string>{{ ansible_user_dir }}</string>
         <key>USER</key>
         <string>{{ parking_monitor_service.user }}</string>
+        <key>PATH</key>
+        <string>{{ ansible_user_dir }}/.local/bin:{{ ansible_user_dir }}/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
 {% for key, value in parking_monitor_environment.items() %}
         <key>{{ key }}</key>
         <string>{{ value }}</string>
@@ -56,9 +59,9 @@
     <key>SoftResourceLimits</key>
     <dict>
         <key>NumberOfFiles</key>
-        <integer>1024</integer>
+        <integer>2048</integer>
         <key>NumberOfProcesses</key>
-        <integer>100</integer>
+        <integer>150</integer>
     </dict>
     
     <!-- Nice level for balanced performance -->

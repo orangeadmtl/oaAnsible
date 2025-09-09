@@ -3,33 +3,54 @@
 # Focuses on device preparation, repository setup, and service installation
 
 - name: Include pre-deployment checks
-  ansible.builtin.include_tasks: pre_checks.yml
+  ansible.builtin.include_tasks:
+    file: pre_checks.yml
+    apply:
+      tags: [parking-monitor, pre-checks]
   tags: [parking-monitor, pre-checks]
 
 
 - name: Include repository setup
-  ansible.builtin.include_tasks: repository_setup.yml
+  ansible.builtin.include_tasks:
+    file: repository_setup.yml
+    apply:
+      tags: [parking-monitor, repository]
   tags: [parking-monitor, repository]
 
 
 - name: Include Python environment setup
-  ansible.builtin.include_tasks: python_environment.yml
+  ansible.builtin.include_tasks:
+    file: python_environment.yml
+    apply:
+      tags: [parking-monitor, python]
   tags: [parking-monitor, python]
 
 - name: Include configuration setup
-  ansible.builtin.include_tasks: configuration.yml
+  ansible.builtin.include_tasks:
+    file: configuration.yml
+    apply:
+      tags: [parking-monitor, configuration]
   tags: [parking-monitor, configuration]
 
 - name: Include service setup (LaunchAgent)
-  ansible.builtin.include_tasks: service_setup.yml
+  ansible.builtin.include_tasks:
+    file: service_setup.yml
+    apply:
+      tags: [parking-monitor, service]
   tags: [parking-monitor, service]
 
 - name: Include security configuration
-  ansible.builtin.include_tasks: security_setup.yml
+  ansible.builtin.include_tasks:
+    file: security_setup.yml
+    apply:
+      tags: [parking-monitor, security]
   tags: [parking-monitor, security]
 
 - name: Include health verification
-  ansible.builtin.include_tasks: health_verification.yml
+  ansible.builtin.include_tasks:
+    file: health_verification.yml
+    apply:
+      tags: [parking-monitor, health, verify]
   tags: [parking-monitor, health, verify]
 
 

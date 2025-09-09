@@ -22,23 +22,46 @@
     state: directory
     mode: "0755"
 
-- name: Create startup script
-  ansible.builtin.template:
-    src: start_parking_monitor.sh.j2
-    dest: "{{ parking_monitor_repository.destination }}/scripts/start_parking_monitor.sh"
+- name: Create aliases script if missing
+  ansible.builtin.copy:
+    dest: "{{ parking_monitor_repository.destination }}/scripts/aliases.sh"
     mode: "0755"
+    content: |
+      #!/bin/bash
+      # Native aliases for oaParkingMonitor service management
+      
+      # Service management aliases
+      alias parking-start='./scripts/start.sh'
+      alias parking-stop='./scripts/stop.sh' 
+      alias parking-restart='./scripts/restart.sh'
+      alias parking-status='./scripts/health_check.sh'
+      alias parking-logs='./scripts/logs.sh'
+      
+      # Development aliases
+      alias parking-setup='./scripts/setup.sh'
+      alias parking-validate='./scripts/validate.sh'
+      
+      # Configuration aliases
+      alias parking-config='nano config.yaml'
+      alias parking-config-staging='cp config/staging.yaml config.yaml'
+      alias parking-config-preprod='cp config/preprod.yaml config.yaml'
+      
+      # Monitoring aliases
+      alias parking-health='curl -s http://localhost:9091/health | jq .'
+      alias parking-stats='curl -s http://localhost:9091/api/stats | jq .'
+      
+      echo "Parking monitor aliases loaded."
 
-- name: Create health check script
-  ansible.builtin.template:
-    src: health_check.sh.j2
-    dest: "{{ parking_monitor_repository.destination }}/scripts/health_check.sh"
+- name: Verify native scripts are executable
+  ansible.builtin.file:
+    path: "{{ item }}"
     mode: "0755"
-
-- name: Create stop script
-  ansible.builtin.template:
-    src: stop_parking_monitor.sh.j2
-    dest: "{{ parking_monitor_repository.destination }}/scripts/stop.sh"
-    mode: "0755"
+  loop:
+    - "{{ parking_monitor_repository.destination }}/scripts/start.sh"
+    - "{{ parking_monitor_repository.destination }}/scripts/health_check.sh"
+    - "{{ parking_monitor_repository.destination }}/scripts/setup.sh"
+    - "{{ parking_monitor_repository.destination }}/scripts/aliases.sh"
+  ignore_errors: true
 
 - name: Stop existing service if running
   ansible.builtin.shell: |
@@ -68,11 +91,11 @@
     fail_msg: "Service failed to load. Check logs: tail -f {{ parking_monitor_launchd.standard_error_path }}"
     success_msg: "[OK] Service loaded successfully"
 
-- name: Create service management aliases
-  ansible.builtin.template:
-    src: parking_monitor_aliases.sh.j2
-    dest: "{{ parking_monitor_repository.destination }}/scripts/aliases.sh"
+- name: Verify native alias script is executable
+  ansible.builtin.file:
+    path: "{{ parking_monitor_repository.destination }}/scripts/aliases.sh"
     mode: "0755"
+  ignore_errors: true
 
 - name: Service setup summary
   ansible.builtin.debug:
@@ -89,5 +112,7 @@
       • Stop:    launchctl unload {{ parking_monitor_launchd.plist_path }}
       • Status:  launchctl list | grep {{ parking_monitor_service.name }}
       • Health:  {{ parking_monitor_repository.destination }}/scripts/health_check.sh
+      • Setup:   {{ parking_monitor_repository.destination }}/scripts/setup.sh
+      • Native:  {{ parking_monitor_repository.destination }}/scripts/start.sh
       • Logs:    tail -f {{ parking_monitor_launchd.standard_out_path }}
       ========================="

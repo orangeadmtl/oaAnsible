@@ -2,12 +2,22 @@
 # Configuration management tasks
 # Creates and manages configuration files for the parking monitor service
 
-- name: Create configuration from template
+- name: Copy specific environment configuration (if specified)
+  ansible.builtin.copy:
+    src: "{{ parking_monitor_config_template | default('') }}"
+    dest: "{{ parking_monitor_repository.destination }}/config.yaml"
+    mode: "0644"
+    backup: "{{ parking_monitor_backup.config_backup | default(true) }}"
+  when: parking_monitor_config_template is defined and parking_monitor_config_template != ''
+  notify: reload parking monitor
+
+- name: Create configuration from template (default)
   ansible.builtin.template:
     src: config.yaml.j2
     dest: "{{ parking_monitor_repository.destination }}/config.yaml"
     mode: "0644"
     backup: "{{ parking_monitor_backup.config_backup | default(true) }}"
+  when: parking_monitor_config_template is not defined or parking_monitor_config_template == ''
   notify: reload parking monitor
 
 - name: Create environment configuration
