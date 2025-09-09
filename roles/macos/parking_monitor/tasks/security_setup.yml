@@ -72,7 +72,11 @@
 
 - name: Run security audit
   ansible.builtin.shell: |
-    "{{ parking_monitor_repository.destination }}/scripts/security_audit.sh"
+    if [ -f "{{ parking_monitor_repository.destination }}/scripts/security_audit.sh" ]; then
+      "{{ parking_monitor_repository.destination }}/scripts/security_audit.sh"
+    else
+      echo "[INFO] Security audit script not found - skipping optional audit"
+    fi
   register: security_audit
   changed_when: false
 
