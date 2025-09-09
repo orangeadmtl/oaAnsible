@@ -161,13 +161,30 @@
     }
   tags: "{{ repo_tags | default(['always']) }}"
 
-- name: "[{{ repo_component_name | upper }}] Set repository permissions"
+- name: "[{{ repo_component_name | upper }}] Set repository ownership (files and directories)"
   ansible.builtin.file:
     path: "{{ repo_destination }}"
     owner: "{{ repo_owner }}"
     group: "{{ repo_group }}"
-    mode: "0755"
     recurse: true
+  when: repo_dir_exists.stat.exists or git_clone_result is defined
+  tags: "{{ repo_tags | default(['always']) }}"
+
+- name: "[{{ repo_component_name | upper }}] Set directory permissions (755)"
+  ansible.builtin.shell: |
+    find "{{ repo_destination }}" -type d -exec chmod 0755 {} +
+  when: repo_dir_exists.stat.exists or git_clone_result is defined
+  tags: "{{ repo_tags | default(['always']) }}"
+
+- name: "[{{ repo_component_name | upper }}] Set file permissions (644)"
+  ansible.builtin.shell: |
+    find "{{ repo_destination }}" -type f -exec chmod 0644 {} +
+  when: repo_dir_exists.stat.exists or git_clone_result is defined
+  tags: "{{ repo_tags | default(['always']) }}"
+
+- name: "[{{ repo_component_name | upper }}] Make shell scripts executable (755)"
+  ansible.builtin.shell: |
+    find "{{ repo_destination }}" -type f -name "*.sh" -exec chmod 0755 {} +
   when: repo_dir_exists.stat.exists or git_clone_result is defined
   tags: "{{ repo_tags | default(['always']) }}"
 
