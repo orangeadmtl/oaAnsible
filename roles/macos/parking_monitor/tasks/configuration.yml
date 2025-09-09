@@ -7,7 +7,7 @@
     src: "yhu-preprod-config.yaml"
     dest: "{{ parking_monitor_repository.destination }}/config/preprod.yaml"
     mode: "0644"
-    backup: true
+    backup: false
   when: 
     - target_env == 'yhu-preprod'
     - inventory_hostname == 'f1-ca-014'
@@ -18,7 +18,7 @@
     src: "{{ parking_monitor_config_template | default('') }}"
     dest: "{{ parking_monitor_repository.destination }}/config.yaml"
     mode: "0644"
-    backup: "{{ parking_monitor_backup.config_backup | default(true) }}"
+    backup: false
   when: parking_monitor_config_template is defined and parking_monitor_config_template != ''
   notify: reload parking monitor
 
@@ -27,7 +27,7 @@
     src: config.yaml.j2
     dest: "{{ parking_monitor_repository.destination }}/config.yaml"
     mode: "0644"
-    backup: "{{ parking_monitor_backup.config_backup | default(true) }}"
+    backup: false
   when: parking_monitor_config_template is not defined or parking_monitor_config_template == ''
   notify: reload parking monitor
 
