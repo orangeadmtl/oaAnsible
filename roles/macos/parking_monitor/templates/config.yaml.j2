@@ -14,6 +14,7 @@ model_path: "{{ parking_monitor_detection.model_path }}"
 
 # Video source settings
 video_source: {{ parking_monitor_camera.source }}
+camera_mirror: {{ parking_monitor_camera.mirror | default(true) | bool }}
 processing_enabled: true
 
 

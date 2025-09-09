@@ -79,6 +79,7 @@ parking_monitor_camera:
   source: 0  # Default camera
   resolution: [1920, 1080]
   fps: 30.000030
+  mirror: true  # Horizontally flip camera feed to match coordinate system
 
 # Logging Configuration (Minimal for template compatibility)
 parking_monitor_logging:
