@@ -12,12 +12,6 @@
     mode: "0600" # Sensitive environment variables
   notify: reload parking monitor
 
-- name: Create logging configuration
-  ansible.builtin.template:
-    src: logging.yaml.j2
-    dest: "{{ parking_monitor_repository.destination }}/logging.yaml"
-    mode: "0644"
-
 - name: Validate configuration syntax
   ansible.builtin.shell: |
     cd "{{ parking_monitor_repository.destination }}"
@@ -41,17 +35,6 @@
     except FileNotFoundError:
         print('[WARNING] config/mvp.yaml not found - using app defaults')
 
-    # Validate logging config
-    try:
-        with open('logging.yaml', 'r') as f:
-            logging_config = yaml.safe_load(f)
-        print('[OK] logging.yaml syntax valid')
-    except yaml.YAMLError as e:
-        print(f'[FAIL] logging.yaml syntax error: {e}')
-        exit(1)
-    except FileNotFoundError:
-        print('[WARNING] logging.yaml not found')
-
     # Check .env file
     if os.path.exists('.env'):
         print('[OK] .env file created')
@@ -60,14 +43,6 @@
     "
   register: config_validation
   changed_when: false
-
-- name: Set configuration file permissions
-  ansible.builtin.file:
-    path: "{{ parking_monitor_repository.destination }}/logging.yaml"
-    mode: "0644"
-    owner: "{{ parking_monitor_service.user }}"
-    group: "{{ parking_monitor_service.group }}"
-  ignore_errors: true
 
 - name: Secure environment file permissions
   ansible.builtin.file:
@@ -83,6 +58,5 @@
       ===============================
       Main Config: {{ parking_monitor_repository.destination }}/config/mvp.yaml (bundled)
       Environment: {{ parking_monitor_repository.destination }}/.env
-      Logging: {{ parking_monitor_repository.destination }}/logging.yaml
       Validation: {{ config_validation.stdout }}
       ==============================="
