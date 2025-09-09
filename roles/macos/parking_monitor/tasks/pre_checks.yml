@@ -55,6 +55,8 @@
   register: python_version_check
   failed_when: false
   changed_when: false
+  environment:
+    PATH: "{{ ansible_user_dir }}/.local/bin:{{ ansible_user_dir }}/.cargo/bin:{{ ansible_env.PATH }}"
 
 - name: Verify Python version availability
   ansible.builtin.assert:

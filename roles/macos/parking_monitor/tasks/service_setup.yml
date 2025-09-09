@@ -22,35 +22,8 @@
     state: directory
     mode: "0755"
 
-- name: Create aliases script if missing
-  ansible.builtin.copy:
-    dest: "{{ parking_monitor_repository.destination }}/scripts/aliases.sh"
-    mode: "0755"
-    content: |
-      #!/bin/bash
-      # Native aliases for oaParkingMonitor service management
-      
-      # Service management aliases
-      alias parking-start='./scripts/start.sh'
-      alias parking-stop='./scripts/stop.sh' 
-      alias parking-restart='./scripts/restart.sh'
-      alias parking-status='./scripts/health_check.sh'
-      alias parking-logs='./scripts/logs.sh'
-      
-      # Development aliases
-      alias parking-setup='./scripts/setup.sh'
-      alias parking-validate='./scripts/validate.sh'
-      
-      # Configuration aliases
-      alias parking-config='nano config.yaml'
-      alias parking-config-staging='cp config/staging.yaml config.yaml'
-      alias parking-config-preprod='cp config/preprod.yaml config.yaml'
-      
-      # Monitoring aliases
-      alias parking-health='curl -s http://localhost:9091/health | jq .'
-      alias parking-stats='curl -s http://localhost:9091/api/stats | jq .'
-      
-      echo "Parking monitor aliases loaded."
+# Native aliases.sh script is provided by oaParkingMonitor repository
+# No need to generate it - repository includes all necessary scripts
 
 - name: Verify native scripts are executable
   ansible.builtin.file:
