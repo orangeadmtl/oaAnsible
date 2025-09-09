@@ -30,7 +30,7 @@
   ansible.builtin.set_fact:
     resolved_components: []
     foundation_components: "{{ foundation_config.default_components.foundation }}"
-    project_components: "{{ project_stack_config.project_stack.components | default([]) }}"
+    project_components: "{{ components_to_deploy | default(project_stack_config.project_stack.components | default([])) }}"
     explicit_components: "{{ selected_components | default([]) }}"
   tags: [always]
 
@@ -62,14 +62,28 @@
     - foundation_config.auto_include.include_foundation | default(true)
   tags: [always]
 
-- name: Resolve component dependencies
+- name: Resolve component dependencies (safe iterative approach)
   ansible.builtin.set_fact:
-    resolved_components: "{{ resolved_components + component_registry.components[item].dependencies | default([]) }}"
-  loop: "{{ resolved_components }}"
-  when:
-    - foundation_config.auto_include.resolve_dependencies | default(true)
-    - item in component_registry.components
-    - component_registry.components[item].dependencies is defined
+    resolved_components: >-
+      {%- set all_components = resolved_components | list -%}
+      {%- set max_iterations = 10 -%}
+      {%- for iteration in range(max_iterations) -%}
+        {%- set iteration_added = [] -%}
+        {%- for component in all_components -%}
+          {%- if component in component_registry.components -%}
+            {%- for dep in component_registry.components[component].dependencies | default([]) -%}
+              {%- if dep not in all_components -%}
+                {%- set _ = iteration_added.append(dep) -%}
+              {%- endif -%}
+            {%- endfor -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {%- if iteration_added | length > 0 -%}
+          {%- set all_components = (all_components + iteration_added) | unique | list -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ all_components | unique | list }}
+  when: foundation_config.auto_include.resolve_dependencies | default(true)
   tags: [always]
 
 - name: Remove duplicates and ensure mandatory components
@@ -77,24 +91,13 @@
     resolved_components: "{{ resolved_components | unique }}"
   tags: [always]
 
-- name: Recursively resolve all component dependencies (fix missing deps)
-  ansible.builtin.set_fact:
-    resolved_components: >-
-      {%- set all_components = resolved_components | list -%}
-      {%- set new_deps = [] -%}
-      {%- for component in resolved_components -%}
-        {%- if component in component_registry.components -%}
-          {%- if component_registry.components[component].dependencies is defined -%}
-            {%- for dep in component_registry.components[component].dependencies -%}
-              {%- if dep not in all_components -%}
-                {%- set _ = new_deps.append(dep) -%}
-              {%- endif -%}
-            {%- endfor -%}
-          {%- endif -%}
-        {%- endif -%}
-      {%- endfor -%}
-      {{ (all_components + new_deps) | unique | list }}
-  when: component_registry is defined
+- name: Validate all resolved components exist in registry
+  ansible.builtin.debug:
+    msg: "WARNING: Component '{{ item }}' not found in registry (foundation components are handled separately)"
+  loop: "{{ resolved_components }}"
+  when:
+    - item not in component_registry.components
+    - item not in ['base', 'network', 'security']  # Foundation components are OK
   tags: [always]
 
 
@@ -127,6 +130,11 @@
   when: foundation_config.component_filters.platform_filter | default(true)
   tags: [always]
 
+
+- name: Final deduplication of deployment components
+  ansible.builtin.set_fact:
+    resolved_components: "{{ resolved_components | unique }}"
+  tags: [always]
 
 - name: Set final deployment components
   ansible.builtin.set_fact:

@@ -3,6 +3,35 @@
 # Central registry of all available components with metadata and dependencies
 
 components:
+  # Foundation Components (no dependencies to prevent cycles)
+  base:
+    name: "System Base"
+    description: "Foundation setup, Python/uv installation, core utilities"
+    mandatory: false  # Included via foundation defaults
+    platforms: ["macos", "ubuntu", "orangepi"]
+    dependencies: []  # NO dependencies to prevent cycles
+    role: "{{ target_platform }}/base"
+    tags: ["base", "foundation"]
+
+  network:
+    name: "Network Configuration" 
+    description: "Network setup, Tailscale, SSH configuration"
+    mandatory: false
+    platforms: ["macos", "ubuntu", "orangepi"]
+    dependencies: []  # NO dependencies
+    role: "{{ target_platform }}/network"
+    tags: ["network", "foundation"]
+
+  security:
+    name: "Security Setup"
+    description: "Security hardening, SSH keys, firewall"
+    mandatory: false
+    platforms: ["macos", "ubuntu", "orangepi"]
+    dependencies: []  # NO dependencies
+    role: "{{ target_platform }}/security"
+    tags: ["security", "foundation"]
+
+  # Core Services
   device-api:
     name: "Device API"
     description: "Unified FastAPI service for device management (macOS and OrangePi)"
@@ -36,6 +65,19 @@ components:
     dependencies: ["device-api"]
     role: "macos/parking_monitor"
     tags: ["parking-monitor", "ai"]
+
+  staging-video-feed:
+    name: "Staging Video Feed"
+    description: "Virtual camera system for testing parking detection with pre-recorded videos"
+    mandatory: false
+    ansible.builtin.service:
+      name: "com.orangead.staging-video-feed"
+      port: 8888
+      bind_address: "127.0.0.1"
+    platforms: ["macos"]
+    dependencies: []
+    role: "macos/staging_video_feed"
+    tags: ["staging-video-feed", "testing", "staging"]
 
   player:
     name: "Video Player"

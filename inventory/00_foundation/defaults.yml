@@ -19,7 +19,6 @@ default_components:
     - base # System foundation setup, Python/uv installation
     - network # Network configuration (Tailscale, SSH, etc.)
     - security # Security hardening and SSH keys
-    - device-api # Unified device API (deployed after infrastructure)
 
   # Additional components based on project requirements
   project_specific: [] # Populated from project stack.yml
