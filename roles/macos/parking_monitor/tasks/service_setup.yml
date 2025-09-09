@@ -13,7 +13,7 @@
     src: com.orangead.parking-monitor.plist.j2
     dest: "{{ parking_monitor_launchd.plist_path }}"
     mode: "0644"
-    backup: true
+    backup: false
   notify: restart parking monitor
 
 - name: Create scripts directory
@@ -25,16 +25,17 @@
 # Native aliases.sh script is provided by oaParkingMonitor repository
 # No need to generate it - repository includes all necessary scripts
 
-- name: Verify native scripts are executable
+- name: Find all shell scripts in scripts directory for service setup
+  ansible.builtin.find:
+    paths: "{{ parking_monitor_repository.destination }}/scripts"
+    patterns: "*.sh"
+  register: service_scripts
+
+- name: Verify all shell scripts are executable
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ item.path }}"
     mode: "0755"
-  loop:
-    - "{{ parking_monitor_repository.destination }}/scripts/start.sh"
-    - "{{ parking_monitor_repository.destination }}/scripts/health_check.sh"
-    - "{{ parking_monitor_repository.destination }}/scripts/setup.sh"
-    - "{{ parking_monitor_repository.destination }}/scripts/aliases.sh"
-  ignore_errors: true
+  loop: "{{ service_scripts.files }}"
 
 - name: Stop existing service if running
   ansible.builtin.shell: |
@@ -63,12 +64,6 @@
       - "'not_running' not in service_status.stdout"
     fail_msg: "Service failed to load. Check logs: tail -f {{ parking_monitor_launchd.standard_error_path }}"
     success_msg: "[OK] Service loaded successfully"
-
-- name: Verify native alias script is executable
-  ansible.builtin.file:
-    path: "{{ parking_monitor_repository.destination }}/scripts/aliases.sh"
-    mode: "0755"
-  ignore_errors: true
 
 - name: Service setup summary
   ansible.builtin.debug:
