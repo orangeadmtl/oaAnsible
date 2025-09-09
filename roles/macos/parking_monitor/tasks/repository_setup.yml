@@ -15,19 +15,17 @@
     repo_tags: [parking-monitor, repository]
   tags: [parking-monitor, repository]
 
-- name: Make scripts executable
+- name: Find all shell scripts in scripts directory
+  ansible.builtin.find:
+    paths: "{{ parking_monitor_repository.destination }}/scripts"
+    patterns: "*.sh"
+  register: parking_monitor_scripts
+
+- name: Make all shell scripts executable
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ item.path }}"
     mode: "0755"
-  loop:
-    - "{{ parking_monitor_repository.destination }}/scripts/activate_env.sh"
-    - "{{ parking_monitor_repository.destination }}/scripts/grant_permissions.sh"
-    - "{{ parking_monitor_repository.destination }}/scripts/health_check.sh"
-    - "{{ parking_monitor_repository.destination }}/scripts/helpers.sh"
-    - "{{ parking_monitor_repository.destination }}/scripts/security_audit.sh"
-    - "{{ parking_monitor_repository.destination }}/scripts/verify_permissions.sh"
-    - "{{ parking_monitor_repository.destination }}/scripts/aliases.sh"
-  ignore_errors: true
+  loop: "{{ parking_monitor_scripts.files }}"
   tags: [parking-monitor, repository]
 
 - name: Create logs directory
