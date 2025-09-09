@@ -19,28 +19,10 @@ processing_enabled: true
 
 
 
-# Parking Zones Configuration (MVP Structure)
-{% if target_env == 'yhu-preprod' and inventory_hostname == 'f1-ca-014' %}
-# YHU MVP - 11 parking zones (A1-A7, B1-B4)
-parking_zones:
-{% for zone in parking_zones.zones %}
-  - id: {{ zone.space_id }}
-    space_id: {{ zone.space_id }}
-    name: "{{ zone.name }}"
-    description: "{{ zone.description }}"
-    coordinates: {{ zone.coordinates | to_json }}
-    detection_difficulty: "{{ zone.detection_difficulty }}"
-{% endfor %}
-{% else %}
-# Default parking zones for other environments
-parking_zones:
-  - id: 1
-    space_id: 1
-    name: "Default Zone"
-    description: "Default parking space"
-    coordinates: [[0, 0], [100, 0], [100, 100], [0, 100]]
-    detection_difficulty: "easy"
-{% endif %}
+# Parking Zones Configuration
+# Zones are loaded from the application's config/mvp.yaml file
+# This allows for centralized zone management within the oaParkingMonitor project
+# parking_zones: []  # Loaded dynamically from config/mvp.yaml
 
 # Display Configuration
 display:
