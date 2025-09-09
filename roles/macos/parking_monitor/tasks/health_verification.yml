@@ -4,12 +4,12 @@
 
 - name: Wait for service startup
   ansible.builtin.pause:
-    seconds: 15
+    seconds: 30
     prompt: "Waiting for parking monitor service to fully initialize..."
 
 - name: Check service process
   ansible.builtin.shell: |
-    pgrep -f "parking.monitor" | head -1 || echo "not_running"
+    pgrep -f "parking" | head -1 || pgrep -f "main.py" | head -1 || echo "not_running"
   register: process_check
   changed_when: false
 
@@ -35,9 +35,9 @@
     health_data: "{{ health_check.content | from_json }}"
   when: health_check.status == 200
 
-- name: Test parking status endpoint
+- name: Test parking stats endpoint
   ansible.builtin.uri:
-    url: "http://localhost:{{ parking_monitor_service.port }}/api/parking/status"
+    url: "http://localhost:{{ parking_monitor_service.port }}/api/stats"
     method: GET
     return_content: true
     status_code: [200, 503] # 503 acceptable if no camera yet
@@ -46,9 +46,9 @@
   retries: 3
   delay: 5
 
-- name: Test metrics endpoint
+- name: Test detection endpoint
   ansible.builtin.uri:
-    url: "http://localhost:{{ parking_monitor_service.port }}/api/parking/metrics"
+    url: "http://localhost:{{ parking_monitor_service.port }}/api/detection"
     method: GET
     return_content: true
     status_code: [200, 503]
@@ -89,10 +89,11 @@
 
 - name: Run comprehensive health check script
   ansible.builtin.shell: |
-    if [ -f "{{ parking_monitor_repository.destination }}/scripts/health_check.sh" ]; then
-      "{{ parking_monitor_repository.destination }}/scripts/health_check.sh"
+    cd "{{ parking_monitor_repository.destination }}"
+    if [ -f "./scripts/health_check.sh" ]; then
+      ./scripts/health_check.sh
     else
-      echo "Health check script not found"
+      echo "Health check script not found at {{ parking_monitor_repository.destination }}/scripts/health_check.sh"
     fi
   register: comprehensive_health
   changed_when: false
@@ -104,8 +105,8 @@
       ===============================
       Process: {{ 'Running (PID: ' + process_check.stdout + ')' if process_check.stdout != 'not_running' else '[FAIL] Not running' }}
       Health Endpoint: {{ '[OK] Responding' if health_check.status == 200 else '[FAIL] Failed' }}
-      Status Endpoint: {{ '[OK] Responding' if status_check.status == 200 else '[WARNING]  Limited (no camera?)' if status_check.status == 503 else '[FAIL] Failed' }}
-      Metrics Endpoint: {{ '[OK] Responding' if metrics_check.status == 200 else '[WARNING]  Limited' if metrics_check.status == 503 else '[FAIL] Failed' }}
+      Stats Endpoint (/api/stats): {{ '[OK] Responding' if status_check.status == 200 else '[WARNING]  Limited (no camera?)' if status_check.status == 503 else '[FAIL] Failed' }}
+      Detection Endpoint (/api/detection): {{ '[OK] Responding' if metrics_check.status == 200 else '[WARNING]  Limited' if metrics_check.status == 503 else '[FAIL] Failed' }}
 
       {% if health_data is defined -%}
       Service Info:
