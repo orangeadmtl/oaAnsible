@@ -1,83 +1,98 @@
-# YHU Preprod Parking Monitor Configuration
-# Live aerial camera feed from f1-ca-014 machine
+# YHU Preprod MVP Parking Monitor Configuration
+# Synchronized with oaParkingMonitor MVP structure
 
-# Service configuration
-service:
-  name: "YHU Preprod Parking Monitor"
-  port: 9091
-  host: "0.0.0.0"
-  environment: "preprod"
-  log_level: "INFO"
+# MVP Service Configuration
+api_port: 9091
+api_host: "0.0.0.0"
+log_level: "INFO"
+debug: false
 
-# Video source configuration  
-video:
-  # This should be the actual camera feed URL or device ID
-  source: 0  # Update this to actual camera source
-  fps_target: 10
-  frame_width: 1280
-  frame_height: 720
-  
-# Parking zone definitions based on the aerial view image - Updated coordinates
+# MVP Processing Settings
+snapshot_interval: 5  # seconds between snapshots
+confidence_threshold: 0.5
+model_path: "models/yolo11m.pt"
+
+# Video source settings
+video_source: 0  # Camera device ID
+processing_enabled: true
+
+# 11 Parking zones matching oaParkingMonitor MVP structure
+# Main row zones (A1-A7)
 parking_zones:
-  # Zone1
-  - name: "Zone1"
-    coordinates: [[332, 303], [153, 289], [5, 538], [212, 576]]
+  - id: 1
     space_id: 1
-    description: "Parking space Zone1"
-
-  # Zone2
-  - name: "Zone2"
-    coordinates: [[340, 297], [217, 573], [434, 581], [527, 300]]
+    name: "A1"
+    description: "Front left space (partially visible)"
+    coordinates: [[308, 306], [151, 296], [151, 561]]
+    detection_difficulty: "hard"
+    
+  - id: 2  
     space_id: 2
-    description: "Parking space Zone2"
-
-  # Zone3
-  - name: "Zone3"
-    coordinates: [[535, 311], [710, 316], [659, 594], [447, 589]]
+    name: "A2"
+    description: "Front row center-left"
+    coordinates: [[511, 320], [320, 308], [153, 576], [384, 611]]
+    detection_difficulty: "easy"
+    
+  - id: 3
     space_id: 3
-    description: "Parking space Zone3"
-
-  # Zone4
-  - name: "Zone4"
-    coordinates: [[720, 316], [897, 332], [892, 621], [672, 602]]
+    name: "A3"
+    description: "Front row center"
+    coordinates: [[711, 328], [520, 320], [392, 612], [625, 633]]
+    detection_difficulty: "easy"
+    
+  - id: 4
     space_id: 4
-    description: "Parking space Zone4"
-
-  # Zone5
-  - name: "Zone5"
-    coordinates: [[913, 332], [1114, 340], [1138, 627], [908, 621]]
+    name: "A4"
+    description: "Front row center-right"
+    coordinates: [[914, 335], [719, 328], [630, 633], [867, 652]]
+    detection_difficulty: "easy"
+    
+  - id: 5
     space_id: 5
-    description: "Parking space Zone5"
-
-  # Zone6
-  - name: "Zone6"
-    coordinates: [[1125, 348], [1325, 353], [1395, 627], [1151, 629]]
+    name: "A5"
+    description: "Front row right-center"
+    coordinates: [[1132, 344], [922, 337], [874, 654], [1117, 669]]
+    detection_difficulty: "easy"
+    
+  - id: 6
     space_id: 6
-    description: "Parking space Zone6"
-
-# Detection settings
-detection:
-  model: "yolo11m.pt"  
-  confidence_threshold: 0.4
-  vehicle_classes: [2, 3, 5, 7, 8]  # car, motorcycle, bus, truck, boat
-  occupied_threshold: 0.3  # 30% overlap to consider space occupied
-  
-# Performance settings for Mac Mini M1
-performance:
-  use_mps: true  # Apple Metal Performance Shaders
-  batch_size: 1
-  max_workers: 2
-  cache_size: 50
-
-# Monitoring and alerts
-monitoring:
-  enable_webhooks: false
-  health_check_interval: 30
-  stats_retention_hours: 24
-  
-# Logging
-logging:
-  level: "INFO"
-  file: "logs/parking-monitor.log"
-  max_size_mb: 100
-  backup_count: 5
+    name: "A6"
+    description: "Front row right"
+    coordinates: [[1354, 354], [1135, 339], [1129, 667], [1383, 674]]
+    detection_difficulty: "easy"
+    
+  - id: 7
+    space_id: 7
+    name: "A7"
+    description: "Front row far right"
+    coordinates: [[1588, 365], [1361, 349], [1388, 678], [1677, 690]]
+    detection_difficulty: "easy"
+    
+  # Back row zones (B1-B4)
+  - id: 8
+    space_id: 8
+    name: "B1"
+    description: "Back row left"
+    coordinates: [[998, 0], [982, 48], [1142, 65], [1166, 0]]
+    detection_difficulty: "hard"
+    
+  - id: 9
+    space_id: 9
+    name: "B2"
+    description: "Back row center-left"
+    coordinates: [[1170, 0], [1151, 64], [1325, 81], [1338, 0]]
+    detection_difficulty: "hard"
+    
+  - id: 10
+    space_id: 10
+    name: "B3"
+    description: "Back row center-right"
+    coordinates: [[1349, 0], [1330, 84], [1516, 100], [1514, 0]]
+    detection_difficulty: "hard"
+    
+  - id: 11
+    space_id: 11
+    name: "B4"
+    description: "Back row right"
+    coordinates: [[1523, 3], [1519, 101], [1712, 100], [1689, 5]]
+    detection_difficulty: "hard"

@@ -36,34 +36,67 @@ all:
               cam_id: "1ec0b062-a1e6-46b8-bfb0-9ab3ac45eb45"
               environment_type: "preprod"
               
-              # YHU parking-specific configuration
+              # YHU MVP parking configuration - 11 zones
               parking_zones:
-                total_spaces: 6
+                total_spaces: 11
                 zones:
-                  - name: "Zone1"
-                    coordinates: [[332, 303], [153, 289], [5, 538], [212, 576]]
+                  # Front row zones (A-series)
+                  - name: "A1"
+                    coordinates: [[308, 306], [151, 296], [151, 561]]
                     space_id: 1
-                    description: "Parking space Zone1"
-                  - name: "Zone2"  
-                    coordinates: [[340, 297], [217, 573], [434, 581], [527, 300]]
+                    description: "Front left space (partially visible)"
+                    detection_difficulty: "hard"
+                  - name: "A2"
+                    coordinates: [[511, 320], [320, 308], [153, 576], [384, 611]]
                     space_id: 2
-                    description: "Parking space Zone2"
-                  - name: "Zone3"
-                    coordinates: [[535, 311], [710, 316], [659, 594], [447, 589]]
+                    description: "Front row center-left"
+                    detection_difficulty: "easy"
+                  - name: "A3"
+                    coordinates: [[711, 328], [520, 320], [392, 612], [625, 633]]
                     space_id: 3
-                    description: "Parking space Zone3"
-                  - name: "Zone4"
-                    coordinates: [[720, 316], [897, 332], [892, 621], [672, 602]]
+                    description: "Front row center"
+                    detection_difficulty: "easy"
+                  - name: "A4"
+                    coordinates: [[914, 335], [719, 328], [630, 633], [867, 652]]
                     space_id: 4
-                    description: "Parking space Zone4"
-                  - name: "Zone5"
-                    coordinates: [[913, 332], [1114, 340], [1138, 627], [908, 621]]
+                    description: "Front row center-right"
+                    detection_difficulty: "easy"
+                  - name: "A5"
+                    coordinates: [[1132, 344], [922, 337], [874, 654], [1117, 669]]
                     space_id: 5
-                    description: "Parking space Zone5"
-                  - name: "Zone6"
-                    coordinates: [[1125, 348], [1325, 353], [1395, 627], [1151, 629]]
+                    description: "Front row right-center"
+                    detection_difficulty: "easy"
+                  - name: "A6"
+                    coordinates: [[1354, 354], [1135, 339], [1129, 667], [1383, 674]]
                     space_id: 6
-                    description: "Parking space Zone6"
+                    description: "Front row right"
+                    detection_difficulty: "easy"
+                  - name: "A7"
+                    coordinates: [[1588, 365], [1361, 349], [1388, 678], [1677, 690]]
+                    space_id: 7
+                    description: "Front row far right"
+                    detection_difficulty: "easy"
+                  # Back row zones (B-series)
+                  - name: "B1"
+                    coordinates: [[998, 0], [982, 48], [1142, 65], [1166, 0]]
+                    space_id: 8
+                    description: "Back row left"
+                    detection_difficulty: "hard"
+                  - name: "B2"
+                    coordinates: [[1170, 0], [1151, 64], [1325, 81], [1338, 0]]
+                    space_id: 9
+                    description: "Back row center-left"
+                    detection_difficulty: "hard"
+                  - name: "B3"
+                    coordinates: [[1349, 0], [1330, 84], [1516, 100], [1514, 0]]
+                    space_id: 10
+                    description: "Back row center-right"
+                    detection_difficulty: "hard"
+                  - name: "B4"
+                    coordinates: [[1523, 3], [1519, 101], [1712, 100], [1689, 5]]
+                    space_id: 11
+                    description: "Back row right"
+                    detection_difficulty: "hard"
               
               # Camera configuration for parking lot monitoring  
               # Optimized for macOS USB cameras - precise framerate prevents camera configuration failures
