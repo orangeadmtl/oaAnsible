@@ -1,0 +1,240 @@
+#!/bin/bash
+
+# Virtual camera management script for staging video feed
+# Manages the setup and teardown of virtual camera devices on macOS
+
+set -euo pipefail
+
+# Configuration
+WORKING_DIR="{{ staging_video_feed_service.working_dir }}"
+VIRTUAL_DEVICE="{{ staging_video_feed_camera.device_path }}"
+DEVICE_ID="{{ staging_video_feed_camera.device_id }}"
+LOG_FILE="{{ staging_video_feed_logging.log_file }}"
+CURRENT_VIDEO="{{ staging_video_feed_content.current_video }}"
+RESOLUTION="{{ staging_video_feed_camera.resolution[0] }}x{{ staging_video_feed_camera.resolution[1] }}"
+FPS="{{ staging_video_feed_camera.fps }}"
+
+# Logging function
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [VCAM] $1" | tee -a "$LOG_FILE"
+}
+
+# Check if FFmpeg is available
+check_ffmpeg() {
+    if ! command -v ffmpeg &> /dev/null; then
+        log "ERROR: FFmpeg not found. Install with: brew install ffmpeg"
+        return 1
+    fi
+    
+    local ffmpeg_version=$(ffmpeg -version 2>/dev/null | head -1 | cut -d' ' -f3)
+    log "FFmpeg version: $ffmpeg_version"
+    return 0
+}
+
+# List available video devices
+list_devices() {
+    log "Listing available video devices..."
+    ffmpeg -f avfoundation -list_devices true -i "" 2>&1 | grep -E "\[AVFoundation\].*video" || true
+}
+
+# Check if virtual device exists
+check_virtual_device() {
+    log "Checking virtual device: $VIRTUAL_DEVICE"
+    
+    # On macOS, virtual devices are typically handled by system extensions
+    # We'll check if the device ID is available
+    if ffmpeg -f avfoundation -list_devices true -i "" 2>&1 | grep -q "\\[$DEVICE_ID\\]"; then
+        log "Virtual device $DEVICE_ID found"
+        return 0
+    else
+        log "Virtual device $DEVICE_ID not found"
+        return 1
+    fi
+}
+
+# Test virtual camera functionality
+test_virtual_camera() {
+    local test_duration=2
+    local test_output="/tmp/vcam_test_$$.mp4"
+    
+    log "Testing virtual camera functionality..."
+    
+    if [[ ! -f "$CURRENT_VIDEO" ]]; then
+        log "ERROR: No current video file found at: $CURRENT_VIDEO"
+        return 1
+    fi
+    
+    # Test basic FFmpeg streaming capability
+    timeout ${test_duration}s ffmpeg \
+        -re \
+        -i "$CURRENT_VIDEO" \
+        -f avfoundation \
+        -video_device_index "$DEVICE_ID" \
+        -y "$test_output" \
+        2>/dev/null || true
+    
+    if [[ -f "$test_output" ]]; then
+        rm -f "$test_output"
+        log "Virtual camera test successful"
+        return 0
+    else
+        log "Virtual camera test failed"
+        return 1
+    fi
+}
+
+# Start virtual camera streaming
+start_streaming() {
+    log "Starting virtual camera streaming..."
+    
+    if [[ ! -f "$CURRENT_VIDEO" ]]; then
+        log "ERROR: No current video file found at: $CURRENT_VIDEO"
+        return 1
+    fi
+    
+    # Check if already running
+    if pgrep -f "ffmpeg.*avfoundation.*$DEVICE_ID" > /dev/null; then
+        log "Virtual camera streaming already active"
+        return 0
+    fi
+    
+    # Start FFmpeg streaming in background
+    nohup ffmpeg \
+        -re \
+        -stream_loop -1 \
+        -i "$CURRENT_VIDEO" \
+        -vf "scale=$RESOLUTION" \
+        -r "$FPS" \
+        -f avfoundation \
+        -video_device_index "$DEVICE_ID" \
+        >/dev/null 2>&1 &
+    
+    local ffmpeg_pid=$!
+    echo "$ffmpeg_pid" > "$WORKING_DIR/ffmpeg.pid"
+    log "Started virtual camera streaming (PID: $ffmpeg_pid)"
+    
+    # Give it a moment to initialize
+    sleep 2
+    
+    # Verify it's still running
+    if kill -0 "$ffmpeg_pid" 2>/dev/null; then
+        log "Virtual camera streaming confirmed active"
+        return 0
+    else
+        log "ERROR: Virtual camera streaming failed to start"
+        return 1
+    fi
+}
+
+# Stop virtual camera streaming
+stop_streaming() {
+    log "Stopping virtual camera streaming..."
+    
+    local pid_file="$WORKING_DIR/ffmpeg.pid"
+    
+    # Stop by PID file
+    if [[ -f "$pid_file" ]]; then
+        local pid=$(cat "$pid_file")
+        if kill "$pid" 2>/dev/null; then
+            log "Stopped streaming process (PID: $pid)"
+        fi
+        rm -f "$pid_file"
+    fi
+    
+    # Kill any remaining FFmpeg processes
+    pkill -f "ffmpeg.*avfoundation.*$DEVICE_ID" 2>/dev/null || true
+    
+    log "Virtual camera streaming stopped"
+}
+
+# Get streaming status
+get_status() {
+    local pid_file="$WORKING_DIR/ffmpeg.pid"
+    
+    echo "=== Virtual Camera Status ==="
+    echo "Device ID: $DEVICE_ID"
+    echo "Virtual Device: $VIRTUAL_DEVICE"
+    echo "Current Video: $(basename "$CURRENT_VIDEO" 2>/dev/null || echo "none")"
+    echo "Resolution: $RESOLUTION"
+    echo "FPS: $FPS"
+    echo
+    
+    if [[ -f "$pid_file" ]]; then
+        local pid=$(cat "$pid_file")
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "Streaming Status: ACTIVE (PID: $pid)"
+        else
+            echo "Streaming Status: INACTIVE (stale PID file)"
+            rm -f "$pid_file"
+        fi
+    else
+        echo "Streaming Status: INACTIVE"
+    fi
+    
+    # Check for any FFmpeg processes
+    local active_processes=$(pgrep -f "ffmpeg.*avfoundation.*$DEVICE_ID" | wc -l)
+    if [[ $active_processes -gt 0 ]]; then
+        echo "Active FFmpeg Processes: $active_processes"
+    fi
+    
+    echo "========================="
+}
+
+# Restart streaming with current video
+restart_streaming() {
+    log "Restarting virtual camera streaming..."
+    stop_streaming
+    sleep 1
+    start_streaming
+}
+
+# Update streaming with new video
+update_video() {
+    if [[ -f "$CURRENT_VIDEO" ]]; then
+        log "Updating virtual camera with new video: $(basename "$CURRENT_VIDEO")"
+        restart_streaming
+    else
+        log "ERROR: Cannot update - no current video available"
+        return 1
+    fi
+}
+
+# Main execution
+case "${1:-status}" in
+    "start")
+        check_ffmpeg && start_streaming
+        ;;
+    "stop")
+        stop_streaming
+        ;;
+    "restart")
+        check_ffmpeg && restart_streaming
+        ;;
+    "status")
+        get_status
+        ;;
+    "test")
+        check_ffmpeg && test_virtual_camera
+        ;;
+    "update")
+        check_ffmpeg && update_video
+        ;;
+    "devices")
+        check_ffmpeg && list_devices
+        ;;
+    "check")
+        check_ffmpeg && check_virtual_device
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status|test|update|devices|check}"
+        echo "  start   - Start virtual camera streaming"
+        echo "  stop    - Stop virtual camera streaming"
+        echo "  restart - Restart virtual camera streaming"
+        echo "  status  - Show current status"
+        echo "  test    - Test virtual camera functionality"
+        echo "  update  - Update streaming with current video"
+        echo "  devices - List available video devices"
+        echo "  check   - Check if virtual device exists"
+        exit 1
+        ;;
+esac

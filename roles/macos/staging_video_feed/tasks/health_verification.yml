@@ -47,11 +47,11 @@
 - name: Compile health verification results
   ansible.builtin.set_fact:
     staging_video_feed_health_status:
-      service_loaded: "{{ launchctl_check.rc == 0 }}"
-      process_running: "{{ process_check.rc == 0 }}"
-      camera_available: "{{ camera_check.rc == 0 if staging_video_feed_health.device_check else 'not tested' }}"
-      stream_functional: "{{ stream_test.rc == 0 if staging_video_feed_health.stream_check else 'not tested' }}"
-      log_errors: "{{ 'errors found' if 'error' in log_check.stdout.lower() else 'no errors' }}"
+      service_loaded: "{{ (launchctl_check.rc | default(-1)) == 0 }}"
+      process_running: "{{ (process_check.rc | default(-1)) == 0 }}"
+      camera_available: "{{ (camera_check.rc | default(-1)) == 0 if staging_video_feed_health.device_check | default(false) else 'not tested' }}"
+      stream_functional: "{{ (stream_test.rc | default(-1)) == 0 if staging_video_feed_health.stream_check | default(false) else 'not tested' }}"
+      log_errors: "{{ 'errors found' if 'error' in (log_check.stdout | default('')) | lower else 'no errors' }}"
 
 - name: Display health verification summary
   ansible.builtin.debug:

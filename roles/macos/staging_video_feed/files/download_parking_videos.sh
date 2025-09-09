@@ -73,8 +73,8 @@ download_parking_video() {
     # Don't fail immediately on yt-dlp exit code - check if files were actually downloaded instead
     
     # Check for actual downloaded video files (exclude .info.json and .vtt files)
-    if ls "$STORAGE_DIR/${filename_base}".{mp4,webm,mkv,avi,mov,flv} >/dev/null 2>&1; then
-        local actual_file=$(ls "$STORAGE_DIR/${filename_base}".{mp4,webm,mkv,avi,mov,flv} 2>/dev/null | head -1)
+    if find "$STORAGE_DIR" -name "${filename_base}.*" -type f \( -name "*.mp4" -o -name "*.webm" -o -name "*.mkv" -o -name "*.avi" -o -name "*.mov" -o -name "*.flv" \) | head -1 | grep -q .; then
+        local actual_file=$(find "$STORAGE_DIR" -name "${filename_base}.*" -type f \( -name "*.mp4" -o -name "*.webm" -o -name "*.mkv" -o -name "*.avi" -o -name "*.mov" -o -name "*.flv" \) | head -1)
         log "Successfully downloaded: $(basename "$actual_file")"
         
         # First, wait a moment for the file to fully close

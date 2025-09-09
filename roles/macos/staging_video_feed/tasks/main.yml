@@ -7,27 +7,42 @@
     msg:
       "Deploying staging video feed in {{ deployment_environment | default('unknown') }} environment with parking monitor {{ 'enabled' if
       parking_monitor.enabled | default(false) else 'disabled' }}"
-  tags: [staging-video-feed, validation]
+  tags: [staging-video-feed, parking-monitor, validation]
 
 - name: Include system dependencies setup
-  ansible.builtin.include_tasks: system_setup.yml
-  tags: [staging-video-feed, system]
+  ansible.builtin.include_tasks:
+    file: system_setup.yml
+    apply:
+      tags: [staging-video-feed, parking-monitor, system]
+  tags: [staging-video-feed, parking-monitor, system]
 
 - name: Include video content management
-  ansible.builtin.include_tasks: video_management.yml
-  tags: [staging-video-feed, videos]
+  ansible.builtin.include_tasks:
+    file: video_management.yml
+    apply:
+      tags: [staging-video-feed, parking-monitor, videos]
+  tags: [staging-video-feed, parking-monitor, videos]
 
 - name: Include virtual camera setup
-  ansible.builtin.include_tasks: virtual_camera.yml
-  tags: [staging-video-feed, camera]
+  ansible.builtin.include_tasks:
+    file: virtual_camera.yml
+    apply:
+      tags: [staging-video-feed, parking-monitor, camera]
+  tags: [staging-video-feed, parking-monitor, camera]
 
 - name: Include service configuration
-  ansible.builtin.include_tasks: service_setup.yml
-  tags: [staging-video-feed, service]
+  ansible.builtin.include_tasks:
+    file: service_setup.yml
+    apply:
+      tags: [staging-video-feed, parking-monitor, service]
+  tags: [staging-video-feed, parking-monitor, service]
 
 - name: Include health verification
-  ansible.builtin.include_tasks: health_verification.yml
-  tags: [staging-video-feed, health]
+  ansible.builtin.include_tasks:
+    file: health_verification.yml
+    apply:
+      tags: [staging-video-feed, parking-monitor, health]
+  tags: [staging-video-feed, parking-monitor, health]
 
 - name: Display staging video feed summary
   ansible.builtin.debug:
@@ -52,4 +67,4 @@
       2. Videos will be downloaded and cycled automatically
       3. Virtual camera will be available for parking monitor
       ===============================================
-  tags: [staging-video-feed, summary]
+  tags: [staging-video-feed, parking-monitor, summary]

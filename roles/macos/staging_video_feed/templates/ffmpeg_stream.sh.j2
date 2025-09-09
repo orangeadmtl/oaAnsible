@@ -1,0 +1,279 @@
+#!/bin/bash
+
+# FFmpeg streaming script for staging video feed virtual camera
+# Handles the actual video streaming to virtual camera device
+
+set -euo pipefail
+
+# Configuration
+WORKING_DIR="{{ staging_video_feed_service.working_dir }}"
+STORAGE_DIR="{{ staging_video_feed_content.storage_dir }}"
+CURRENT_VIDEO="{{ staging_video_feed_content.current_video }}"
+DEVICE_ID="{{ staging_video_feed_camera.device_id }}"
+RESOLUTION="{{ staging_video_feed_camera.resolution[0] }}x{{ staging_video_feed_camera.resolution[1] }}"
+FPS="{{ staging_video_feed_camera.fps }}"
+LOG_FILE="{{ staging_video_feed_logging.log_file }}"
+
+# Advanced streaming options
+STREAM_LOOP="{{ '-1' if staging_video_feed_content.scenario_rotation else '0' }}"
+VIDEO_CODEC="libx264"
+PRESET="ultrafast"
+CRF="23"
+
+# Logging function  
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [STREAM] $1" | tee -a "$LOG_FILE"
+}
+
+# Validate input video
+validate_video() {
+    local video_file="$1"
+    
+    if [[ ! -f "$video_file" ]]; then
+        log "ERROR: Video file not found: $video_file"
+        return 1
+    fi
+    
+    # Check if file is readable and has content
+    if [[ ! -r "$video_file" ]] || [[ ! -s "$video_file" ]]; then
+        log "ERROR: Video file is not readable or empty: $video_file"
+        return 1
+    fi
+    
+    # Basic video validation with ffprobe
+    if ! ffprobe -v quiet -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 "$video_file" >/dev/null 2>&1; then
+        log "ERROR: Invalid or corrupted video file: $video_file"
+        return 1
+    fi
+    
+    log "Video validation successful: $(basename "$video_file")"
+    return 0
+}
+
+# Get video properties
+get_video_info() {
+    local video_file="$1"
+    
+    if [[ ! -f "$video_file" ]]; then
+        echo "File not found"
+        return 1
+    fi
+    
+    local duration=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$video_file" 2>/dev/null | cut -d. -f1 || echo "unknown")
+    local width=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$video_file" 2>/dev/null || echo "unknown")
+    local height=$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$video_file" 2>/dev/null || echo "unknown")
+    local fps_info=$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "$video_file" 2>/dev/null || echo "unknown")
+    
+    echo "Duration: ${duration}s, Resolution: ${width}x${height}, FPS: $fps_info"
+}
+
+# Stream single video to virtual camera
+stream_video() {
+    local video_file="$1"
+    local loop_mode="$2"
+    
+    log "Starting stream: $(basename "$video_file")"
+    log "Video info: $(get_video_info "$video_file")"
+    log "Stream config: ${RESOLUTION}@${FPS}fps, Loop: $loop_mode"
+    
+    # Build FFmpeg command
+    local ffmpeg_cmd=(
+        ffmpeg
+        -hide_banner
+        -loglevel warning
+        -re                                    # Read input at native frame rate
+    )
+    
+    # Add loop option if specified
+    if [[ "$loop_mode" == "loop" ]]; then
+        ffmpeg_cmd+=(-stream_loop -1)          # Infinite loop
+    fi
+    
+    ffmpeg_cmd+=(
+        -i "$video_file"                       # Input video
+        -vf "scale=$RESOLUTION"                # Scale to target resolution
+        -r "$FPS"                              # Set frame rate
+        -c:v "$VIDEO_CODEC"                    # Video codec
+        -preset "$PRESET"                      # Encoding preset
+        -crf "$CRF"                            # Quality setting
+        -f avfoundation                        # Output format for macOS
+        -video_device_index "$DEVICE_ID"      # Target device
+    )
+    
+    log "Executing: ${ffmpeg_cmd[*]}"
+    
+    # Execute streaming command
+    exec "${ffmpeg_cmd[@]}"
+}
+
+# Stream with automatic video cycling
+stream_with_cycling() {
+    log "Starting streaming with video cycling enabled"
+    
+    while true; do
+        # Get current video
+        local current_video
+        if [[ -L "$CURRENT_VIDEO" ]]; then
+            current_video=$(readlink "$CURRENT_VIDEO")
+        else
+            log "ERROR: No current video symlink found"
+            sleep 5
+            continue
+        fi
+        
+        # Validate current video
+        if ! validate_video "$current_video"; then
+            log "Current video invalid, cycling to next..."
+            "$WORKING_DIR/scripts/cycle_videos.sh" cycle
+            sleep 2
+            continue
+        fi
+        
+        # Get video duration for cycling timing
+        local duration=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$current_video" 2>/dev/null | cut -d. -f1 || echo "300")
+        
+        # Stream current video (with timeout)
+        log "Streaming $(basename "$current_video") for ${duration}s"
+        
+        timeout "${duration}s" bash -c "
+            $(declare -f stream_video)
+            $(declare -f log)
+            $(declare -f get_video_info)
+            stream_video '$current_video' 'single'
+        " || true
+        
+        # Cycle to next video
+        log "Video completed, cycling to next..."
+        "$WORKING_DIR/scripts/cycle_videos.sh" cycle
+        
+        # Brief pause between videos
+        sleep 1
+    done
+}
+
+# Stream playlist mode
+stream_playlist() {
+    log "Starting playlist streaming mode"
+    
+    local playlist_file="$STORAGE_DIR/playlist.txt"
+    
+    if [[ ! -f "$playlist_file" ]]; then
+        log "ERROR: Playlist file not found: $playlist_file"
+        return 1
+    fi
+    
+    while IFS= read -r video_file; do
+        if [[ -f "$video_file" ]] && validate_video "$video_file"; then
+            log "Streaming playlist item: $(basename "$video_file")"
+            
+            # Stream single video without loop
+            timeout 300s bash -c "
+                $(declare -f stream_video)
+                $(declare -f log)
+                $(declare -f get_video_info)
+                stream_video '$video_file' 'single'
+            " || true
+            
+            sleep 1
+        else
+            log "Skipping invalid video: $(basename "$video_file")"
+        fi
+    done < "$playlist_file"
+    
+    log "Playlist streaming completed"
+}
+
+# Stream random video selection
+stream_random() {
+    log "Starting random video streaming"
+    
+    # Select random video
+    "$WORKING_DIR/scripts/cycle_videos.sh" random
+    
+    # Stream current selection
+    if [[ -L "$CURRENT_VIDEO" ]]; then
+        local current_video=$(readlink "$CURRENT_VIDEO")
+        if validate_video "$current_video"; then
+            stream_video "$current_video" "loop"
+        else
+            log "ERROR: Random video selection failed"
+            return 1
+        fi
+    else
+        log "ERROR: No video available for random streaming"
+        return 1
+    fi
+}
+
+# Test streaming capability
+test_stream() {
+    log "Testing streaming capability..."
+    
+    if [[ -L "$CURRENT_VIDEO" ]]; then
+        local current_video=$(readlink "$CURRENT_VIDEO")
+        if validate_video "$current_video"; then
+            log "Running 5-second stream test..."
+            timeout 5s bash -c "
+                $(declare -f stream_video)
+                $(declare -f log)
+                $(declare -f get_video_info)
+                stream_video '$current_video' 'single'
+            " || true
+            log "Stream test completed"
+        else
+            log "ERROR: Test video validation failed"
+            return 1
+        fi
+    else
+        log "ERROR: No test video available"
+        return 1
+    fi
+}
+
+# Main execution
+case "${1:-current}" in
+    "current")
+        # Stream current video with looping
+        if [[ -L "$CURRENT_VIDEO" ]]; then
+            current_video=$(readlink "$CURRENT_VIDEO")
+            validate_video "$current_video" && stream_video "$current_video" "loop"
+        else
+            log "ERROR: No current video available"
+            exit 1
+        fi
+        ;;
+    "cycle")
+        # Stream with automatic video cycling
+        stream_with_cycling
+        ;;
+    "playlist")
+        # Stream entire playlist
+        stream_playlist
+        ;;
+    "random")
+        # Stream random video selection
+        stream_random
+        ;;
+    "test")
+        # Test streaming capability
+        test_stream
+        ;;
+    "single")
+        # Stream specific video file
+        if [[ -z "${2:-}" ]]; then
+            echo "Usage: $0 single <video_file>"
+            exit 1
+        fi
+        validate_video "$2" && stream_video "$2" "single"
+        ;;
+    *)
+        echo "Usage: $0 {current|cycle|playlist|random|test|single <file>}"
+        echo "  current  - Stream current video with looping"
+        echo "  cycle    - Stream with automatic video cycling"
+        echo "  playlist - Stream entire playlist sequentially"
+        echo "  random   - Stream random video selection"
+        echo "  test     - Test streaming capability (5 seconds)"
+        echo "  single   - Stream specific video file once"
+        exit 1
+        ;;
+esac

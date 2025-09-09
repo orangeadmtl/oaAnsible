@@ -1,0 +1,144 @@
+#!/bin/bash
+
+# Video cycling script for staging video feed
+# Automatically cycles through available parking lot videos
+
+set -euo pipefail
+
+# Configuration
+STORAGE_DIR="{{ staging_video_feed_content.storage_dir }}"
+CURRENT_VIDEO="{{ staging_video_feed_content.current_video }}"
+LOG_FILE="{{ staging_video_feed_logging.log_file }}"
+WORKING_DIR="{{ staging_video_feed_service.working_dir }}"
+
+# Logging function
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [CYCLE] $1" | tee -a "$LOG_FILE"
+}
+
+# Get list of available videos
+get_video_list() {
+    find "$STORAGE_DIR" -name "*.mp4" -o -name "*.mkv" -o -name "*.webm" -o -name "*.avi" | sort
+}
+
+# Get current video from symlink
+get_current_video() {
+    if [[ -L "$CURRENT_VIDEO" ]]; then
+        readlink "$CURRENT_VIDEO"
+    else
+        echo ""
+    fi
+}
+
+# Cycle to next video
+cycle_video() {
+    local video_list=($(get_video_list))
+    local current_target=$(get_current_video)
+    local next_video=""
+    
+    if [[ ${{ '{' }}#video_list[@]{{ '}' }} -eq 0 ]]; then
+        log "ERROR: No videos found in $STORAGE_DIR"
+        return 1
+    fi
+    
+    if [[ ${{ '{' }}#video_list[@]{{ '}' }} -eq 1 ]]; then
+        log "Only one video available, no cycling needed"
+        return 0
+    fi
+    
+    # Find current video index
+    local current_index=-1
+    for i in "${!video_list[@]}"; do
+        if [[ "${video_list[$i]}" = "$current_target" ]]; then
+            current_index=$i
+            break
+        fi
+    done
+    
+    # Select next video
+    if [[ $current_index -eq -1 ]] || [[ $current_index -eq $((${{ '{' }}#video_list[@]{{ '}' }} - 1)) ]]; then
+        # Current not found or is last, use first video
+        next_video="${video_list[0]}"
+    else
+        # Use next video in sequence
+        next_video="${video_list[$((current_index + 1))]}"
+    fi
+    
+    # Update symlink
+    if [[ -e "$next_video" ]]; then
+        rm -f "$CURRENT_VIDEO"
+        ln -s "$next_video" "$CURRENT_VIDEO"
+        log "Cycled to: $(basename "$next_video")"
+    else
+        log "ERROR: Next video not found: $next_video"
+        return 1
+    fi
+}
+
+# Random video selection
+select_random_video() {
+    local video_list=($(get_video_list))
+    
+    if [[ ${{ '{' }}#video_list[@]{{ '}' }} -eq 0 ]]; then
+        log "ERROR: No videos found in $STORAGE_DIR"
+        return 1
+    fi
+    
+    local random_index=$((RANDOM % ${{ '{' }}#video_list[@]{{ '}' }}))
+    local selected_video="${video_list[$random_index]}"
+    
+    rm -f "$CURRENT_VIDEO"
+    ln -s "$selected_video" "$CURRENT_VIDEO"
+    log "Random selection: $(basename "$selected_video")"
+}
+
+# Display current status
+show_status() {
+    local video_list=($(get_video_list))
+    local current_target=$(get_current_video)
+    
+    echo "=== Video Cycling Status ==="
+    echo "Storage Directory: $STORAGE_DIR"
+    echo "Available Videos: ${{ '{' }}#video_list[@]{{ '}' }}"
+    echo "Current Video: $(basename "$current_target" 2>/dev/null || echo "none")"
+    echo "Cycling Enabled: {{ staging_video_feed_content.scenario_rotation }}"
+    echo
+    
+    if [[ ${{ '{' }}#video_list[@]{{ '}' }} -gt 0 ]]; then
+        echo "Available Videos:"
+        for video in "${video_list[@]}"; do
+            local marker=""
+            if [[ "$video" = "$current_target" ]]; then
+                marker=" ← current"
+            fi
+            echo "  - $(basename "$video")$marker"
+        done
+    fi
+    echo "=========================="
+}
+
+# Main execution
+case "${1:-cycle}" in
+    "cycle")
+        log "Starting video cycle operation"
+        cycle_video
+        ;;
+    "random")
+        log "Starting random video selection"
+        select_random_video
+        ;;
+    "status")
+        show_status
+        ;;
+    "list")
+        get_video_list
+        ;;
+    *)
+        echo "Usage: $0 {cycle|random|status|list}"
+        echo "  cycle  - Switch to next video in sequence"
+        echo "  random - Select random video"
+        echo "  status - Show current status"
+        echo "  list   - List available videos"
+        exit 1
+        ;;
+esac
