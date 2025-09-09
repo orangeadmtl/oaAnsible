@@ -7,7 +7,10 @@
     
     <key>ProgramArguments</key>
     <array>
-        <string>{{ device_api_path }}/run_deviceapi.sh</string>
+        <string>{{ ansible_user_dir }}/.local/bin/uv</string>
+        <string>run</string>
+        <string>python</string>
+        <string>main.py</string>
     </array>
     
     <key>WorkingDirectory</key>
@@ -18,7 +21,13 @@
         <key>PYTHONPATH</key>
         <string>{{ device_api_path }}</string>
         <key>PATH</key>
-        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+        <string>{{ ansible_user_dir }}/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>{{ ansible_user_dir }}</string>
+        <key>USER</key>
+        <string>{{ ansible_user }}</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
     </dict>
     
     <key>StandardOutPath</key>

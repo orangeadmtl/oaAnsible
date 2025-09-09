@@ -16,12 +16,17 @@
 
 - name: Check service process status (macOS)
   ansible.builtin.shell: |
-    # Check for both the wrapper script and main.py
-    if pgrep -f "{{ device_api_path }}/run_deviceapi.sh" > /dev/null || pgrep -f "{{ device_api_path }}/main.py" > /dev/null; then
+    # Check for main.py and uvicorn processes started by UV
+    if pgrep -f "{{ device_api_path }}/main.py" > /dev/null || \
+       pgrep -f "uvicorn.*main:app" > /dev/null || \
+       pgrep -f "uv run python main.py" > /dev/null; then
       echo "PROCESS_RUNNING:true"
-      ps aux | grep -E "({{ device_api_path }}/run_deviceapi.sh|{{ device_api_path }}/main.py)" | grep -v grep | head -1
+      echo "=== Process Details ==="
+      ps aux | grep -E "({{ device_api_path }}/main.py|uvicorn.*main:app|uv run python)" | grep -v grep || echo "No processes found"
     else
       echo "PROCESS_RUNNING:false"
+      echo "=== All Python Processes ==="
+      ps aux | grep python | grep -v grep || echo "No python processes found"
     fi
   become_user: "{{ ansible_user }}"
   register: process_status_macos
@@ -77,12 +82,35 @@
 
 - name: Check service logs for errors
   ansible.builtin.shell: |
+    echo "=== Log File Status ==="
     if [ -f "{{ device_api_path }}/logs/deviceapi.log" ]; then
       echo "LOG_FILE_EXISTS:true"
-      echo "=== Recent Log Entries ==="
-      tail -20 {{ device_api_path }}/logs/deviceapi.log | grep -E "(ERROR|Exception|Failed)" || echo "No errors found in recent logs"
+      echo "=== Recent Log Entries (Last 20 lines) ==="
+      tail -20 {{ device_api_path }}/logs/deviceapi.log
+      echo ""
+      echo "=== Error Log Entries ==="
+      tail -50 {{ device_api_path }}/logs/deviceapi.log | grep -E "(ERROR|Exception|Failed|Traceback)" || echo "No errors found in recent logs"
     else
       echo "LOG_FILE_EXISTS:false"
+    fi
+    
+    echo ""
+    echo "=== Error Log File ==="
+    if [ -f "{{ device_api_path }}/logs/deviceapi_error.log" ]; then
+      echo "ERROR_LOG_EXISTS:true"
+      echo "=== Recent Error Log Entries ==="
+      tail -20 {{ device_api_path }}/logs/deviceapi_error.log
+    else
+      echo "ERROR_LOG_EXISTS:false"
+    fi
+    
+    echo ""
+    echo "=== UV Environment Check ==="
+    if [ -x "{{ ansible_user_dir }}/.local/bin/uv" ]; then
+      echo "UV_AVAILABLE:true"
+      echo "UV Version: $({{ ansible_user_dir }}/.local/bin/uv --version 2>/dev/null || echo 'unavailable')"
+    else
+      echo "UV_AVAILABLE:false"
     fi
   become_user: "{{ ansible_user }}"
   register: log_check

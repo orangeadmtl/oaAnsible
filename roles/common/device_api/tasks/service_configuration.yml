@@ -5,14 +5,6 @@
 - name: Configure macOS LaunchAgent service (with robust restart)
   when: platform_state.is_macos
   block:
-    - name: Create startup wrapper script for Device API
-      ansible.builtin.template:
-        src: run_deviceapi.sh.j2
-        dest: "{{ device_api_path }}/run_deviceapi.sh"
-        owner: "{{ ansible_user }}"
-        mode: "0755"
-      become_user: "{{ ansible_user }}"
-
     - name: Create LaunchAgent plist for unified Device API
       ansible.builtin.template:
         src: com.orangead.deviceapi.plist.j2
@@ -25,6 +17,14 @@
     - name: Ensure LaunchAgent directory exists
       ansible.builtin.file:
         path: "{{ ansible_user_dir }}/Library/LaunchAgents"
+        state: directory
+        owner: "{{ ansible_user }}"
+        mode: "0755"
+      become_user: "{{ ansible_user }}"
+
+    - name: Ensure log directory exists with proper permissions
+      ansible.builtin.file:
+        path: "{{ device_api_path }}/logs"
         state: directory
         owner: "{{ ansible_user }}"
         mode: "0755"
