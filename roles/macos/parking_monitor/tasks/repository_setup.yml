@@ -19,8 +19,14 @@
   ansible.builtin.file:
     path: "{{ item }}"
     mode: "0755"
-  with_fileglob:
-    - "{{ parking_monitor_repository.destination }}/scripts/*"
+  loop:
+    - "{{ parking_monitor_repository.destination }}/scripts/activate_env.sh"
+    - "{{ parking_monitor_repository.destination }}/scripts/grant_permissions.sh"
+    - "{{ parking_monitor_repository.destination }}/scripts/health_check.sh"
+    - "{{ parking_monitor_repository.destination }}/scripts/helpers.sh"
+    - "{{ parking_monitor_repository.destination }}/scripts/security_audit.sh"
+    - "{{ parking_monitor_repository.destination }}/scripts/verify_permissions.sh"
+    - "{{ parking_monitor_repository.destination }}/scripts/aliases.sh"
   ignore_errors: true
   tags: [parking-monitor, repository]
 

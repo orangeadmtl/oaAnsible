@@ -38,13 +38,32 @@ all:
               
               # YHU parking-specific configuration
               parking_zones:
-                total_spaces: 8
-                zone_coordinates:
-                  # Default parking zone configuration - to be refined based on camera view
-                  zone_1: [[100, 100], [300, 100], [300, 200], [100, 200]]
-                  zone_2: [[400, 100], [600, 100], [600, 200], [400, 200]]
-                  zone_3: [[100, 300], [300, 300], [300, 400], [100, 400]]
-                  zone_4: [[400, 300], [600, 300], [600, 400], [400, 400]]
+                total_spaces: 6
+                zones:
+                  - name: "Zone1"
+                    coordinates: [[332, 303], [153, 289], [5, 538], [212, 576]]
+                    space_id: 1
+                    description: "Parking space Zone1"
+                  - name: "Zone2"  
+                    coordinates: [[340, 297], [217, 573], [434, 581], [527, 300]]
+                    space_id: 2
+                    description: "Parking space Zone2"
+                  - name: "Zone3"
+                    coordinates: [[535, 311], [710, 316], [659, 594], [447, 589]]
+                    space_id: 3
+                    description: "Parking space Zone3"
+                  - name: "Zone4"
+                    coordinates: [[720, 316], [897, 332], [892, 621], [672, 602]]
+                    space_id: 4
+                    description: "Parking space Zone4"
+                  - name: "Zone5"
+                    coordinates: [[913, 332], [1114, 340], [1138, 627], [908, 621]]
+                    space_id: 5
+                    description: "Parking space Zone5"
+                  - name: "Zone6"
+                    coordinates: [[1125, 348], [1325, 353], [1395, 627], [1151, 629]]
+                    space_id: 6
+                    description: "Parking space Zone6"
               
               # Camera configuration for parking lot monitoring  
               # Optimized for macOS USB cameras - precise framerate prevents camera configuration failures

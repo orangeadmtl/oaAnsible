@@ -2,6 +2,17 @@
 # Configuration management tasks
 # Creates and manages configuration files for the parking monitor service
 
+- name: Deploy YHU-specific configuration for preprod
+  ansible.builtin.copy:
+    src: "yhu-preprod-config.yaml"
+    dest: "{{ parking_monitor_repository.destination }}/config/preprod.yaml"
+    mode: "0644"
+    backup: true
+  when: 
+    - target_env == 'yhu-preprod'
+    - inventory_hostname == 'f1-ca-014'
+  notify: reload parking monitor
+
 - name: Copy specific environment configuration (if specified)
   ansible.builtin.copy:
     src: "{{ parking_monitor_config_template | default('') }}"
@@ -36,7 +47,12 @@
 - name: Validate configuration syntax
   ansible.builtin.shell: |
     cd "{{ parking_monitor_repository.destination }}"
-    uv run --project "{{ parking_monitor_repository.destination }}" python -c "
+    if [ -f .venv/bin/python ]; then
+      PYTHON_BIN=".venv/bin/python"
+    else
+      PYTHON_BIN="python3"
+    fi
+    $PYTHON_BIN -c "
     import yaml
     import os
 
