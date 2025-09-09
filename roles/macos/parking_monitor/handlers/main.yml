@@ -12,7 +12,9 @@
 
 - name: reload parking monitor
   ansible.builtin.shell: |
-    launchctl kickstart -k "gui/{{ ansible_user_id }}/{{ parking_monitor_service.name }}"
+    # Get the actual UID for the current user
+    USER_UID=$(id -u)
+    launchctl kickstart -k "gui/${USER_UID}/{{ parking_monitor_service.name }}"
   become: false
   listen: "reload parking monitor"
 
