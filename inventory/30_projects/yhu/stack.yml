@@ -7,6 +7,11 @@ project_stack:
   # Foundation: base, network, security, device-api are automatically included
   components:
     - parking-monitor # AI parking detection and monitoring (port 9091)
+  
+  # Environment-specific component overrides
+  staging_components:
+    - parking-monitor # AI parking detection and monitoring (port 9091)
+    - staging-video-feed # Virtual camera system for testing (staging only)
 
   # Component-specific configuration
   component_configs:

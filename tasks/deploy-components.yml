@@ -236,8 +236,8 @@
   when:
     - target_platform == "macos"
     - "('parking-monitor' in deployment_components | default(selected_components)) or ('staging-video-feed' in deployment_components | default(selected_components))"
-    - target_env is match(".*staging.*")
-  tags: ["staging-video-feed", "parking-monitor"]
+    - deployment_environment == "staging"
+  tags: ["staging-video-feed", "parking-monitor", "staging"]
 
 - name: Deploy parking monitor component
   ansible.builtin.include_role:

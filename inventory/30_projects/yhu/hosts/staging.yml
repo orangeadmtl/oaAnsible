@@ -8,8 +8,11 @@ all:
 
     # Component selection - uses foundation defaults + project stack
     # Foundation components (base, network, security, device-api) auto-included
-    # Project components from stack.yml: [parking-monitor]
+    # Project components from stack.yml: [parking-monitor, staging-video-feed] for staging
     # No explicit deploy_* flags needed - determined from stack.yml
+    
+    # Override components for staging environment
+    components_to_deploy: "{{ project_stack.staging_components | default(project_stack.components) }}"
 
     # Environment configuration reference
     environment: "{{ environments.staging | default({}) }}"

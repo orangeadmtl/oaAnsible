@@ -66,12 +66,18 @@
       ansible.builtin.set_fact:
         # Extract component names from provided tags
         tag_components: >
-          {%- set tag_map = component_tags -%} {%- set components = [] -%} {%- for tag in (provided_tags | default('')).split(',') -%}
+          {%- set tag_map = component_tags -%} 
+          {%- set components = [] -%} 
+          {%- for tag in (provided_tags | default('')).split(',') -%}
             {%- set clean_tag = tag.strip() -%}
             {%- if clean_tag in tag_map -%}
               {%- set _ = components.append(tag_map[clean_tag]) -%}
+              {%- if clean_tag == 'parking-monitor' and deployment_environment | default('') == 'staging' -%}
+                {%- set _ = components.append('staging-video-feed') -%}
+              {%- endif -%}
             {%- endif -%}
-          {%- endfor -%} {{ components | unique | list }}
+          {%- endfor -%} 
+          {{ components | unique | list }}
         # Switch to component mode if tags were provided
         execution_mode: >-
           {%- if provided_tags is defined and provided_tags | length > 0 -%}
