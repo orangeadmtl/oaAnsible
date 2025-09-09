@@ -1,6 +1,6 @@
 ---
-# YUH Project Stack Definition
-# Parking monitoring solution for YUH Airport
+# YHU Project Stack Definition
+# Parking monitoring solution for YHU Airport
 
 project_stack:
   # Project-specific components (foundation components auto-included)
@@ -19,7 +19,7 @@ project_stack:
       # API configuration
       ansible.builtin.service:
         port: 9091
-        bind_address: "127.0.0.1"
+        bind_address: "0.0.0.0"
         log_level: "INFO"
 
       # Detection configuration

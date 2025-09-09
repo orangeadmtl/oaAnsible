@@ -2,8 +2,8 @@
 project_metadata:
   name: yhu
   type: airport
-  description: YUH Airport parking monitoring system
-  location: YUH Airport
+  description: YHU Airport parking monitoring system
+  location: YHU Airport
   contacts:
     primary: REPLACE_WITH_PRIMARY_CONTACT
     technical: REPLACE_WITH_TECHNICAL_CONTACT

@@ -125,7 +125,7 @@ inventory/
 │   └── staging.yml                   # Staging settings
 ├── 30_projects/                       # Project-specific inventories
 │   ├── _template/                     # Project template structure
-│   └── yhu/                          # YUH project example
+│   └── yhu/                          # YHU project example
 │       ├── hosts/
 │       │   ├── production.yml         # Production hosts
 │       │   ├── preprod.yml            # Pre-production hosts
@@ -166,7 +166,7 @@ all:
           ansible_host: 192.168.2.47
           ansible_user: admin
           device_role: "parking_monitor"
-          location: "YUH Airport - Staging"
+          location: "YHU Airport - Staging"
 ```
 
 **Variable inheritance** happens automatically through group membership and file structure.

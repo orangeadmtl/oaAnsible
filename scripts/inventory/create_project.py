@@ -145,7 +145,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s yhu airport --components parking-monitor --description "YUH Airport parking monitoring"
+  %(prog)s yhu airport --components parking-monitor --description "YHU Airport parking monitoring"
   %(prog)s evenko venue --components player,camguard --description "Evenko events video display"
   %(prog)s acme demo --components device-api,tracker --location "ACME Corp Demo Site"
         """

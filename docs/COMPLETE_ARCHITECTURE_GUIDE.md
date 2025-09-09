@@ -197,7 +197,7 @@ Each defines:
 
 **Purpose**: Project-specific customizations
 
-Example: `yhu/` (YUH Airport parking project)
+Example: `yhu/` (YHU Airport parking project)
 - `project.yml`: Project metadata
 - `stack.yml`: Component selection and configs
 - `hosts/*.yml`: Host definitions per environment

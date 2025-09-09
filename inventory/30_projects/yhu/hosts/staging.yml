@@ -43,4 +43,4 @@ all:
           # Host metadata
           cam_id: "f5f9b8d0-6048-4cbb-8fb7-39df676733a0"
           device_role: "parking_monitor"
-          location: "YUH Airport - Staging"
+          location: "YHU Airport - Staging"
