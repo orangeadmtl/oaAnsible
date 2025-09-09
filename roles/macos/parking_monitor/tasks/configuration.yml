@@ -2,23 +2,8 @@
 # Configuration management tasks
 # Creates and manages configuration files for the parking monitor service
 
-- name: Copy specific environment configuration (if specified)
-  ansible.builtin.copy:
-    src: "{{ parking_monitor_config_template | default('') }}"
-    dest: "{{ parking_monitor_repository.destination }}/config.yaml"
-    mode: "0644"
-    backup: false
-  when: parking_monitor_config_template is defined and parking_monitor_config_template != ''
-  notify: reload parking monitor
-
-- name: Create configuration from template (default)
-  ansible.builtin.template:
-    src: config.yaml.j2
-    dest: "{{ parking_monitor_repository.destination }}/config.yaml"
-    mode: "0644"
-    backup: false
-  when: parking_monitor_config_template is not defined or parking_monitor_config_template == ''
-  notify: reload parking monitor
+# NOTE: oaParkingMonitor loads configuration from config/mvp.yaml (bundled with app)
+# No external config.yaml needed - app has all defaults and environment overrides via .env
 
 - name: Create environment configuration
   ansible.builtin.template:
@@ -45,16 +30,16 @@
     import yaml
     import os
 
-    # Validate main config
+    # Validate bundled mvp.yaml config
     try:
-        with open('config.yaml', 'r') as f:
+        with open('config/mvp.yaml', 'r') as f:
             config = yaml.safe_load(f)
-        print('[OK] config.yaml syntax valid')
+        print('[OK] config/mvp.yaml syntax valid')
     except yaml.YAMLError as e:
-        print(f'[FAIL] config.yaml syntax error: {e}')
+        print(f'[FAIL] config/mvp.yaml syntax error: {e}')
         exit(1)
     except FileNotFoundError:
-        print('[WARNING]  config.yaml not found - will be created by service')
+        print('[WARNING] config/mvp.yaml not found - using app defaults')
 
     # Validate logging config
     try:
@@ -65,26 +50,23 @@
         print(f'[FAIL] logging.yaml syntax error: {e}')
         exit(1)
     except FileNotFoundError:
-        print('[WARNING]  logging.yaml not found')
+        print('[WARNING] logging.yaml not found')
 
     # Check .env file
     if os.path.exists('.env'):
         print('[OK] .env file created')
     else:
-        print('[WARNING]  .env file not found')
+        print('[WARNING] .env file not found')
     "
   register: config_validation
   changed_when: false
 
 - name: Set configuration file permissions
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ parking_monitor_repository.destination }}/logging.yaml"
     mode: "0644"
     owner: "{{ parking_monitor_service.user }}"
     group: "{{ parking_monitor_service.group }}"
-  loop:
-    - "{{ parking_monitor_repository.destination }}/config.yaml"
-    - "{{ parking_monitor_repository.destination }}/logging.yaml"
   ignore_errors: true
 
 - name: Secure environment file permissions
@@ -99,7 +81,7 @@
     msg: |
       [SVC]  Configuration Setup Complete:
       ===============================
-      Main Config: {{ parking_monitor_repository.destination }}/config.yaml
+      Main Config: {{ parking_monitor_repository.destination }}/config/mvp.yaml (bundled)
       Environment: {{ parking_monitor_repository.destination }}/.env
       Logging: {{ parking_monitor_repository.destination }}/logging.yaml
       Validation: {{ config_validation.stdout }}
