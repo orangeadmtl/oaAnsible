@@ -171,6 +171,8 @@
 - name: Deploy Device API component (unified for all platforms)
   ansible.builtin.include_role:
     name: common/device_api
+  vars:
+    device_api_force_update: "{{ git_force_update | default(false) }}"
   when:
     - "'device-api' in deployment_components | default(selected_components)"
   tags: ["device-api", "api"]
@@ -178,6 +180,8 @@
 - name: Deploy tracker component
   ansible.builtin.include_role:
     name: macos/tracker
+  vars:
+    tracker_force_update: "{{ git_force_update | default(false) }}"
   when:
     - target_platform == "macos"
     - "'tracker' in deployment_components | default(selected_components)"
@@ -186,6 +190,8 @@
 - name: Deploy ALPR service component
   ansible.builtin.include_role:
     name: macos/alpr_service
+  vars:
+    alpr_force_update: "{{ git_force_update | default(false) }}"
   when:
     - target_platform == "macos"
     - "'alpr' in deployment_components | default(selected_components)"
@@ -198,6 +204,8 @@
     - name: Deploy macOS player
       ansible.builtin.include_role:
         name: macos/player
+      vars:
+        player_force_update: "{{ git_force_update | default(false) }}"
       when: target_platform == "macos"
 
     - name: Deploy OrangePi player
@@ -208,6 +216,8 @@
 - name: Deploy CamGuard component
   ansible.builtin.include_role:
     name: macos/camguard
+  vars:
+    camguard_force_update: "{{ git_force_update | default(false) }}"
   when:
     - target_platform == "macos"
     - "'camguard' in deployment_components | default(selected_components)"
@@ -233,6 +243,8 @@
 - name: Deploy staging video feed component (before parking monitor)
   ansible.builtin.include_role:
     name: macos/staging_video_feed
+  vars:
+    staging_video_feed_force_update: "{{ git_force_update | default(false) }}"
   when:
     - target_platform == "macos"
     - "('parking-monitor' in deployment_components | default(selected_components)) or ('staging-video-feed' in deployment_components | default(selected_components))"
@@ -242,6 +254,8 @@
 - name: Deploy parking monitor component
   ansible.builtin.include_role:
     name: macos/parking_monitor
+  vars:
+    parking_monitor_force_update: "{{ git_force_update | default(false) }}"
   when:
     - target_platform == "macos"
     - "'parking-monitor' in deployment_components | default(selected_components)"
