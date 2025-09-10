@@ -2,6 +2,50 @@
 # Repository setup tasks with standardized git management
 # Uses the unified git-repository-management.yml for consistent behavior
 
+# Debug force update variables
+- name: Debug force update variable values
+  ansible.builtin.debug:
+    msg: |
+      [DEBUG] Force Update Variable Analysis:
+      - git_force_update: {{ git_force_update | default('undefined') }}
+      - parking_monitor_force_update: {{ parking_monitor_force_update | default('undefined') }}
+      - force_deployment: {{ force_deployment | default('undefined') }}
+      - EXECUTION_MODE: {{ ansible_env.EXECUTION_MODE | default('undefined') }}
+
+# Pre-deployment cleanup when force update is requested
+- name: Force cleanup parking monitor service and files when force flag is used
+  block:
+    - name: Stop and unload parking monitor LaunchAgent
+      ansible.builtin.shell: |
+        launchctl unload "{{ parking_monitor_launchd.plist_path }}" 2>/dev/null || true
+        launchctl stop "{{ parking_monitor_service.name }}" 2>/dev/null || true
+        sleep 2
+      become_user: "{{ parking_monitor_service.user }}"
+      ignore_errors: true
+
+    - name: Kill any lingering parking monitor processes
+      ansible.builtin.shell: |
+        pkill -f "parking.monitor" || true
+        pkill -f "parking-monitor" || true
+        sleep 1
+      ignore_errors: true
+
+    - name: Remove existing LaunchAgent plist file
+      ansible.builtin.file:
+        path: "{{ parking_monitor_launchd.plist_path }}"
+        state: absent
+
+    - name: Report force cleanup completion
+      ansible.builtin.debug:
+        msg: |
+          [FORCE] Pre-deployment cleanup completed:
+          - Stopped and unloaded LaunchAgent service
+          - Killed lingering processes
+          - Removed plist file: {{ parking_monitor_launchd.plist_path }}
+          - Repository will be force updated to latest commit
+  when: parking_monitor_force_update | default(false) | bool
+  tags: [parking-monitor, repository, force-cleanup]
+
 - name: Setup parking monitor repository with standardized git management
   ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/git-repository-management.yml"
   vars:
@@ -9,7 +53,7 @@
     repo_url: "{{ parking_monitor_repository.url }}"
     repo_branch: "{{ parking_monitor_repository.branch }}"
     repo_destination: "{{ parking_monitor_repository.destination }}"
-    repo_force_update: "{{ parking_monitor_force_update | default(false) }}"
+    repo_force_update: "{{ parking_monitor_force_update | default(false) | bool }}"
     repo_owner: "{{ parking_monitor_service.user }}"
     repo_group: "{{ parking_monitor_service.group }}"
     repo_tags: [parking-monitor, repository]

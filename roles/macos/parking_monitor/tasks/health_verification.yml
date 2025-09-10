@@ -2,6 +2,22 @@
 # Health verification tasks
 # Verifies that the parking monitor service is healthy and responding
 
+- name: Verify repository is at expected commit
+  ansible.builtin.shell: |
+    cd "{{ parking_monitor_repository.destination }}"
+    echo "Current commit: $(git rev-parse HEAD)"
+    echo "Current branch: $(git branch --show-current)"
+    echo "Latest commit message: $(git log -1 --pretty=format:'%s')"
+    echo "Repository status: $(git status --porcelain | wc -l) uncommitted changes"
+  register: repo_verification
+  changed_when: false
+
+- name: Report repository status
+  ansible.builtin.debug:
+    msg: |
+      [REPO] Repository Verification:
+      {{ repo_verification.stdout | indent(width=2) }}
+
 - name: Wait for service startup
   ansible.builtin.pause:
     seconds: 30

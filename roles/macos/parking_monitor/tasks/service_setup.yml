@@ -37,12 +37,33 @@
     mode: "0755"
   loop: "{{ service_scripts.files }}"
 
-- name: Stop existing service if running
-  ansible.builtin.shell: |
-    launchctl unload "{{ parking_monitor_launchd.plist_path }}" 2>/dev/null || true
-  changed_when: false
+- name: Enhanced service cleanup and restart
+  block:
+    - name: Stop existing service completely
+      ansible.builtin.shell: |
+        # Multiple approaches to ensure service is fully stopped
+        launchctl unload "{{ parking_monitor_launchd.plist_path }}" 2>/dev/null || true
+        launchctl stop "{{ parking_monitor_service.name }}" 2>/dev/null || true
+        sleep 2
+        # Kill any lingering processes
+        pkill -f "parking.monitor" || true
+        pkill -f "parking-monitor" || true
+        sleep 1
+      ignore_errors: true
+      changed_when: false
 
-- name: Load LaunchAgent service
+    - name: Verify service is fully stopped
+      ansible.builtin.shell: |
+        launchctl list | grep "{{ parking_monitor_service.name }}" || echo "not_running"
+      register: service_check_stop
+      changed_when: false
+
+    - name: Report service stop status
+      ansible.builtin.debug:
+        msg: |
+          [SVC] Service stop status: {{ 'Stopped' if 'not_running' in service_check_stop.stdout else 'Still running - will force restart' }}
+
+- name: Load LaunchAgent service with enhanced error handling
   ansible.builtin.shell: |
     launchctl load "{{ parking_monitor_launchd.plist_path }}"
   register: service_load
