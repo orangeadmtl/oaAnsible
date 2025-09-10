@@ -98,6 +98,26 @@
   changed_when: false
   tags: "{{ repo_tags | default(['always']) }}"
 
+# Enhanced force update with aggressive cleanup when requested
+- name: "[{{ repo_component_name | upper }}] Clean repository state before force update"
+  ansible.builtin.shell:
+    cmd: |
+      cd "{{ repo_destination }}"
+      git fetch --all --prune || true
+      git reset --hard || true
+      git clean -fdx || true
+      if ! git symbolic-ref HEAD >/dev/null 2>&1; then
+        echo "Detached HEAD detected, switching to {{ repo_branch }}"
+        git checkout -B "{{ repo_branch }}" "origin/{{ repo_branch }}" || git checkout "{{ repo_branch }}"
+      fi
+      git reset --hard "origin/{{ repo_branch }}" || true
+  when: 
+    - repo_git_exists.stat.exists | default(false)
+    - repo_force_update | default(false) | bool
+  become_user: "{{ repo_owner }}"
+  register: git_cleanup_result
+  tags: "{{ repo_tags | default(['always']) }}"
+
 # Force update existing repositories when requested
 - name: "[{{ repo_component_name | upper }}] Force update repository to latest"
   ansible.builtin.git:
@@ -109,7 +129,7 @@
     accept_hostkey: "{{ repo_accept_hostkey | default(true) }}"
   when: 
     - repo_git_exists.stat.exists | default(false)
-    - repo_force_update | default(false)
+    - repo_force_update | default(false) | bool
   become_user: "{{ repo_owner }}"
   register: git_update_result
   tags: "{{ repo_tags | default(['always']) }}"
