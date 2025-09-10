@@ -33,7 +33,7 @@
     update: true
   when: 
     - unified_api_dir.stat.exists
-    - device_api_force_update | default(false)
+    - device_api_force_update | default(false) | bool
   become_user: "{{ ansible_user }}"
   register: unified_api_update
 
@@ -46,7 +46,7 @@
   become_user: "{{ ansible_user }}"
   when: 
     - unified_api_dir.stat.exists
-    - device_api_force_update | default(false)
+    - device_api_force_update | default(false) | bool
   register: git_force_reset
   changed_when: true
 
@@ -70,7 +70,7 @@
   become_user: "{{ ansible_user }}"
   when: 
     - unified_api_dir.stat.exists
-    - device_api_force_update | default(false)
+    - device_api_force_update | default(false) | bool
   register: git_status_info
   changed_when: false
 
@@ -83,7 +83,7 @@
     deviceapi_current_branch: "{{ git_status_info.stdout_lines | select('match', '^BRANCH:') | first | regex_replace('^BRANCH:', '') | default('main') }}"
   when: 
     - unified_api_dir.stat.exists 
-    - device_api_force_update | default(false)
+    - device_api_force_update | default(false) | bool
     - git_status_info is defined 
     - git_status_info.stdout_lines is defined
 

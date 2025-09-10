@@ -12,7 +12,7 @@
         device_api_service_name: "{{ 'com.orangead.deviceapi' if platform_state.is_macos else 'orangead-deviceapi' }}"
         device_api_python: "{{ ansible_python.executable | default('/usr/bin/python3') }}"
         # Intelligent update strategy - only update when needed for better performance
-        device_api_force_update: "{{ device_api_force_update | default(false) }}"
+        device_api_force_update: "{{ device_api_force_update | default(false) | bool }}"
         device_api_force_service_restart: "{{ device_api_force_service_restart | default(false) }}"
 
     - name: Check if service restart is needed (macOS)
@@ -55,7 +55,7 @@
         repo_url: "{{ device_api.repository_url | default('https://github.com/oa-device/oaDeviceAPI.git') }}"
         repo_branch: "{{ device_api.branch | default('main') }}"
         repo_destination: "{{ device_api_path }}"
-        repo_force_update: "{{ device_api_force_update | default(false) }}"
+        repo_force_update: "{{ device_api_force_update | default(false) | bool }}"
         repo_owner: "{{ ansible_user }}"
         repo_group: "{{ 'staff' if platform_state.is_macos else ansible_user }}"
       tags: ["deviceapi", "setup", "files"]
