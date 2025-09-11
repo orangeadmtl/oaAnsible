@@ -98,6 +98,24 @@
   changed_when: false
   tags: "{{ repo_tags | default(['always']) }}"
 
+# Backup models directory before git operations (if exists)
+- name: "[{{ repo_component_name | upper }}] Cache models directory before git cleanup"
+  ansible.builtin.shell:
+    cmd: |
+      if [ -d "{{ repo_destination }}/models" ] && [ "$(ls -A "{{ repo_destination }}/models" 2>/dev/null)" ]; then
+        BACKUP_DIR="/tmp/models-cache-{{ repo_component_name }}"
+        rm -rf "$BACKUP_DIR" 2>/dev/null || true
+        cp -r "{{ repo_destination }}/models" "$BACKUP_DIR"
+        echo "[CACHE] Models directory cached to: $BACKUP_DIR"
+      else
+        echo "[CACHE] No models directory to cache"
+      fi
+  when: 
+    - repo_git_exists.stat.exists | default(false)
+    - repo_force_update | default(false) | bool
+  become_user: "{{ repo_owner }}"
+  tags: "{{ repo_tags | default(['always']) }}"
+
 # Enhanced force update with aggressive cleanup when requested
 - name: "[{{ repo_component_name | upper }}] Clean repository state before force update"
   ansible.builtin.shell:
@@ -132,6 +150,25 @@
     - repo_force_update | default(false) | bool
   become_user: "{{ repo_owner }}"
   register: git_update_result
+  tags: "{{ repo_tags | default(['always']) }}"
+
+# Restore cached models directory after git operations
+- name: "[{{ repo_component_name | upper }}] Restore cached models directory after git cleanup"
+  ansible.builtin.shell:
+    cmd: |
+      BACKUP_DIR="/tmp/models-cache-{{ repo_component_name }}"
+      if [ -d "$BACKUP_DIR" ]; then
+        mkdir -p "{{ repo_destination }}/models"
+        cp -r "$BACKUP_DIR"/* "{{ repo_destination }}/models/" 2>/dev/null || true
+        rm -rf "$BACKUP_DIR"
+        echo "[RESTORE] Models directory restored successfully"
+      else
+        echo "[RESTORE] No models cache found to restore"
+      fi
+  when: 
+    - repo_git_exists.stat.exists | default(false)
+    - repo_force_update | default(false) | bool
+  become_user: "{{ repo_owner }}"
   tags: "{{ repo_tags | default(['always']) }}"
 
 # Get commit information after updates
