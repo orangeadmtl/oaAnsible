@@ -46,7 +46,7 @@
         launchctl stop "{{ parking_monitor_service.name }}" 2>/dev/null || true
         sleep 2
         # Kill any lingering processes
-        pkill -f "parking.monitor" || true
+        pkill -f "src\.main" || true
         pkill -f "parking-monitor" || true
         sleep 1
       ignore_errors: true
