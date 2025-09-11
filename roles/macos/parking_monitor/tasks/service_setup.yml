@@ -47,7 +47,7 @@
         sleep 2
         # Kill any lingering processes
         pkill -f "src\.main" || true
-        pkill -f "parking-monitor" || true
+        pkill -f "oaParkingMonitor" || true
         sleep 1
       ignore_errors: true
       changed_when: false

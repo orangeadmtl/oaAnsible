@@ -6,7 +6,7 @@
 parking_monitor_repository:
   url: "https://github.com/oa-device/oaParkingMonitor.git"
   branch: "main"
-  destination: "{{ service_defaults.directories.base }}/parking-monitor"
+  destination: "{{ service_defaults.directories.base }}/oaParkingMonitor"
   force_update: "{{ parking_monitor_force_update | default(false) }}"
   # Options for forcing updates:
   # - Set parking_monitor_force_update: true in inventory to force update
@@ -23,7 +23,7 @@ parking_monitor_service:
 parking_monitor_python:
   version: "{{ service_defaults.python.version }}"
   requirements_file: "{{ service_defaults.python.requirements_file }}"
-  project_path: "{{ service_defaults.directories.base }}/parking-monitor"
+  project_path: "{{ service_defaults.directories.base }}/oaParkingMonitor"
   python_command: "{{ service_defaults.python.package_manager }} run python"
 
 # LaunchAgent Configuration (Device Setup)
@@ -34,8 +34,8 @@ parking_monitor_launchd:
   keep_alive: true
   restart_on_failure: true
   throttle_interval: 10
-  standard_out_path: "/tmp/parking-monitor.out"
-  standard_error_path: "/tmp/parking-monitor.err"
+  standard_out_path: "/tmp/oaParkingMonitor.out"
+  standard_error_path: "/tmp/oaParkingMonitor.err"
 
 # Environment Variables (Device Setup - Minimal Injection)
 parking_monitor_environment:

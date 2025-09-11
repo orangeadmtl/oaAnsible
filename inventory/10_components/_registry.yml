@@ -60,7 +60,7 @@ components:
     repository:
       url: "https://github.com/oa-device/oaParkingMonitor.git"
       branch: "main"
-      destination: "{{ ansible_user_dir }}/orangead/parking-monitor"
+      destination: "{{ ansible_user_dir }}/orangead/oaParkingMonitor"
     platforms: ["macos"]
     dependencies: ["device-api"]
     role: "macos/parking_monitor"

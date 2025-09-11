@@ -144,13 +144,13 @@ The service integrates with oaDashboard for:
 
 3. **Service Won't Start**
    ```bash
-   # Check logs: tail -f /tmp/parking-monitor.err
-   # Verify Python environment: cd ~/orangead/parking-monitor && uv run python --version
+   # Check logs: tail -f /tmp/oaParkingMonitor.err
+   # Verify Python environment: cd ~/orangead/oaParkingMonitor && uv run python --version
    ```
 
 ### Log Locations
-- Service logs: `~/orangead/parking-monitor/logs/`
-- System logs: `/tmp/parking-monitor.out|err`
+- Service logs: `~/orangead/oaParkingMonitor/logs/`
+- System logs: `/tmp/oaParkingMonitor.out|err`
 - Health logs: Available via `/api/parking/metrics` endpoint
 
 ## Development
